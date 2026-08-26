@@ -1,0 +1,331 @@
+{
+  "type": "FeatureCollection",
+  "name": "mula_mutha_osm_bridges",
+  "attribution": "© OpenStreetMap contributors",
+  "features": [
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "1151682763",
+        "name": "Sangamwadi Bridge",
+        "highway": "primary",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8574144,
+            18.532902
+          ],
+          [
+            73.8576487,
+            18.5329405
+          ],
+          [
+            73.8579602,
+            18.5329503
+          ],
+          [
+            73.8586975,
+            18.5328678
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "116839303",
+        "name": "Mundhwa Bridge",
+        "highway": "trunk",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.9335264,
+            18.5348157
+          ],
+          [
+            73.9337933,
+            18.5359911
+          ],
+          [
+            73.9339609,
+            18.5367282
+          ],
+          [
+            73.9341338,
+            18.5374827
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "117218165",
+        "name": "Fitzgerald Bridge",
+        "highway": "pedestrian",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8845599,
+            18.5446022
+          ],
+          [
+            73.8845145,
+            18.5448143
+          ],
+          [
+            73.8844821,
+            18.5449219
+          ],
+          [
+            73.884438,
+            18.5450684
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "117219023",
+        "name": "Fitzgerald Bridge",
+        "highway": "pedestrian",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8853993,
+            18.5415921
+          ],
+          [
+            73.8853171,
+            18.5416478
+          ],
+          [
+            73.8851333,
+            18.5421189
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "127048454",
+        "name": "Aga Khan Bridge",
+        "highway": "tertiary",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.9038133,
+            18.5397129
+          ],
+          [
+            73.9047268,
+            18.5425659
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "207164102",
+        "name": "Babasaheb Ambedkar Bridge",
+        "highway": "trunk",
+        "lanes": 4,
+        "widthM": 14.4,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8840574,
+            18.541454
+          ],
+          [
+            73.8833053,
+            18.5447096
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "207164105",
+        "name": "Bund Garden Bridge",
+        "highway": "crossing",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8843047,
+            18.5451618
+          ],
+          [
+            73.884438,
+            18.5450684
+          ],
+          [
+            73.8845346,
+            18.5449853
+          ],
+          [
+            73.8846775,
+            18.5447753
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "208004768",
+        "name": "Sangamwadi Bridge",
+        "highway": "primary",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8540177,
+            18.5322077
+          ],
+          [
+            73.8541451,
+            18.5322687
+          ],
+          [
+            73.854247,
+            18.5323056
+          ],
+          [
+            73.8543972,
+            18.5323335
+          ],
+          [
+            73.8550074,
+            18.5324378
+          ],
+          [
+            73.8574144,
+            18.532902
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "216506270",
+        "name": "Dengle Bridge",
+        "highway": "secondary",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8571409,
+            18.5253018
+          ],
+          [
+            73.8579637,
+            18.5241129
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "22841323",
+        "name": "Shivaji Bridge",
+        "highway": "trunk",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.855011,
+            18.5217641
+          ],
+          [
+            73.8546359,
+            18.5226008
+          ],
+          [
+            73.8544456,
+            18.5230547
+          ],
+          [
+            73.8542993,
+            18.5233981
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "23028035",
+        "name": "Sangam Bridge",
+        "highway": "primary",
+        "lanes": 2,
+        "widthM": 9,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.8593128,
+            18.5284254
+          ],
+          [
+            73.8615855,
+            18.5285245
+          ]
+        ]
+      }
+    }
+  ]
+}

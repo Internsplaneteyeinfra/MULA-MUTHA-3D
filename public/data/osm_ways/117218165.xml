@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (39128 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="1320305042" visible="true" version="3" changeset="148322456" timestamp="2024-03-07T04:17:47Z" user="Harshil Sharma" uid="7155990" lat="18.5446022" lon="73.8845599"/>
+ <node id="2477522753" visible="true" version="1" changeset="18108509" timestamp="2013-09-30T11:31:48Z" user="singleton" uid="1157969" lat="18.5448143" lon="73.8845145"/>
+ <node id="2477522760" visible="true" version="1" changeset="18108509" timestamp="2013-09-30T11:31:48Z" user="singleton" uid="1157969" lat="18.5450684" lon="73.8844380"/>
+ <node id="2836383189" visible="true" version="1" changeset="22132477" timestamp="2014-05-04T18:49:56Z" user="singleton" uid="1157969" lat="18.5449219" lon="73.8844821"/>
+ <way id="117218165" visible="true" version="11" changeset="166963800" timestamp="2025-05-30T10:44:38Z" user="user_14062769" uid="14062769">
+  <nd ref="1320305042"/>
+  <nd ref="2477522753"/>
+  <nd ref="2836383189"/>
+  <nd ref="2477522760"/>
+  <tag k="bicycle" v="yes"/>
+  <tag k="foot" v="yes"/>
+  <tag k="highway" v="pedestrian"/>
+  <tag k="motor_vehicle" v="no"/>
+  <tag k="name" v="Fitzgerald Bridge"/>
+  <tag k="name:etymology:wikidata" v="Q8019718"/>
+  <tag k="ref" v="SH27"/>
+ </way>
+</osm>

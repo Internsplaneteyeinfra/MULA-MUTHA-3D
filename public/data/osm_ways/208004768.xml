@@ -1,0 +1,25 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (39115 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="497061076" visible="true" version="15" changeset="93110441" timestamp="2020-10-27T09:50:46Z" user="sara2215" uid="9399911" lat="18.5323335" lon="73.8543972"/>
+ <node id="498682023" visible="true" version="9" changeset="93110441" timestamp="2020-10-27T09:50:46Z" user="sara2215" uid="9399911" lat="18.5323056" lon="73.8542470"/>
+ <node id="6190168310" visible="true" version="2" changeset="86561454" timestamp="2020-06-12T10:36:26Z" user="Omkar2805" uid="10060470" lat="18.5329020" lon="73.8574144"/>
+ <node id="6190168328" visible="true" version="2" changeset="93110441" timestamp="2020-10-27T09:50:46Z" user="sara2215" uid="9399911" lat="18.5322687" lon="73.8541451"/>
+ <node id="6190168330" visible="true" version="2" changeset="93110441" timestamp="2020-10-27T09:50:46Z" user="sara2215" uid="9399911" lat="18.5324378" lon="73.8550074"/>
+ <node id="6190168332" visible="true" version="3" changeset="93110441" timestamp="2020-10-27T09:50:46Z" user="sara2215" uid="9399911" lat="18.5322077" lon="73.8540177"/>
+ <way id="208004768" visible="true" version="9" changeset="133348998" timestamp="2023-03-06T05:46:55Z" user="Devdatta" uid="1004700">
+  <nd ref="6190168332"/>
+  <nd ref="6190168328"/>
+  <nd ref="498682023"/>
+  <nd ref="497061076"/>
+  <nd ref="6190168330"/>
+  <nd ref="6190168310"/>
+  <tag k="bridge" v="yes"/>
+  <tag k="highway" v="primary"/>
+  <tag k="lanes" v="2"/>
+  <tag k="layer" v="1"/>
+  <tag k="name" v="Sangamwadi Bridge"/>
+  <tag k="name:mr" v="संगमवाडी पूल"/>
+  <tag k="oneway" v="yes"/>
+  <tag k="surface" v="asphalt"/>
+ </way>
+</osm>

@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (942612 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="1609799978" visible="true" version="3" changeset="15159912" timestamp="2013-02-25T10:53:30Z" user="singleton" uid="1157969" lat="18.5447096" lon="73.8833053"/>
+ <node id="2173207833" visible="true" version="2" changeset="18108509" timestamp="2013-09-30T11:32:09Z" user="singleton" uid="1157969" lat="18.5414540" lon="73.8840574"/>
+ <way id="207164102" visible="true" version="8" changeset="123068416" timestamp="2022-07-01T07:27:52Z" user="user_14062769" uid="14062769">
+  <nd ref="2173207833"/>
+  <nd ref="1609799978"/>
+  <tag k="access" v="yes"/>
+  <tag k="bridge" v="yes"/>
+  <tag k="foot" v="yes"/>
+  <tag k="highway" v="trunk"/>
+  <tag k="lanes" v="4"/>
+  <tag k="layer" v="1"/>
+  <tag k="maxspeed" v="60"/>
+  <tag k="name" v="Babasaheb Ambedkar Bridge"/>
+  <tag k="name:etymology:wikidata" v="Q231690"/>
+  <tag k="name:mr" v="बाबासाहेब आंबेडकर पूल"/>
+  <tag k="oneway" v="yes"/>
+  <tag k="ref" v="NH753F"/>
+  <tag k="ref:old" v="SH60"/>
+  <tag k="surface" v="asphalt"/>
+ </way>
+</osm>

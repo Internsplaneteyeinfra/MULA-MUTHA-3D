@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (39102 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="2258420182" visible="true" version="2" changeset="82439521" timestamp="2020-03-20T16:22:29Z" user="singleton" uid="1157969" lat="18.5241129" lon="73.8579637"/>
+ <node id="7312902938" visible="true" version="2" changeset="92469767" timestamp="2020-10-14T11:30:40Z" user="VLD261" uid="10979447" lat="18.5253018" lon="73.8571409"/>
+ <way id="216506270" visible="true" version="7" changeset="134253104" timestamp="2023-03-29T09:01:26Z" user="cartofy" uid="1315722">
+  <nd ref="7312902938"/>
+  <nd ref="2258420182"/>
+  <tag k="alt_name" v="Dagadi Pul"/>
+  <tag k="alt_name:mr" v="दगडी पूल"/>
+  <tag k="bridge" v="yes"/>
+  <tag k="highway" v="secondary"/>
+  <tag k="layer" v="1"/>
+  <tag k="name" v="Dengle Bridge"/>
+  <tag k="name:mr" v="डेंगळे पूल"/>
+  <tag k="oneway" v="yes"/>
+ </way>
+</osm>

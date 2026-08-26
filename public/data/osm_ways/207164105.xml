@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (39120 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="2173207837" visible="true" version="5" changeset="100841248" timestamp="2021-03-11T12:12:00Z" user="Satcow" uid="12825050" lat="18.5449853" lon="73.8845346">
+  <tag k="crossing" v="unmarked"/>
+  <tag k="highway" v="crossing"/>
+ </node>
+ <node id="2225653643" visible="true" version="4" changeset="92940864" timestamp="2020-10-23T09:23:24Z" user="VLD110" uid="9153383" lat="18.5447753" lon="73.8846775"/>
+ <node id="2477522760" visible="true" version="1" changeset="18108509" timestamp="2013-09-30T11:31:48Z" user="singleton" uid="1157969" lat="18.5450684" lon="73.8844380"/>
+ <node id="2477522764" visible="true" version="2" changeset="22132477" timestamp="2014-05-04T18:50:21Z" user="singleton" uid="1157969" lat="18.5451618" lon="73.8843047"/>
+ <way id="207164105" visible="true" version="7" changeset="92940864" timestamp="2020-10-23T09:23:24Z" user="VLD110" uid="9153383">
+  <nd ref="2477522764"/>
+  <nd ref="2477522760"/>
+  <nd ref="2173207837"/>
+  <nd ref="2225653643"/>
+  <tag k="highway" v="trunk"/>
+  <tag k="lanes" v="2"/>
+  <tag k="maxspeed" v="60"/>
+  <tag k="name" v="Bund Garden Bridge"/>
+  <tag k="oneway" v="yes"/>
+ </way>
+</osm>

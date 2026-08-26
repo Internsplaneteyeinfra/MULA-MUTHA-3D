@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (942612 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="245647058" visible="true" version="10" changeset="178637530" timestamp="2026-02-16T16:24:13Z" user="AnnaCatarina" uid="560578" lat="18.5217641" lon="73.8550110">
+  <tag k="source" v="AND"/>
+ </node>
+ <node id="248432774" visible="true" version="5" changeset="178637530" timestamp="2026-02-16T16:24:13Z" user="AnnaCatarina" uid="560578" lat="18.5233981" lon="73.8542993"/>
+ <node id="4725501013" visible="true" version="3" changeset="178637530" timestamp="2026-02-16T16:24:13Z" user="AnnaCatarina" uid="560578" lat="18.5230547" lon="73.8544456"/>
+ <node id="8049720022" visible="true" version="2" changeset="178637530" timestamp="2026-02-16T16:24:13Z" user="AnnaCatarina" uid="560578" lat="18.5226008" lon="73.8546359"/>
+ <way id="22841323" visible="true" version="23" changeset="140305796" timestamp="2023-08-24T06:56:03Z" user="Darshula" uid="18546479">
+  <nd ref="245647058"/>
+  <nd ref="8049720022"/>
+  <nd ref="4725501013"/>
+  <nd ref="248432774"/>
+  <tag k="alt_name" v="Nava Pul"/>
+  <tag k="alt_name:mr" v="नवा पूल"/>
+  <tag k="bridge" v="yes"/>
+  <tag k="highway" v="trunk"/>
+  <tag k="lane_markings" v="no"/>
+  <tag k="layer" v="1"/>
+  <tag k="name" v="Shivaji Bridge"/>
+  <tag k="name:etymology:wikidata" v="Q239505"/>
+  <tag k="name:mr" v="शिवाजी पूल"/>
+  <tag k="name:ne" v="शिवाजी पुल"/>
+  <tag k="ref" v="NH60;NH65"/>
+  <tag k="surface" v="asphalt"/>
+  <tag k="wikidata" v="Q98802526"/>
+ </way>
+</osm>

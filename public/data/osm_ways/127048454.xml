@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (39113 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="1406918824" visible="true" version="3" changeset="15844861" timestamp="2013-04-24T05:54:52Z" user="singleton" uid="1157969" lat="18.5425659" lon="73.9047268"/>
+ <node id="1406922029" visible="true" version="2" changeset="15844861" timestamp="2013-04-24T05:54:52Z" user="singleton" uid="1157969" lat="18.5397129" lon="73.9038133"/>
+ <way id="127048454" visible="true" version="9" changeset="126296066" timestamp="2022-09-17T12:06:25Z" user="Blamouche" uid="6381931">
+  <nd ref="1406922029"/>
+  <nd ref="1406918824"/>
+  <tag k="bridge" v="yes"/>
+  <tag k="highway" v="tertiary"/>
+  <tag k="lanes" v="2"/>
+  <tag k="layer" v="1"/>
+  <tag k="name" v="Aga Khan Bridge"/>
+  <tag k="name:mr" v="आगा खान पूल"/>
+  <tag k="oneway" v="yes"/>
+  <tag k="shoulder" v="right"/>
+  <tag k="surface" v="asphalt"/>
+ </way>
+</osm>

@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<osm version="0.6" generator="openstreetmap-cgimap 2.1.0 (942611 spike-08.openstreetmap.org)" copyright="OpenStreetMap and contributors" attribution="http://www.openstreetmap.org/copyright" license="http://opendatacommons.org/licenses/odbl/1-0/">
+ <node id="1316253845" visible="true" version="4" changeset="92108559" timestamp="2020-10-07T11:27:25Z" user="VLD261" uid="10979447" lat="18.5374827" lon="73.9341338"/>
+ <node id="1316256081" visible="true" version="4" changeset="78554738" timestamp="2019-12-18T03:20:04Z" user="Arpitha AM" uid="8782077" lat="18.5348157" lon="73.9335264"/>
+ <node id="7065274706" visible="true" version="2" changeset="92108559" timestamp="2020-10-07T11:27:25Z" user="VLD261" uid="10979447" lat="18.5367282" lon="73.9339609"/>
+ <node id="7065274707" visible="true" version="2" changeset="92108559" timestamp="2020-10-07T11:27:25Z" user="VLD261" uid="10979447" lat="18.5359911" lon="73.9337933"/>
+ <way id="116839303" visible="true" version="7" changeset="88493385" timestamp="2020-07-25T11:52:36Z" user="Omkar2805" uid="10060470">
+  <nd ref="1316256081"/>
+  <nd ref="7065274707"/>
+  <nd ref="7065274706"/>
+  <nd ref="1316253845"/>
+  <tag k="bicycle" v="yes"/>
+  <tag k="bridge" v="yes"/>
+  <tag k="highway" v="trunk"/>
+  <tag k="lanes" v="2"/>
+  <tag k="layer" v="1"/>
+  <tag k="maxspeed" v="40"/>
+  <tag k="name" v="Mundhwa Bridge"/>
+  <tag k="oneway" v="yes"/>
+ </way>
+</osm>
