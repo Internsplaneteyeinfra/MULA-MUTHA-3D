@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Mula-Mutha River - 2D Water Depth Map</name>
+  <description>Color-coded water depth overlay (light=shallow near banks, dark blue=deep mid-channel). Depth range: 1.53m - 2.0m</description>
+  <GroundOverlay>
+    <name>Water Depth Overlay</name>
+    <description>Bathymetry color raster derived from surveyed water extent grid</description>
+    <Icon>
+      <href>mula_mutha_depth_overlay.png</href>
+    </Icon>
+    <LatLonBox>
+      <north>18.54735962</north>
+      <south>18.52083962</south>
+      <east>73.99281512</east>
+      <west>73.85517512</west>
+      <rotation>0</rotation>
+    </LatLonBox>
+  </GroundOverlay>
+  <ScreenOverlay>
+    <name>Legend</name>
+    <Icon>
+      <href>depth_legend.png</href>
+    </Icon>
+    <overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+    <screenXY x="0.02" y="0.98" xunits="fraction" yunits="fraction"/>
+    <size x="0" y="0" xunits="fraction" yunits="fraction"/>
+  </ScreenOverlay>
+</Document>
+</kml>
