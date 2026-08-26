@@ -145,12 +145,10 @@ npm start
 Workflows live in `.github/workflows/`:
 
 - **CI** — build + smoke on push/PR
-- **Deploy** — build with `VITE_BASE=/<repo>/` → GitHub Pages
+- **Deploy** — **manual only** (`workflow_dispatch`); does not run on push for now
 
-**Required once (fixes Deploy 404):**  
-[Settings → Pages](https://github.com/Internsplaneteyeinfra/MULA-MUTHA-3D/settings/pages) → **Build and deployment** → **Source: GitHub Actions** → Save.  
-Then re-run the **Deploy** workflow (or push again). Site URL:  
-`https://internsplaneteyeinfra.github.io/MULA-MUTHA-3D/`
+When you want Pages later: enable [Settings → Pages](https://github.com/Internsplaneteyeinfra/MULA-MUTHA-3D/settings/pages) → Source **GitHub Actions**, then run **Deploy** from the Actions tab.  
+Site URL: `https://internsplaneteyeinfra.github.io/MULA-MUTHA-3D/`
 
 ---
 
