@@ -35,27 +35,6 @@ const BAND = {
 
 const MIN_JUMP_PX = 60;
 const EXCLUSION_M = 4.0;
-/** Target on-screen size so fish stay readable at every fishing-point camera distance. */
-const FISH_TARGET_PX = { fg: 58, mid: 44, bg: 34 };
-
-/**
- * Scale fish so they stay colorful and readable even when the camera is ~100–150 m away.
- */
-function applyReadableFishScale(a, camera, extra = 1) {
-  const base = a.fixedScale * extra;
-  if (!camera?.position) {
-    a.mesh.scale.setScalar(base * 1.6);
-    return;
-  }
-  const d = Math.max(6, camera.position.distanceTo(a.mesh.position));
-  const h = window.innerHeight || 720;
-  const fovRad = THREE.MathUtils.degToRad(camera.fov ?? 50);
-  const metersToPx = h / (2 * Math.tan(fovRad * 0.5) * d);
-  const targetPx = FISH_TARGET_PX[a.band] ?? 40;
-  const currentPx = Math.max(0.001, base * metersToPx);
-  const mul = THREE.MathUtils.clamp(targetPx / currentPx, 1.5, 16);
-  a.mesh.scale.setScalar(base * mul);
-}
 
 /**
  * Guaranteed on-screen fish + jumps at every Fishing_Locations.kml point.
@@ -121,7 +100,7 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
     for (const cat of FISH_CATEGORIES) {
       for (let s = 0; s < 5; s++) {
         const i = fi++;
-        const lengthBoost = bandPlan[i] === "fg" ? 2.15 : bandPlan[i] === "mid" ? 1.85 : 1.55;
+        const lengthBoost = bandPlan[i] === "fg" ? 1.3 : bandPlan[i] === "mid" ? 1.1 : 1.0;
         const mesh = library.createInstance(cat.id, { lengthM: cat.lengthM * lengthBoost });
         const fixedScale = mesh.scale.x;
         mesh.userData.fixedScale = fixedScale;
@@ -224,7 +203,7 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
           updateJumpScheduler(point, camera, time, dt, ringLocal, dataset, fishingShot);
         }
       } else {
-        updateAmbient(point, time, dt, ringLocal, dataset, camera);
+        updateAmbient(point, time, dt, ringLocal, dataset);
       }
 
       for (const a of point.fish) {
@@ -237,9 +216,6 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
             a.mesh.position.addScaledVector(_camDir, EXCLUSION_M - d + 0.5);
           }
         }
-        // Distance-aware scale so fish stay readable at every fishing point
-        if (a.jumpState === "arc") applyReadableFishScale(a, camera, 1.25);
-        else applyReadableFishScale(a, camera, 1);
       }
     }
 
@@ -296,10 +272,10 @@ function buildDepthPlan(n) {
 }
 
 function shallowDepth(layer) {
-  // Swim higher so colorful fish read clearly against the water surface
-  if (layer === "surface") return 0.08 + Math.random() * 0.18;
-  if (layer === "bottom") return 0.7 + Math.random() * 0.55;
-  return 0.28 + Math.random() * 0.35;
+  // Swim a little higher so fish read near the surface
+  if (layer === "surface") return 0.15 + Math.random() * 0.25;
+  if (layer === "bottom") return 1.1 + Math.random() * 0.8;
+  return 0.5 + Math.random() * 0.45;
 }
 
 function homeSlot(i, n, radius) {
@@ -349,12 +325,14 @@ function placeAtHome(a, point, ringLocal, dataset, time) {
   const depth = THREE.MathUtils.clamp(a.depthBelow, 0.35, 1.6);
   const y = THREE.MathUtils.clamp(surface - depth, bed + 0.3, surface - 0.2);
   a.mesh.position.set(x, y, z);
+  a.mesh.scale.setScalar(a.fixedScale);
 }
 
-function updateAmbient(point, time, dt, ringLocal, dataset, camera) {
+function updateAmbient(point, time, dt, ringLocal, dataset) {
   const { fx, fz, px, pz } = flowBasis(point);
   for (const a of point.fish) {
     if (a.jumpState !== "swim") continue;
+    a.mesh.scale.setScalar(a.fixedScale);
     a.wanderT += dt * a.swimSpeed;
     const along = a.homeAlong + Math.sin(a.wanderT * 0.55 + a.phaseOffset) * 1.1;
     const lat = a.homeLat + Math.cos(a.wanderT * 0.4 + a.phaseOffset) * 0.9;
@@ -368,7 +346,6 @@ function updateAmbient(point, time, dt, ringLocal, dataset, camera) {
     a.mesh.position.lerp(_tmp.set(x, y, z), 1 - Math.exp(-dt * 2.2));
     orientMesh(a, fx, fz, time, dt);
   }
-  void camera;
 }
 
 /**
@@ -377,7 +354,7 @@ function updateAmbient(point, time, dt, ringLocal, dataset, camera) {
  */
 function updateCameraPresentationVolume(point, camera, time, dt, ringLocal, dataset) {
   if (!camera) {
-    updateAmbient(point, time, dt, ringLocal, dataset, null);
+    updateAmbient(point, time, dt, ringLocal, dataset);
     return;
   }
 
@@ -436,6 +413,7 @@ function updateCameraPresentationVolume(point, camera, time, dt, ringLocal, data
     const depth = THREE.MathUtils.clamp(slot.depth, 0.3, 1.7);
     const y = THREE.MathUtils.clamp(surface - depth, bed + 0.25, surface - 0.18);
 
+    a.mesh.scale.setScalar(a.fixedScale);
     a.mesh.position.lerp(_tmp.set(x, y, z), 1 - Math.exp(-dt * 4.2));
     // Mixed headings — not all face the same way
     let dx = fx;
@@ -462,6 +440,7 @@ function updateCameraPresentationVolume(point, camera, time, dt, ringLocal, data
   // Remaining fish stay shallow in zone
   for (const a of point.fish) {
     if (a.presentationSlot >= 0 || a.jumpState !== "swim") continue;
+    a.mesh.scale.setScalar(a.fixedScale);
     placeAtHome(a, point, ringLocal, dataset, time);
     a.mesh.position.y = waterSurfaceYAt(a.mesh.position.x, a.mesh.position.z, time) - Math.min(a.depthBelow, 1.4);
     orientMesh(a, fx, fz, time, dt);
@@ -520,6 +499,7 @@ function activatePresentationCorrection(point, camera, time, dt, ringLocal, data
     const surface = waterSurfaceYAt(x, z, time);
     const y = surface - slot.depth;
     a.mesh.position.lerp(_tmp.set(x, y, z), 1 - Math.exp(-dt * 6));
+    a.mesh.scale.setScalar(a.fixedScale * 1.15);
     rescued++;
   }
 }
@@ -743,9 +723,9 @@ function tryBeginVisibleJump(a, point, camera, side, ringLocal, dataset, time) {
       if (peak.z < -1 || peak.z > 1) continue;
       if (nx < 0.2 || nx > 0.8 || ny < 0.35 || ny > 0.85) continue;
 
-      // Pixel size estimate at peak (use distance-readable scale)
+      // Pixel size estimate at peak
       const dPeak = camera.position.distanceTo(_tmp2.set(sx + fx * 2.5, surface + peakH, sz + fz * 2.5));
-      const approxPx = ((a.fixedScale * 4) / (dPeak * 0.85 + 1e-3)) * (window.innerHeight || 720);
+      const approxPx = ((a.fixedScale * 1.3) / (dPeak * 0.85 + 1e-3)) * (window.innerHeight || 720);
       if (approxPx < MIN_JUMP_PX * 0.85) continue;
 
       // Validate takeoff & landing NDC
@@ -762,6 +742,8 @@ function tryBeginVisibleJump(a, point, camera, side, ringLocal, dataset, time) {
       a.jumpDuration = 0.85;
       a._splashExit = false;
       a._splashLand = false;
+      // Boost scale during jump for readability
+      a.mesh.scale.setScalar(a.fixedScale * 1.45);
       return true;
     }
   }
@@ -826,6 +808,7 @@ function updateJumpArc(a, point, camera, time, dt, ringLocal, dataset) {
 
   if (u >= 1) {
     a.jumpState = "swim";
+    a.mesh.scale.setScalar(a.fixedScale);
     const bed = bedYAt(a.mesh.position.x, a.mesh.position.z, dataset);
     a.mesh.position.y = THREE.MathUtils.clamp(surface - a.depthBelow, bed + 0.3, surface - 0.2);
   }

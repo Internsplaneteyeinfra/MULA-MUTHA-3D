@@ -18,13 +18,13 @@ export function createTerrain(dataset) {
   const pos = geo.attributes.position;
   const colors = new Float32Array(pos.count * 3);
   const stations = dataset.corridor.stations;
-  const cGrass = new THREE.Color("#6f9268");
-  const cOlive = new THREE.Color("#86a86e");
-  const cEarth = new THREE.Color("#9a7a52");
-  const cStone = new THREE.Color("#b09a78");
-  const cBank = new THREE.Color("#8a6a40");
-  const cWet = new THREE.Color("#5f7a58");
-  const cSand = new THREE.Color("#d2b078");
+  const cGrass = new THREE.Color("#6a8664");
+  const cOlive = new THREE.Color("#7e9a68");
+  const cEarth = new THREE.Color("#8f7a58");
+  const cStone = new THREE.Color("#a89878");
+  const cBank = new THREE.Color("#6e5c40");
+  const cWet = new THREE.Color("#5a7454");
+  const cSand = new THREE.Color("#a89068");
   const tmp = new THREE.Color();
 
   for (let i = 0; i < pos.count; i++) {
@@ -42,9 +42,8 @@ export function createTerrain(dataset) {
     tmp.lerp(cOlive, smooth(hn, 0.26, 0.55));
     tmp.lerp(cEarth, smooth(hn, 0.48, 0.78));
     tmp.lerp(cStone, smooth(hn, 0.7, 1) * (0.25 + slopeHint * 0.3));
-    // Stronger near-bank contrast so river sides read against water
-    if (lat < half * 2.4) tmp.lerp(cBank, (1 - lat / (half * 2.4)) * 0.55);
-    if (lat < half * 1.55) tmp.lerp(cSand, 0.48 * (1 - lat / (half * 1.55)));
+    if (lat < half * 2.2) tmp.lerp(cBank, (1 - lat / (half * 2.2)) * 0.38);
+    if (lat < half * 1.3) tmp.lerp(cSand, 0.24 * (1 - lat / (half * 1.3)));
     colors[i * 3] = tmp.r;
     colors[i * 3 + 1] = tmp.g;
     colors[i * 3 + 2] = tmp.b;
@@ -115,12 +114,11 @@ function heightAt(x, z, stations) {
   const half = Math.max(12, near.st.halfWidth);
 
   const hills =
-    fbm(x * 0.00045, z * 0.00045) * 22 +
-    fbm(x * 0.0012 + 4, z * 0.0012) * 10 +
-    fbm(x * 0.003 + 9, z * 0.003) * 4;
-  // Hills start closer to the water so banks read from fishing-point views
-  const bankFalloff = THREE.MathUtils.smoothstep(lat / (half * 2.4), 0.15, 1);
-  const base = SURFACE_Y + 3.5 + hills * bankFalloff;
+    fbm(x * 0.00045, z * 0.00045) * 18 +
+    fbm(x * 0.0012 + 4, z * 0.0012) * 8 +
+    fbm(x * 0.003 + 9, z * 0.003) * 3;
+  const bankFalloff = THREE.MathUtils.smoothstep(lat / (half * 3.5), 0.35, 1);
+  const base = SURFACE_Y + 2 + hills * bankFalloff;
 
   // Carve river channel deep below water so terrain never shows as "patches" through surface
   if (lat < half * 0.98) {
@@ -129,11 +127,10 @@ function heightAt(x, z, stations) {
     const channelY = THREE.MathUtils.lerp(SURFACE_Y - 1.2, SURFACE_Y - 14, THREE.MathUtils.smoothstep(0, 1, 1 - u));
     return channelY;
   }
-  // Steeper berm just outside water edge — visible river sides from overhead
-  if (lat < half * 1.55) {
-    const t = (lat - half * 0.98) / (half * 0.57);
-    const bankCrest = SURFACE_Y + 5.5 + hills * 0.4;
-    return THREE.MathUtils.lerp(SURFACE_Y - 1.2, bankCrest, THREE.MathUtils.smoothstep(0, 1, t));
+  // Soft bank blend just outside water edge
+  if (lat < half * 1.35) {
+    const t = (lat - half * 0.98) / (half * 0.37);
+    return THREE.MathUtils.lerp(SURFACE_Y - 1.2, base, THREE.MathUtils.smoothstep(0, 1, t));
   }
   return base;
 }

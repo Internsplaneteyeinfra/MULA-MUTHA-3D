@@ -12,10 +12,10 @@ export const FISH_CATEGORIES = [
     label: "Crucian carp",
     source: "gltf",
     url: "/models/fish/crucian/scene.gltf",
-    lengthM: 3.2,
+    lengthM: 1.25,
     sizeClass: "large",
     layerBias: "mid",
-    color: 0xffd24a,
+    color: 0xc4a060,
   },
   {
     id: "shark",
@@ -23,20 +23,20 @@ export const FISH_CATEGORIES = [
     source: "gltf+texture",
     url: "/models/fish/crucian/scene.gltf",
     textureUrl: "/models/fish/textures/species_b_shark.jpg",
-    lengthM: 3.6,
+    lengthM: 1.4,
     sizeClass: "large",
     layerBias: "mid",
-    color: 0x5ad4ff,
+    color: 0xa8b4bc,
   },
   {
     id: "betta",
     label: "Betta",
     source: "procedural+texture",
     textureUrl: "/models/fish/textures/species_c_betta.jpg",
-    lengthM: 2.6,
+    lengthM: 0.8,
     sizeClass: "small",
     layerBias: "surface",
-    color: 0xff2f6a,
+    color: 0xc06050,
   },
   {
     id: "lowpoly",
@@ -44,20 +44,20 @@ export const FISH_CATEGORIES = [
     source: "gltf+texture",
     url: "/models/fish/crucian/scene.gltf",
     textureUrl: "/models/fish/textures/species_d_lowpoly1.jpg",
-    lengthM: 3.0,
+    lengthM: 1.0,
     sizeClass: "medium",
     layerBias: "mid",
-    color: 0xff8a1a,
+    color: 0xb88848,
   },
   {
     id: "eel",
     label: "American eel",
     source: "procedural+texture",
     textureUrl: "/models/fish/textures/species_e_eel.png",
-    lengthM: 3.1,
+    lengthM: 1.05,
     sizeClass: "medium",
     layerBias: "bottom",
-    color: 0x2affb0,
+    color: 0x6a7858,
     elongated: true,
   },
 ];
@@ -227,14 +227,13 @@ function sanitizeFishMaterials(root, cat, texture) {
       m.opacity = 1;
       m.depthWrite = true;
       m.side = THREE.DoubleSide;
-      m.roughness = 0.48;
-      m.metalness = 0.04;
-      // Strong tinted emissive so species stay readable against green water
+      m.roughness = 0.62;
+      m.metalness = 0.02;
       if (m.emissive) {
-        m.emissive.setHex(cat.color);
-        m.emissiveIntensity = 0.68;
+        m.emissive.setHex(0x1a1810);
+        m.emissiveIntensity = 0.18;
       }
-      if ("envMapIntensity" in m) m.envMapIntensity = 1.15;
+      if ("envMapIntensity" in m) m.envMapIntensity = 0.85;
       m.needsUpdate = true;
     }
     if (Array.isArray(obj.material)) obj.material = mats;

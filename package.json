@@ -5,13 +5,12 @@
   "description": "Standalone Mula–Mutha hydrology visualization (EPSG:32643, KML corridor, Excel bathymetry, OSM context).",
   "type": "module",
   "engines": {
-    "node": ">=22"
+    "node": ">=20"
   },
   "scripts": {
     "dev": "vite",
     "build": "vite build",
     "preview": "vite preview",
-    "start": "node scripts/serve-dist.mjs",
     "smoke": "node scripts/ci-smoke.mjs",
     "ci": "npm run build && npm run smoke",
     "generate:buildings": "node scripts/generateBuildingAssets.mjs",
