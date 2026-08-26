@@ -1,8 +1,7 @@
 name: Deploy
 
+# Manual only — do not auto-deploy on push for now.
 on:
-  push:
-    branches: [main, master]
   workflow_dispatch:
 
 permissions:
