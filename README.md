@@ -147,7 +147,10 @@ Workflows live in `.github/workflows/`:
 - **CI** — build + smoke on push/PR
 - **Deploy** — build with `VITE_BASE=/<repo>/` → GitHub Pages
 
-Enable **Settings → Pages → Source: GitHub Actions** after the first successful deploy workflow.
+**Required once (fixes Deploy 404):**  
+[Settings → Pages](https://github.com/Internsplaneteyeinfra/MULA-MUTHA-3D/settings/pages) → **Build and deployment** → **Source: GitHub Actions** → Save.  
+Then re-run the **Deploy** workflow (or push again). Site URL:  
+`https://internsplaneteyeinfra.github.io/MULA-MUTHA-3D/`
 
 ---
 

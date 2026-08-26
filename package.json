@@ -5,7 +5,7 @@
   "description": "Standalone Mula–Mutha hydrology visualization (EPSG:32643, KML corridor, Excel bathymetry, OSM context).",
   "type": "module",
   "engines": {
-    "node": ">=20"
+    "node": ">=22"
   },
   "scripts": {
     "dev": "vite",
