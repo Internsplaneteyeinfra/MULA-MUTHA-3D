@@ -1,0 +1,32 @@
+{
+  "name": "mula-mutha-cinematic",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Standalone Mula–Mutha hydrology visualization (EPSG:32643, KML corridor, Excel bathymetry, OSM context).",
+  "type": "module",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "node scripts/serve-dist.mjs",
+    "smoke": "node scripts/ci-smoke.mjs",
+    "ci": "npm run build && npm run smoke",
+    "generate:buildings": "node scripts/generateBuildingAssets.mjs",
+    "fetch:osm": "python scripts/fetchOsmMapApi.py",
+    "fetch:osm:east-buildings": "python scripts/fetchEastBuildings.py",
+    "fetch:osm:trees": "python scripts/fetchOsmTrees.py",
+    "extract:osm": "python scripts/extractOsmFromKml.py",
+    "extract:osm:validate": "python scripts/extractOsmFromKml.py --skip-fetch",
+    "enrich:osm": "python scripts/enrichOsmDatasets.py"
+  },
+  "dependencies": {
+    "proj4": "^2.15.0",
+    "three": "^0.170.0"
+  },
+  "devDependencies": {
+    "vite": "^6.0.11"
+  }
+}
