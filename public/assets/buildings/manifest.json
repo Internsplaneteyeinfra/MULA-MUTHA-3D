@@ -1,0 +1,86 @@
+{
+  "generated": "2026-08-25T04:08:07.506Z",
+  "note": "Procedural low-poly building kit. Geographic positions come from OSM footprints only.",
+  "assets": [
+    {
+      "id": "residential/house_01",
+      "url": "/assets/buildings/residential/house_01.glb",
+      "kind": "house",
+      "nativeW": 10,
+      "nativeD": 8,
+      "nativeH": 7
+    },
+    {
+      "id": "residential/house_02",
+      "url": "/assets/buildings/residential/house_02.glb",
+      "kind": "house",
+      "nativeW": 9,
+      "nativeD": 9,
+      "nativeH": 6.5
+    },
+    {
+      "id": "residential/house_03",
+      "url": "/assets/buildings/residential/house_03.glb",
+      "kind": "house",
+      "nativeW": 12,
+      "nativeD": 7,
+      "nativeH": 8
+    },
+    {
+      "id": "residential/row_house_01",
+      "url": "/assets/buildings/residential/row_house_01.glb",
+      "kind": "row",
+      "nativeW": 18,
+      "nativeD": 8,
+      "nativeH": 9
+    },
+    {
+      "id": "apartments/apartment_lowrise",
+      "url": "/assets/buildings/apartments/apartment_lowrise.glb",
+      "kind": "apt",
+      "nativeW": 18,
+      "nativeD": 12,
+      "nativeH": 14
+    },
+    {
+      "id": "apartments/apartment_midrise",
+      "url": "/assets/buildings/apartments/apartment_midrise.glb",
+      "kind": "apt",
+      "nativeW": 22,
+      "nativeD": 14,
+      "nativeH": 24
+    },
+    {
+      "id": "apartments/apartment_highrise",
+      "url": "/assets/buildings/apartments/apartment_highrise.glb",
+      "kind": "apt",
+      "nativeW": 20,
+      "nativeD": 16,
+      "nativeH": 42
+    },
+    {
+      "id": "commercial/commercial_01",
+      "url": "/assets/buildings/commercial/commercial_01.glb",
+      "kind": "commercial",
+      "nativeW": 24,
+      "nativeD": 16,
+      "nativeH": 12
+    },
+    {
+      "id": "commercial/shop_block_01",
+      "url": "/assets/buildings/commercial/shop_block_01.glb",
+      "kind": "shop",
+      "nativeW": 20,
+      "nativeD": 10,
+      "nativeH": 8
+    },
+    {
+      "id": "industrial/warehouse_01",
+      "url": "/assets/buildings/industrial/warehouse_01.glb",
+      "kind": "warehouse",
+      "nativeW": 30,
+      "nativeD": 18,
+      "nativeH": 10
+    }
+  ]
+}
