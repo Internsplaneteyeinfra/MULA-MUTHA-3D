@@ -1,4 +1,5 @@
 import { lonLatToUtm } from "./projection.js";
+import { lonLatToLocal } from "./geoReference.js";
 import { resolveBuildingHeight, resolveTreeHeight } from "./heightResolve.js";
 
 /**
@@ -38,7 +39,7 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
     fetchOptional(kmlValUrl),
   ]);
 
-  const maxDist = 2200;
+  const maxDist = 4200;
   const buildingMaxDist = 4200;
   const roads = projectLines(roadsFc, frame, corridor, maxDist);
   // Keep corridor buildings along full river + inland blocks (roads beyond bank)
@@ -96,10 +97,9 @@ function distToCorridor(x, z, stations) {
   return Math.sqrt(best);
 }
 
-function toLocal(lon, lat, frame) {
-  const u = lonLatToUtm(lon, lat);
-  const p = frame.toLocal(u.easting, u.northing);
-  return { lon, lat, easting: u.easting, northing: u.northing, x: p.x, z: p.z };
+function toLocal(lon, lat, _frame) {
+  const p = lonLatToLocal(lon, lat);
+  return { lon, lat, easting: p.easting, northing: p.northing, x: p.x, z: p.z };
 }
 
 function projectLines(fc, frame, corridor, maxDist) {
@@ -313,9 +313,9 @@ function stratifyAlongCorridor(buildings, corridor, maxKeep) {
     const far = bucket.filter((x) => x.d >= 2200);
     const take = [];
     const quotas = [
-      Math.ceil(per * 0.45),
-      Math.ceil(per * 0.35),
-      Math.ceil(per * 0.2),
+      Math.ceil(per * 0.52),
+      Math.ceil(per * 0.33),
+      Math.ceil(per * 0.15),
     ];
     for (const [pool, q] of [
       [near, quotas[0]],

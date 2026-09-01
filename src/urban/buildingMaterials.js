@@ -1,19 +1,19 @@
 import * as THREE from "three";
 
-/** Muted Pune urban plaster / concrete palette (sRGB hex). */
+/** Muted Pune urban plaster / concrete palette (sRGB hex) — visible variation. */
 export const PUNE_PALETTE = [
-  "#ece6dc", // warm light beige
-  "#f2eee8", // off-white
-  "#e4ddd2", // light concrete grey
-  "#eadcc8", // pale sandstone
-  "#e8d9c4", // subtle light brown
-  "#efe6d4", // faded cream
-  "#e6d5c0", // dusty beige
-  "#dce4e8", // pale blue-gray
-  "#e2e6dc", // muted green-gray
-  "#e8e4de", // concrete
-  "#f0ebe4", // light plaster
-  "#eadfd0", // dusty brown-beige
+  "#e8dcc8", // warm cream
+  "#ddd0bc", // pale beige
+  "#cfc4b4", // light grey-beige
+  "#d4c4a8", // muted brown
+  "#e6d8c8", // soft peach
+  "#c8d0d8", // faded blue-grey
+  "#d8e0d0", // muted green-grey
+  "#f0e8dc", // warm white
+  "#dcc8b0", // sandstone
+  "#c8b8a8", // dusty taupe
+  "#e0d4c4", // light plaster
+  "#b8c8c0", // soft pastel green
 ];
 
 const STYLE = {
@@ -141,7 +141,7 @@ export function getBuildingMaterial(styleClass) {
           float glassPick = hash21(floor(vec2(wallU / winW, wallV / floorH)));
           vec3 winCol = mix(glass, darkGlass, step(0.55, glassPick));
 
-          diffuseColor.rgb = mix(diffuseColor.rgb, winCol, windowMask * 0.55);
+          diffuseColor.rgb = mix(diffuseColor.rgb, winCol, windowMask * 0.72);
           diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.92, balcony * 0.4);
           diffuseColor.rgb = mix(diffuseColor.rgb, mix(winCol, diffuseColor.rgb, 0.45), shop);
 
@@ -239,6 +239,17 @@ export function paletteColor(seed) {
   return new THREE.Color(PUNE_PALETTE[i]);
 }
 
+/** Neighborhood-clustered palette — nearby buildings share related hues (ArcGIS-style coherence). */
+export function neighborhoodPaletteColor(seed, x, z) {
+  const cellX = Math.floor((x || 0) / 85);
+  const cellZ = Math.floor((z || 0) / 85);
+  const neighborhood = Math.abs(cellX * 73856093 ^ cellZ * 19349663) + Math.abs(Math.floor(seed));
+  const base = paletteColor(neighborhood);
+  const jitter = ((Math.abs(Math.floor(seed)) % 5) - 2) * 0.012;
+  base.offsetHSL(jitter * 0.3, 0, jitter);
+  return base;
+}
+
 export function styleClassFromClassification(classification) {
   return classification?.class || "house";
 }
@@ -295,5 +306,42 @@ export function getFarLodMaterial() {
   };
   mat.customProgramCacheKey = () => "pune_facade_far";
   cache.set("__far", mat);
+  return mat;
+}
+
+/** Mid-distance footprint extrusions — vertex colors, simplified windows. */
+export function getMidLodMaterial() {
+  if (cache.has("__mid")) return cache.get("__mid");
+  const mat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.88,
+    metalness: 0.05,
+  });
+  mat.name = "facade_mid";
+  mat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace("#include <common>", `#include <common>\nvarying vec3 vMidL;\nvarying vec3 vMidN;`)
+      .replace("#include <beginnormal_vertex>", `#include <beginnormal_vertex>\nvMidN = objectNormal;`)
+      .replace("#include <begin_vertex>", `#include <begin_vertex>\nvMidL = position;`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace("#include <common>", `#include <common>\nvarying vec3 vMidL;\nvarying vec3 vMidN;`)
+      .replace(
+        "#include <color_fragment>",
+        `#include <color_fragment>
+        {
+          vec3 nAbs = abs(normalize(vMidN));
+          float isRoof = step(0.62, nAbs.y);
+          float isWall = 1.0 - isRoof;
+          float u = (nAbs.x > nAbs.z) ? vMidL.z : vMidL.x;
+          float v = vMidL.y;
+          float win = step(0.22, fract(u/3.2)) * step(fract(u/3.2), 0.78) * step(0.32, fract(v/3.0)) * step(fract(v/3.0), 0.72) * isWall * step(2.5, v);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.22, 0.28, 0.32), win * 0.55);
+          diffuseColor.rgb = mix(diffuseColor.rgb, diffuseColor.rgb * 0.82, isRoof * 0.45);
+          diffuseColor.rgb *= mix(1.0, 0.88, isWall * 0.35);
+        }`,
+      );
+  };
+  mat.customProgramCacheKey = () => "pune_facade_mid";
+  cache.set("__mid", mat);
   return mat;
 }

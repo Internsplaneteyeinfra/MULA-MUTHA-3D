@@ -3,25 +3,24 @@ import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js
 import { terrainHeightAt } from "../scene/terrain.js";
 import { computeFootprintMetrics } from "./footprintMetrics.js";
 import { classifyBuilding } from "./buildingClassifier.js";
-import { preloadBuildingAssets, prototypeKey } from "./glbRegistry.js";
 import { setPlacementStations, sampleFootprintElevation } from "./footprintPlacement.js";
 import {
   getFarLodMaterial,
-  paletteColor,
-  styleClassFromClassification,
+  neighborhoodPaletteColor,
 } from "./buildingMaterials.js";
 import { createRooftopDetails } from "./rooftopDetails.js";
+import { createDoorInstances } from "./doorPlacement.js";
+import { buildFootprintTier, paintWallRoofGeo } from "./footprintExtrusions.js";
+import { buildCityHlod } from "./cityHlod.js";
+import { corridorTier, LOD } from "./buildingLodTiers.js";
+import { auditBuildingSample } from "./buildingAudit.js";
 import { pointInRing } from "../features/fishing/FishingZoneSystem.js";
 
-/** Near river → detailed GLB kits + facade PBR; far → extruded LOD with window shader. */
-const GLB_CORRIDOR_M = 2800;
-const GLB_MAX = 14000;
-/** Keep building footprints clear of the KML water polygon. */
-const WATER_CLEAR_M = 4;
+const WATER_CLEAR_M = 3;
 
 /**
- * Build urban buildings from OSM footprints + GLB prototypes + Pune PBR facades.
- * Preserves footprint centroids, yaw, and terrain elevation — appearance only.
+ * Four-tier OSM footprint city (ArcGIS-style principles, Pune geography).
+ * Hero → Near → Mid → Distant/HLOD — all actual OSM polygons via geoReference.
  */
 export async function createBuildingSystem(dataset) {
   const group = new THREE.Group();
@@ -36,17 +35,18 @@ export async function createBuildingSystem(dataset) {
     return group;
   }
 
-  const nearPlacements = [];
-  const farBuildings = [];
+  const heroRecs = [];
+  const nearRecs = [];
+  const midRecs = [];
+  const distantRecs = [];
   let skippedWater = 0;
 
   for (const b of raw) {
     const metrics = computeFootprintMetrics(b);
     if (!metrics) continue;
-    const near = distToCorridor(metrics.centroidX, metrics.centroidZ, stations);
+    const dist = distToCorridor(metrics.centroidX, metrics.centroidZ, stations);
     const bank = nearestHalf(metrics.centroidX, metrics.centroidZ, stations);
-    // Stay outside channel + water polygon (fixes buildings looking "in the river")
-    if (bank.lat < bank.half * 0.78) {
+    if (bank.lat < bank.half * 0.72) {
       skippedWater++;
       continue;
     }
@@ -56,95 +56,68 @@ export async function createBuildingSystem(dataset) {
     }
 
     const classification = classifyBuilding(b, metrics);
-    const record = { building: b, metrics, classification, dist: near };
-    if (near <= GLB_CORRIDOR_M) nearPlacements.push(record);
-    else farBuildings.push(record);
+    const record = { building: b, metrics, classification, dist };
+    const tier = corridorTier(dist, classification);
+    if (tier === "hero") heroRecs.push(record);
+    else if (tier === "near") nearRecs.push(record);
+    else if (tier === "mid") midRecs.push(record);
+    else distantRecs.push(record);
   }
 
-  nearPlacements.sort((a, b) => a.dist - b.dist);
-  const glbSet = nearPlacements.slice(0, GLB_MAX);
-  const overflow = nearPlacements.slice(GLB_MAX);
-  farBuildings.push(...overflow);
+  const allRecs = [...heroRecs, ...nearRecs, ...midRecs, ...distantRecs];
+  auditBuildingSample(allRecs, stations, 20);
 
-  const prototypes = await preloadBuildingAssets(glbSet);
+  const heroGroup = buildFootprintTier(heroRecs, stations, {
+    name: "buildingsHero",
+    maxCount: LOD.HERO_MAX,
+    individualHero: true,
+    roofSlab: true,
+  });
 
-  const byAsset = new Map();
-  for (const rec of glbSet) {
-    const style = styleClassFromClassification(rec.classification);
-    const key = prototypeKey(rec.classification.assetId, style);
-    if (!prototypes.has(key)) {
-      farBuildings.push(rec);
-      continue;
-    }
-    if (!byAsset.has(key)) byAsset.set(key, []);
-    byAsset.get(key).push(rec);
-  }
+  const nearGroup = buildFootprintTier(nearRecs, stations, {
+    name: "buildingsNear",
+    maxCount: LOD.NEAR_MAX,
+    roofSlab: true,
+  });
 
-  const rooftopSources = [];
-  const dummy = new THREE.Object3D();
-  const color = new THREE.Color();
+  const midGroup = buildFootprintTier(midRecs, stations, {
+    name: "buildingsMid",
+    maxCount: LOD.MID_MAX,
+    roofSlab: true,
+    useMidMaterial: true,
+  });
 
-  for (const [key, list] of byAsset) {
-    const proto = prototypes.get(key);
-    if (!proto?.geometry || !list.length) continue;
-    const mesh = new THREE.InstancedMesh(proto.geometry, proto.material, list.length);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.name = `glb:${key}`;
-    mesh.frustumCulled = true;
-    mesh.geometry.computeBoundingSphere();
+  const distantGroup = buildFarLodExtrusions(distantRecs, stations);
+  const hlodGroup = buildCityHlod(distantRecs, stations);
 
-    for (let i = 0; i < list.length; i++) {
-      const { metrics, classification, building } = list[i];
-      const y = sampleFootprintElevation(metrics, stations);
-      const sx = metrics.lengthM / Math.max(0.1, proto.nativeW);
-      const sz = metrics.widthM / Math.max(0.1, proto.nativeD);
-      const plan = (sx + sz) * 0.5;
-      // Slightly under-scale kits so boxes don't spill onto roads / water
-      const planSx = clamp(sx, plan * 0.72, plan * 1.2) * 0.9;
-      const planSz = clamp(sz, plan * 0.72, plan * 1.2) * 0.9;
-      const sy = clamp(classification.heightM / Math.max(0.1, proto.nativeH), 0.55, 2.8);
+  group.add(heroGroup);
+  group.add(nearGroup);
+  group.add(midGroup);
+  group.add(distantGroup);
+  group.add(hlodGroup);
 
-      dummy.position.set(metrics.centroidX, y, metrics.centroidZ);
-      dummy.rotation.set(0, metrics.yaw, 0);
-      dummy.scale.set(planSx, sy, planSz);
-      dummy.updateMatrix();
-      mesh.setMatrixAt(i, dummy.matrix);
+  group.userData.lod = {
+    hero: heroGroup,
+    near: nearGroup,
+    mid: midGroup,
+    distant: distantGroup,
+    hlod: hlodGroup,
+  };
 
-      color.copy(paletteColor(classification.paletteSeed ?? building.id ?? i));
-      // Slight deterministic brightness variation
-      const tint = ((classification.paletteSeed ?? 0) % 7) / 7;
-      color.offsetHSL(0, 0, (tint - 0.5) * 0.06);
-      mesh.setColorAt(i, color);
+  const doorPlacements = [...heroRecs, ...nearRecs].sort((a, b) => a.dist - b.dist);
+  group.add(createDoorInstances(doorPlacements, dataset, { maxDoors: 2200, corridorM: LOD.NEAR_M }));
 
-      rooftopSources.push({
-        ...list[i],
-        roofY: y + classification.heightM * 0.98,
-      });
-    }
-    if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
-    mesh.instanceMatrix.needsUpdate = true;
-    mesh.computeBoundingSphere();
-    group.add(mesh);
-  }
-
-  if (farBuildings.length) {
-    group.add(buildFarLodExtrusions(farBuildings, stations));
-  }
-
-  // Rooftops only on nearer corridor buildings (performance)
-  const roofSubset = rooftopSources.filter((r) => r.dist < 700).slice(0, 900);
+  const roofSubset = doorPlacements.filter((r) => r.dist < 650).slice(0, 1100);
   group.add(createRooftopDetails(roofSubset, stations));
 
-  console.info("Urban buildings", {
+  console.info("Urban buildings (4-tier OSM footprints)", {
     footprints: raw.length,
-    detailedKits: glbSet.length,
-    farLod: farBuildings.length,
-    rooftops: roofSubset.length,
+    hero: heroRecs.length,
+    near: nearRecs.length,
+    mid: midRecs.length,
+    distant: distantRecs.length,
     skippedWater,
-    corridorM: GLB_CORRIDOR_M,
-    assets: [...byAsset.keys()],
-    source: "OSM + Google/Microsoft Open Buildings + GLB kits",
+    source: "OSM footprints + geoReference",
   });
 
   return group;
@@ -155,15 +128,14 @@ function buildFarLodExtrusions(list, stations) {
   group.name = "buildingsFarLod";
   const tmp = new THREE.Color();
   const CHUNK = 2200;
-
-  const step = list.length > 22000 ? 2 : 1;
+  const step = list.length > 20000 ? 2 : 1;
   const geos = [];
+
   for (let i = 0; i < list.length; i += step) {
     const { building, metrics, classification } = list[i];
     const verts = building.vertices;
     if (!verts || verts.length < 4) continue;
     const shape = new THREE.Shape();
-    // ExtrudeGeometry is XY then rotateX(-π/2) → (x,h,-y). Use -z so footprint keeps +Z = north.
     shape.moveTo(verts[0].x - metrics.centroidX, -(verts[0].z - metrics.centroidZ));
     for (let k = 1; k < verts.length; k++) {
       shape.lineTo(verts[k].x - metrics.centroidX, -(verts[k].z - metrics.centroidZ));
@@ -179,43 +151,11 @@ function buildFarLodExtrusions(list, stations) {
       continue;
     }
     geo.rotateX(-Math.PI / 2);
-
-    // Thin parapet / roof slab so far LOD is not a bare prism
-    const roofH = 0.4;
-    let roofGeo = null;
-    try {
-      roofGeo = new THREE.ExtrudeGeometry(shape, {
-        depth: roofH,
-        bevelEnabled: false,
-        steps: 1,
-      });
-      roofGeo.rotateX(-Math.PI / 2);
-      roofGeo.translate(0, classification.heightM, 0);
-    } catch {
-      /* ignore */
-    }
-
     const y = terrainHeightAt(metrics.centroidX, metrics.centroidZ, stations);
     geo.translate(metrics.centroidX, y, metrics.centroidZ);
-    if (roofGeo) roofGeo.translate(metrics.centroidX, y, metrics.centroidZ);
-
-    tmp.copy(paletteColor(classification.paletteSeed ?? building.id ?? i));
-    const paint = (g, darken) => {
-      const n = g.attributes.position.count;
-      const col = new Float32Array(n * 3);
-      const r = tmp.r * darken;
-      const gg = tmp.g * darken;
-      const b = tmp.b * darken;
-      for (let v = 0; v < n; v++) {
-        col[v * 3] = r;
-        col[v * 3 + 1] = gg;
-        col[v * 3 + 2] = b;
-      }
-      g.setAttribute("color", new THREE.BufferAttribute(col, 3));
-      geos.push(g);
-    };
-    paint(geo, 1);
-    if (roofGeo) paint(roofGeo, 0.72);
+    tmp.copy(neighborhoodPaletteColor(classification.paletteSeed ?? building.id ?? i, metrics.centroidX, metrics.centroidZ));
+    paintWallRoofGeo(geo, tmp);
+    geos.push(geo);
 
     if (geos.length >= CHUNK) {
       const mesh = flushFarChunk(geos);
@@ -229,6 +169,17 @@ function buildFarLodExtrusions(list, stations) {
     if (mesh) group.add(mesh);
   }
   return group;
+}
+
+function paintGeo(geo, color, mult) {
+  const n = geo.attributes.position.count;
+  const col = new Float32Array(n * 3);
+  for (let i = 0; i < n; i++) {
+    col[i * 3] = color.r * mult;
+    col[i * 3 + 1] = color.g * mult;
+    col[i * 3 + 2] = color.b * mult;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
 }
 
 function flushFarChunk(geos) {
@@ -292,13 +243,7 @@ function distToRingEdge(x, z, ring) {
     const len2 = dx * dx + dz * dz || 1;
     let t = ((x - a.x) * dx + (z - a.z) * dz) / len2;
     t = Math.max(0, Math.min(1, t));
-    const px = a.x + dx * t;
-    const pz = a.z + dz * t;
-    best = Math.min(best, Math.hypot(x - px, z - pz));
+    best = Math.min(best, Math.hypot(x - (a.x + dx * t), z - (a.z + dz * t)));
   }
   return best;
-}
-
-function clamp(v, a, b) {
-  return Math.max(a, Math.min(b, v));
 }

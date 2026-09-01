@@ -1,13 +1,18 @@
 import { parseKmlGeometry, parseChainageAnalysisKml } from "./kml.js";
 import { loadDepthCsv, loadRiverBoundaryCsv } from "./csv.js";
-import { lonLatToUtm, createLocalFrame } from "./projection.js";
+import { lonLatToUtm } from "./projection.js";
+import { initGeoReference, getGeoReference } from "./geoReference.js";
+import { computeProjectionMetrics } from "./projectionMetrics.js";
 import { buildCorridorFromKml } from "./corridor.js";
 import { loadOsmBridges } from "./osmBridges.js";
 import { loadOsmContext } from "./osmContext.js";
 import { buildValidationReport } from "./validationReport.js";
 import { validateLonLatPoints, bufferBboxMeters } from "./kmlValidate.js";
-import { validateLayerAlignment, computeSceneBounds, computeKmlOverviewBounds } from "./sceneBounds.js";
+import { validateLayerAlignment, computeSceneBounds, computeKmlOverviewBounds, computeActiveSceneBounds } from "./sceneBounds.js";
 import { loadFabdemDtm } from "./dtm.js";
+import { parseFishingLocationsKml } from "../features/fishing/FishingLocationLoader.js";
+import fishingKmlRaw from "../features/fishing/Fishing_Locations.kml?raw";
+import { buildFishingZones } from "../features/fishing/FishingZoneSystem.js";
 
 /** Fallback origin if KML bbox is unavailable. */
 export const SCENE_ORIGIN_LONLAT = { lon: 73.92420242, lat: 18.534020995 };
@@ -110,9 +115,8 @@ export async function loadJourneyDataset({
 
   // Single shared frame — origin at complete KML bounds center
   const sceneOrigin = kmlBoundsCenter(kmlValidationRuntime.bbox);
-  const frame = createLocalFrame([...depth.points, ...ringUtm], {
-    originLonLat: sceneOrigin,
-  });
+  initGeoReference(sceneOrigin, [...depth.points, ...ringUtm]);
+  const frame = getGeoReference().frame;
 
   for (const p of depth.points) {
     const loc = frame.toLocal(p.easting, p.northing);
@@ -224,6 +228,31 @@ export async function loadJourneyDataset({
 
   const sceneBounds = computeSceneBounds({ ringLocal, corridor, osm, bridges });
   const kmlOverviewBounds = computeKmlOverviewBounds({ ringLocal, corridor });
+  const activeSceneBounds = computeActiveSceneBounds({ ringLocal, corridor, osm, bridges });
+
+  const fishingLocationsRaw = parseFishingLocationsKml(fishingKmlRaw);
+  const fishingZones = buildFishingZones(fishingLocationsRaw, {
+    ringLocal,
+    corridor,
+    points: depth.points,
+    bridges,
+    minDepth: depth.minDepth,
+    maxDepth: depth.maxDepth,
+  });
+
+  const projectionValidation = computeProjectionMetrics({
+    ringGeo,
+    ringLocal,
+    centerlineLocal,
+    corridor,
+    chainage,
+    osm,
+    bridges,
+    dtm,
+    points: depth.points,
+    fishingZones,
+    fishingLocationsRaw,
+  });
 
   if (!report.ok) {
     console.error("GEOSPATIAL VALIDATION FAILED", report.issues);
@@ -254,6 +283,8 @@ export async function loadJourneyDataset({
     layerAlignment,
     sceneBounds,
     kmlOverviewBounds,
+    activeSceneBounds,
+    projectionValidation,
     dtmSource: dtm?.source || null,
     dtmBounds: dtm?.bounds || null,
     osmCounts: {
@@ -286,7 +317,10 @@ export async function loadJourneyDataset({
     validation,
     sceneBounds,
     kmlOverviewBounds,
+    activeSceneBounds,
     dtm,
+    fishingLocationsRaw,
+    fishingZones,
   };
 }
 

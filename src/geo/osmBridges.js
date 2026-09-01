@@ -1,4 +1,4 @@
-import { lonLatToUtm } from "./projection.js";
+import { lonLatToLocal, localToLonLat } from "./geoReference.js";
 
 /** User-facing labels (disambiguates duplicate OSM segments). */
 const BRIDGE_DISPLAY_NAMES = {
@@ -36,9 +36,8 @@ export async function loadOsmBridges(url, frame, corridor) {
     const coords = feat.geometry?.coordinates;
     if (!coords || coords.length < 2) continue;
     const local = coords.map(([lon, lat]) => {
-      const u = lonLatToUtm(lon, lat);
-      const p = frame.toLocal(u.easting, u.northing);
-      return { lon, lat, easting: u.easting, northing: u.northing, x: p.x, z: p.z };
+      const p = lonLatToLocal(lon, lat);
+      return { lon, lat, easting: p.easting, northing: p.northing, x: p.x, z: p.z };
     });
     const mid = {
       x: (local[0].x + local[local.length - 1].x) * 0.5,
@@ -147,6 +146,17 @@ function makeSpan({ id, name, highway, widthM, midX, midZ, stations }) {
 
   const start = { x: cx - ax * halfSpan, z: cz - az * halfSpan, lon: 0, lat: 0 };
   const end = { x: cx + ax * halfSpan, z: cz + az * halfSpan, lon: 0, lat: 0 };
+  try {
+    const ll0 = localToLonLat(start.x, start.z);
+    const ll1 = localToLonLat(end.x, end.z);
+    start.lon = ll0.lon;
+    start.lat = ll0.lat;
+    end.lon = ll1.lon;
+    end.lat = ll1.lat;
+  } catch {
+    /* geoReference not ready during offline tests */
+  }
+  const midLl = localToLonLatSafe(cx, cz);
 
   return {
     id: String(id),
@@ -161,10 +171,20 @@ function makeSpan({ id, name, highway, widthM, midX, midZ, stations }) {
     lengthM: span,
     midX: cx,
     midZ: cz,
+    midLon: midLl?.lon,
+    midLat: midLl?.lat,
     axisX: ax,
     axisZ: az,
     channelHalf: half,
   };
+}
+
+function localToLonLatSafe(x, z) {
+  try {
+    return localToLonLat(x, z);
+  } catch {
+    return null;
+  }
 }
 
 function nearestStation(x, z, stations) {

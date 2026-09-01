@@ -211,17 +211,17 @@ function resolveCamPos(camera, camHint, out) {
 }
 
 function depthForLayer(layer) {
-  // Keep fish a little higher — readable just under / breaking surface
-  if (layer === "surface") return 0.18 + Math.random() * 0.28;
-  if (layer === "deep" || layer === "bottom") return 0.9 + Math.random() * 0.9;
-  return 0.45 + Math.random() * 0.4;
+  if (layer === "surface") return 0.35 + Math.random() * 0.45;
+  if (layer === "mid") return 1.0 + Math.random() * 1.0;
+  if (layer === "deep" || layer === "bottom") return 2.5 + Math.random() * 2.0;
+  return 0.8 + Math.random() * 0.8;
 }
 
 function clampFishY(x, z, depthBelow, dataset, time) {
   const surface = waterSurfaceYAt(x, z, time);
   const bed = bedYAt(x, z, dataset);
   const lo = Math.max(surface - 2.2, bed + 0.35);
-  const hi = surface - 0.12;
+  const hi = surface - 0.08;
   return THREE.MathUtils.clamp(surface - depthBelow, lo, hi);
 }
 

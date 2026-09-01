@@ -51,15 +51,15 @@ export function classifyBuilding(building, metrics) {
     return finalize(aptClass(h), h, area, metrics, building, seed);
   }
   if (/house|detached|bungalow|villa|semidetached_house/.test(tag)) {
-    return finalize("house", height ?? 6.5 + (seed % 5) * 0.6, area, metrics, building, seed);
+    return finalize("house", height ?? 4.5 + (seed % 8) * 0.55, area, metrics, building, seed);
   }
 
   // Geometry-driven (building=yes majority)
   if (area < 100) {
-    return finalize("house", height ?? 6.2 + (seed % 4) * 0.7, area, metrics, building, seed);
+    return finalize("house", height ?? 4.2 + (seed % 7) * 0.65, area, metrics, building, seed);
   }
   if (area < 160) {
-    return finalize("house", height ?? 7 + (seed % 5) * 0.55, area, metrics, building, seed);
+    return finalize("house", height ?? 7 + (seed % 6) * 0.75, area, metrics, building, seed);
   }
   if (aspect > 2.4 && area < 350) {
     return finalize("row", height ?? 8 + (seed % 4) * 0.8, area, metrics, building, seed);
@@ -92,17 +92,17 @@ function aptClass(h) {
 }
 
 function estimateAptHeight(area, seed = 0) {
-  const jitter = ((seed % 7) - 3) * 0.85;
-  if (area > 900) return Math.max(18, 24 + jitter);
-  if (area > 550) return Math.max(14, 18 + jitter);
-  if (area > 400) return Math.max(11, 14 + jitter);
-  return Math.max(9, 11 + jitter * 0.6);
+  const jitter = ((seed % 7) - 3) * 1.2;
+  if (area > 900) return Math.max(22, 28 + jitter);
+  if (area > 550) return Math.max(16, 22 + jitter);
+  if (area > 400) return Math.max(12, 16 + jitter);
+  return Math.max(10, 12 + jitter * 0.8);
 }
 
 function estimateCommercialHeight(area, seed = 0) {
-  const jitter = (seed % 5) * 0.7;
-  if (area > 600) return 12 + jitter;
-  return 8.5 + jitter;
+  const jitter = (seed % 5) * 1.1;
+  if (area > 600) return 14 + jitter;
+  return 8 + jitter;
 }
 
 function finalize(cls, height, area, metrics, building, seed) {
@@ -122,7 +122,16 @@ function finalize(cls, height, area, metrics, building, seed) {
     paletteSeed: seed,
     useGlb: true,
     footprintSource: building.source || "osm",
+    tier: tierFor(cls, h, area, seed),
   };
+}
+
+/** Visual hierarchy tier: 1=landmark · 2=major · 3=house · 4=distant LOD */
+function tierFor(cls, h, area, seed) {
+  if (cls === "apartment_high" || (cls === "commercial" && area > 500)) return 1;
+  if (cls === "apartment_mid" || cls === "commercial" || cls === "warehouse") return 2;
+  if (cls === "house" || cls === "row" || cls === "apartment_low") return 3;
+  return seed % 3 === 0 ? 2 : 3;
 }
 
 function hashStr(s) {

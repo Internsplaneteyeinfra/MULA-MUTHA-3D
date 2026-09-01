@@ -1,0 +1,20 @@
+PROJECTION VALIDATION
+✓
+KML → Terrain
+0.0 m
+✓
+KML → Water mesh
+0.1 m
+✓
+KML → Buildings
+0.0 m
+✓
+KML → Roads
+0.0 m
+✓
+KML → Bridges
+0.0 m
+✓
+KML → Fishing points
+0.0 m
+KML master · WGS84 → EPSG:32643 → ENU · geoReference.js

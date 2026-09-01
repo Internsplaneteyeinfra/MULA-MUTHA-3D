@@ -61,9 +61,20 @@ export function computeKmlOverviewBounds(dataset) {
       }
     );
   }
-  // Small pad — keep Overview tight to the KML corridor (1st-image framing)
-  const pad = Math.max(120, Math.max(b.spanX, b.spanZ) * 0.03);
-  return finalizeBounds(b.minX - pad, b.maxX + pad, b.minZ - pad, b.maxZ + pad);
+  return paddedSceneBounds(b, 0.12);
+}
+
+/** Apply 15–20% geographic padding to prevent empty sides / cropping. */
+export function paddedSceneBounds(bounds, padRatio = 0.18) {
+  if (!bounds) return bounds;
+  const padX = Math.max(120, bounds.spanX * padRatio);
+  const padZ = Math.max(120, bounds.spanZ * padRatio);
+  return finalizeBounds(
+    bounds.minX - padX,
+    bounds.maxX + padX,
+    bounds.minZ - padZ,
+    bounds.maxZ + padZ,
+  );
 }
 
 /** Union: KML ring + corridor stations + OSM buildings/roads/trees. */
@@ -88,7 +99,56 @@ export function computeSceneBounds(dataset) {
     b = mergeBounds(b, boundsFromPoints(br.vertices));
   }
 
-  return b || dataset.corridor?.bounds || { minX: 0, maxX: 0, minZ: 0, maxZ: 0, spanX: 0, spanZ: 0, cx: 0, cz: 0 };
+  const raw = b || dataset.corridor?.bounds || { minX: 0, maxX: 0, minZ: 0, maxZ: 0, spanX: 0, spanZ: 0, cx: 0, cz: 0 };
+  return paddedSceneBounds(raw);
+}
+
+/**
+ * Meaningful content bounds for overview framing — NOT full terrain extent.
+ * River + banks + nearby urban context (buildings, roads, bridges, fishing).
+ */
+export function computeActiveSceneBounds(dataset, padRatio = 0.15) {
+  const stations = dataset.corridor?.stations || [];
+  // Core urban river reach — exclude far upstream/downstream empty terrain
+  const lo = Math.floor(stations.length * 0.12);
+  const hi = Math.ceil(stations.length * 0.88);
+  const core = stations.slice(lo, hi);
+
+  let b = boundsFromPoints(core.length ? core : stations);
+  b = mergeBounds(b, boundsFromPoints(dataset.ringLocal));
+
+  const osm = dataset.osm || {};
+  const maxUrbanDist = 650;
+  for (const feat of osm.buildings || []) {
+    if (nearCorridor(feat.midX, feat.midZ, core.length ? core : stations, maxUrbanDist)) {
+      b = mergeBounds(b, boundsFromPoints(feat.vertices));
+    }
+  }
+  for (const feat of osm.roads || []) {
+    if (nearCorridor(feat.midX, feat.midZ, core.length ? core : stations, maxUrbanDist)) {
+      b = mergeBounds(b, boundsFromPoints(feat.vertices));
+    }
+  }
+  for (const br of dataset.bridges || []) {
+    b = mergeBounds(b, boundsFromPoints(br.vertices));
+  }
+  for (const z of dataset.fishingZones || []) {
+    b = mergeBounds(b, boundsFromPoints([{ x: z.x, z: z.z }]));
+  }
+
+  const raw = b || computeKmlOverviewBounds(dataset);
+  return paddedSceneBounds(raw, padRatio);
+}
+
+function nearCorridor(x, z, stations, maxDist) {
+  if (!stations.length) return true;
+  let best = Infinity;
+  const step = Math.max(1, Math.floor(stations.length / 200));
+  for (let i = 0; i < stations.length; i += step) {
+    const s = stations[i];
+    best = Math.min(best, Math.hypot(s.x - x, s.z - z));
+  }
+  return best <= maxDist;
 }
 
 /** Debug validation: verify layer bboxes overlap KML extent. */

@@ -11,9 +11,8 @@ let activeDtm = null;
 export function createTerrain(dataset) {
   activeDtm = dataset.dtm || null;
   const b = computeSceneBounds(dataset);
-  const pad = Math.max(b.spanX, b.spanZ) * 0.18;
-  const width = b.spanX + pad * 2;
-  const depth = b.spanZ + pad * 2;
+  const width = b.spanX;
+  const depth = b.spanZ;
   const segsX = activeDtm ? 360 : 280;
   const segsZ = activeDtm ? 180 : 140;
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);

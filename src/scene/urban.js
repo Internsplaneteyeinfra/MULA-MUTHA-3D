@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createBuildingSystem } from "../urban/buildingSystem.js";
 import { createRoadSystem } from "../urban/roadSystem.js";
+import { updateBuildingLodVisibility, cacheLodGroupCenters } from "../urban/buildingLodTiers.js";
 
 /**
  * Geospatial urban layer: OSM footprints → classify → GLB (near) / extrusion LOD (far) + roads.
@@ -19,5 +20,7 @@ export async function createUrban(dataset) {
   group.add(roads);
   group.userData.buildings = buildings;
   group.userData.roads = roads;
+  group.userData.updateLod = (camera) => updateBuildingLodVisibility(buildings, camera);
+  cacheLodGroupCenters(buildings);
   return group;
 }

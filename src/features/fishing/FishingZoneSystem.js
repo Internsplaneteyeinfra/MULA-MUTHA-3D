@@ -1,4 +1,5 @@
-import { lonLatToUtm } from "../../geo/projection.js";
+import { lonLatToLocal } from "../../geo/geoReference.js";
+import { distanceToWaterEdge } from "../../geo/projectionMetrics.js";
 import { SURFACE_Y, bedElevation } from "../../scene/river.js";
 import { state } from "../../state.js";
 import { activityLevel } from "./FishSpeciesRegistry.js";
@@ -7,24 +8,22 @@ import { activityLevel } from "./FishSpeciesRegistry.js";
  * Project KML fishing points into existing local frame and bind to corridor/bathymetry.
  */
 export function buildFishingZones(rawLocations, dataset) {
-  const { frame, ringLocal, corridor, points, bridges } = dataset;
+  const { ringLocal, corridor, points, bridges } = dataset;
   const stations = corridor.stations;
   const zones = [];
 
   for (const loc of rawLocations) {
-    const u = lonLatToUtm(loc.lon, loc.lat);
-    const p = frame.toLocal(u.easting, u.northing);
+    const p = lonLatToLocal(loc.lon, loc.lat);
+    const waterDistM = distanceToWaterEdge(p.x, p.z, stations);
+    const waterValid = waterDistM < 2;
+
     if (!pointInRing(p.x, p.z, ringLocal)) {
-      // Snap toward nearest in-river station if slightly off bank
-      const near = nearestStation(p.x, p.z, stations);
-      const sx = near.x;
-      const sz = near.z;
-      if (!pointInRing(sx, sz, ringLocal)) {
-        console.warn(`Fishing ${loc.id} outside river polygon — skipped`, loc);
-        continue;
-      }
-      p.x = sx;
-      p.z = sz;
+      console.warn(`Fishing ${loc.id} outside KML river polygon — skipped`, loc);
+      continue;
+    }
+
+    if (!waterValid) {
+      console.warn(`Fishing ${loc.id} INVALID FISHING LOCATION — ${waterDistM.toFixed(1)} m from water edge`, loc);
     }
 
     const st = nearestStation(p.x, p.z, stations);
@@ -41,8 +40,8 @@ export function buildFishingZones(rawLocations, dataset) {
       name: loc.name,
       lon: loc.lon,
       lat: loc.lat,
-      easting: u.easting,
-      northing: u.northing,
+      easting: p.easting,
+      northing: p.northing,
       x: p.x,
       z: p.z,
       flowX: st.flowX,
@@ -55,6 +54,9 @@ export function buildFishingZones(rawLocations, dataset) {
       bedY: bedElevation(depthM, dataset.minDepth, dataset.maxDepth, 0.5, state.depthExaggeration),
       activity: "Medium",
       dominant: [],
+      waterDistM,
+      waterValid,
+      invalidReason: waterValid ? null : "INVALID FISHING LOCATION",
     };
     zone.activity = activityLevel(zone);
     zones.push(zone);

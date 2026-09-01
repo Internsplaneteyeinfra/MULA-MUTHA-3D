@@ -106,30 +106,36 @@ export function alongRiverPose(stations, {
   return tan;
 }
 
-/** Full-corridor overview: north-up, west=left — matches the default KML Overview shot. */
+/** Full-corridor overview: oblique 35–50° so building walls read as 3D (not nadir GIS map). */
 export function fullRiverOverviewPose(stations, bounds, k, outP, outL, outUp, opts = {}) {
   const spanX = Math.max(80, bounds.spanX || 0);
   const spanZ = Math.max(80, bounds.spanZ || 0);
-  const diag = Math.hypot(spanX, spanZ);
   const fovDeg = opts.fovDeg ?? 48;
   const aspect = Math.max(0.5, opts.aspect ?? 16 / 9);
-  // Closer framing like the 1st Overview image (river fills the screen)
-  const margin = THREE.MathUtils.lerp(0.88, 0.96, THREE.MathUtils.clamp(k, 0, 1));
+  const margin = THREE.MathUtils.lerp(0.58, 0.68, THREE.MathUtils.clamp(k, 0, 1));
+  const pitchDeg = THREE.MathUtils.clamp(opts.pitchDeg ?? 42, 35, 50);
   const vHalf = Math.tan(THREE.MathUtils.degToRad(fovDeg) * 0.5);
-  // Fit primarily on east–west corridor length (long axis)
-  const needX = (spanX * 0.5 * margin) / (vHalf * aspect);
-  // Cap N–S pull-back so a long thin AABB does not zoom out too far
+  const pitch = THREE.MathUtils.degToRad(pitchDeg);
+
+  const fitSpanX = opts.fullExtent ? spanX : Math.min(spanX, 4800);
+  const fitSpan = Math.max(fitSpanX, spanZ) * margin;
+  const needX = (fitSpanX * 0.5 * margin) / (vHalf * aspect);
   const needZ = (spanZ * 0.5 * margin) / vHalf;
-  const height = Math.max(
-    Math.min(needX, Math.max(needZ * 1.15, diag * 0.52)),
-    diag * 0.48,
-    700,
-  );
-  // Camera SOUTH of center → west on left, east on right (Sangam left, Hadapsar right)
-  const southBias = Math.max(spanZ * 0.04, diag * 0.012);
-  const lookY = opts.terrainLookY ?? SURFACE_Y;
+  const horizontalDist = Math.max(needX, needZ, fitSpan * 0.48);
+
+  const lookY = opts.terrainLookY ?? SURFACE_Y + 2;
   const heightBoost = opts.terrainHeightBoost ?? 0;
-  outP.set(bounds.cx, SURFACE_Y + height + heightBoost, bounds.cz - southBias);
+  const camHeight = horizontalDist * Math.tan(pitch) + heightBoost;
+  const minHeight = opts.fullExtent ? 650 : 420;
+
+  // South-west oblique — west left, east right; walls + roofs visible
+  const southBias = horizontalDist * 0.92;
+  const westBias = fitSpanX * 0.08;
+  outP.set(
+    bounds.cx - westBias,
+    lookY + Math.max(camHeight, minHeight),
+    bounds.cz - southBias,
+  );
   outL.set(bounds.cx, lookY, bounds.cz);
   if (outUp) outUp.set(0, 1, 0);
 }

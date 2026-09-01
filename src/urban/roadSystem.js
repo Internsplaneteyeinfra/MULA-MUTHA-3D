@@ -1,6 +1,5 @@
 import * as THREE from "three";
 import { terrainHeightAt } from "../scene/terrain.js";
-import { pointInRing } from "../features/fishing/FishingZoneSystem.js";
 
 /** OSM highway → carriageway width (m). */
 const WIDTH_BY_CLASS = {
@@ -20,18 +19,18 @@ const WIDTH_BY_CLASS = {
   pedestrian: 3,
 };
 
-/** Asphalt / surface colors by class. */
+/** Asphalt / surface colors by class — dark grey, not pure black. */
 const ASPHALT = {
-  motorway: "#3a3d42",
-  trunk: "#3c4046",
-  primary: "#40444a",
-  secondary: "#454950",
-  tertiary: "#4a4f56",
-  residential: "#4e535a",
-  unclassified: "#50555c",
-  living_street: "#52575e",
-  service: "#565b62",
-  track: "#6a5e4e",
+  motorway: "#4a5058",
+  trunk: "#4c525a",
+  primary: "#505660",
+  secondary: "#545a62",
+  tertiary: "#585e66",
+  residential: "#5c6268",
+  unclassified: "#5e646a",
+  living_street: "#60666c",
+  service: "#646a70",
+  track: "#726858",
   footway: "#8a8478",
   path: "#7e786c",
   cycleway: "#5a6870",
@@ -49,7 +48,6 @@ export function createRoadSystem(dataset) {
   const group = new THREE.Group();
   group.name = "roads";
   const stations = dataset.corridor.stations;
-  const ring = dataset.ringLocal || [];
   const roads = dataset.osm?.roads || [];
   if (!roads.length) return group;
 
@@ -67,16 +65,20 @@ export function createRoadSystem(dataset) {
     const verts = road.vertices || [];
     if (verts.length < 2) continue;
 
+    const pathLike = PATH.test(hw);
+    const major = MAJOR.test(hw);
+    const medium = MEDIUM.test(hw);
+    const widthScale = pathLike ? 0.85 : major ? 1.0 : medium ? 0.88 : 0.78;
+    const deckW = w * widthScale;
+
     for (let i = 1; i < verts.length; i++) {
       const a = verts[i - 1];
       const b = verts[i];
       const mx = (a.x + b.x) * 0.5;
       const mz = (a.z + b.z) * 0.5;
       const bank = nearestHalf(mx, mz, stations);
-      // River crossings are drawn by the bridge system (elevated decks) — never flat on water
-      const overWater =
-        bank.lat < bank.half * 0.88 ||
-        (ring.length && (pointInRing(mx, mz, ring) || pointInRing(a.x, a.z, ring) || pointInRing(b.x, b.z, ring)));
+      // Skip only segments inside the navigable channel — not the full KML floodplain polygon
+      const overWater = bank.lat < bank.half * 0.82;
       if (overWater) {
         skippedWater++;
         continue;
@@ -96,22 +98,19 @@ export function createRoadSystem(dataset) {
       const y1 = terrainHeightAt(b.x, b.z, stations);
       const y = Math.max(y0, y1) + 0.12;
       const rot = Math.atan2(dx, dz);
-      const major = MAJOR.test(hw);
-      const medium = MEDIUM.test(hw);
-      const pathLike = PATH.test(hw);
 
       asphaltSegs.push({
         x: mx,
         z: mz,
         y,
         len,
-        w: pathLike ? Math.min(w, 3.2) : w,
+        w: pathLike ? Math.min(deckW, 2.8) : deckW,
         rot,
         highway: hw,
         major,
         medium,
         pathLike,
-        color: ASPHALT[hw] || "#4a4f56",
+        color: ASPHALT[hw] || "#5a6068",
       });
 
       if (major || medium) {
@@ -199,9 +198,9 @@ export function createRoadSystem(dataset) {
 
   // —— Asphalt deck ——
   const asphaltMat = new THREE.MeshStandardMaterial({
-    color: "#4a4f56",
-    roughness: 0.94,
-    metalness: 0.03,
+    color: "#5c6268",
+    roughness: 0.96,
+    metalness: 0.02,
     vertexColors: true,
     polygonOffset: true,
     polygonOffsetFactor: -1,
@@ -217,7 +216,7 @@ export function createRoadSystem(dataset) {
     dummy.position.set(s.x, s.y, s.z);
     dummy.rotation.set(0, s.rot, 0);
     // Slightly thicker major roads so they read from overview
-    const h = s.major ? 0.28 : s.pathLike ? 0.1 : 0.2;
+    const h = s.major ? 0.22 : s.pathLike ? 0.08 : s.medium ? 0.14 : 0.11;
     dummy.scale.set(s.w, h, s.len);
     dummy.updateMatrix();
     asphalt.setMatrixAt(i, dummy.matrix);

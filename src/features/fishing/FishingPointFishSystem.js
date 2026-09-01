@@ -59,6 +59,10 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
 
   for (let zi = 0; zi < zones.length; zi++) {
     const z = zones[zi];
+    if (z.waterValid === false) {
+      console.info(`Skipping fish at ${z.id}: ${z.invalidReason || "invalid water"}`);
+      continue;
+    }
     const fishCount = 25; // 5 species × 5
     const half = z.halfWidth || 30;
     const radius = Math.min(Math.max(16, half * 0.55), 32);

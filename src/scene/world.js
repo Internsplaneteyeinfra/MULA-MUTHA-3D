@@ -12,12 +12,20 @@ import { createFlowParticles } from "./flowParticles.js";
 import { createWaterEffects } from "./waterEffects.js";
 import { createChainageLayer } from "./chainageMarkers.js";
 import { createProjectionValidation } from "./validation.js";
+import { createCoordinateGrid, mountCoordinateLabels } from "./coordinateGrid.js";
+import { createRiverBankOverlay } from "./riverBanks.js";
 import { fillPierUniforms } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
 import { createCinematicController } from "../animation/cinematicController.js";
+import { mountValidationHud, refreshProjectionValidation } from "../ui/validationHud.js";
 
-export async function createWorld(canvas, dataset, tooltip) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: "high-performance" });
+export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
+  const renderer = new THREE.WebGLRenderer({
+    canvas,
+    antialias: true,
+    powerPreference: "high-performance",
+    preserveDrawingBuffer: true,
+  });
   renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
   renderer.toneMapping = THREE.ACESFilmicToneMapping;
@@ -68,14 +76,14 @@ export async function createWorld(canvas, dataset, tooltip) {
   const terrain = createTerrain(dataset);
   const kmlSkeleton = createKmlSkeleton(dataset);
   const river = createRiver(dataset);
-  const urban = await createUrban(dataset);
-  const trees = await createVegetation(dataset);
-  const bridges = createBridges(dataset);
+  const coordinateGrid = createCoordinateGrid(dataset);
+  const riverBanks = createRiverBankOverlay(dataset);
   fillPierUniforms(river.material, dataset);
   const particles = createFlowParticles(dataset);
   const waterFx = createWaterEffects(dataset);
   const chainage = createChainageLayer(dataset);
   const validation = createProjectionValidation(dataset);
+  const bridges = createBridges(dataset);
 
   scene.add(terrain.mesh);
   scene.add(terrain.outline);
@@ -87,16 +95,60 @@ export async function createWorld(canvas, dataset, tooltip) {
   scene.add(particles.mesh);
   scene.add(waterFx.group);
   scene.add(chainage.group);
-  scene.add(urban);
-  scene.add(trees);
   scene.add(bridges);
   scene.add(validation);
+  scene.add(coordinateGrid);
+  scene.add(riverBanks);
+
+  const uiRoot = document.getElementById("ui-root");
+  const validationHud = mountValidationHud(uiRoot, dataset);
+  validationHud.setVisible(state.showValidationHud);
 
   sun.target.position.set(dataset.corridor.bounds.cx, 0, dataset.corridor.bounds.cz);
   scene.add(sun.target);
 
   const cam = createCameraSystem(canvas, dataset);
+  const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, cam.camera, canvas);
   attachInspect(canvas, cam.camera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip);
+
+  // Progressive load: core scene visible first (KML river + terrain + water)
+  onCoreReady?.();
+
+  const urbanGroup = new THREE.Group();
+  urbanGroup.name = "urbanPending";
+  scene.add(urbanGroup);
+
+  const treesGroup = new THREE.Group();
+  treesGroup.name = "treesPending";
+  scene.add(treesGroup);
+
+  const fishGroup = new THREE.Group();
+  fishGroup.name = "fishPending";
+  scene.add(fishGroup);
+
+  let urbanResult = null;
+  let treesResult = null;
+  let fishing = null;
+
+  Promise.all([
+    createUrban(dataset).then((g) => {
+      urbanResult = g;
+      urbanGroup.add(g);
+    }),
+    createVegetation(dataset).then((g) => {
+      treesResult = g;
+      treesGroup.add(g);
+    }),
+  ]).catch((err) => console.warn("Progressive urban/vegetation load:", err.message));
+
+  createFishingSystem(dataset, canvas, cam.camera, uiRoot, { waterEffects: waterFx })
+    .then((sys) => {
+      fishing = sys;
+      fishGroup.add(sys.group);
+      if (sys.zones) cinematic.setFishingZones(sys.zones);
+      refreshProjectionValidation(dataset, validationHud);
+    })
+    .catch((err) => console.warn("Fishing system load:", err.message));
 
   // Click a red chainage pin to select it; hover THAT pin for station/meters.
   // Everywhere else, river water-depth hover stays (inspect).
@@ -172,12 +224,6 @@ export async function createWorld(canvas, dataset, tooltip) {
     });
   });
 
-  const uiRoot = document.getElementById("ui-root");
-  const fishing = await createFishingSystem(dataset, canvas, cam.camera, uiRoot, {
-    waterEffects: waterFx,
-  });
-  scene.add(fishing.group);
-
   const cinematic = createCinematicController({
     camera: cam.camera,
     controls: cam.controls,
@@ -187,7 +233,6 @@ export async function createWorld(canvas, dataset, tooltip) {
     flowParticles: particles,
     onComplete: () => cam.applyMode("overview"),
   });
-  if (fishing.zones) cinematic.setFishingZones(fishing.zones);
 
   function resize() {
     const w = canvas.clientWidth || window.innerWidth;
@@ -208,6 +253,8 @@ export async function createWorld(canvas, dataset, tooltip) {
   let lastExag = state.depthExaggeration;
   let lastVisual = state.visualMode;
   applyRiverLook(river, false);
+
+  window.__MM_SCENE__ = { scene, dataset, coordinateGrid, riverBanks, validationHud, cam };
 
   return {
     setCamera: (mode) => {
@@ -253,10 +300,16 @@ export async function createWorld(canvas, dataset, tooltip) {
       if (river.wire) river.wire.visible = !!state.showWaterDebug;
       terrain.mesh.visible = state.showTerrain;
       kmlSkeleton.visible = state.showKmlSkeleton;
-      urban.visible = state.showUrban;
-      if (urban.userData?.buildings) urban.userData.buildings.visible = state.showOsmBuildings;
-      if (urban.userData?.roads) urban.userData.roads.visible = state.showOsmRoads;
-      trees.visible = state.showVegetation;
+      coordinateGrid.visible = state.showCoordinateGrid;
+      coordLabels.setVisible(state.showCoordinateGrid);
+      coordLabels.update();
+      riverBanks.visible = state.showValidation || state.showOsmAlignment;
+      validationHud.setVisible(state.showValidationHud);
+      if (urbanResult) urbanResult.visible = state.showUrban;
+      if (urbanResult?.userData?.buildings) urbanResult.userData.buildings.visible = state.showOsmBuildings;
+      if (urbanResult?.userData?.roads) urbanResult.userData.roads.visible = state.showOsmRoads;
+      urbanResult?.userData?.updateLod?.(cam.camera);
+      if (treesResult) treesResult.visible = state.showVegetation;
       bridges.visible = state.showBridges;
       updateBridgeLabels(bridges, cam.camera);
       validation.visible = state.showValidation || state.showOsmAlignment;
@@ -273,20 +326,20 @@ export async function createWorld(canvas, dataset, tooltip) {
       waterFx.update(dt);
       chainage.update(cam.camera);
       cinematic.update(dt);
-      fishing.update(dt, cam.camera);
+      if (fishing) fishing.update(dt, cam.camera);
       if (!cinematic.isActive()) cam.update(dt);
       const h = cam.camera.position.y;
       if (state.cinematicUnderwater) {
-        // Minimal fog — empty blue fog was hiding the fish school
         scene.fog.density = 0.000008;
         scene.fog.color.set("#7aabba");
         scene.background.set("#5a8fa0");
         renderer.toneMappingExposure = 1.55;
       } else {
-        scene.fog.density = cutaway ? 0.00003 : h > 400 ? 0.00004 : 0.00008;
-        scene.fog.color.set("#a8b8a8");
-        scene.background.set("#9ab0a0");
-        renderer.toneMappingExposure = 1.22;
+        const atmospheric = Math.min(0.000055, 0.000028 + h / 8_000_000);
+        scene.fog.density = cutaway ? 0.000028 : atmospheric;
+        scene.fog.color.set(h > 800 ? "#b0c0b8" : "#a8b8a8");
+        scene.background.set(h > 1200 ? "#98a898" : "#9ab0a0");
+        renderer.toneMappingExposure = h > 1000 ? 1.18 : 1.22;
       }
       renderer.render(scene, cam.camera);
     },

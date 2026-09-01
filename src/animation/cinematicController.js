@@ -26,7 +26,11 @@ export function createCinematicController({
   onComplete,
 }) {
   const stations = dataset.corridor.stations;
-  const b = dataset.kmlOverviewBounds || dataset.sceneBounds || sceneBounds(dataset);
+  const b =
+    dataset.activeSceneBounds ||
+    dataset.kmlOverviewBounds ||
+    dataset.sceneBounds ||
+    sceneBounds(dataset);
   const dtmCam = terrainCameraOpts(dataset.dtm);
   const fishingZones = [];
   const diag = Math.hypot(b.spanX, b.spanZ);
@@ -310,9 +314,11 @@ export function createCinematicController({
 
   /** Pull back until the entire KML corridor fits in frame. */
   function fullCorridorOverview(k, outP, outL) {
-    fullRiverOverviewPose(stations, b, k, outP, outL, up, {
+    const fullBounds = dataset.kmlOverviewBounds || b;
+    fullRiverOverviewPose(stations, fullBounds, k, outP, outL, up, {
       fovDeg: camera.fov,
       aspect: Math.max(0.5, camera.aspect || 16 / 9),
+      fullExtent: true,
       ...dtmCam,
     });
   }
@@ -457,6 +463,8 @@ export function createCinematicController({
     state.cinematicJumpSequence = false;
     state.cinematicJumpBudget = 0;
     state.cinematicFishingPointFocus = null;
+    state.cinematicBridgeFocus = null;
+    state.cinematicInfo = null;
     state._cinematicCam = null;
     controls.enabled = true;
     camera.near = 1.2;
@@ -504,13 +512,32 @@ export function createCinematicController({
     state.cinematicFishScene = t >= 19 && t < 22;
     state.cinematicJumpSequence = t >= 22 && t < 24;
     if (t < 4 || t >= 8) state.cinematicFishingPointFocus = null;
+    if (t >= 12 && t < 16.5) {
+      const br = pickBridgeFocus(dataset, stations, landmarks.bridgeU);
+      state.cinematicBridgeFocus = br;
+    } else {
+      state.cinematicBridgeFocus = null;
+    }
+
+    // Cinematic coordinate overlay
+    const stCam = stationAt(p);
+    const ll = dataset.frame.toLonLat(stCam.x, stCam.z);
+    const riverMat = getRiverMaterial?.();
+    const flowSpd = riverMat?.uniforms?.uFlowSpeed?.value ?? state.flowSpeed;
+    state.cinematicInfo = {
+      lat: ll.lat,
+      lon: ll.lon,
+      depth: sampleDepthAlong(stCam.x, stCam.z, dataset),
+      flowSpeed: flowSpd * 1.2,
+    };
+
     state.cinematicFishBoost =
       (t >= 4 && t < 8) ||
       (t >= 19 && t < 24) ||
       (t >= 24 && t < 27);
 
     const reveal = revealAt(p);
-    const mat = getRiverMaterial?.();
+    const mat = riverMat;
     if (mat?.uniforms) {
       mat.uniforms.uReveal.value = reveal;
       mat.uniforms.uRevealSoft.value = state.cinematicUnderwater ? 0.08 : 0.05;
@@ -819,4 +846,56 @@ function resolveLandmarks(dataset, stations) {
     treeNz,
     treeSide,
   };
+}
+
+function pickBridgeFocus(dataset, stations, bridgeU) {
+  const bridges = dataset.bridges || [];
+  if (!bridges.length) return null;
+  let best = bridges[0];
+  let bestScore = Infinity;
+  for (const br of bridges) {
+    let bestI = 0;
+    let bestD = Infinity;
+    const step = Math.max(1, Math.floor(stations.length / 300));
+    for (let i = 0; i < stations.length; i += step) {
+      const s = stations[i];
+      const mx = br.midX ?? br.x ?? 0;
+      const mz = br.midZ ?? br.z ?? 0;
+      const d2 = (s.x - mx) ** 2 + (s.z - mz) ** 2;
+      if (d2 < bestD) {
+        bestD = d2;
+        bestI = i;
+      }
+    }
+    const u = bestI / Math.max(1, stations.length - 1);
+    const score = Math.abs(u - bridgeU);
+    if (score < bestScore) {
+      bestScore = score;
+      best = br;
+    }
+  }
+  const mx = best.midX ?? best.x ?? 0;
+  const mz = best.midZ ?? best.z ?? 0;
+  const ll = dataset.frame.toLonLat(mx, mz);
+  return {
+    name: best.name || best.road || "Bridge",
+    lon: ll.lon,
+    lat: ll.lat,
+    lengthM: best.lengthM,
+    river: "Mula–Mutha",
+  };
+}
+
+function sampleDepthAlong(x, z, dataset) {
+  const pts = dataset.points || [];
+  let best = null;
+  let d = Infinity;
+  for (const p of pts) {
+    const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
+    if (d2 < d) {
+      d = d2;
+      best = p;
+    }
+  }
+  return best?.depth ?? (dataset.minDepth + dataset.maxDepth) * 0.5;
 }

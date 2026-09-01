@@ -81,6 +81,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     const utm = dataset.frame.toUtm(x, z);
     const ch = nearestChainage(x, z, dataset.chainage);
     const landY = hit.object.name === "terrain" ? hit.point.y : terrainHeightAt(x, z, dataset.corridor.stations);
+    const flowDir = flowDirectionAt(x, z, dataset.corridor.stations);
+    const flowSpeed = (state.flowSpeed ?? 0.85) * 1.4;
     let depth = isRiver ? sampleDepth(hit) : sampleDepthAt(x, z, dataset);
     let kind = "Estimated bathymetry";
     const { best, d } = nearest(x, z);
@@ -139,7 +141,16 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         compact: true,
         lon: geo.lon,
         lat: geo.lat,
+        localX: x,
+        localZ: z,
         depth,
+        landElevation: landY,
+        waterSurface,
+        riverbedElevation: riverbedY,
+        flowDirection: flowDir,
+        flowSpeed,
+        chainage: ch?.meters != null ? `${(ch.meters / 1000).toFixed(2)} km` : ch?.label,
+        chainageM: ch?.meters,
       });
       return;
     }
@@ -152,8 +163,9 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       depthLabel,
       easting: utm.easting,
       northing: utm.northing,
-      x,
-      z,
+      localX: x,
+      localZ: z,
+      flowSpeed,
       minDepth: dataset.minDepth,
       maxDepth: dataset.maxDepth,
       color,
@@ -163,6 +175,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       landElevation: landY,
       riverbedElevation: riverbedY,
       waterSurface,
+      flowDirection: flowDir,
       isTerrain: !isRiver,
       nearestFishing,
       nearestBridge,
@@ -184,6 +197,31 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     tooltip.hide();
     state.hover = null;
   });
+}
+
+function flowDirectionAt(x, z, stations) {
+  let best = stations[0];
+  let bestD = Infinity;
+  const step = Math.max(1, Math.floor(stations.length / 200));
+  for (let i = 0; i < stations.length; i += step) {
+    const s = stations[i];
+    const d2 = (s.x - x) ** 2 + (s.z - z) ** 2;
+    if (d2 < bestD) {
+      bestD = d2;
+      best = s;
+    }
+  }
+  const fx = best.flowX ?? 0;
+  const fz = best.flowZ ?? 1;
+  const deg = ((Math.atan2(fx, fz) * 180) / Math.PI + 360) % 360;
+  if (deg >= 337.5 || deg < 22.5) return "North";
+  if (deg < 67.5) return "North-East";
+  if (deg < 112.5) return "East";
+  if (deg < 157.5) return "South-East";
+  if (deg < 202.5) return "South";
+  if (deg < 247.5) return "South-West";
+  if (deg < 292.5) return "West";
+  return "North-West";
 }
 
 function depthColorHex(t) {

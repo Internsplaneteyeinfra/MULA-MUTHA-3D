@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { OrbitControls } from "three/examples/jsm/controls/OrbitControls.js";
 import { state } from "../state.js";
 import { SURFACE_Y } from "./river.js";
-import { computeSceneBounds, computeKmlOverviewBounds } from "../geo/sceneBounds.js";
+import { computeSceneBounds, computeKmlOverviewBounds, computeActiveSceneBounds } from "../geo/sceneBounds.js";
 import {
   stationAt,
   riverAxis,
@@ -39,7 +39,11 @@ export function sceneName(mode) {
 export function createCameraSystem(canvas, dataset) {
   const stations = dataset.corridor.stations;
   const b = dataset.sceneBounds || computeSceneBounds(dataset);
-  const overviewBounds = dataset.kmlOverviewBounds || computeKmlOverviewBounds(dataset);
+  const overviewBounds =
+    dataset.activeSceneBounds ||
+    dataset.kmlOverviewBounds ||
+    computeActiveSceneBounds(dataset) ||
+    computeKmlOverviewBounds(dataset);
   const dtmCam = terrainCameraOpts(dataset.dtm);
   const midU = stations[dataset.corridor.midPathIdx ?? Math.floor(stations.length / 2)].t;
   const diag = Math.hypot(b.spanX, b.spanZ);
@@ -68,6 +72,7 @@ export function createCameraSystem(canvas, dataset) {
   const smoothL = new THREE.Vector3();
   const smoothUp = new THREE.Vector3(0, 1, 0);
   let followInited = false;
+  let localTransition = null;
 
   function st(u) {
     return stationAt(stations, u);
@@ -170,7 +175,16 @@ export function createCameraSystem(canvas, dataset) {
         outL: tmpL,
         outUp: tmpUp,
       });
-      snapTo(tmpP, tmpL, tmpUp);
+      localTransition = {
+        fromP: camera.position.clone(),
+        fromL: controls.target.clone(),
+        fromUp: camera.up.clone(),
+        toP: tmpP.clone(),
+        toL: tmpL.clone(),
+        toUp: tmpUp.clone(),
+        t: 0,
+        dur: 1.25,
+      };
       return;
     }
 
@@ -243,6 +257,19 @@ export function createCameraSystem(canvas, dataset) {
   applyMode("overview");
 
   function update(dt) {
+    if (localTransition) {
+      localTransition.t += dt;
+      const k = easeInOutCubic(Math.min(1, localTransition.t / localTransition.dur));
+      camera.position.lerpVectors(localTransition.fromP, localTransition.toP, k);
+      controls.target.lerpVectors(localTransition.fromL, localTransition.toL, k);
+      smoothUp.copy(localTransition.fromUp).lerp(localTransition.toUp, k).normalize();
+      camera.up.copy(smoothUp);
+      camera.lookAt(controls.target);
+      controls.update();
+      if (localTransition.t >= localTransition.dur) localTransition = null;
+      return;
+    }
+
     if (state.cameraMode === "follow") {
       if (state.playing) {
         state.pathT += dt / state.pathDuration;
@@ -283,6 +310,10 @@ export function createCameraSystem(canvas, dataset) {
   }
 
   return { camera, controls, applyMode, update, stationAt: st };
+}
+
+function easeInOutCubic(t) {
+  return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
 }
 
 function sceneBounds(dataset) {

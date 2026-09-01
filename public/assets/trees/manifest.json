@@ -1,0 +1,44 @@
+{
+  "trees": [
+    {
+      "id": "palm",
+      "url": "/assets/trees/palm.glb",
+      "nativeW": 6.080109144445755,
+      "nativeD": 6.134369491323319,
+      "nativeH": 10.000000000000002,
+      "source": "10446_Palm_Tree_v1_max2010_iteration-2.obj"
+    },
+    {
+      "id": "broadleaf",
+      "url": "/assets/trees/broadleaf.glb",
+      "nativeW": 8.144801953379178,
+      "nativeD": 8.100032168708086,
+      "nativeH": 9.5,
+      "source": "AlanTree.fbx"
+    },
+    {
+      "id": "conifer",
+      "url": "/assets/trees/conifer.glb",
+      "nativeW": 10.881323569538504,
+      "nativeD": 10.42438126508553,
+      "nativeH": 11,
+      "source": "treeplan1.fbx"
+    },
+    {
+      "id": "grass",
+      "url": "/assets/trees/grass.glb",
+      "nativeW": 0.9264632289761267,
+      "nativeD": 1.2124355902406647,
+      "nativeH": 1.3999999999999997,
+      "source": "grass-block.3DS"
+    },
+    {
+      "id": "birch",
+      "url": "/assets/trees/birch.glb",
+      "nativeW": 4.598020749063946,
+      "nativeD": 4.598020749063946,
+      "nativeH": 8.5,
+      "source": "procedural_from_birch_tree.blend"
+    }
+  ]
+}

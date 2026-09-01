@@ -28,8 +28,13 @@ export async function createFishingSystem(dataset, canvas, camera, uiRoot, extra
   let pointFish = { group: new THREE.Group(), update() {}, dispose() {}, pointZones: [] };
 
   try {
-    const raw = await loadFishingLocations("/data/Fishing_Locations.kml");
-    zones = buildFishingZones(raw, dataset);
+    const raw = dataset.fishingLocationsRaw?.length
+      ? dataset.fishingLocationsRaw
+      : await loadFishingLocations("/data/Fishing_Locations.kml");
+    dataset.fishingLocationsRaw = raw;
+    zones = dataset.fishingZones?.length
+      ? dataset.fishingZones
+      : buildFishingZones(raw, dataset);
     if (zones.length) {
       pointFish = await createFishingPointFishSystem(dataset, zones, {
         ripples,
@@ -157,6 +162,7 @@ function createFishingPanel(root) {
       el.hidden = false;
       el.innerHTML = `
         <h3>Fishing Location</h3>
+        ${zone.waterValid === false ? `<div class="kv invalid"><span class="k">Status</span><span class="v">${zone.invalidReason || "INVALID"}</span></div>` : ""}
         <div class="kv"><span class="k">ID</span><span class="v">${zone.name}</span></div>
         <div class="kv"><span class="k">Longitude</span><span class="v">${zone.lon.toFixed(6)}°</span></div>
         <div class="kv"><span class="k">Latitude</span><span class="v">${zone.lat.toFixed(6)}°</span></div>

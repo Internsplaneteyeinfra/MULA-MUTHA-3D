@@ -107,6 +107,24 @@ export function createProceduralPrototype(id, entry) {
     }
   }
 
+  // Main entrance door on front facade (+Z), road-facing in placement pass
+  {
+    const doorW = 1.05 + (def.shop ? 0.15 : 0);
+    const doorH = def.shop ? 2.35 : 2.1;
+    const doorMat = mat("#5c4030", 0.78, 0.06);
+    const frameMat = mat("#8a8078", 0.88, 0.02);
+    const door = new THREE.Mesh(new THREE.BoxGeometry(doorW, doorH, 0.14), doorMat);
+    door.position.set(0, plinthH + doorH * 0.5, def.d / 2 + 0.09);
+    root.add(door);
+    const frame = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.16, doorH + 0.12, 0.08), frameMat);
+    frame.position.set(0, plinthH + doorH * 0.5, def.d / 2 + 0.04);
+    root.add(frame);
+    // Entrance steps
+    const steps = new THREE.Mesh(new THREE.BoxGeometry(doorW + 0.5, 0.18, 0.55), trimMat);
+    steps.position.set(0, plinthH + 0.09, def.d / 2 + 0.32);
+    root.add(steps);
+  }
+
   // Shop front glazing
   if (def.shop) {
     const shop = new THREE.Mesh(

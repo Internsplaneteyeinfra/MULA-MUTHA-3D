@@ -21,9 +21,16 @@ export function createTooltip(root) {
       if (info.compact) {
         el.innerHTML = `
           <h3>RIVER · HOVER</h3>
-          <div class="kv"><span class="k">Longitude</span><span class="v">${info.lon.toFixed(6)}°</span></div>
-          <div class="kv"><span class="k">Latitude</span><span class="v">${info.lat.toFixed(6)}°</span></div>
-          <div class="kv"><span class="k">Water depth</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
+          <div class="kv"><span class="k">LAT</span><span class="v">${info.lat.toFixed(6)}° N</span></div>
+          <div class="kv"><span class="k">LON</span><span class="v">${info.lon.toFixed(6)}° E</span></div>
+          ${info.localX != null ? `<div class="kv"><span class="k">LOCAL X</span><span class="v">${info.localX.toFixed(1)} m</span></div>` : ""}
+          ${info.localZ != null ? `<div class="kv"><span class="k">LOCAL Y</span><span class="v">${info.localZ.toFixed(1)} m</span></div>` : ""}
+          ${info.landElevation != null ? `<div class="kv"><span class="k">TERRAIN</span><span class="v">${info.landElevation.toFixed(1)} m</span></div>` : ""}
+          ${info.waterSurface != null ? `<div class="kv"><span class="k">WATER</span><span class="v">${info.waterSurface.toFixed(1)} m</span></div>` : ""}
+          ${info.riverbedElevation != null ? `<div class="kv"><span class="k">RIVERBED</span><span class="v">${info.riverbedElevation.toFixed(1)} m</span></div>` : ""}
+          <div class="kv"><span class="k">DEPTH</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
+          ${info.flowDirection ? `<div class="kv"><span class="k">FLOW</span><span class="v">${info.flowDirection}${info.flowSpeed != null ? ` · ${info.flowSpeed.toFixed(1)} m/s` : ""}</span></div>` : ""}
+          ${info.chainage ? `<div class="kv"><span class="k">CHAINAGE</span><span class="v">${info.chainage}</span></div>` : ""}
         `;
         return;
       }
@@ -53,6 +60,7 @@ export function createTooltip(root) {
         <div class="kv"><span class="k">Riverbed elevation</span><span class="v">${info.riverbedElevation != null ? info.riverbedElevation.toFixed(1) + " m" : "—"}</span></div>
         <div class="kv"><span class="k">Water depth</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
         <div class="kv"><span class="k">Depth source</span><span class="v">${info.depthLabel ?? info.kind}</span></div>
+        <div class="kv"><span class="k">Flow direction</span><span class="v">${info.flowDirection ?? "—"}</span></div>
         <div class="kv"><span class="k">Chainage</span><span class="v">${info.chainage ?? "—"}</span></div>
         <div class="kv"><span class="k">Nearest fishing</span><span class="v">${info.nearestFishing ?? "—"}</span></div>
         <div class="kv"><span class="k">Nearest bridge</span><span class="v">${info.nearestBridge ?? "—"}</span></div>
@@ -62,6 +70,59 @@ export function createTooltip(root) {
       el.classList.remove("visible");
     },
   };
+}
+
+/** Bridge info (top-right) + cinematic coordinate overlay. */
+export function mountCinematicOverlays(root, dataset) {
+  const bridgeEl = document.createElement("aside");
+  bridgeEl.className = "hud bridge-info";
+  bridgeEl.id = "bridge-info";
+  bridgeEl.hidden = true;
+  bridgeEl.innerHTML = `
+    <strong>BRIDGE INFORMATION</strong>
+    <div class="kv"><span class="k">Name</span><span class="v" id="bi-name">—</span></div>
+    <div class="kv"><span class="k">Coordinates</span><span class="v" id="bi-coords">—</span></div>
+    <div class="kv"><span class="k">River crossing</span><span class="v" id="bi-cross">—</span></div>
+    <div class="kv"><span class="k">Length</span><span class="v" id="bi-len">—</span></div>
+  `;
+  root.appendChild(bridgeEl);
+
+  const cineEl = document.createElement("aside");
+  cineEl.className = "hud cine-info";
+  cineEl.id = "cine-info";
+  cineEl.hidden = true;
+  cineEl.innerHTML = `
+    <div class="cine-coords" id="cine-coords">—</div>
+    <div class="cine-meta" id="cine-meta">—</div>
+  `;
+  root.appendChild(cineEl);
+
+  function tick() {
+    const focus = state.cinematicBridgeFocus;
+    const showBridge = !!focus && state.cinematicActive && state.cinematicPhase === "bridge";
+    bridgeEl.hidden = !showBridge;
+    if (showBridge && focus) {
+      bridgeEl.querySelector("#bi-name").textContent = focus.name || "Unnamed bridge";
+      bridgeEl.querySelector("#bi-coords").textContent =
+        focus.lon != null ? `${focus.lat.toFixed(6)}° N · ${focus.lon.toFixed(6)}° E` : "—";
+      bridgeEl.querySelector("#bi-cross").textContent = focus.river || "Mula–Mutha";
+      bridgeEl.querySelector("#bi-len").textContent =
+        focus.lengthM != null ? `${Math.round(focus.lengthM)} m` : "—";
+    }
+
+    const info = state.cinematicInfo;
+    const showCine = state.cinematicActive && info;
+    cineEl.hidden = !showCine;
+    if (showCine && info) {
+      cineEl.querySelector("#cine-coords").textContent =
+        `${info.lat.toFixed(6)}° N · ${info.lon.toFixed(6)}° E`;
+      cineEl.querySelector("#cine-meta").textContent =
+        `DEPTH: ${info.depth.toFixed(1)} m · FLOW: ${info.flowSpeed.toFixed(1)} m/s`;
+    }
+
+    requestAnimationFrame(tick);
+  }
+  requestAnimationFrame(tick);
 }
 
 export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFlow, isCinematicActive, isCinematicPaused }) {
@@ -102,6 +163,8 @@ export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFl
     <section class="hud layers" id="layers-panel" hidden>
       <label><input id="water" type="checkbox" checked /> River (KML)</label>
       <label><input id="kml-skel" type="checkbox" /> KML ground skeleton <em>(Google Earth)</em></label>
+      <label><input id="coord-grid" type="checkbox" /> Coordinate grid <em>(lat/lon lines)</em></label>
+      <label><input id="validate-hud" type="checkbox" /> Projection validation</label>
       <label><input id="bath" type="checkbox" checked /> Bathymetry</label>
       <label><input id="ter" type="checkbox" checked /> Terrain <em>(FABDEM)</em></label>
       <label><input id="br" type="checkbox" checked /> Bridges</label>
@@ -249,6 +312,12 @@ export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFl
   root.querySelector("#kml-skel")?.addEventListener("change", (e) => {
     state.showKmlSkeleton = e.target.checked;
   });
+  root.querySelector("#coord-grid")?.addEventListener("change", (e) => {
+    state.showCoordinateGrid = e.target.checked;
+  });
+  root.querySelector("#validate-hud")?.addEventListener("change", (e) => {
+    state.showValidationHud = e.target.checked;
+  });
   root.querySelector("#opacity").addEventListener("input", (e) => {
     state.waterOpacity = Number(e.target.value) / 100;
   });
@@ -275,6 +344,8 @@ export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFl
   function syncLayersPanelFromState() {
     setChecked("water", state.showWater);
     setChecked("kml-skel", state.showKmlSkeleton);
+    setChecked("coord-grid", state.showCoordinateGrid);
+    setChecked("validate-hud", state.showValidationHud);
     setChecked("bath", state.showBathymetry);
     setChecked("ter", state.showTerrain);
     setChecked("br", state.showBridges);

@@ -1,7 +1,10 @@
 import "./style.css";
 import { loadJourneyDataset } from "./geo/load.js";
 import { createWorld } from "./scene/world.js";
-import { mountUI, createTooltip } from "./ui/overlay.js";
+import { mountUI, createTooltip, mountCinematicOverlays } from "./ui/overlay.js";
+import { registerServiceWorker } from "./cache/registerServiceWorker.js";
+
+registerServiceWorker();
 
 const loading = document.getElementById("loading");
 const loadMsg = document.getElementById("load-msg");
@@ -39,9 +42,21 @@ async function boot() {
       }
     }
 
-    progress(0.96, "Building geographic scene + GLB urban…");
+    progress(0.96, "Building geographic scene…");
     const tooltip = createTooltip(uiRoot);
-    const app = await createWorld(canvas, dataset, tooltip);
+    mountCinematicOverlays(uiRoot, dataset);
+
+    let sceneReady = false;
+    const app = await createWorld(canvas, dataset, tooltip, {
+      onCoreReady() {
+        if (sceneReady) return;
+        sceneReady = true;
+        loading.classList.add("hidden");
+      },
+    });
+
+    if (!sceneReady) loading.classList.add("hidden");
+
     mountUI(uiRoot, {
       onCamera: (mode) => app.setCamera(mode),
       onStartWaterFlow: () => app.startWaterFlow(),
@@ -49,8 +64,6 @@ async function boot() {
       isCinematicActive: () => app.isCinematicActive(),
       isCinematicPaused: () => app.isCinematicPaused(),
     });
-
-    loading.classList.add("hidden");
 
     let last = performance.now();
     function loop(now) {
