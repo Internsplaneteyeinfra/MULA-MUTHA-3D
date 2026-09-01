@@ -7,6 +7,7 @@ import { loadOsmContext } from "./osmContext.js";
 import { buildValidationReport } from "./validationReport.js";
 import { validateLonLatPoints, bufferBboxMeters } from "./kmlValidate.js";
 import { validateLayerAlignment, computeSceneBounds, computeKmlOverviewBounds } from "./sceneBounds.js";
+import { loadFabdemDtm } from "./dtm.js";
 
 /** Fallback origin if KML bbox is unavailable. */
 export const SCENE_ORIGIN_LONLAT = { lon: 73.92420242, lat: 18.534020995 };
@@ -174,6 +175,20 @@ export async function loadJourneyDataset({
     bounds: corridor.bounds,
   };
 
+  onProgress?.(0.82, "Loading FABDEM terrain (DTM)…");
+  let dtm = null;
+  try {
+    dtm = await loadFabdemDtm("/data/FABDEM_DTM_FINAL.tif", frame, corridor);
+    console.info("FABDEM DTM loaded", {
+      bounds: dtm.bounds,
+      grid: `${dtm.width}×${dtm.height}`,
+      medianBankM: dtm.medianBankM?.toFixed(2),
+      verticalOffset: dtm.verticalOffset?.toFixed(2),
+    });
+  } catch (dtmErr) {
+    console.warn("FABDEM DTM unavailable — using procedural terrain:", dtmErr.message);
+  }
+
   onProgress?.(0.86, "Loading OSM corridor features (buildings/roads/trees/bridges)…");
   const bridges = await loadOsmBridges(bridgesUrl, frame, corridor);
   const osm = await loadOsmContext(frame, corridor);
@@ -239,6 +254,8 @@ export async function loadJourneyDataset({
     layerAlignment,
     sceneBounds,
     kmlOverviewBounds,
+    dtmSource: dtm?.source || null,
+    dtmBounds: dtm?.bounds || null,
     osmCounts: {
       buildings: osm.buildings?.length || 0,
       roads: osm.roads?.length || 0,
@@ -269,6 +286,7 @@ export async function loadJourneyDataset({
     validation,
     sceneBounds,
     kmlOverviewBounds,
+    dtm,
   };
 }
 

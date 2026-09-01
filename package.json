@@ -14,6 +14,7 @@
     "smoke": "node scripts/ci-smoke.mjs",
     "ci": "npm run build && npm run smoke",
     "generate:buildings": "node scripts/generateBuildingAssets.mjs",
+    "convert:trees": "node scripts/convertTreeAssets.mjs",
     "fetch:osm": "python scripts/fetchOsmMapApi.py",
     "fetch:osm:east-buildings": "python scripts/fetchEastBuildings.py",
     "fetch:osm:trees": "python scripts/fetchOsmTrees.py",
@@ -22,6 +23,7 @@
     "enrich:osm": "python scripts/enrichOsmDatasets.py"
   },
   "dependencies": {
+    "geotiff": "^2.1.3",
     "proj4": "^2.15.0",
     "three": "^0.170.0"
   },

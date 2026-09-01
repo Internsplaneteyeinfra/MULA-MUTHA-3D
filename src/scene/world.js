@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { state } from "../state.js";
 import { createTerrain } from "./terrain.js";
+import { createKmlSkeleton } from "./kmlSkeleton.js";
 import { createRiver, applyExaggeration, applyRiverLook, SURFACE_Y } from "./river.js";
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
@@ -26,7 +27,8 @@ export async function createWorld(canvas, dataset, tooltip) {
 
   const scene = new THREE.Scene();
   scene.background = new THREE.Color("#9ab0a0");
-  scene.fog = new THREE.FogExp2("#a8b8a8", 0.000055);
+  const fogDensity = dataset.dtm ? 0.000038 : 0.000055;
+  scene.fog = new THREE.FogExp2("#a8b8a8", fogDensity);
 
   scene.add(
     new THREE.Mesh(
@@ -64,9 +66,10 @@ export async function createWorld(canvas, dataset, tooltip) {
   scene.add(fill);
 
   const terrain = createTerrain(dataset);
+  const kmlSkeleton = createKmlSkeleton(dataset);
   const river = createRiver(dataset);
   const urban = await createUrban(dataset);
-  const trees = createVegetation(dataset);
+  const trees = await createVegetation(dataset);
   const bridges = createBridges(dataset);
   fillPierUniforms(river.material, dataset);
   const particles = createFlowParticles(dataset);
@@ -76,6 +79,7 @@ export async function createWorld(canvas, dataset, tooltip) {
 
   scene.add(terrain.mesh);
   scene.add(terrain.outline);
+  scene.add(kmlSkeleton);
   scene.add(river.bed);
   scene.add(river.walls);
   scene.add(river.mesh);
@@ -248,6 +252,7 @@ export async function createWorld(canvas, dataset, tooltip) {
       river.walls.visible = state.showBathymetry || state.showWater;
       if (river.wire) river.wire.visible = !!state.showWaterDebug;
       terrain.mesh.visible = state.showTerrain;
+      kmlSkeleton.visible = state.showKmlSkeleton;
       urban.visible = state.showUrban;
       if (urban.userData?.buildings) urban.userData.buildings.visible = state.showOsmBuildings;
       if (urban.userData?.roads) urban.userData.roads.visible = state.showOsmRoads;

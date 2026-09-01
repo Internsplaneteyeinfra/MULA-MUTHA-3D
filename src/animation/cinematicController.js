@@ -6,6 +6,7 @@ import {
   fullRiverOverviewPose,
   heightForWidth,
   smoothTangent,
+  terrainCameraOpts,
 } from "../scene/riverCamera.js";
 
 export const CINEMATIC_DURATION = 30;
@@ -26,6 +27,7 @@ export function createCinematicController({
 }) {
   const stations = dataset.corridor.stations;
   const b = dataset.kmlOverviewBounds || dataset.sceneBounds || sceneBounds(dataset);
+  const dtmCam = terrainCameraOpts(dataset.dtm);
   const fishingZones = [];
   const diag = Math.hypot(b.spanX, b.spanZ);
 
@@ -311,6 +313,7 @@ export function createCinematicController({
     fullRiverOverviewPose(stations, b, k, outP, outL, up, {
       fovDeg: camera.fov,
       aspect: Math.max(0.5, camera.aspect || 16 / 9),
+      ...dtmCam,
     });
   }
 

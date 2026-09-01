@@ -11,6 +11,7 @@ import {
   mapAerialPose,
   heightForWidth,
   nearestStationU,
+  terrainCameraOpts,
 } from "./riverCamera.js";
 
 export function sceneName(mode) {
@@ -39,6 +40,7 @@ export function createCameraSystem(canvas, dataset) {
   const stations = dataset.corridor.stations;
   const b = dataset.sceneBounds || computeSceneBounds(dataset);
   const overviewBounds = dataset.kmlOverviewBounds || computeKmlOverviewBounds(dataset);
+  const dtmCam = terrainCameraOpts(dataset.dtm);
   const midU = stations[dataset.corridor.midPathIdx ?? Math.floor(stations.length / 2)].t;
   const diag = Math.hypot(b.spanX, b.spanZ);
   const axis = riverAxis(stations);
@@ -107,6 +109,7 @@ export function createCameraSystem(canvas, dataset) {
       state.visualMode = "landscape";
       state.showBathymetry = true;
       state.showWater = true;
+      state.showKmlSkeleton = false;
       state.showTerrain = true;
       state.showUrban = true;
       state.showOsmBuildings = true;
@@ -143,6 +146,7 @@ export function createCameraSystem(canvas, dataset) {
       fullRiverOverviewPose(stations, overviewBounds, 1, tmpP, tmpL, tmpUp, {
         fovDeg: camera.fov,
         aspect: Math.max(0.5, camera.aspect || window.innerWidth / Math.max(1, window.innerHeight)),
+        ...dtmCam,
       });
       snapTo(tmpP, tmpL, tmpUp);
       return;

@@ -101,8 +101,9 @@ export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFl
 
     <section class="hud layers" id="layers-panel" hidden>
       <label><input id="water" type="checkbox" checked /> River (KML)</label>
+      <label><input id="kml-skel" type="checkbox" /> KML ground skeleton <em>(Google Earth)</em></label>
       <label><input id="bath" type="checkbox" checked /> Bathymetry</label>
-      <label><input id="ter" type="checkbox" checked /> Terrain <em>(approx.)</em></label>
+      <label><input id="ter" type="checkbox" checked /> Terrain <em>(FABDEM)</em></label>
       <label><input id="br" type="checkbox" checked /> Bridges</label>
       <label><input id="br-names" type="checkbox" /> Bridge names</label>
       <label><input id="urb-b" type="checkbox" checked /> Buildings</label>
@@ -245,6 +246,9 @@ export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFl
   root.querySelector("#water").addEventListener("change", (e) => {
     state.showWater = e.target.checked;
   });
+  root.querySelector("#kml-skel")?.addEventListener("change", (e) => {
+    state.showKmlSkeleton = e.target.checked;
+  });
   root.querySelector("#opacity").addEventListener("input", (e) => {
     state.waterOpacity = Number(e.target.value) / 100;
   });
@@ -270,6 +274,7 @@ export function mountUI(root, { onCamera, onStartWaterFlow, onTogglePauseWaterFl
   /** Sync Layers panel UI to current state (used by Reset). */
   function syncLayersPanelFromState() {
     setChecked("water", state.showWater);
+    setChecked("kml-skel", state.showKmlSkeleton);
     setChecked("bath", state.showBathymetry);
     setChecked("ter", state.showTerrain);
     setChecked("br", state.showBridges);

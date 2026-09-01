@@ -127,8 +127,10 @@ export function fullRiverOverviewPose(stations, bounds, k, outP, outL, outUp, op
   );
   // Camera SOUTH of center → west on left, east on right (Sangam left, Hadapsar right)
   const southBias = Math.max(spanZ * 0.04, diag * 0.012);
-  outP.set(bounds.cx, SURFACE_Y + height, bounds.cz - southBias);
-  outL.set(bounds.cx, SURFACE_Y, bounds.cz);
+  const lookY = opts.terrainLookY ?? SURFACE_Y;
+  const heightBoost = opts.terrainHeightBoost ?? 0;
+  outP.set(bounds.cx, SURFACE_Y + height + heightBoost, bounds.cz - southBias);
+  outL.set(bounds.cx, lookY, bounds.cz);
   if (outUp) outUp.set(0, 1, 0);
 }
 
@@ -145,4 +147,14 @@ export function applyLook(camera, pos, target, up) {
   camera.position.copy(pos);
   camera.up.copy(up).normalize();
   camera.lookAt(target);
+}
+
+/** Camera framing hints when FABDEM terrain is loaded. */
+export function terrainCameraOpts(dtm) {
+  if (!dtm) return {};
+  const mid = (dtm.minSceneY + dtm.maxSceneY) * 0.5;
+  return {
+    terrainLookY: mid * 0.5 + SURFACE_Y * 0.5,
+    terrainHeightBoost: Math.max(0, (dtm.maxSceneY - SURFACE_Y) * 0.15),
+  };
 }

@@ -15,6 +15,8 @@ export const state = {
   showBridges: true,
   showBridgeNames: false,
   showTerrain: true,
+  /** Google Earth KML polygon + centerline on ground (Layers toggle, default off). */
+  showKmlSkeleton: false,
   showOsmTrees: true,
   showOsmRoads: true,
   showOsmBuildings: true,
