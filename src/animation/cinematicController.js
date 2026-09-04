@@ -379,7 +379,7 @@ export function createCinematicController({
     // Keep flow readable before cinematic — was nearly frozen at 0.08
     if (mat.uniforms.uFlowSpeed) mat.uniforms.uFlowSpeed.value = Math.max(0.55, state.flowSpeed);
     if (mat.uniforms.uOpacity) mat.uniforms.uOpacity.value = Math.max(0.62, state.waterOpacity * 0.85);
-    if (mat.uniforms.uShowFlowVis) mat.uniforms.uShowFlowVis.value = Math.max(0.85, state.flowVisibility);
+    if (mat.uniforms.uShowFlowVis) mat.uniforms.uShowFlowVis.value = state.flowVisibility;
     syncFx(1.2);
     waterEffects?.setActive?.(false);
   }

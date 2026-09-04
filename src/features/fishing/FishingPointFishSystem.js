@@ -7,6 +7,7 @@ import {
 } from "./FishingZoneSystem.js";
 import { state } from "../../state.js";
 import { SURFACE_Y } from "../../scene/river.js";
+import { DEBUG_FISHING } from "../../config/debugFlags.js";
 
 const _tmp = new THREE.Vector3();
 const _tmp2 = new THREE.Vector3();
@@ -48,8 +49,11 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
   const library = opts.library || (await loadFishAssetLibrary());
   bindFishingSplashTargets(opts.ripples || null, opts.waterEffects || null);
 
-  const debug = createFishDebugOverlay(opts.uiRoot || document.getElementById("ui-root"));
-  state.showFishDebug = state.showFishDebug ?? true;
+  const debug = DEBUG_FISHING
+    ? createFishDebugOverlay(opts.uiRoot || document.getElementById("ui-root"))
+    : { update() {}, hide() {}, dispose() {} };
+  if (!DEBUG_FISHING) state.showFishDebug = false;
+  else state.showFishDebug = state.showFishDebug ?? false;
 
   if (!zones?.length) {
     return { group, pointZones: [], update() {}, dispose() {}, getScreenVisibleCount: () => 0 };
@@ -230,7 +234,7 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
         activePoint.lastLogMs = now;
         logVisibilityReport(activePoint, camera, vis);
       }
-      if (state.showFishDebug) debug.update(activePoint, camera, vis);
+      if (DEBUG_FISHING && state.showFishDebug) debug.update(activePoint, camera, vis);
       else debug.hide();
     } else {
       debug.hide();

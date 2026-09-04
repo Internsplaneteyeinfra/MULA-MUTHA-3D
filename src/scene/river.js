@@ -193,27 +193,29 @@ export function applyRiverLook(river, cutaway) {
   river.bed.material.metalness = cutaway ? 0.2 : 0.04;
 }
 
-export function applyExaggeration(river, dataset, exag) {
+export function applyExaggeration(river, dataset, exag, floodRiseM = 0) {
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
   const bed = river.bed.geometry.attributes.position;
+  const rise = Math.max(0, Number(floodRiseM) || 0);
+  const floodY = SURFACE_Y + rise;
   for (let i = 0; i < bath.depths.length; i++) {
     const d = bath.depths[i];
-    pos.setY(i, SURFACE_Y);
+    pos.setY(i, floodY);
     bed.setY(i, bedElevation(d, dataset.minDepth, dataset.maxDepth, 0.5, exag));
   }
   pos.needsUpdate = true;
   bed.needsUpdate = true;
   river.mesh.geometry.computeVertexNormals();
   river.bed.geometry.computeVertexNormals();
-  updateWalls(river.walls, bath, dataset, exag);
+  updateWalls(river.walls, bath, dataset, exag, rise);
 }
 
-function updateWalls(group, bath, dataset, exag) {
+function updateWalls(group, bath, dataset, exag, floodRiseM = 0) {
   const child = group.children[0];
   if (!child) return;
   const attr = child.geometry.attributes.position;
-  const wallTop = SURFACE_Y - 0.08;
+  const wallTop = SURFACE_Y + Math.max(0, floodRiseM) - 0.08;
   let i = 0;
   for (const [a, b] of bath.boundary) {
     const ya = bedElevation(bath.depths[a], dataset.minDepth, dataset.maxDepth, 0.5, exag);

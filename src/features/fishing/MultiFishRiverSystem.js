@@ -28,8 +28,6 @@ const PRESENTATION = buildNaturalSchoolSlots();
 const JUMP_TIMES = [22.2, 22.8, 23.3, 23.7, 24.0];
 let jumpIndex = 0;
 let lastVisibleLog = -1;
-let nextAmbientJumpAt = 0;
-let ambientJumpPick = 0;
 
 /**
  * Global river school — visible swimming band under water surface.
@@ -86,7 +84,8 @@ export async function createMultiFishRiverSystem(dataset) {
       band: slot.band,
       fixedScale,
       progress: (0.04 + (i / spawnPlan.length) * 0.9 + Math.random() * 0.02) % 1,
-      speed: 0.003 + Math.random() * 0.007,
+      // Slow cruise — previous *12 progress made fish streak like they were flying
+      speed: 0.00035 + Math.random() * 0.00045,
       swimDir: Math.random() < 0.65 ? 1 : -1,
       latOffset: slot.lat,
       depthBelow: depthForLayer(plan.layer),
@@ -122,7 +121,6 @@ export async function createMultiFishRiverSystem(dataset) {
       group.visible = false;
       return;
     }
-    group.visible = true;
     const time = state.elapsed || 0;
     const cam = state._cinematicCam;
     const fishScene = state.cinematicFishScene;
@@ -131,6 +129,14 @@ export async function createMultiFishRiverSystem(dataset) {
     const cineT = (state.cinematicProgress || 0) * 30;
     const usePresentation = (fishScene || jumpSeq || underwater) && cam;
 
+    // Free roam / overview: hide corridor school (looked like 2–3 fish flying).
+    // Fishing-point fish live in a separate system and stay visible.
+    if (!fishScene && !jumpSeq && !underwater && !state.cinematicActive) {
+      group.visible = false;
+      return;
+    }
+    group.visible = true;
+
     if (jumpSeq && jumpIndex < JUMP_TIMES.length && cineT >= JUMP_TIMES[jumpIndex]) {
       const jumper = agents.find((a) => a.canJump && a.jumpState === "swim");
       if (jumper) beginJump(jumper, stations, cam, ringLocal, dataset, time);
@@ -138,16 +144,8 @@ export async function createMultiFishRiverSystem(dataset) {
     }
     if (!jumpSeq) jumpIndex = 0;
 
-    // ~every second: one fish leaps above water then returns
-    if (time >= nextAmbientJumpAt && !agents.some((a) => a.jumpState !== "swim")) {
-      const jumpers = agents.filter((a) => a.canJump);
-      if (jumpers.length) {
-        const jumper = jumpers[ambientJumpPick % jumpers.length];
-        ambientJumpPick++;
-        beginJump(jumper, stations, cam || camera, ringLocal, dataset, time);
-        nextAmbientJumpAt = time + 1.0;
-      }
-    }
+    // No free-roam leaps — those looked like 2–3 fish “flying” at high speed.
+    // Jumps only during cinematic jump sequence; fishing-point fish handle their own.
 
     resolveCamPos(camera, cam, _camPos);
 
@@ -211,10 +209,11 @@ function resolveCamPos(camera, camHint, out) {
 }
 
 function depthForLayer(layer) {
-  if (layer === "surface") return 0.35 + Math.random() * 0.45;
-  if (layer === "mid") return 1.0 + Math.random() * 1.0;
+  // Keep free-roam school clearly under the surface (no “flying” skim)
+  if (layer === "surface") return 0.55 + Math.random() * 0.55;
+  if (layer === "mid") return 1.15 + Math.random() * 1.0;
   if (layer === "deep" || layer === "bottom") return 2.5 + Math.random() * 2.0;
-  return 0.8 + Math.random() * 0.8;
+  return 0.9 + Math.random() * 0.8;
 }
 
 function clampFishY(x, z, depthBelow, dataset, time) {
@@ -226,7 +225,7 @@ function clampFishY(x, z, depthBelow, dataset, time) {
 }
 
 function updateAmbientSwim(a, curve, stations, ringLocal, dataset, time, dt) {
-  a.progress = (a.progress + a.speed * a.swimDir * dt * 12 + 1) % 1;
+  a.progress = (a.progress + a.speed * a.swimDir * dt * 1.15 + 1) % 1;
   a.wanderT += dt;
   curve.getPointAt(a.progress, _pt);
   curve.getTangentAt(a.progress, _tan).normalize();

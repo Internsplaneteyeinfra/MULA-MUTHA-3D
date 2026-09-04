@@ -4,8 +4,10 @@ import { nearestChainage } from "./chainageMarkers.js";
 import { SURFACE_Y } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
 import { bedYAt, sampleDepthAt } from "../features/fishing/FishingZoneSystem.js";
+import { pickNullahAt } from "./drainageLayer.js";
+import { pickDepthZoneAt } from "./depthZonesLayer.js";
 
-export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset, tooltip) {
+export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset, tooltip, opts = {}) {
   const targets = Array.isArray(riverMeshes) ? [...riverMeshes] : [riverMeshes];
   if (terrainMesh) targets.push(terrainMesh);
   const raycaster = new THREE.Raycaster();
@@ -14,6 +16,9 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   const index = buildIndex(dataset.points, 60);
   let raf = 0;
   let lastE = null;
+  const getDrainageGroup = opts.getDrainageGroup;
+  const getDepthZonesGroup = opts.getDepthZonesGroup;
+  const getNallaFlow = opts.getNallaFlow;
 
   function ndc(e) {
     const rect = canvas.getBoundingClientRect();
@@ -55,6 +60,105 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
 
     // Selected chainage hover owns the tooltip — don't replace with water depth
     if (state.chainageTipActive) return;
+
+    // Nullah hover (when Drainage layer is on) — priority over river depth
+    if (state.showDrainage && !state.cinematicActive) {
+      const planeHit = raycaster.intersectObjects(targets, false)[0];
+      let wx = null;
+      let wz = null;
+      if (planeHit) {
+        wx = planeHit.point.x;
+        wz = planeHit.point.z;
+      } else {
+        // Fallback: ground plane at SURFACE_Y
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SURFACE_Y);
+        const pt = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(plane, pt)) {
+          wx = pt.x;
+          wz = pt.z;
+        }
+      }
+      if (wx != null) {
+        const drainageGroup = getDrainageGroup?.();
+        const nullah = pickNullahAt(drainageGroup, wx, wz, 32);
+        if (nullah) {
+          const m = nullah.meta || {};
+          const typeLabel = waterwayLabel(m.waterway);
+          let lon = nullah.hit.lon;
+          let lat = nullah.hit.lat;
+          if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
+            const ll = dataset.frame.toLonLat(nullah.hit.x, nullah.hit.z);
+            lon = ll.lon;
+            lat = ll.lat;
+          }
+          const flowRec = getNallaFlow?.()?.userData?.getRecordByPickMeta?.(m);
+          tooltip.show(e.clientX, e.clientY, {
+            nullahHover: true,
+            name: m.name || "Unnamed nullah",
+            waterway: m.waterway,
+            typeLabel,
+            osmId: m.osmId,
+            lengthM: nullah.lengthM,
+            lon,
+            lat,
+            localX: nullah.hit.x,
+            localZ: nullah.hit.z,
+            flowDirection: flowRec ? "Flows toward the main river" : null,
+            connectsToRiver: flowRec?.connectsToRiver,
+          });
+          state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
+          return;
+        }
+      }
+    }
+
+    // Glassy depth-zone polygons (real KML) — inspect without changing coords
+    if (state.showDepthZones && !state.cinematicActive) {
+      const planeHit = raycaster.intersectObjects(targets, false)[0];
+      let wx = planeHit?.point.x ?? null;
+      let wz = planeHit?.point.z ?? null;
+      if (wx == null) {
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SURFACE_Y);
+        const pt = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(plane, pt)) {
+          wx = pt.x;
+          wz = pt.z;
+        }
+      }
+      if (wx != null) {
+        const dzGroup = getDepthZonesGroup?.();
+        const feat = pickDepthZoneAt(dzGroup, wx, wz);
+        if (feat) {
+          let lon = feat.lon;
+          let lat = feat.lat;
+          if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
+            const ll = dataset.frame.toLonLat(feat.x, feat.z);
+            lon = ll.lon;
+            lat = ll.lat;
+          }
+          const elev = terrainHeightAt(feat.x, feat.z, dataset.corridor?.stations || []);
+          dzGroup?.userData?.setSelected?.(feat);
+          state.selectedDepthZoneId = feat.id;
+          tooltip.show(e.clientX, e.clientY, {
+            depthZoneHover: true,
+            name: feat.name || "Depth zone",
+            depthClass: feat.depthClass,
+            depthMin: feat.depthMin,
+            depthMax: feat.depthMax,
+            depthMid: feat.depthMid,
+            areaM2: feat.areaM2,
+            featureId: feat.id,
+            elevation: elev,
+            lon,
+            lat,
+            localX: feat.x,
+            localZ: feat.z,
+          });
+          state.hover = { x: feat.x, z: feat.z, depthZone: feat.depthClass };
+          return;
+        }
+      }
+    }
 
     if (state.inspectMode) {
       const osmHit = pickOsmFeature(dataset, pointer, camera, canvas, e);
@@ -199,6 +303,21 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   });
 }
 
+function waterwayLabel(ww) {
+  switch (String(ww || "").toLowerCase()) {
+    case "drain":
+      return "Drain / Nullah";
+    case "stream":
+      return "Stream / Nullah";
+    case "canal":
+      return "Canal";
+    case "ditch":
+      return "Ditch";
+    default:
+      return "Small channel";
+  }
+}
+
 function flowDirectionAt(x, z, stations) {
   let best = stations[0];
   let bestD = Infinity;
@@ -226,10 +345,10 @@ function flowDirectionAt(x, z, stations) {
 
 function depthColorHex(t) {
   const c = Math.max(0, Math.min(1, t));
-  // dark cyan → navy (matches bed depth palette)
-  const r = Math.round(8 + (4 - 8) * c);
-  const g = Math.round(48 + (14 - 48) * c);
-  const b = Math.round(72 + (36 - 72) * c);
+  // Match floating-water ramp: light sky blue → darkest navy
+  const r = Math.round(200 + (4 - 200) * c);
+  const g = Math.round(234 + (20 - 234) * c);
+  const b = Math.round(255 + (40 - 255) * c);
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
 }
 

@@ -4,9 +4,11 @@ export const state = {
   pathDuration: 140,
   journeyT: 0,
   journeyDuration: 140,
-  flowSpeed: 0.85,
-  flowVisibility: 1,
+  flowSpeed: 0.55,
+  flowVisibility: 0,
   waterOpacity: 0.88,
+  /** Metres above normal river surface (SURFACE_Y) — bathtub flood stage. */
+  floodRiseM: 0,
   showRiverBanks: false,
   depthExaggeration: 2,
   showWater: true,
@@ -16,18 +18,38 @@ export const state = {
   showBridges: true,
   showBridgeNames: false,
   showTerrain: true,
-  /** Google Earth KML polygon + centerline on ground (Layers toggle, default off). */
+  /** Google Earth KML polygon + centerline (driven by Map Reference Grid). */
   showKmlSkeleton: false,
+  /** Combined Layers control: KML Skeleton + Coordinate Grid. */
+  showMapReferenceGrid: false,
+  /** OSM waterways KML — Layers → Small channels. Also drives nalla water animation. */
+  showDrainage: false,
+  /** Mirrored from showDrainage for internal sync; not a separate UI toggle. */
+  showNallaFlow: false,
+  /** Internal speed — default looks correct; optional slider only. */
+  nallaFlowSpeed: 0.65,
+  /** Jul 2026 depth-class polygons (1.5–2.0 m) — Layers → Depth zones (glassy). */
+  showDepthZones: false,
+  /** Glassy depth-zone animation on when layer is visible. */
+  glassyAnimatedFlow: true,
+  glassyFlowSpeed: 0.45,
+  glassyWaterOpacity: 0.72,
+  /** "cinematic" | "data" */
+  glassyVizMode: "cinematic",
+  /** One-shot reveal when enabling depth zones. */
+  glassyRevealActive: false,
+  selectedDepthZoneId: null,
   showOsmTrees: true,
   showOsmRoads: true,
   showOsmBuildings: true,
   showOsmAlignment: false,
-  showLayers: false,
+  showLayers: true,
   inspectMode: false,
   showValidation: false,
   showWaterDebug: false,
   showFish: true,
-  showFishDebug: true,
+  /** Developer-only; production default off — enable via debugFlags / localStorage. */
+  showFishDebug: false,
   showChainage: true,
   /** Show chainage text on every marker (Layers → Chainage toolkit). */
   showChainageLabels: false,
@@ -51,8 +73,6 @@ export const state = {
   cinematicBridgeFocus: null,
   cinematicInfo: null,
   showCoordinateGrid: false,
-  showValidationHud: true,
-  validationStats: null,
   cameraMode: "overview",
   visualMode: "landscape",
   elapsed: 0,

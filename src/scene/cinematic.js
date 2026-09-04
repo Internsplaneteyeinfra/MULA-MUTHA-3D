@@ -73,24 +73,68 @@ export function createCameraSystem(canvas, dataset) {
   const smoothUp = new THREE.Vector3(0, 1, 0);
   let followInited = false;
   let localTransition = null;
+  let orientTransition = null;
+  let zoomTransition = null;
+
+  const COMPASS_AZIMUTH = {
+    n: Math.PI,
+    ne: Math.PI * 0.75,
+    e: Math.PI * 0.5,
+    se: Math.PI * 0.25,
+    s: 0,
+    sw: -Math.PI * 0.25,
+    w: -Math.PI * 0.5,
+    nw: -Math.PI * 0.75,
+  };
 
   function st(u) {
     return stationAt(stations, u);
   }
 
   function takeManualControl() {
-    if (state.cameraMode === "follow") {
+    if (state.cinematicActive) return;
+    // Break out of scripted fly / local / follow → free mouse orbit
+    localTransition = null;
+    orientTransition = null;
+    zoomTransition = null;
+    if (state.cameraMode === "follow" || state.cameraMode === "local") {
       state.playing = false;
       state.cameraMode = "orbit";
-      state.visualMode = "landscape";
     }
+    camera.up.set(0, 1, 0);
+    camera.lookAt(controls.target);
+    controls.enabled = true;
   }
 
   controls.addEventListener("start", takeManualControl);
   canvas.addEventListener(
     "wheel",
     () => {
-      if (state.cameraMode === "follow") takeManualControl();
+      takeManualControl();
+    },
+    { passive: true },
+  );
+  canvas.addEventListener(
+    "pointerdown",
+    (e) => {
+      // Cancel fly-to on drag (any button) so orbit/pan feel immediate;
+      // plain click still lets the zoom finish.
+      if (!localTransition && !orientTransition && !zoomTransition) return;
+      if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
+      const startX = e.clientX;
+      const startY = e.clientY;
+      const onMove = (ev) => {
+        if (Math.hypot(ev.clientX - startX, ev.clientY - startY) > 3) {
+          takeManualControl();
+          cleanup();
+        }
+      };
+      const cleanup = () => {
+        window.removeEventListener("pointermove", onMove);
+        window.removeEventListener("pointerup", cleanup);
+      };
+      window.addEventListener("pointermove", onMove);
+      window.addEventListener("pointerup", cleanup);
     },
     { passive: true },
   );
@@ -115,6 +159,12 @@ export function createCameraSystem(canvas, dataset) {
       state.showBathymetry = true;
       state.showWater = true;
       state.showKmlSkeleton = false;
+      state.showMapReferenceGrid = false;
+      state.showCoordinateGrid = false;
+      state.showDrainage = false;
+      state.showDepthZones = false;
+      state.glassyRevealActive = false;
+      state.selectedDepthZoneId = null;
       state.showTerrain = true;
       state.showUrban = true;
       state.showOsmBuildings = true;
@@ -124,7 +174,7 @@ export function createCameraSystem(canvas, dataset) {
       state.showBridges = true;
       state.showBridgeNames = false;
       state.showFish = true;
-      state.showFishDebug = true;
+      state.showFishDebug = false;
       state.showChainage = true;
       state.showChainageLabels = false;
       state.chainageLabelMode = "station";
@@ -135,7 +185,7 @@ export function createCameraSystem(canvas, dataset) {
       state.showOsmAlignment = false;
       state.inspectMode = false;
       state.flowSpeed = 0.85;
-      state.flowVisibility = 1;
+      state.flowVisibility = 0;
       state.waterOpacity = 0.72;
       state.depthExaggeration = 2;
       mode = "overview";
@@ -256,7 +306,111 @@ export function createCameraSystem(canvas, dataset) {
 
   applyMode("overview");
 
+  function shortestAzimuthDelta(from, to) {
+    let d = to - from;
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    return d;
+  }
+
+  function cameraOffsetSpherical() {
+    const offset = camera.position.clone().sub(controls.target);
+    return new THREE.Spherical().setFromVector3(offset);
+  }
+
+  function applySpherical(spherical) {
+    const offset = new THREE.Vector3().setFromSpherical(spherical);
+    camera.position.copy(controls.target).add(offset);
+    camera.lookAt(controls.target);
+    controls.update();
+  }
+
+  function rotateToCompass(direction, duration = 0.5) {
+    if (state.cinematicActive) return;
+    const key = String(direction || "n").toLowerCase();
+    const targetTheta = COMPASS_AZIMUTH[key];
+    if (targetTheta == null) return;
+    takeManualControl();
+    localTransition = null;
+    const sph = cameraOffsetSpherical();
+    orientTransition = {
+      fromTheta: sph.theta,
+      toTheta: sph.theta + shortestAzimuthDelta(sph.theta, targetTheta),
+      phi: sph.phi,
+      radius: sph.radius,
+      fromUp: camera.up.clone(),
+      toUp: new THREE.Vector3(0, 1, 0),
+      resetUp: key === "n",
+      t: 0,
+      dur: duration,
+    };
+  }
+
+  function resetOrientation(duration = 0.5) {
+    rotateToCompass("n", duration);
+  }
+
+  function zoomBy(factor, duration = 0.4) {
+    if (state.cinematicActive) return;
+    takeManualControl();
+    localTransition = null;
+    orientTransition = null;
+    const sph = cameraOffsetSpherical();
+    const next = THREE.MathUtils.clamp(
+      sph.radius * factor,
+      controls.minDistance,
+      controls.maxDistance,
+    );
+    zoomTransition = {
+      fromRadius: sph.radius,
+      toRadius: next,
+      phi: sph.phi,
+      theta: sph.theta,
+      t: 0,
+      dur: duration,
+    };
+  }
+
+  function zoomIn() {
+    zoomBy(0.82);
+  }
+
+  function zoomOut() {
+    zoomBy(1.22);
+  }
+
   function update(dt) {
+    if (zoomTransition) {
+      zoomTransition.t += dt;
+      const k = easeInOutCubic(Math.min(1, zoomTransition.t / zoomTransition.dur));
+      const sph = new THREE.Spherical(
+        THREE.MathUtils.lerp(zoomTransition.fromRadius, zoomTransition.toRadius, k),
+        zoomTransition.phi,
+        zoomTransition.theta,
+      );
+      applySpherical(sph);
+      if (zoomTransition.t >= zoomTransition.dur) zoomTransition = null;
+      return;
+    }
+
+    if (orientTransition) {
+      orientTransition.t += dt;
+      const k = easeInOutCubic(Math.min(1, orientTransition.t / orientTransition.dur));
+      const sph = new THREE.Spherical(
+        orientTransition.radius,
+        orientTransition.phi,
+        THREE.MathUtils.lerp(orientTransition.fromTheta, orientTransition.toTheta, k),
+      );
+      applySpherical(sph);
+      if (orientTransition.resetUp) {
+        camera.up.copy(orientTransition.fromUp).lerp(orientTransition.toUp, k).normalize();
+        camera.lookAt(controls.target);
+      }
+      controls.update();
+      if (orientTransition.t >= orientTransition.dur) orientTransition = null;
+      return;
+    }
+
     if (localTransition) {
       localTransition.t += dt;
       const k = easeInOutCubic(Math.min(1, localTransition.t / localTransition.dur));
@@ -266,7 +420,17 @@ export function createCameraSystem(canvas, dataset) {
       camera.up.copy(smoothUp);
       camera.lookAt(controls.target);
       controls.update();
-      if (localTransition.t >= localTransition.dur) localTransition = null;
+      if (localTransition.t >= localTransition.dur) {
+        const release = localTransition.releaseMode || "orbit";
+        localTransition = null;
+        state.cameraMode = release;
+        state.playing = false;
+        controls.enabled = true;
+        if (release === "orbit") {
+          camera.up.set(0, 1, 0);
+          camera.lookAt(controls.target);
+        }
+      }
       return;
     }
 
@@ -309,7 +473,61 @@ export function createCameraSystem(canvas, dataset) {
     controls.update();
   }
 
-  return { camera, controls, applyMode, update, stationAt: st };
+  /**
+   * Zoom to chainage (River Side framing), then free orbit for the mouse.
+   * Drag / pan / scroll anytime cancels the fly and keeps control.
+   */
+  function focusOnXZ(x, z, opts = {}) {
+    if (state.cinematicActive) return;
+    state.playing = false;
+    state.visualMode = "landscape";
+    // Stay in orbit so mouse is the owner; fly is just a soft tween
+    state.cameraMode = "orbit";
+    controls.enabled = true;
+
+    const u = nearestStationU(stations, x, z);
+    const local = st(u);
+    alongRiverPose(stations, {
+      u,
+      height: heightForWidth(local.half, opts.heightMode || "detail"),
+      pitchDeg: opts.pitchDeg ?? 48,
+      lookAhead: opts.lookAhead ?? 0.04,
+      lateralBiasM: opts.lateralBiasM ?? 0,
+      outP: tmpP,
+      outL: tmpL,
+      outUp: tmpUp,
+    });
+    // Nudge look-at toward the selected marker so the yellow disc reads clearly
+    tmpL.x = THREE.MathUtils.lerp(tmpL.x, x, 0.45);
+    tmpL.z = THREE.MathUtils.lerp(tmpL.z, z, 0.45);
+    tmpL.y = SURFACE_Y + 1.4;
+
+    localTransition = {
+      fromP: camera.position.clone(),
+      fromL: controls.target.clone(),
+      fromUp: camera.up.clone().normalize(),
+      toP: tmpP.clone(),
+      toL: tmpL.clone(),
+      // World-up destination → OrbitControls feel normal after zoom
+      toUp: new THREE.Vector3(0, 1, 0),
+      t: 0,
+      dur: opts.dur ?? 0.9,
+      releaseMode: "orbit",
+    };
+  }
+
+  return {
+    camera,
+    controls,
+    applyMode,
+    focusOnXZ,
+    update,
+    stationAt: st,
+    rotateToCompass,
+    resetOrientation,
+    zoomIn,
+    zoomOut,
+  };
 }
 
 function easeInOutCubic(t) {

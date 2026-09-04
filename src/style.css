@@ -103,29 +103,6 @@ html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; backg
 .hud[hidden],
 .flow-cta[hidden],
 .pause-cta[hidden] { display: none !important; }
-.validate-panel {
-  right: 16px; top: 96px; padding: 10px 12px; min-width: 200px; z-index: 22;
-  font-size: 11px; color: var(--muted);
-}
-.validate-panel strong {
-  display: block; font-size: 10px; letter-spacing: 0.12em; color: var(--accent); margin-bottom: 6px;
-}
-.validate-panel pre {
-  margin: 0; font: 11px/1.4 "IBM Plex Mono", monospace; color: var(--text); white-space: pre-wrap;
-}
-.validate-panel[hidden] { display: none !important; }
-
-.validate-panel[hidden] { display: none !important; }
-.validate-rows { display: grid; gap: 4px; margin-top: 4px; }
-.validate-row {
-  display: flex; align-items: center; gap: 8px; font-size: 11px; color: var(--text);
-}
-.validate-row.ok .validate-icon { color: #6fd4a0; }
-.validate-row.warn .validate-icon { color: #e8c060; }
-.validate-row.fail .validate-icon { color: #e87070; }
-.validate-row.unk .validate-icon { color: var(--muted); }
-.validate-detail { margin-left: auto; font-family: "IBM Plex Mono", monospace; font-size: 10px; color: var(--muted); }
-.validate-note { display: block; margin-top: 8px; font-size: 9px; color: var(--muted); }
 
 .bridge-info {
   right: 16px; top: 16px; padding: 10px 12px; min-width: 220px; z-index: 26;
@@ -174,7 +151,7 @@ html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; backg
 }
 .depth-bar {
   height: 10px; border-radius: 99px;
-  background: linear-gradient(90deg, #7ec8b8 0%, #3a8aaa 35%, #1a5a78 70%, #0a2a40 100%);
+  background: linear-gradient(90deg, #7eb8d8 0%, #5a9ec8 35%, #3a7eae 70%, #245a88 100%);
   border: 1px solid rgba(255,255,255,0.12);
 }
 .depth-ticks {

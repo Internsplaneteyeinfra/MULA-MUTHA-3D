@@ -6,6 +6,23 @@ import { resolveBuildingHeight, resolveTreeHeight } from "./heightResolve.js";
  * Load KML-corridor OSM datasets (new + legacy filenames).
  * All features projected into the shared local frame.
  */
+export function emptyOsmContext() {
+  return {
+    roads: [],
+    buildings: [],
+    green: [],
+    vegetation: [],
+    trees: [],
+    treeRows: [],
+    waterFeatures: [],
+    metadata: null,
+    kmlValidation: null,
+    alignment: { ok: true },
+    source: "OpenStreetMap © contributors",
+    loaded: false,
+  };
+}
+
 export async function loadOsmContext(frame, corridor, urls = {}) {
   const roadsUrl = urls.roads || "/data/roads.geojson";
   const roadsLegacy = "/data/osm_roads.geojson";

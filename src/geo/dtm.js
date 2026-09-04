@@ -4,21 +4,48 @@ import { SURFACE_Y } from "../scene/river.js";
 /** Exaggerate real relief so hills/valleys read clearly in overview cameras. */
 export const TERRAIN_VERTICAL_EXAG = 3.2;
 const BANK_ANCHOR_SCENE = SURFACE_Y + 2.5;
+/** Cap decoded grid size — full FABDEM decode was blocking the loading screen. */
+const MAX_SAMPLE_DIM = 384;
 
 /**
  * Load FABDEM DTM (EPSG:4326) and build a scene-aligned elevation sampler.
  * Vertical offset anchors median bank elevation; exag amplifies hills/valleys.
  */
-export async function loadFabdemDtm(url, frame, corridor) {
+export async function loadFabdemDtm(url, frame, corridor, onProgress) {
+  onProgress?.("Downloading terrain elevation…");
   const res = await fetch(url);
   if (!res.ok) throw new Error(`DTM fetch failed (${res.status})`);
   const buf = await res.arrayBuffer();
+
+  onProgress?.("Decoding terrain elevation…");
+  // Yield so the loading bar can paint before heavy geotiff work
+  await yieldToBrowser();
+
   const tiff = await fromArrayBuffer(buf);
   const image = await tiff.getImage();
   const [west, south, east, north] = image.getBoundingBox();
-  const width = image.getWidth();
-  const height = image.getHeight();
-  const data = await image.readRasters({ interleave: true });
+  const fullW = image.getWidth();
+  const fullH = image.getHeight();
+
+  const scale = Math.min(1, MAX_SAMPLE_DIM / Math.max(fullW, fullH));
+  const width = Math.max(48, Math.floor(fullW * scale));
+  const height = Math.max(48, Math.floor(fullH * scale));
+
+  onProgress?.(
+    scale < 1
+      ? `Sampling terrain ${width}×${height} (from ${fullW}×${fullH})…`
+      : `Reading terrain ${width}×${height}…`,
+  );
+  await yieldToBrowser();
+
+  const data = await image.readRasters({
+    width,
+    height,
+    interleave: true,
+    resampleMethod: "bilinear",
+  });
+
+  await yieldToBrowser();
 
   const lonSpan = east - west;
   const latSpan = north - south;
@@ -33,7 +60,7 @@ export async function loadFabdemDtm(url, frame, corridor) {
 
   const bankElevs = [];
   const stations = corridor?.stations || [];
-  const step = Math.max(1, Math.floor(stations.length / 100));
+  const step = Math.max(1, Math.floor(stations.length / 80));
   for (let i = 0; i < stations.length; i += step) {
     const st = stations[i];
     for (const [bx, bz] of [
@@ -63,14 +90,11 @@ export async function loadFabdemDtm(url, frame, corridor) {
     return toSceneY(elev);
   }
 
-  // Scene elevation span for hypsometric tinting
   let minSceneY = Infinity;
   let maxSceneY = -Infinity;
-  const sampleStep = Math.max(4, Math.floor(Math.min(width, height) / 24));
+  const sampleStep = Math.max(4, Math.floor(Math.min(width, height) / 20));
   for (let r = 0; r < height; r += sampleStep) {
     for (let c = 0; c < width; c += sampleStep) {
-      const lon = west + (c / (width - 1)) * lonSpan;
-      const lat = north - (r / (height - 1)) * latSpan;
       const y = toSceneY(data[r * width + c]);
       if (!Number.isFinite(y)) continue;
       minSceneY = Math.min(minSceneY, y);
@@ -88,6 +112,8 @@ export async function loadFabdemDtm(url, frame, corridor) {
     bounds: { west, south, east, north },
     width,
     height,
+    fullWidth: fullW,
+    fullHeight: fullH,
     verticalOffset,
     medianBankM: medianBank,
     minSceneY,
@@ -97,6 +123,28 @@ export async function loadFabdemDtm(url, frame, corridor) {
     sampleSceneXY,
     toSceneY,
   };
+}
+
+/** Race DTM load against a timeout so the app never hangs on terrain. */
+export function loadFabdemDtmWithTimeout(url, frame, corridor, onProgress, ms = 4500) {
+  let timer;
+  const timeout = new Promise((_, reject) => {
+    timer = setTimeout(() => reject(new Error(`DTM timed out after ${ms}ms`)), ms);
+  });
+  return Promise.race([
+    loadFabdemDtm(url, frame, corridor, onProgress).finally(() => clearTimeout(timer)),
+    timeout,
+  ]);
+}
+
+function yieldToBrowser() {
+  return new Promise((resolve) => {
+    if (typeof requestAnimationFrame === "function") {
+      requestAnimationFrame(() => setTimeout(resolve, 0));
+    } else {
+      setTimeout(resolve, 0);
+    }
+  });
 }
 
 function bilinear(data, w, h, col, row) {

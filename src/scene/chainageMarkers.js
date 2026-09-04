@@ -1,16 +1,18 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
+import { Line2 } from "three/examples/jsm/lines/Line2.js";
+import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
+import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { SURFACE_Y } from "./river.js";
 import { state } from "../state.js";
 
-/** Pin tip sits on water; head stands above so chainage is obvious. */
-const PIN_BASE_Y = SURFACE_Y + 0.15;
-const LABEL_BASE_LIFT = 22;
-const LINE_Y = SURFACE_Y + 3.5;
+/** Flat markers sit just above water surface. */
+const MARKER_Y = SURFACE_Y + 0.55;
+const LABEL_BASE_LIFT = 14;
+const LINE_Y = SURFACE_Y + 1.15;
 
 /**
- * Chainage markers: red map-style pins + red connector line.
- * Click a pin to highlight; Layers toolkit shows station/meters above water.
+ * Chainage styled after the GIS reference:
+ * white dashed centerline · yellow majors (white rim) · white minors · white labels.
  */
 export function createChainageLayer(dataset) {
   const group = new THREE.Group();
@@ -20,64 +22,79 @@ export function createChainageLayer(dataset) {
   );
   if (!points.length) return { group, update() {}, pick() {}, points: [] };
 
-  const majors = points.filter((p) => p.major);
-  const minors = points.filter((p) => !p.major);
+  const majors = points.filter((p) => p.major || (Number(p.meters) % 1000 === 0));
+  const minors = points.filter((p) => !majors.includes(p));
 
-  const majorGeo = makePinGeometry(1);
-  const minorGeo = makePinGeometry(0.72);
-  const majorMat = new THREE.MeshStandardMaterial({
-    color: "#e02020",
-    roughness: 0.45,
-    metalness: 0.15,
-    emissive: "#5a0808",
-    emissiveIntensity: 0.35,
-  });
-  const minorMat = new THREE.MeshStandardMaterial({
-    color: "#d01818",
-    roughness: 0.5,
-    metalness: 0.12,
-    emissive: "#4a0606",
-    emissiveIntensity: 0.28,
-  });
-  const selectMat = new THREE.MeshBasicMaterial({
-    color: "#ff4444",
+  const rimGeo = makeDiscGeometry(6.4);
+  const majorGeo = makeDiscGeometry(5.1);
+  const minorGeo = makeDiscGeometry(1.55);
+  const rimMat = new THREE.MeshBasicMaterial({
+    color: "#ffffff",
     depthTest: false,
     transparent: true,
     opacity: 0.95,
   });
+  const majorMat = new THREE.MeshBasicMaterial({
+    color: "#f5c518",
+    depthTest: false,
+    transparent: true,
+    opacity: 1,
+  });
+  const minorMat = new THREE.MeshBasicMaterial({
+    color: "#ffffff",
+    depthTest: false,
+    transparent: true,
+    opacity: 0.95,
+  });
+  const selectFillMat = new THREE.MeshBasicMaterial({
+    color: "#ffd54a",
+    depthTest: false,
+    transparent: true,
+    opacity: 1,
+  });
+  const selectRingMat = new THREE.MeshBasicMaterial({
+    color: "#ff8a00",
+    depthTest: false,
+    transparent: true,
+    opacity: 0.98,
+  });
 
+  const rimMesh = new THREE.InstancedMesh(rimGeo, rimMat, Math.max(1, majors.length));
   const majorMesh = new THREE.InstancedMesh(majorGeo, majorMat, Math.max(1, majors.length));
   const minorMesh = new THREE.InstancedMesh(minorGeo, minorMat, Math.max(1, minors.length));
+  rimMesh.name = "chainageMajorRim";
   majorMesh.name = "chainageMajor";
   minorMesh.name = "chainageMinor";
-  majorMesh.frustumCulled = false;
-  minorMesh.frustumCulled = false;
-  majorMesh.renderOrder = 9;
-  minorMesh.renderOrder = 8;
-  majorMesh.castShadow = true;
-  minorMesh.castShadow = true;
+  for (const m of [rimMesh, majorMesh, minorMesh]) {
+    m.frustumCulled = false;
+    m.renderOrder = m === minorMesh ? 25 : 26;
+  }
   majorMesh.userData.pickable = true;
   minorMesh.userData.pickable = true;
+  rimMesh.renderOrder = 25;
 
   const dummy = new THREE.Object3D();
   const majorIndex = [];
   for (let i = 0; i < majors.length; i++) {
     const p = majors[i];
     majorIndex[i] = p;
-    dummy.position.set(p.x, PIN_BASE_Y, p.z);
+    dummy.position.set(p.x, MARKER_Y, p.z);
     dummy.scale.set(1, 1, 1);
     dummy.rotation.set(0, 0, 0);
     dummy.updateMatrix();
+    rimMesh.setMatrixAt(i, dummy.matrix);
     majorMesh.setMatrixAt(i, dummy.matrix);
   }
+  rimMesh.count = majors.length;
   majorMesh.count = majors.length;
+  rimMesh.instanceMatrix.needsUpdate = true;
   majorMesh.instanceMatrix.needsUpdate = true;
 
   const minorIndex = [];
   for (let i = 0; i < minors.length; i++) {
     const p = minors[i];
     minorIndex[i] = p;
-    dummy.position.set(p.x, PIN_BASE_Y, p.z);
+    dummy.position.set(p.x, MARKER_Y + 0.02, p.z);
     dummy.scale.set(1, 1, 1);
     dummy.updateMatrix();
     minorMesh.setMatrixAt(i, dummy.matrix);
@@ -85,44 +102,92 @@ export function createChainageLayer(dataset) {
   minorMesh.count = minors.length;
   minorMesh.instanceMatrix.needsUpdate = true;
 
+  group.add(rimMesh);
   group.add(majorMesh);
   group.add(minorMesh);
 
-  // Red path linking every chainage pin in order
-  const linePts = points.map((p) => new THREE.Vector3(p.x, LINE_Y, p.z));
-  const lineGeo = new THREE.BufferGeometry().setFromPoints(linePts);
-  const lineMat = new THREE.LineBasicMaterial({
-    color: 0xe02020,
-    linewidth: 2,
+  // White dashed centerline (reference style)
+  const resolution = new THREE.Vector2(
+    Math.max(1, window.innerWidth),
+    Math.max(1, window.innerHeight),
+  );
+  const positions = [];
+  for (const p of points) positions.push(p.x, LINE_Y, p.z);
+
+  const lineGeo = new LineGeometry();
+  lineGeo.setPositions(positions);
+  const lineMat = new LineMaterial({
+    color: 0xffffff,
+    linewidth: 1.85,
     transparent: true,
     opacity: 0.95,
-    depthTest: true,
+    depthTest: false,
+    depthWrite: false,
+    worldUnits: false,
+    dashed: true,
+    dashSize: 10,
+    gapSize: 6,
+    resolution,
   });
-  const chainLine = new THREE.Line(lineGeo, lineMat);
+  const chainLine = new Line2(lineGeo, lineMat);
+  chainLine.computeLineDistances();
   chainLine.name = "chainageConnector";
-  chainLine.renderOrder = 6;
+  chainLine.renderOrder = 24;
   chainLine.frustumCulled = false;
   group.add(chainLine);
 
-  // Selection ring around clicked pin
-  const selectMesh = new THREE.Mesh(new THREE.TorusGeometry(3.2, 0.55, 8, 24), selectMat);
-  selectMesh.name = "chainageSelected";
-  selectMesh.rotation.x = Math.PI / 2;
-  selectMesh.visible = false;
-  selectMesh.renderOrder = 14;
-  selectMesh.frustumCulled = false;
-  group.add(selectMesh);
+  // Orange highlight for the selected chainage segment
+  const selLineGeo = new LineGeometry();
+  selLineGeo.setPositions([0, 0, 0, 0, 0, 0]);
+  const selLineMat = new LineMaterial({
+    color: 0xff8a00,
+    linewidth: 2.4,
+    transparent: true,
+    opacity: 0.95,
+    depthTest: false,
+    depthWrite: false,
+    worldUnits: false,
+    resolution,
+  });
+  const selLine = new Line2(selLineGeo, selLineMat);
+  selLine.name = "chainageSelectedSegment";
+  selLine.renderOrder = 25;
+  selLine.visible = false;
+  selLine.frustumCulled = false;
+  group.add(selLine);
 
-  // Labels lifted well above water (not submerged)
+  group.userData.setResolution = (w, h) => {
+    resolution.set(w, h);
+    lineMat.resolution.set(w, h);
+    selLineMat.resolution.set(w, h);
+  };
+
+  const selectFill = new THREE.Mesh(makeDiscGeometry(7.2), selectFillMat);
+  selectFill.name = "chainageSelectedFill";
+  selectFill.visible = false;
+  selectFill.renderOrder = 27;
+  selectFill.frustumCulled = false;
+  group.add(selectFill);
+
+  const selectRing = new THREE.Mesh(new THREE.RingGeometry(7.3, 9.0, 36), selectRingMat);
+  selectRing.name = "chainageSelectedRing";
+  selectRing.rotation.x = -Math.PI / 2;
+  selectRing.visible = false;
+  selectRing.renderOrder = 28;
+  selectRing.frustumCulled = false;
+  group.add(selectRing);
+
   const labelGroup = new THREE.Group();
   labelGroup.name = "chainageLabels";
   const labelSprites = [];
   for (const p of points) {
+    const isMajor = majors.includes(p);
     const spr = makeChainageLabelSprite(formatChainageText(p, "station"));
-    spr.position.set(p.x, SURFACE_Y + LABEL_BASE_LIFT + (p.major ? 4 : 2), p.z);
+    spr.position.set(p.x, SURFACE_Y + LABEL_BASE_LIFT + (isMajor ? 2 : 0), p.z);
     spr.userData.point = p;
+    spr.userData.isMajor = isMajor;
     spr.userData.mode = "station";
-    spr.userData.baseLift = LABEL_BASE_LIFT + (p.major ? 4 : 2);
+    spr.userData.baseLift = LABEL_BASE_LIFT + (isMajor ? 2 : 0);
     spr.visible = false;
     labelGroup.add(spr);
     labelSprites.push(spr);
@@ -130,47 +195,139 @@ export function createChainageLayer(dataset) {
   group.add(labelGroup);
 
   let lastLabelMode = null;
-  let lastShowLabels = null;
+  let lastShowAll = null;
 
   function syncSelection() {
     const sel = state.selectedChainageMeters;
     if (sel == null) {
-      selectMesh.visible = false;
+      selectFill.visible = false;
+      selectRing.visible = false;
+      selLine.visible = false;
       return;
     }
-    const p = points.find((c) => c.meters === sel);
-    if (!p) {
-      selectMesh.visible = false;
+    const idx = points.findIndex((c) => c.meters === sel);
+    if (idx < 0) {
+      selectFill.visible = false;
+      selectRing.visible = false;
+      selLine.visible = false;
       return;
     }
-    selectMesh.visible = true;
-    selectMesh.position.set(p.x, SURFACE_Y + 12, p.z);
+    const p = points[idx];
+    selectFill.visible = true;
+    selectRing.visible = true;
+    selectFill.position.set(p.x, MARKER_Y + 0.05, p.z);
+    selectRing.position.set(p.x, MARKER_Y + 0.08, p.z);
+
+    // Orange segment spanning neighbors around the selected station
+    const a = points[Math.max(0, idx - 1)];
+    const b = points[Math.min(points.length - 1, idx + 1)];
+    if (a !== b) {
+      selLineGeo.setPositions([a.x, LINE_Y + 0.05, a.z, p.x, LINE_Y + 0.05, p.z, b.x, LINE_Y + 0.05, b.z]);
+      selLine.computeLineDistances();
+      selLine.visible = true;
+    } else {
+      selLine.visible = false;
+    }
+  }
+
+  let lastMarkerBoost = -1;
+
+  function applyMarkerBoost(boost) {
+    if (Math.abs(boost - lastMarkerBoost) < 0.03) return;
+    lastMarkerBoost = boost;
+    for (let i = 0; i < majors.length; i++) {
+      const p = majors[i];
+      dummy.position.set(p.x, MARKER_Y, p.z);
+      dummy.scale.set(boost, 1, boost);
+      dummy.rotation.set(0, 0, 0);
+      dummy.updateMatrix();
+      rimMesh.setMatrixAt(i, dummy.matrix);
+      majorMesh.setMatrixAt(i, dummy.matrix);
+    }
+    rimMesh.instanceMatrix.needsUpdate = true;
+    majorMesh.instanceMatrix.needsUpdate = true;
+    const minorBoost = Math.max(1.05, boost * 0.95);
+    for (let i = 0; i < minors.length; i++) {
+      const p = minors[i];
+      dummy.position.set(p.x, MARKER_Y + 0.02, p.z);
+      dummy.scale.set(minorBoost, 1, minorBoost);
+      dummy.updateMatrix();
+      minorMesh.setMatrixAt(i, dummy.matrix);
+    }
+    minorMesh.instanceMatrix.needsUpdate = true;
+  }
+
+  /** Larger when close (River Side / chainage); modest grow in Overview. */
+  function markerBoostForCam(camY) {
+    if (camY < 220) return 1.75;
+    if (camY < 380) return 1.55;
+    if (camY < 600) return 1.35;
+    if (camY < 1000) return 1.2;
+    return THREE.MathUtils.clamp(0.85 + camY / 1600, 1.25, 1.95);
   }
 
   function syncLabels(camera) {
-    const show = !!state.showChainageLabels;
-    const mode = state.chainageLabelMode === "meters" ? "meters" : "station";
-    if (show !== lastShowLabels || mode !== lastLabelMode) {
-      lastShowLabels = show;
+    const inspecting = state.selectedChainageMeters != null;
+    const showAll = !!state.showChainageLabels || inspecting;
+    const mode =
+      state.chainageLabelMode === "meters"
+        ? "meters"
+        : inspecting || state.chainageLabelMode === "both"
+          ? "both"
+          : "station";
+    if (showAll !== lastShowAll || mode !== lastLabelMode) {
+      lastShowAll = showAll;
       lastLabelMode = mode;
       for (const spr of labelSprites) {
-        if (spr.userData.mode !== mode) {
-          spr.userData.mode = mode;
-          paintChainageLabel(spr, formatChainageText(spr.userData.point, mode));
-        }
+        spr.userData.mode = mode;
+        paintChainageLabel(spr, formatChainageText(spr.userData.point, mode));
       }
     }
-    labelGroup.visible = show;
-    if (!show || !camera) return;
-    const camLift = THREE.MathUtils.clamp(camera.position.y * 0.012, 0, 40);
+    labelGroup.visible = true;
+    if (!camera) return;
+
+    const camY = camera.position.y;
+    const closeView = camY < 650 || state.cameraMode === "local";
+    const camLift = THREE.MathUtils.clamp(camY * (closeView ? 0.014 : 0.01), closeView ? 8 : 0, 40);
+    const sel = state.selectedChainageMeters;
+    const camXZ = camera.position;
+
     for (const spr of labelSprites) {
+      const show = showAll || spr.userData.isMajor;
+      spr.visible = show;
+      if (!show) continue;
       const p = spr.userData.point;
-      const y = SURFACE_Y + spr.userData.baseLift + camLift;
-      spr.position.set(p.x, y, p.z);
+      const isSel = sel != null && p.meters === sel;
+      const isMajor = spr.userData.isMajor;
+      const alongDist = Math.hypot(p.x - camXZ.x, p.z - camXZ.z);
+      if (closeView && showAll && !isSel && !isMajor && alongDist > 420) {
+        spr.visible = false;
+        continue;
+      }
+      if (closeView && showAll && isMajor && !isSel && alongDist > 1400) {
+        spr.visible = false;
+        continue;
+      }
+
+      spr.position.set(
+        p.x,
+        SURFACE_Y + spr.userData.baseLift + camLift + (isSel ? 10 : isMajor ? 4 : 1),
+        p.z - (closeView ? 4 : 8),
+      );
       const d = camera.position.distanceTo(spr.position);
-      const s = THREE.MathUtils.clamp(d * 0.014, 8, 36);
-      spr.scale.set(s * 2.8, s, 1);
-      spr.visible = true;
+      let s;
+      if (closeView) {
+        const base = isSel ? 0.038 : isMajor ? 0.03 : 0.026;
+        const min = isSel ? 18 : isMajor ? 14 : 12;
+        const max = isSel ? 48 : isMajor ? 36 : 28;
+        s = THREE.MathUtils.clamp(d * base, min, max);
+      } else {
+        const boost = markerBoostForCam(camY);
+        const base = isSel ? 0.016 : isMajor ? 0.013 : 0.011;
+        s = THREE.MathUtils.clamp(d * base * boost, isSel ? 9 : 7, isSel ? 36 : 28);
+      }
+      const twoLine = mode === "both" ? 1.65 : 0.9;
+      spr.scale.set(s * (closeView ? 3.1 : 2.75), s * twoLine, 1);
     }
   }
 
@@ -179,16 +336,23 @@ export function createChainageLayer(dataset) {
     group.visible = show;
     if (!show || !camera) return;
     const camY = camera.position.y;
-    // Keep minor pins visible when labels on or when reasonably close
-    minorMesh.visible = camY < 1400 || !!state.showChainageLabels;
+    const inspecting = state.selectedChainageMeters != null;
+    const showMinors = camY < 2200 || !!state.showChainageLabels || inspecting;
+    minorMesh.visible = showMinors;
+    rimMesh.visible = true;
+    majorMesh.visible = true;
     chainLine.visible = true;
+    const boost = markerBoostForCam(camY);
+    applyMarkerBoost(boost);
+    lineMat.linewidth = camY < 500 ? 2.4 : camY > 900 ? 2.2 : 1.95;
     syncSelection();
     syncLabels(camera);
 
-    if (selectMesh.visible) {
-      const d = camera.position.distanceTo(selectMesh.position);
-      const s = THREE.MathUtils.clamp(d * 0.0035, 1, 12);
-      selectMesh.scale.setScalar(s);
+    if (selectFill.visible) {
+      const d = camera.position.distanceTo(selectFill.position);
+      const s = THREE.MathUtils.clamp(d * 0.0032, 1.1, 12) * Math.max(1.15, boost);
+      selectFill.scale.setScalar(s);
+      selectRing.scale.setScalar(s);
     }
   }
 
@@ -220,50 +384,34 @@ export function createChainageLayer(dataset) {
     return null;
   }
 
+  // No auto-select on load — panel / tip only after the user clicks a chainage
+  syncSelection();
+
   console.info("Chainage markers", {
     total: points.length,
     major: majors.length,
     minor: minors.length,
-    style: "red pins + red connector",
+    style: "white dashed · yellow majors · white minors",
   });
   return { group, update, pick, points };
 }
 
-/** Classic map pin: tip on water, stem up, round head. */
-function makePinGeometry(scale = 1) {
-  const tip = new THREE.ConeGeometry(0.85 * scale, 2.4 * scale, 10);
-  tip.rotateX(Math.PI);
-  tip.translate(0, 1.2 * scale, 0);
-
-  const stem = new THREE.CylinderGeometry(0.28 * scale, 0.38 * scale, 9 * scale, 8);
-  stem.translate(0, (2.4 + 4.5) * scale, 0);
-
-  const head = new THREE.SphereGeometry(1.65 * scale, 14, 12);
-  head.translate(0, (2.4 + 9 + 1.2) * scale, 0);
-
-  const merged = mergeGeometries([tip, stem, head], false);
-  tip.dispose();
-  stem.dispose();
-  head.dispose();
-  if (!merged) {
-    const fallback = new THREE.SphereGeometry(2 * scale, 10, 8);
-    fallback.translate(0, 8 * scale, 0);
-    return fallback;
-  }
-  merged.computeVertexNormals();
-  return merged;
+function makeDiscGeometry(radius) {
+  const geo = new THREE.CircleGeometry(radius, 28);
+  geo.rotateX(-Math.PI / 2);
+  return geo;
 }
 
-function formatChainageText(p, mode) {
-  if (mode === "meters") {
-    const m = Number(p.meters);
-    if (!Number.isFinite(m)) return "—";
-    return `${Math.round(m)} m`;
-  }
-  return p.label || metersToStation(p.meters);
+export function formatChainageText(p, mode) {
+  const m = Number(p.meters);
+  const metersTxt = Number.isFinite(m) ? `${Math.round(m)} m` : "—";
+  const station = p.label || metersToStation(p.meters);
+  if (mode === "meters") return metersTxt;
+  if (mode === "both") return `${station}  ·  ${metersTxt}`;
+  return station;
 }
 
-function metersToStation(meters) {
+export function metersToStation(meters) {
   const m = Math.max(0, Math.round(Number(meters) || 0));
   const km = Math.floor(m / 1000);
   const rem = m % 1000;
@@ -272,8 +420,8 @@ function metersToStation(meters) {
 
 function makeChainageLabelSprite(text) {
   const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 64;
+  canvas.width = 320;
+  canvas.height = 80;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({
@@ -284,9 +432,9 @@ function makeChainageLabelSprite(text) {
   });
   const spr = new THREE.Sprite(mat);
   spr.userData.canvas = canvas;
-  spr.renderOrder = 20;
+  spr.renderOrder = 29;
   spr.frustumCulled = false;
-  spr.scale.set(18, 4.5, 1);
+  spr.scale.set(18, 5, 1);
   paintChainageLabel(spr, text);
   return spr;
 }
@@ -295,17 +443,18 @@ function paintChainageLabel(spr, text) {
   const canvas = spr.userData.canvas;
   if (!canvas) return;
   const ctx = canvas.getContext("2d");
-  ctx.clearRect(0, 0, 256, 64);
-  ctx.fillStyle = "rgba(8, 10, 14, 0.92)";
-  ctx.fillRect(8, 8, 240, 48);
-  ctx.strokeStyle = "rgba(224, 40, 40, 1)";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(8, 8, 240, 48);
-  ctx.fillStyle = "#ffe8e8";
-  ctx.font = "700 28px 'Segoe UI', system-ui, sans-serif";
+  const w = canvas.width;
+  const h = canvas.height;
+  ctx.clearRect(0, 0, w, h);
+  const label = String(text || "—");
+  ctx.font = "800 34px 'Segoe UI', system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.fillText(String(text || "—"), 128, 34);
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = "rgba(0, 0, 0, 0.78)";
+  ctx.strokeText(label, w / 2, h / 2);
+  ctx.fillStyle = "#ffffff";
+  ctx.fillText(label, w / 2, h / 2);
   if (spr.material.map) spr.material.map.needsUpdate = true;
 }
 

@@ -1,17 +1,19 @@
-import { parseKmlGeometry, parseChainageAnalysisKml } from "./kml.js";
+import { parseKmlGeometry, parseChainageAnalysisKml, parseDrainageKml, parseDepthZonesKml } from "./kml.js";
 import { loadDepthCsv, loadRiverBoundaryCsv } from "./csv.js";
 import { lonLatToUtm } from "./projection.js";
-import { initGeoReference, getGeoReference } from "./geoReference.js";
+import { initGeoReference, getGeoReference, lonLatToLocal } from "./geoReference.js";
 import { computeProjectionMetrics } from "./projectionMetrics.js";
 import { buildCorridorFromKml } from "./corridor.js";
 import { loadOsmBridges } from "./osmBridges.js";
-import { loadOsmContext } from "./osmContext.js";
+import { loadOsmContext, emptyOsmContext } from "./osmContext.js";
 import { buildValidationReport } from "./validationReport.js";
 import { validateLonLatPoints, bufferBboxMeters } from "./kmlValidate.js";
 import { validateLayerAlignment, computeSceneBounds, computeKmlOverviewBounds, computeActiveSceneBounds } from "./sceneBounds.js";
-import { loadFabdemDtm } from "./dtm.js";
+import { loadFabdemDtmWithTimeout } from "./dtm.js";
 import { parseFishingLocationsKml } from "../features/fishing/FishingLocationLoader.js";
 import fishingKmlRaw from "../features/fishing/Fishing_Locations.kml?raw";
+import drainageKmlRaw from "../data/drainage_network.kml?raw";
+import depthZonesKmlRaw from "../data/depth_zones_jul2026.kml?raw";
 import { buildFishingZones } from "../features/fishing/FishingZoneSystem.js";
 
 /** Fallback origin if KML bbox is unavailable. */
@@ -179,34 +181,39 @@ export async function loadJourneyDataset({
     bounds: corridor.bounds,
   };
 
-  onProgress?.(0.82, "Loading FABDEM terrain (DTM)…");
+  onProgress?.(0.78, "Preparing terrain…");
   let dtm = null;
   try {
-    dtm = await loadFabdemDtm("/data/FABDEM_DTM_FINAL.tif", frame, corridor);
+    // Cap wait so loading never sticks on FABDEM decode (use procedural if slow)
+    dtm = await loadFabdemDtmWithTimeout(
+      "/data/FABDEM_DTM_FINAL.tif",
+      frame,
+      corridor,
+      (msg) => onProgress?.(0.8, msg || "Loading FABDEM terrain (DTM)…"),
+      4500,
+    );
     console.info("FABDEM DTM loaded", {
       bounds: dtm.bounds,
       grid: `${dtm.width}×${dtm.height}`,
+      full: dtm.fullWidth ? `${dtm.fullWidth}×${dtm.fullHeight}` : undefined,
       medianBankM: dtm.medianBankM?.toFixed(2),
       verticalOffset: dtm.verticalOffset?.toFixed(2),
     });
   } catch (dtmErr) {
-    console.warn("FABDEM DTM unavailable — using procedural terrain:", dtmErr.message);
+    console.warn("FABDEM DTM skipped — procedural terrain:", dtmErr.message);
+    onProgress?.(0.84, "Using fast procedural terrain…");
   }
 
-  onProgress?.(0.86, "Loading OSM corridor features (buildings/roads/trees/bridges)…");
+  // Bridges are tiny; OSM buildings (~12MB) load AFTER the scene is visible
+  onProgress?.(0.88, "Loading bridges…");
   const bridges = await loadOsmBridges(bridgesUrl, frame, corridor);
-  const osm = await loadOsmContext(frame, corridor);
+  const osm = emptyOsmContext();
 
-  if (osm.alignment && !osm.alignment.ok) {
-    console.error("OSM–KML ALIGNMENT ISSUE", osm.alignment.issues);
-  } else if (osm.alignment?.medianDistM != null) {
-    console.info("OSM–KML alignment OK", {
-      medianBuildingDistM: Math.round(osm.alignment.medianDistM),
-      trees: osm.trees?.length || 0,
-      buildings: osm.buildings?.length || 0,
-      roads: osm.roads?.length || 0,
-    });
-  }
+  onProgress?.(0.9, "Loading drainage network…");
+  const drainage = loadDrainageNetworkFromRaw(drainageKmlRaw);
+
+  onProgress?.(0.93, "Loading depth-zone polygons…");
+  const depthZones = loadDepthZonesFromRaw(depthZonesKmlRaw);
 
   const overlayCorners = overlayCornersLocal(frame);
 
@@ -321,7 +328,102 @@ export async function loadJourneyDataset({
     dtm,
     fishingLocationsRaw,
     fishingZones,
+    drainage,
+    depthZones,
+    /** Call after first paint to load buildings/roads/trees (~12MB). */
+    loadOsmLater: () => loadOsmContext(frame, corridor),
   };
+}
+
+/** Parse bundled Jul 2026 depth-class polygons into shared local frame. */
+function loadDepthZonesFromRaw(text) {
+  try {
+    const raw = parseDepthZonesKml(text);
+    const out = raw.map((f) => ({
+      name: f.name,
+      description: f.description,
+      depthClass: f.depthClass,
+      depthMin: f.depthMin,
+      depthMax: f.depthMax,
+      depthMid: f.depthMid,
+      fillOpacity: f.fillOpacity,
+      areaM2: f.areaM2,
+      styleId: f.styleId,
+      vertices: f.coordinates.map((c) => {
+        const loc = lonLatToLocal(c.lon, c.lat);
+        return { lon: c.lon, lat: c.lat, x: loc.x, z: loc.z };
+      }),
+    }));
+    console.info("Depth zones KML loaded (bundled)", {
+      polygons: out.length,
+      sample: out[0]
+        ? {
+            class: out[0].depthClass,
+            opacity: out[0].fillOpacity,
+            pts: out[0].vertices.length,
+            xz: out[0].vertices[0],
+          }
+        : null,
+    });
+    return out;
+  } catch (err) {
+    console.warn("Depth zones unavailable:", err.message);
+    return [];
+  }
+}
+
+/** Parse bundled OSM waterway drainage KML into shared local frame (nullahs only). */
+function loadDrainageNetworkFromRaw(text) {
+  try {
+    const raw = parseDrainageKml(text);
+    const filtered = raw.filter((f) => {
+      const ww = String(f.waterway || "").toLowerCase();
+      const name = String(f.name || "").trim();
+      if (ww === "river") return false;
+      if (/^(mula|mutha|mula[\s-]?mutha)$/i.test(name)) return false;
+      return true;
+    });
+    const out = filtered.map((f) => ({
+      name: f.name,
+      waterway: f.waterway,
+      osmId: f.osmId,
+      osmType: f.osmType,
+      nameEn: f.nameEn,
+      nameMr: f.nameMr,
+      nameHi: f.nameHi,
+      nameGu: f.nameGu,
+      width: f.width,
+      intermittent: f.intermittent,
+      tunnel: f.tunnel,
+      bridge: f.bridge,
+      boat: f.boat,
+      city: f.city,
+      intName: f.intName,
+      wikidata: f.wikidata,
+      layer: f.layer,
+      vertices: f.coordinates.map((c) => {
+        const loc = lonLatToLocal(c.lon, c.lat);
+        return { lon: c.lon, lat: c.lat, x: loc.x, z: loc.z };
+      }),
+    }));
+    console.info("Drainage KML loaded (bundled)", {
+      total: raw.length,
+      nullahs: out.length,
+      skippedMainRiver: raw.length - out.length,
+      sample: out[0]
+        ? {
+            name: out[0].name,
+            waterway: out[0].waterway,
+            pts: out[0].vertices.length,
+            xz: out[0].vertices[0],
+          }
+        : null,
+    });
+    return out;
+  } catch (err) {
+    console.warn("Drainage network unavailable:", err.message);
+    return [];
+  }
 }
 
 /** Ensure corridor flow starts nearest chainage 0+000 (upstream). */

@@ -96,6 +96,108 @@ export function parseChainageAnalysisKml(text) {
   };
 }
 
+/**
+ * Parse OSM waterway drainage KML (rivers, streams, drains, canals, ditches).
+ * Each LineString becomes one feature with name + all SimpleData props.
+ */
+export function parseDrainageKml(text) {
+  const features = [];
+  const placemarks = [...text.matchAll(/<Placemark[\s\S]*?<\/Placemark>/gi)];
+  for (const block of placemarks) {
+    const content = block[0];
+    const nameM = content.match(/<name>\s*([^<]*)\s*<\/name>/i);
+    const name = nameM?.[1]?.trim() || "";
+    const props = {};
+    for (const m of content.matchAll(/<SimpleData name="([^"]+)">\s*([^<]*)\s*<\/SimpleData>/gi)) {
+      const key = m[1].trim();
+      const val = m[2].trim();
+      if (val) props[key] = val;
+    }
+    const waterway = (props.waterway || "stream").toLowerCase();
+    const coordBlocks = [...content.matchAll(/<coordinates>([\s\S]*?)<\/coordinates>/gi)];
+    for (const c of coordBlocks) {
+      const coordinates = parseCoords(c[1]);
+      if (coordinates.length >= 2) {
+        features.push({
+          name,
+          waterway,
+          osmId: props.osm_id || props.full_id || "",
+          osmType: props.osm_type || "",
+          nameEn: props["name:en"] || "",
+          nameMr: props["name:mr"] || "",
+          nameHi: props["name:hi"] || "",
+          nameGu: props["name:gu"] || "",
+          width: props.width || "",
+          intermittent: props.intermittent || "",
+          tunnel: props.tunnel || "",
+          bridge: props.bridge || "",
+          boat: props.boat || "",
+          city: props["addr:city"] || "",
+          intName: props.int_name || "",
+          wikidata: props.wikidata || "",
+          layer: props.layer || "",
+          props,
+          coordinates,
+        });
+      }
+    }
+  }
+  return features;
+}
+
+/**
+ * Parse Jul 2026 smoothed depth-class polygons (1.5–2.0 m bands).
+ * Each Placemark Polygon → one feature with depth class + opacity metadata.
+ */
+export function parseDepthZonesKml(text) {
+  const features = [];
+  const placemarks = [...text.matchAll(/<Placemark[\s\S]*?<\/Placemark>/gi)];
+  for (const block of placemarks) {
+    const content = block[0];
+    const nameM = content.match(/<name>\s*([^<]*)\s*<\/name>/i);
+    const name = nameM?.[1]?.trim() || "";
+    const descM = content.match(/<description>\s*([^<]*)\s*<\/description>/i);
+    const description = descM?.[1]?.trim() || "";
+    const styleM = content.match(/<styleUrl>\s*#?([^<\s]+)\s*<\/styleUrl>/i);
+    const styleId = styleM?.[1]?.trim() || "";
+
+    const bandM = name.match(/(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)\s*m/i);
+    if (!bandM) continue;
+    const depthMin = Number(bandM[1]);
+    const depthMax = Number(bandM[2]);
+    if (!Number.isFinite(depthMin) || !Number.isFinite(depthMax)) continue;
+
+    let fillOpacity = 0.55;
+    const opM = description.match(/fill opacity\s+(\d+)\s*%/i);
+    if (opM) fillOpacity = Math.min(1, Math.max(0.08, Number(opM[1]) / 100));
+
+    let areaM2 = null;
+    const areaM = description.match(/area\s+([\d,]+)\s*m/i);
+    if (areaM) areaM2 = Number(areaM[1].replace(/,/g, ""));
+
+    const outer = content.match(
+      /<outerBoundaryIs>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/i,
+    );
+    if (!outer) continue;
+    const coordinates = parseCoords(outer[1]);
+    if (coordinates.length < 4) continue;
+
+    features.push({
+      name,
+      description,
+      styleId,
+      depthMin,
+      depthMax,
+      depthMid: (depthMin + depthMax) * 0.5,
+      depthClass: `${depthMin.toFixed(1)}-${depthMax.toFixed(1)}`,
+      fillOpacity,
+      areaM2,
+      coordinates,
+    });
+  }
+  return features;
+}
+
 function parseCoords(raw) {
   return raw
     .trim()
