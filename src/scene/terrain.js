@@ -13,8 +13,9 @@ export function createTerrain(dataset) {
   const b = computeSceneBounds(dataset);
   const width = b.spanX;
   const depth = b.spanZ;
-  const segsX = activeDtm ? 360 : 280;
-  const segsZ = activeDtm ? 180 : 140;
+  const lite = dataset.lite === true;
+  const segsX = activeDtm ? (lite ? 180 : 360) : (lite ? 160 : 280);
+  const segsZ = activeDtm ? (lite ? 90 : 180) : (lite ? 80 : 140);
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(b.cx, 0, b.cz);
@@ -49,8 +50,8 @@ export function createTerrain(dataset) {
   const cOlive = new THREE.Color("#8a9a62");
   const cEarth = new THREE.Color("#9a7a52");
   const cStone = new THREE.Color("#b8a888");
-  const cBank = new THREE.Color("#6e5c40");
-  const cWet = new THREE.Color("#4a6450");
+  const cBank = new THREE.Color("#847252");
+  const cWet = new THREE.Color("#5f7a66");
   const tmp = new THREE.Color();
 
   for (let i = 0; i < pos.count; i++) {
@@ -99,9 +100,88 @@ export function createTerrain(dataset) {
   mesh.castShadow = false;
   mesh.name = "terrain";
 
+  // Wide surround so overview doesn’t show a cut-out strip on empty sky
+  const surround = createGroundSurround(b, heights, minY);
+
   const outline = kmlOutline(dataset.ringLocal);
   outline.visible = false;
-  return { mesh, outline, bounds: b };
+  return { mesh, outline, surround, bounds: b };
+}
+
+/** Large soft ground disc matching terrain greens — fills the white void around the AOI.
+ *  Critical: must NOT cover the AOI / river (otherwise water + banks disappear).
+ */
+function createGroundSurround(b, heights, minY) {
+  const avgY =
+    heights?.length > 0
+      ? heights.reduce((s, v) => s + v, 0) / heights.length
+      : Number.isFinite(minY)
+        ? minY
+        : SURFACE_Y;
+  const span = Math.max(b.spanX, b.spanZ);
+  const size = Math.max(18000, span * 4.5);
+  const geo = new THREE.PlaneGeometry(size, size, 64, 64);
+  geo.rotateX(-Math.PI / 2);
+  geo.translate(b.cx, 0, b.cz);
+
+  const pos = geo.attributes.position;
+  const cols = new Float32Array(pos.count * 3);
+  const cDeep = new THREE.Color("#4a6e48");
+  const cMid = new THREE.Color("#6a8664");
+  const cLite = new THREE.Color("#7a8a58");
+  const cEarth = new THREE.Color("#8a7a52");
+  const tmp = new THREE.Color();
+  // Keep a clear hole over the detailed terrain + river corridor
+  const holeX = Math.max(80, b.spanX * 0.52);
+  const holeZ = Math.max(80, b.spanZ * 0.52);
+
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    const dx = x - b.cx;
+    const dz = z - b.cz;
+    const nx = Math.abs(dx) / holeX;
+    const nz = Math.abs(dz) / holeZ;
+    // Chebyshev-ish distance from AOI rectangle (0 inside → 1+ outside)
+    const inside = Math.max(nx, nz);
+    const r = Math.hypot(dx / (b.spanX * 0.5 || 1), dz / (b.spanZ * 0.5 || 1));
+    const hills = fbm(x * 0.00035, z * 0.00035) * 14 + fbm(x * 0.0011 + 3, z * 0.0011) * 6;
+
+    if (inside < 1.02) {
+      // Bury under river/terrain so water surface + banks stay visible
+      pos.setY(i, Math.min(avgY, SURFACE_Y) - 120);
+    } else {
+      const edge = THREE.MathUtils.smoothstep(inside, 1.02, 1.35);
+      const y = avgY - 2.5 + hills * edge * 0.9;
+      pos.setY(i, y);
+    }
+
+    const hn = THREE.MathUtils.clamp(0.35 + hills * 0.02 + Math.max(0, inside - 1) * 0.2, 0, 1);
+    tmp.copy(cDeep).lerp(cMid, smooth(hn, 0.1, 0.45));
+    tmp.lerp(cLite, smooth(hn, 0.35, 0.7));
+    tmp.lerp(cEarth, smooth(hn, 0.6, 1) * 0.35);
+    tmp.lerp(new THREE.Color("#6a7e5c"), THREE.MathUtils.smoothstep(r, 1.6, 2.8) * 0.55);
+    cols[i * 3] = tmp.r;
+    cols[i * 3 + 1] = tmp.g;
+    cols[i * 3 + 2] = tmp.b;
+  }
+  geo.setAttribute("color", new THREE.BufferAttribute(cols, 3));
+  geo.computeVertexNormals();
+
+  const mesh = new THREE.Mesh(
+    geo,
+    new THREE.MeshStandardMaterial({
+      vertexColors: true,
+      roughness: 0.94,
+      metalness: 0.01,
+      flatShading: false,
+    }),
+  );
+  mesh.name = "groundSurround";
+  mesh.receiveShadow = true;
+  mesh.castShadow = false;
+  mesh.renderOrder = -5;
+  return mesh;
 }
 
 function heightAt(x, z, stations, dtm = activeDtm) {

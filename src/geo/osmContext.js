@@ -24,6 +24,7 @@ export function emptyOsmContext() {
 }
 
 export async function loadOsmContext(frame, corridor, urls = {}) {
+  const lite = urls.lite === true;
   const roadsUrl = urls.roads || "/data/roads.geojson";
   const roadsLegacy = "/data/osm_roads.geojson";
   const buildingsUrl = urls.buildings || "/data/buildings.geojson";
@@ -48,12 +49,12 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   ] = await Promise.all([
     fetchFirst([roadsUrl, roadsLegacy]),
     fetchFirst([buildingsUrl, buildingsLegacy]),
-    fetchFirst([vegUrl, greenLegacy]),
-    fetchOptional(treesUrl),
-    fetchOptional(treeRowsUrl),
-    fetchOptional(waterUrl),
-    fetchOptional(metaUrl),
-    fetchOptional(kmlValUrl),
+    lite ? Promise.resolve(null) : fetchFirst([vegUrl, greenLegacy]),
+    lite ? Promise.resolve(null) : fetchOptional(treesUrl),
+    lite ? Promise.resolve(null) : fetchOptional(treeRowsUrl),
+    lite ? Promise.resolve(null) : fetchOptional(waterUrl),
+    lite ? Promise.resolve(null) : fetchOptional(metaUrl),
+    lite ? Promise.resolve(null) : fetchOptional(kmlValUrl),
   ]);
 
   const maxDist = 4200;

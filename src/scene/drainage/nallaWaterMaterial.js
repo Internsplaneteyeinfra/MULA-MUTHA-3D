@@ -8,13 +8,17 @@ export function createNallaWaterMaterial() {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    depthTest: false,
+    // Respect building / terrain depth so channels go under structures
+    depthTest: true,
     side: THREE.DoubleSide,
     toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
     uniforms: {
       uTime: { value: 0 },
       uFlowSpeed: { value: 0.65 },
-      uOpacity: { value: 0.82 },
+      uOpacity: { value: 0.9 },
       uReveal: { value: 0 },
       uActive: { value: 0 },
     },

@@ -74,6 +74,91 @@ export function heightForWidth(halfWidth, mode = "medium") {
 }
 
 /**
+ * Walk ~`distanceM` along the centerline from parameter `u` (forward if ≥0).
+ * Uses station chord lengths so look-ahead stays on curves.
+ */
+export function pointAlongRiver(stations, u, distanceM) {
+  const n = stations.length;
+  if (n < 2) return stationAt(stations, u);
+  const start = stationAt(stations, u);
+  if (!distanceM) return start;
+
+  const forward = distanceM > 0;
+  const target = Math.abs(distanceM);
+  let i = Math.floor(THREE.MathUtils.clamp(u, 0, 0.995) * (n - 1));
+  i = THREE.MathUtils.clamp(i, 0, n - 2);
+  let cx = start.x;
+  let cz = start.z;
+  let travelled = 0;
+
+  while (travelled < target) {
+    const ni = forward ? Math.min(n - 1, i + 1) : Math.max(0, i - 1);
+    if (ni === i) break;
+    const nx = stations[ni].x;
+    const nz = stations[ni].z;
+    const seg = Math.hypot(nx - cx, nz - cz) || 1e-6;
+    if (travelled + seg >= target) {
+      const t = (target - travelled) / seg;
+      return {
+        x: cx + (nx - cx) * t,
+        z: cz + (nz - cz) * t,
+        half: stations[ni].halfWidth,
+        t: ni / Math.max(1, n - 1),
+      };
+    }
+    travelled += seg;
+    cx = nx;
+    cz = nz;
+    i = ni;
+  }
+  return { x: cx, z: cz, half: stations[i].halfWidth, t: i / Math.max(1, n - 1) };
+}
+
+/**
+ * Locked Chainage camera profile: high aerial looking FORWARD along the river.
+ * Same height / back-distance / look-ahead / tilt at every station.
+ * Only yaw follows the local centerline tangent (curves rotate the view).
+ *
+ * camera = P - dir * CAMERA_DISTANCE + UP * CAMERA_HEIGHT
+ * look   = P + dir * LOOK_AHEAD_DISTANCE  (slightly above water)
+ */
+export function chainageGisAerialPose(stations, {
+  u,
+  x,
+  z,
+  cameraHeight = 380,
+  cameraDistance = 420,
+  lookAheadDistance = 520,
+  lookY = SURFACE_Y + 28,
+  outP,
+  outL,
+  outUp,
+}) {
+  let uu = u;
+  if (uu == null && Number.isFinite(x) && Number.isFinite(z)) {
+    uu = nearestStationU(stations, x, z);
+  }
+  uu = THREE.MathUtils.clamp(uu ?? 0.5, 0, 0.995);
+
+  const st = stationAt(stations, uu);
+  // Prefer explicit selected XZ when provided (exact marker), else station sample
+  const px = Number.isFinite(x) ? x : st.x;
+  const pz = Number.isFinite(z) ? z : st.z;
+
+  // Local river direction from nearby centerline (prev → next)
+  const tan = smoothTangent(stations, uu, 0.025);
+  const h = cameraHeight;
+  const back = cameraDistance;
+  const ahead = pointAlongRiver(stations, uu, lookAheadDistance);
+
+  outP.set(px - tan.x * back, SURFACE_Y + h, pz - tan.z * back);
+  // Look ahead along the river — not straight down at the marker
+  outL.set(ahead.x, lookY, ahead.z);
+  if (outUp) outUp.set(0, 1, 0);
+  return tan;
+}
+
+/**
  * Centered look-down along the river.
  * pitchDeg 35–65: higher = more overhead; lower = more forward.
  * lateralBiasM: tiny bank glance only (meters), default 0.
@@ -103,6 +188,37 @@ export function alongRiverPose(stations, {
   );
   outL.set(ahead.x + px * lateralBiasM * 0.25, lookY, ahead.z + pz * lateralBiasM * 0.25);
   if (outUp) outUp.set(tan.x, 0, tan.z);
+  return tan;
+}
+
+/**
+ * Low forward-facing aerial view for Chainage inspect:
+ * camera behind the station, looking ahead along the local river tangent.
+ * Height / back / look-ahead are world meters (scaled lightly by local width).
+ */
+export function chainageForwardPose(stations, {
+  u,
+  cameraHeight = 100,
+  backDistance = 160,
+  lookAheadM = 320,
+  lookY = SURFACE_Y + 15,
+  outP,
+  outL,
+  outUp,
+}) {
+  const st = stationAt(stations, u);
+  // Local tangent from nearby stations so curves re-aim the camera
+  const tan = smoothTangent(stations, u, 0.02);
+  const scale = THREE.MathUtils.clamp(st.half / 40, 0.75, 1.35);
+  const height = THREE.MathUtils.clamp(cameraHeight * scale, 80, 130);
+  const back = THREE.MathUtils.clamp(backDistance * scale, 120, 210);
+  const aheadDist = THREE.MathUtils.clamp(lookAheadM * scale, 250, 420);
+  const ahead = pointAlongRiver(stations, u, aheadDist);
+
+  outP.set(st.x - tan.x * back, SURFACE_Y + height, st.z - tan.z * back);
+  // Look slightly past the station along the river — not straight down at the marker
+  outL.set(ahead.x, lookY, ahead.z);
+  if (outUp) outUp.set(0, 1, 0);
   return tan;
 }
 

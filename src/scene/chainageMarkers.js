@@ -50,13 +50,13 @@ export function createChainageLayer(dataset) {
     color: "#ffd54a",
     depthTest: false,
     transparent: true,
-    opacity: 1,
+    opacity: 0.95,
   });
   const selectRingMat = new THREE.MeshBasicMaterial({
     color: "#ff8a00",
     depthTest: false,
     transparent: true,
-    opacity: 0.98,
+    opacity: 0.72,
   });
 
   const rimMesh = new THREE.InstancedMesh(rimGeo, rimMat, Math.max(1, majors.length));
@@ -162,14 +162,15 @@ export function createChainageLayer(dataset) {
     selLineMat.resolution.set(w, h);
   };
 
-  const selectFill = new THREE.Mesh(makeDiscGeometry(7.2), selectFillMat);
+  // Selected marker ~40% smaller than previous oversized disc
+  const selectFill = new THREE.Mesh(makeDiscGeometry(4.3), selectFillMat);
   selectFill.name = "chainageSelectedFill";
   selectFill.visible = false;
   selectFill.renderOrder = 27;
   selectFill.frustumCulled = false;
   group.add(selectFill);
 
-  const selectRing = new THREE.Mesh(new THREE.RingGeometry(7.3, 9.0, 36), selectRingMat);
+  const selectRing = new THREE.Mesh(new THREE.RingGeometry(4.4, 5.5, 36), selectRingMat);
   selectRing.name = "chainageSelectedRing";
   selectRing.rotation.x = -Math.PI / 2;
   selectRing.visible = false;
@@ -195,7 +196,6 @@ export function createChainageLayer(dataset) {
   group.add(labelGroup);
 
   let lastLabelMode = null;
-  let lastShowAll = null;
 
   function syncSelection() {
     const sel = state.selectedChainageMeters;
@@ -267,16 +267,14 @@ export function createChainageLayer(dataset) {
   }
 
   function syncLabels(camera) {
-    const inspecting = state.selectedChainageMeters != null;
-    const showAll = !!state.showChainageLabels || inspecting;
+    const sel = state.selectedChainageMeters;
     const mode =
       state.chainageLabelMode === "meters"
         ? "meters"
-        : inspecting || state.chainageLabelMode === "both"
+        : state.chainageLabelMode === "both"
           ? "both"
           : "station";
-    if (showAll !== lastShowAll || mode !== lastLabelMode) {
-      lastShowAll = showAll;
+    if (mode !== lastLabelMode) {
       lastLabelMode = mode;
       for (const spr of labelSprites) {
         spr.userData.mode = mode;
@@ -289,45 +287,29 @@ export function createChainageLayer(dataset) {
     const camY = camera.position.y;
     const closeView = camY < 650 || state.cameraMode === "local";
     const camLift = THREE.MathUtils.clamp(camY * (closeView ? 0.014 : 0.01), closeView ? 8 : 0, 40);
-    const sel = state.selectedChainageMeters;
-    const camXZ = camera.position;
 
+    // Only the currently selected chainage label is shown in the 3D scene
     for (const spr of labelSprites) {
-      const show = showAll || spr.userData.isMajor;
-      spr.visible = show;
-      if (!show) continue;
       const p = spr.userData.point;
       const isSel = sel != null && p.meters === sel;
-      const isMajor = spr.userData.isMajor;
-      const alongDist = Math.hypot(p.x - camXZ.x, p.z - camXZ.z);
-      if (closeView && showAll && !isSel && !isMajor && alongDist > 420) {
-        spr.visible = false;
-        continue;
-      }
-      if (closeView && showAll && isMajor && !isSel && alongDist > 1400) {
-        spr.visible = false;
-        continue;
-      }
+      spr.visible = isSel;
+      if (!isSel) continue;
 
       spr.position.set(
         p.x,
-        SURFACE_Y + spr.userData.baseLift + camLift + (isSel ? 10 : isMajor ? 4 : 1),
+        SURFACE_Y + spr.userData.baseLift + camLift + 6,
         p.z - (closeView ? 4 : 8),
       );
       const d = camera.position.distanceTo(spr.position);
       let s;
       if (closeView) {
-        const base = isSel ? 0.038 : isMajor ? 0.03 : 0.026;
-        const min = isSel ? 18 : isMajor ? 14 : 12;
-        const max = isSel ? 48 : isMajor ? 36 : 28;
-        s = THREE.MathUtils.clamp(d * base, min, max);
+        s = THREE.MathUtils.clamp(d * 0.034, 14, 40);
       } else {
         const boost = markerBoostForCam(camY);
-        const base = isSel ? 0.016 : isMajor ? 0.013 : 0.011;
-        s = THREE.MathUtils.clamp(d * base * boost, isSel ? 9 : 7, isSel ? 36 : 28);
+        s = THREE.MathUtils.clamp(d * 0.014 * boost, 8, 30);
       }
       const twoLine = mode === "both" ? 1.65 : 0.9;
-      spr.scale.set(s * (closeView ? 3.1 : 2.75), s * twoLine, 1);
+      spr.scale.set(s * (closeView ? 3.0 : 2.7), s * twoLine, 1);
     }
   }
 
@@ -337,7 +319,7 @@ export function createChainageLayer(dataset) {
     if (!show || !camera) return;
     const camY = camera.position.y;
     const inspecting = state.selectedChainageMeters != null;
-    const showMinors = camY < 2200 || !!state.showChainageLabels || inspecting;
+    const showMinors = camY < 2200 || inspecting;
     minorMesh.visible = showMinors;
     rimMesh.visible = true;
     majorMesh.visible = true;
@@ -350,7 +332,8 @@ export function createChainageLayer(dataset) {
 
     if (selectFill.visible) {
       const d = camera.position.distanceTo(selectFill.position);
-      const s = THREE.MathUtils.clamp(d * 0.0032, 1.1, 12) * Math.max(1.15, boost);
+      // ~40% smaller screen-space scale than previous selection marker
+      const s = THREE.MathUtils.clamp(d * 0.0019, 0.7, 7.2) * Math.max(1.0, boost * 0.85);
       selectFill.scale.setScalar(s);
       selectRing.scale.setScalar(s);
     }

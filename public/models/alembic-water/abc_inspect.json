@@ -1,0 +1,55 @@
+{
+  "import_ok": true,
+  "import_err": null,
+  "frame_start": 0,
+  "frame_end": 400,
+  "fps": 24,
+  "objects": [
+    {
+      "name": "Plane__Copy",
+      "type": "MESH",
+      "location": [
+        0.0,
+        0.0,
+        0.0
+      ],
+      "scale": [
+        1.0,
+        1.0,
+        1.0
+      ],
+      "modifiers": [
+        "MESH_SEQUENCE_CACHE"
+      ],
+      "animation_data": false,
+      "parent": null,
+      "verts": 6561,
+      "polygons": 6400,
+      "edges": 12960,
+      "has_uv": false,
+      "materials": [],
+      "bbox_min": [
+        -428.64892578125,
+        -417.6739501953125,
+        -33.09067153930664
+      ],
+      "bbox_max": [
+        418.2406005859375,
+        421.4026794433594,
+        32.620460510253906
+      ],
+      "bbox_size": [
+        846.8895263671875,
+        839.0766296386719,
+        65.71113204956055
+      ],
+      "shape_keys": false,
+      "mesh_cache": {
+        "cache_file": "C:\\Users\\Sahil.Rajankar\\Desktop\\Shweta\\Shweta_River-2.0\\src\\Sources\\Untitled 2.abc",
+        "object_path": "/Plane__Copy/Plane__CopyShape"
+      }
+    }
+  ],
+  "exported_glb": "C:\\Users\\Sahil.Rajankar\\Desktop\\Shweta\\Shweta_River-2.0\\mula-mutha-cinematic\\public\\models\\alembic-water\\water_from_abc.glb",
+  "exported_object": "Plane__Copy"
+}

@@ -16,10 +16,14 @@
       <canvas id="scene"></canvas>
       <div id="ui-root"></div>
       <div id="loading">
+        <canvas id="loading-scene" aria-hidden="true"></canvas>
         <div class="card">
+          <div class="card-kicker"><span class="card-kicker-dot"></span> LIVE HYDROLOGY VIEW</div>
           <h1>MULA–MUTHA JOURNEY</h1>
-          <p id="load-msg">Reading KML alignment and CSV depths…</p>
-          <div class="bar"><i id="load-bar"></i></div>
+          <p id="load-msg">Preparing your river journey…</p>
+          <span class="loading-subtitle">Loading terrain, water depths and river flow</span>
+          <div class="loading-progress"><div class="bar"><i id="load-bar"></i></div><output id="load-percent">0%</output></div>
+          <div class="loading-foot"><span>RIVER SYSTEM</span><span class="loading-pulse">•</span><span>3D VISUALIZATION</span><span class="loading-pulse">•</span><span>INITIALIZING</span></div>
         </div>
       </div>
     </div>

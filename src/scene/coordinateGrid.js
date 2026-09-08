@@ -74,6 +74,7 @@ export function createCoordinateGrid(dataset) {
 }
 
 export function mountCoordinateLabels(root, gridGroup, camera, canvas) {
+  const resolveCam = () => (typeof camera === "function" ? camera() : camera);
   const layer = document.createElement("div");
   layer.className = "coord-label-layer";
   layer.id = "coord-labels";
@@ -85,12 +86,13 @@ export function mountCoordinateLabels(root, gridGroup, camera, canvas) {
         layer.innerHTML = "";
         return;
       }
+      const cam = resolveCam();
       const rect = canvas.getBoundingClientRect();
       const labels = gridGroup.userData.labels || [];
       const v = new THREE.Vector3();
       let html = "";
       for (const lb of labels) {
-        v.set(lb.x, 12, lb.z).project(camera);
+        v.set(lb.x, 12, lb.z).project(cam);
         if (v.z > 1) continue;
         const sx = (v.x * 0.5 + 0.5) * rect.width;
         const sy = (-v.y * 0.5 + 0.5) * rect.height;

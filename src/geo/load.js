@@ -15,6 +15,7 @@ import fishingKmlRaw from "../features/fishing/Fishing_Locations.kml?raw";
 import drainageKmlRaw from "../data/drainage_network.kml?raw";
 import depthZonesKmlRaw from "../data/depth_zones_jul2026.kml?raw";
 import { buildFishingZones } from "../features/fishing/FishingZoneSystem.js";
+import { isLowMemoryDevice } from "../perf/quality.js";
 
 /** Fallback origin if KML bbox is unavailable. */
 export const SCENE_ORIGIN_LONLAT = { lon: 73.92420242, lat: 18.534020995 };
@@ -46,6 +47,9 @@ export async function loadJourneyDataset({
   bridgesUrl = "/data/bridges.geojson",
   onProgress,
 }) {
+  const params = new URLSearchParams(location.search);
+  const forcedLow = [params.get("quality"), params.get("perf")].includes("low");
+  const lite = (isLowMemoryDevice() || forcedLow) && !params.has("fullTerrain");
   onProgress?.(0.06, "Fetching Excel water-depth grid…");
   const depth = await loadDepthCsv(csvUrl, onProgress);
 
@@ -152,10 +156,12 @@ export async function loadJourneyDataset({
     };
   });
 
+  const nadiTwinProfiles = await loadNadiTwinProfiles();
+
   onProgress?.(0.72, "Building river corridor + Excel bathymetry…");
   const corridor = buildCorridorFromKml(ringLocal, depth.points, {
     across: 40,
-    nStations: 720,
+    nStations: lite ? 360 : 720,
     centerlineLocal,
   });
 
@@ -184,13 +190,15 @@ export async function loadJourneyDataset({
   onProgress?.(0.78, "Preparing terrain…");
   let dtm = null;
   try {
-    // Cap wait so loading never sticks on FABDEM decode (use procedural if slow)
+    // Keep the real FABDEM terrain on lightweight devices too; reduce only the
+    // decoded sample grid so DTM alignment is preserved without the memory hit.
     dtm = await loadFabdemDtmWithTimeout(
       "/data/FABDEM_DTM_FINAL.tif",
       frame,
       corridor,
       (msg) => onProgress?.(0.8, msg || "Loading FABDEM terrain (DTM)…"),
-      4500,
+      90_000,
+      { maxSampleDim: lite ? 192 : 384 },
     );
     console.info("FABDEM DTM loaded", {
       bounds: dtm.bounds,
@@ -198,10 +206,11 @@ export async function loadJourneyDataset({
       full: dtm.fullWidth ? `${dtm.fullWidth}×${dtm.fullHeight}` : undefined,
       medianBankM: dtm.medianBankM?.toFixed(2),
       verticalOffset: dtm.verticalOffset?.toFixed(2),
+      lite,
     });
   } catch (dtmErr) {
     console.warn("FABDEM DTM skipped — procedural terrain:", dtmErr.message);
-    onProgress?.(0.84, "Using fast procedural terrain…");
+    onProgress?.(0.84, "Using procedural terrain…");
   }
 
   // Bridges are tiny; OSM buildings (~12MB) load AFTER the scene is visible
@@ -253,6 +262,7 @@ export async function loadJourneyDataset({
     centerlineLocal,
     corridor,
     chainage,
+    nadiTwinProfiles,
     osm,
     bridges,
     dtm,
@@ -305,6 +315,7 @@ export async function loadJourneyDataset({
   console.info("Mula-Mutha geospatial validation", validation);
 
   return {
+    lite,
     points: depth.points,
     minDepth: depth.minDepth,
     maxDepth: depth.maxDepth,
@@ -331,8 +342,22 @@ export async function loadJourneyDataset({
     drainage,
     depthZones,
     /** Call after first paint to load buildings/roads/trees (~12MB). */
-    loadOsmLater: () => loadOsmContext(frame, corridor),
+    loadOsmLater: (options) => loadOsmContext(frame, corridor, options),
   };
+}
+
+async function loadNadiTwinProfiles() {
+  try {
+    const [chainage, depth, landmarks] = await Promise.all([
+      fetch("/data/naditwin/chainage_profile.json").then((r) => r.ok ? r.json() : Promise.reject(new Error("chainage profile unavailable"))),
+      fetch("/data/naditwin/depth_profile.json").then((r) => r.ok ? r.json() : Promise.reject(new Error("depth profile unavailable"))),
+      fetch("/data/naditwin/landmarks.json").then((r) => r.ok ? r.json() : Promise.reject(new Error("landmarks unavailable"))),
+    ]);
+    return { chainage, depth, landmarks, source: "NadiTwin audited river profiles" };
+  } catch (error) {
+    console.warn("NadiTwin profiles unavailable; using loaded KML/CSV data:", error.message);
+    return null;
+  }
 }
 
 /** Parse bundled Jul 2026 depth-class polygons into shared local frame. */

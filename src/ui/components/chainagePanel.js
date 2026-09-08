@@ -1,35 +1,44 @@
+import { Milestone, ChevronLeft, ChevronRight, X, PenLine } from "lucide";
 import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
+import { lucideHtml } from "../icons.js";
 
 const NOTES_KEY = "mm_chainage_notes_v1";
 
 /**
- * Compact chainage panel: nav + one annotation button.
- * Notes editor opens only after the user clicks the button.
+ * Compact premium chainage panel: chevron nav + annotation.
+ * Notes editor opens only after the user clicks Annotation.
+ * Logic (prev/next/select/notes) unchanged — UI presentation only.
  */
 export function mountChainagePanel(root, dataset) {
   const el = document.createElement("aside");
   el.className = "hud chainage-panel";
   el.id = "chainage-panel";
   el.hidden = true;
-  el.setAttribute("aria-label", "Chainage annotations");
+  el.setAttribute("aria-label", "Chainage");
 
   el.innerHTML = `
     <header class="chainage-panel-header">
-      <div>
+      <div class="chainage-panel-title">
+        ${lucideHtml(Milestone, { size: 15, className: "ch-icon" })}
         <strong>CHAINAGE</strong>
-        <span class="chainage-panel-station" id="ch-panel-station">—</span>
       </div>
-      <button type="button" class="chainage-panel-close" id="ch-panel-close" aria-label="Close">✕</button>
+      <button type="button" class="chainage-panel-close" id="ch-panel-close" aria-label="Close">
+        ${lucideHtml(X, { size: 16, className: "ch-icon" })}
+      </button>
     </header>
     <div class="chainage-panel-body">
-      <div class="chainage-panel-nav">
-        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-prev" title="Previous station">← Prev</button>
-        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-focus" title="Fly to this station">View</button>
-        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-next" title="Next station">Next →</button>
+      <div class="chainage-panel-nav" role="group" aria-label="Chainage navigation">
+        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-prev" title="Previous station" aria-label="Previous station">
+          ${lucideHtml(ChevronLeft, { size: 22, className: "ch-icon" })}
+        </button>
+        <span class="chainage-panel-station" id="ch-panel-station">—</span>
+        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-next" title="Next station" aria-label="Next station">
+          ${lucideHtml(ChevronRight, { size: 22, className: "ch-icon" })}
+        </button>
       </div>
       <button type="button" class="chainage-panel-anno-btn" id="ch-panel-anno-toggle" aria-expanded="false" title="Annotations">
-        <span class="chainage-panel-anno-icon" aria-hidden="true">✎</span>
+        ${lucideHtml(PenLine, { size: 16, className: "ch-icon" })}
         <span class="chainage-panel-anno-label">Annotation</span>
         <span class="chainage-panel-anno-count" id="ch-panel-anno-count" hidden>0</span>
       </button>
@@ -85,7 +94,7 @@ export function mountChainagePanel(root, dataset) {
     state.selectedChainageMeters = p.meters;
     state.showChainage = true;
     el.hidden = false;
-    // Notes editor never auto-opens — only ✎ Annotation click
+    // Notes editor never auto-opens — only Annotation click
     if (firstOpen || switched) setNotesOpen(false);
     render(p, points);
   }
@@ -141,15 +150,6 @@ export function mountChainagePanel(root, dataset) {
   annoToggle.addEventListener("click", () => {
     setNotesOpen(!notesOpen);
     if (notesOpen && currentMeters != null) renderNotes(currentMeters);
-  });
-
-  el.querySelector("#ch-panel-focus").addEventListener("click", () => {
-    if (currentMeters == null) return;
-    document.dispatchEvent(
-      new CustomEvent("chainage-select", {
-        detail: { meters: currentMeters, focus: true },
-      }),
-    );
   });
 
   el.querySelector("#ch-panel-prev").addEventListener("click", (e) => {

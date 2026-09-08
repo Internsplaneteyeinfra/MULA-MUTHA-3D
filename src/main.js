@@ -1,28 +1,42 @@
 import "./style.css";
 import "./styles/gis-ui.css";
+import "./styles/layers-panel.css";
 import { loadJourneyDataset } from "./geo/load.js";
 import { createWorld } from "./scene/world.js";
 import { mountUI, createTooltip, mountCinematicOverlays } from "./ui/overlay.js";
 import { registerServiceWorker } from "./cache/registerServiceWorker.js";
+import { createLoadingScene } from "./loadingScene.js";
 
 registerServiceWorker();
 
 const loading = document.getElementById("loading");
 const loadMsg = document.getElementById("load-msg");
 const loadBar = document.getElementById("load-bar");
+const loadPercent = document.getElementById("load-percent");
 const canvas = document.getElementById("scene");
 const uiRoot = document.getElementById("ui-root");
+const loadingScene = createLoadingScene(document.getElementById("loading-scene"));
+
+let targetProgress = 0;
+let displayedProgress = 0;
+let progressFrame = 0;
+
+function animateProgress() {
+  displayedProgress += (targetProgress - displayedProgress) * 0.12;
+  if (Math.abs(targetProgress - displayedProgress) < 0.08) displayedProgress = targetProgress;
+  if (loadBar) loadBar.style.width = `${displayedProgress}%`;
+  if (loadPercent) loadPercent.textContent = `${Math.round(displayedProgress)}%`;
+  if (displayedProgress !== targetProgress || !loading.classList.contains("hidden")) {
+    progressFrame = requestAnimationFrame(animateProgress);
+  } else {
+    progressFrame = 0;
+  }
+}
 
 function progress(p, msg) {
-  // Flush paint so the user sees updates during long GeoTIFF / GeoJSON work
-  const apply = () => {
-    loadBar.style.width = `${Math.round(p * 100)}%`;
-    if (msg) loadMsg.textContent = msg;
-  };
-  apply();
-  if (typeof requestAnimationFrame === "function") {
-    requestAnimationFrame(apply);
-  }
+  targetProgress = Math.max(0, Math.min(100, Number(p) * 100));
+  if (msg) loadMsg.textContent = msg;
+  if (!progressFrame) progressFrame = requestAnimationFrame(animateProgress);
 }
 
 async function boot() {
@@ -60,10 +74,14 @@ async function boot() {
         if (sceneReady) return;
         sceneReady = true;
         loading.classList.add("hidden");
+        loadingScene.setVisible(false);
       },
     });
 
-    if (!sceneReady) loading.classList.add("hidden");
+    if (!sceneReady) {
+      loading.classList.add("hidden");
+      loadingScene.setVisible(false);
+    }
 
     mountUI(uiRoot, {
       dataset,

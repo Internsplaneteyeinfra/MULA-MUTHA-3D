@@ -5,12 +5,12 @@ import { SURFACE_Y } from "./river.js";
 import { computeSceneBounds, computeKmlOverviewBounds, computeActiveSceneBounds } from "../geo/sceneBounds.js";
 import {
   stationAt,
-  riverAxis,
   alongRiverPose,
+  chainageGisAerialPose,
   fullRiverOverviewPose,
-  mapAerialPose,
   heightForWidth,
   nearestStationU,
+  smoothTangent,
   terrainCameraOpts,
 } from "./riverCamera.js";
 
@@ -25,7 +25,8 @@ export function sceneName(mode) {
       return "BATHYMETRY INSPECT";
     case "aerial":
     case "top":
-      return "AERIAL / PROJECTION";
+    case "2d":
+      return "2D · ORTHOGRAPHIC TOP VIEW";
     case "follow":
       return "RIVER PATH FOLLOW";
     case "cinematic":
@@ -47,17 +48,49 @@ export function createCameraSystem(canvas, dataset) {
   const dtmCam = terrainCameraOpts(dataset.dtm);
   const midU = stations[dataset.corridor.midPathIdx ?? Math.floor(stations.length / 2)].t;
   const diag = Math.hypot(b.spanX, b.spanZ);
-  const axis = riverAxis(stations);
+  const mapLookY =
+    dtmCam.terrainLookY != null ? dtmCam.terrainLookY : SURFACE_Y;
+  const mapAltitude = Math.max(diag * 0.35, 1800);
 
-  const camera = new THREE.PerspectiveCamera(48, 1, 1.2, 120000);
-  camera.up.set(0, 1, 0);
+  /** Mean open-water width along the corridor (metres). */
+  function meanRiverWidthM() {
+    let sum = 0;
+    let n = 0;
+    const step = Math.max(1, Math.floor(stations.length / 100));
+    for (let i = 0; i < stations.length; i += step) {
+      sum += Math.max(18, stations[i].halfWidth || 40) * 2;
+      n += 1;
+    }
+    return sum / Math.max(1, n);
+  }
 
-  const controls = new OrbitControls(camera, canvas);
+  /**
+   * Inspection frustum height (world metres at zoom=1).
+   * Sized so the river band fills ~25–40% of screen height — NOT full AOI fit.
+   */
+  const riverBandM = Math.max(90, meanRiverWidthM() * 2.05);
+  const MAP2D_VIEW_HEIGHT_M = THREE.MathUtils.clamp(riverBandM / 0.3, 900, 2400);
+  /** Default ortho zoom for the reference GIS framing (1 = MAP2D_VIEW_HEIGHT_M). */
+  const MAP2D_DEFAULT_ZOOM = 1;
+
+  /** Perspective for Overview / orbit / cinematic. */
+  const perspCamera = new THREE.PerspectiveCamera(48, 1, 1.2, 120000);
+  perspCamera.up.set(0, 1, 0);
+
+  /** Orthographic for true GIS-style 2D top-down. */
+  const orthoCamera = new THREE.OrthographicCamera(-1, 1, 1, -1, 1, 200000);
+  orthoCamera.up.set(0, 0, 1);
+
+  let activeCamera = perspCamera;
+
+  const controls = new OrbitControls(perspCamera, canvas);
   controls.enableDamping = true;
   controls.dampingFactor = 0.12;
   controls.maxPolarAngle = Math.PI * 0.495;
   controls.minDistance = 12;
   controls.maxDistance = diag * 3.2;
+  controls.minZoom = 0.35;
+  controls.maxZoom = 12;
   controls.enablePan = true;
   controls.screenSpacePanning = true;
   controls.rotateSpeed = 0.55;
@@ -71,6 +104,7 @@ export function createCameraSystem(canvas, dataset) {
   const smoothP = new THREE.Vector3();
   const smoothL = new THREE.Vector3();
   const smoothUp = new THREE.Vector3(0, 1, 0);
+  const NORTH_UP = new THREE.Vector3(0, 0, 1);
   let followInited = false;
   let localTransition = null;
   let orientTransition = null;
@@ -91,18 +125,184 @@ export function createCameraSystem(canvas, dataset) {
     return stationAt(stations, u);
   }
 
+  function isMap2D() {
+    const m = state.cameraMode;
+    return m === "aerial" || m === "top" || m === "2d";
+  }
+
+  function getCamera() {
+    return activeCamera;
+  }
+
+  function viewportSize() {
+    const w = canvas.clientWidth || window.innerWidth || 1;
+    const h = canvas.clientHeight || window.innerHeight || 1;
+    return { w, h, aspect: Math.max(0.5, w / Math.max(1, h)) };
+  }
+
+  /** Focus XZ for default 2D entry — mid corridor / selection / hover (not full AOI). */
+  function map2dFocusXZ() {
+    const chain = dataset.chainage;
+    if (state.selectedChainageMeters != null && chain?.length) {
+      const p = chain.find((c) => c.meters === state.selectedChainageMeters);
+      if (p && p.x != null && p.z != null) {
+        return {
+          x: p.x,
+          z: p.z,
+          u: nearestStationU(stations, p.x, p.z),
+        };
+      }
+    }
+    if (state.hover?.x != null && state.hover?.z != null) {
+      return {
+        x: state.hover.x,
+        z: state.hover.z,
+        u: nearestStationU(stations, state.hover.x, state.hover.z),
+      };
+    }
+    const mid = st(midU);
+    return { x: mid.x, z: mid.z, u: midU };
+  }
+
+  /**
+   * Camera.up for top-down so the river runs roughly horizontally
+   * (screen X ≈ flow, screen Y ≈ across-river), matching the reference framing.
+   */
+  function map2dUpAt(u) {
+    const tan = smoothTangent(stations, u, 0.035);
+    let ax = -tan.z;
+    let az = tan.x;
+    // Prefer the across-vector with a positive north (+Z) component when possible
+    if (az < 0) {
+      ax = -ax;
+      az = -az;
+    }
+    const len = Math.hypot(ax, az) || 1;
+    return new THREE.Vector3(ax / len, 0, az / len);
+  }
+
+  /** Orthographic window at inspection scale (not full-project fit). */
+  function syncOrthoFrustum(aspect = viewportSize().aspect) {
+    const viewH = MAP2D_VIEW_HEIGHT_M;
+    const viewW = viewH * aspect;
+    orthoCamera.left = -viewW * 0.5;
+    orthoCamera.right = viewW * 0.5;
+    orthoCamera.top = viewH * 0.5;
+    orthoCamera.bottom = -viewH * 0.5;
+    orthoCamera.near = 1;
+    orthoCamera.far = 200000;
+    orthoCamera.updateProjectionMatrix();
+  }
+
+  function lockMap2DControls() {
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = 0;
+    // Pan + zoom only — bearing via compass (camera.up). Never tilt.
+    controls.enableRotate = false;
+    controls.enablePan = true;
+    controls.screenSpacePanning = true;
+  }
+
+  function unlockPerspectiveControls() {
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.enableRotate = true;
+    controls.enablePan = true;
+  }
+
+  function enterMap2D({ animate = true } = {}) {
+    const fromP = activeCamera.position.clone();
+    const fromL = controls.target.clone();
+    const fromUp = activeCamera.up.clone().normalize();
+
+    syncOrthoFrustum();
+    orthoCamera.zoom = MAP2D_DEFAULT_ZOOM;
+    orthoCamera.updateProjectionMatrix();
+
+    activeCamera = orthoCamera;
+    controls.object = orthoCamera;
+    lockMap2DControls();
+
+    const focus = map2dFocusXZ();
+    const up = map2dUpAt(focus.u);
+    tmpP.set(focus.x, mapLookY + mapAltitude, focus.z);
+    tmpL.set(focus.x, mapLookY, focus.z);
+    tmpUp.copy(up);
+
+    state.cameraMode = "aerial";
+    state.playing = false;
+    state.visualMode = "landscape";
+    controls.enabled = true;
+    followInited = false;
+    orientTransition = null;
+    zoomTransition = null;
+
+    if (!animate) {
+      snapTo(tmpP, tmpL, tmpUp);
+      return;
+    }
+
+    orthoCamera.position.copy(fromP);
+    orthoCamera.up.copy(fromUp);
+    controls.target.copy(fromL);
+    orthoCamera.lookAt(fromL);
+
+    localTransition = {
+      fromP,
+      fromL,
+      fromUp,
+      toP: tmpP.clone(),
+      toL: tmpL.clone(),
+      toUp: up.clone(),
+      t: 0,
+      dur: 1.05,
+      releaseMode: "aerial",
+    };
+  }
+
+  function exitMap2D() {
+    if (activeCamera === perspCamera) {
+      unlockPerspectiveControls();
+      return;
+    }
+    perspCamera.position.copy(orthoCamera.position);
+    perspCamera.up.set(0, 1, 0);
+    controls.target.copy(controls.target);
+    activeCamera = perspCamera;
+    controls.object = perspCamera;
+    unlockPerspectiveControls();
+    perspCamera.lookAt(controls.target);
+    controls.update();
+  }
+
   function takeManualControl() {
     if (state.cinematicActive) return;
-    // Break out of scripted fly / local / follow → free mouse orbit
+    // Cancel scripted tweens; keep true 2D top-down when in map mode
     localTransition = null;
     orientTransition = null;
     zoomTransition = null;
+    if (isMap2D()) {
+      lockMap2DControls();
+      // Keep camera directly above target (no tilt); preserve map bearing
+      activeCamera.position.x = controls.target.x;
+      activeCamera.position.z = controls.target.z;
+      activeCamera.position.y = Math.max(activeCamera.position.y, mapLookY + 200);
+      activeCamera.up.y = 0;
+      if (activeCamera.up.lengthSq() < 1e-8) {
+        activeCamera.up.copy(
+          map2dUpAt(nearestStationU(stations, controls.target.x, controls.target.z)),
+        );
+      } else activeCamera.up.normalize();
+      activeCamera.lookAt(controls.target);
+      controls.enabled = true;
+      return;
+    }
     if (state.cameraMode === "follow" || state.cameraMode === "local") {
       state.playing = false;
       state.cameraMode = "orbit";
     }
-    camera.up.set(0, 1, 0);
-    camera.lookAt(controls.target);
+    activeCamera.up.set(0, 1, 0);
+    activeCamera.lookAt(controls.target);
     controls.enabled = true;
   }
 
@@ -140,6 +340,7 @@ export function createCameraSystem(canvas, dataset) {
   );
 
   function snapTo(pos, look, up) {
+    const camera = activeCamera;
     camera.up.copy(up).normalize();
     camera.position.copy(pos);
     controls.target.copy(look);
@@ -184,23 +385,34 @@ export function createCameraSystem(canvas, dataset) {
       state.showWaterDebug = false;
       state.showOsmAlignment = false;
       state.inspectMode = false;
-      state.flowSpeed = 0.85;
-      state.flowVisibility = 0;
-      state.waterOpacity = 0.72;
+      state.flowSpeed = 0.62;
+      state.flowVisibility = 0.55;
+      state.waterOpacity = 0.9;
       state.depthExaggeration = 2;
       mode = "overview";
     }
 
     controls.enabled = true;
     followInited = false;
+    localTransition = null;
+    orientTransition = null;
+    zoomTransition = null;
+
+    if (mode === "aerial" || mode === "top" || mode === "2d") {
+      enterMap2D({ animate: true });
+      return;
+    }
+
+    // All other modes use PerspectiveCamera
+    exitMap2D();
 
     if (mode === "overview") {
       state.cameraMode = "overview";
       state.playing = false;
       state.visualMode = "landscape";
       fullRiverOverviewPose(stations, overviewBounds, 1, tmpP, tmpL, tmpUp, {
-        fovDeg: camera.fov,
-        aspect: Math.max(0.5, camera.aspect || window.innerWidth / Math.max(1, window.innerHeight)),
+        fovDeg: perspCamera.fov,
+        aspect: Math.max(0.5, perspCamera.aspect || viewportSize().aspect),
         ...dtmCam,
       });
       snapTo(tmpP, tmpL, tmpUp);
@@ -226,14 +438,15 @@ export function createCameraSystem(canvas, dataset) {
         outUp: tmpUp,
       });
       localTransition = {
-        fromP: camera.position.clone(),
+        fromP: activeCamera.position.clone(),
         fromL: controls.target.clone(),
-        fromUp: camera.up.clone(),
+        fromUp: activeCamera.up.clone(),
         toP: tmpP.clone(),
         toL: tmpL.clone(),
         toUp: tmpUp.clone(),
         t: 0,
         dur: 1.25,
+        releaseMode: "orbit",
       };
       return;
     }
@@ -254,15 +467,6 @@ export function createCameraSystem(canvas, dataset) {
       });
       snapTo(tmpP, tmpL, tmpUp);
       followInited = true;
-      return;
-    }
-
-    if (mode === "aerial" || mode === "top") {
-      state.cameraMode = "aerial";
-      state.playing = false;
-      state.visualMode = "landscape";
-      mapAerialPose(b, tmpP, tmpL, tmpUp);
-      snapTo(tmpP, tmpL, tmpUp);
       return;
     }
 
@@ -314,13 +518,22 @@ export function createCameraSystem(canvas, dataset) {
   }
 
   function cameraOffsetSpherical() {
+    const camera = activeCamera;
     const offset = camera.position.clone().sub(controls.target);
     return new THREE.Spherical().setFromVector3(offset);
   }
 
   function applySpherical(spherical) {
+    const camera = activeCamera;
     const offset = new THREE.Vector3().setFromSpherical(spherical);
     camera.position.copy(controls.target).add(offset);
+    if (isMap2D()) {
+      camera.up.copy(NORTH_UP);
+      // Enforce pure nadir: directly above target
+      camera.position.x = controls.target.x;
+      camera.position.z = controls.target.z;
+      camera.position.y = Math.max(Math.abs(spherical.radius), mapLookY + 200);
+    }
     camera.lookAt(controls.target);
     controls.update();
   }
@@ -332,6 +545,21 @@ export function createCameraSystem(canvas, dataset) {
     if (targetTheta == null) return;
     takeManualControl();
     localTransition = null;
+    const camera = activeCamera;
+    if (isMap2D()) {
+      // Spin map bearing while staying perfectly vertical (north = +Z up on screen)
+      const fromUp = camera.up.clone().normalize();
+      const angle = key === "n" ? 0 : -targetTheta;
+      const toUp = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)).normalize();
+      orientTransition = {
+        map2d: true,
+        fromUp,
+        toUp,
+        t: 0,
+        dur: duration,
+      };
+      return;
+    }
     const sph = cameraOffsetSpherical();
     orientTransition = {
       fromTheta: sph.theta,
@@ -352,9 +580,26 @@ export function createCameraSystem(canvas, dataset) {
 
   function zoomBy(factor, duration = 0.4) {
     if (state.cinematicActive) return;
-    takeManualControl();
     localTransition = null;
     orientTransition = null;
+    if (isMap2D()) {
+      // Map zoom: change orthographic zoom only — never tilt
+      const fromZoom = orthoCamera.zoom;
+      const toZoom = THREE.MathUtils.clamp(
+        fromZoom / factor,
+        controls.minZoom,
+        controls.maxZoom,
+      );
+      zoomTransition = {
+        map2d: true,
+        fromZoom,
+        toZoom,
+        t: 0,
+        dur: duration,
+      };
+      return;
+    }
+    takeManualControl();
     const sph = cameraOffsetSpherical();
     const next = THREE.MathUtils.clamp(
       sph.radius * factor,
@@ -379,16 +624,47 @@ export function createCameraSystem(canvas, dataset) {
     zoomBy(1.22);
   }
 
+  function resize(w, h) {
+    const width = w || viewportSize().w;
+    const height = h || viewportSize().h;
+    const aspect = Math.max(0.5, width / Math.max(1, height));
+    perspCamera.aspect = aspect;
+    perspCamera.updateProjectionMatrix();
+    const prevZoom = orthoCamera.zoom;
+    syncOrthoFrustum(aspect);
+    orthoCamera.zoom = prevZoom;
+    orthoCamera.updateProjectionMatrix();
+  }
+
   function update(dt) {
+    const camera = activeCamera;
+
     if (zoomTransition) {
       zoomTransition.t += dt;
       const k = easeInOutCubic(Math.min(1, zoomTransition.t / zoomTransition.dur));
-      const sph = new THREE.Spherical(
-        THREE.MathUtils.lerp(zoomTransition.fromRadius, zoomTransition.toRadius, k),
-        zoomTransition.phi,
-        zoomTransition.theta,
-      );
-      applySpherical(sph);
+      if (zoomTransition.map2d) {
+        orthoCamera.zoom = THREE.MathUtils.lerp(
+          zoomTransition.fromZoom,
+          zoomTransition.toZoom,
+          k,
+        );
+        orthoCamera.updateProjectionMatrix();
+        // Keep nadir while zooming — preserve map bearing
+        camera.position.x = controls.target.x;
+        camera.position.z = controls.target.z;
+        camera.up.y = 0;
+        if (camera.up.lengthSq() < 1e-8) camera.up.copy(NORTH_UP);
+        else camera.up.normalize();
+        camera.lookAt(controls.target);
+        controls.update();
+      } else {
+        const sph = new THREE.Spherical(
+          THREE.MathUtils.lerp(zoomTransition.fromRadius, zoomTransition.toRadius, k),
+          zoomTransition.phi,
+          zoomTransition.theta,
+        );
+        applySpherical(sph);
+      }
       if (zoomTransition.t >= zoomTransition.dur) zoomTransition = null;
       return;
     }
@@ -396,17 +672,25 @@ export function createCameraSystem(canvas, dataset) {
     if (orientTransition) {
       orientTransition.t += dt;
       const k = easeInOutCubic(Math.min(1, orientTransition.t / orientTransition.dur));
-      const sph = new THREE.Spherical(
-        orientTransition.radius,
-        orientTransition.phi,
-        THREE.MathUtils.lerp(orientTransition.fromTheta, orientTransition.toTheta, k),
-      );
-      applySpherical(sph);
-      if (orientTransition.resetUp) {
+      if (orientTransition.map2d) {
         camera.up.copy(orientTransition.fromUp).lerp(orientTransition.toUp, k).normalize();
+        camera.position.x = controls.target.x;
+        camera.position.z = controls.target.z;
         camera.lookAt(controls.target);
+        controls.update();
+      } else {
+        const sph = new THREE.Spherical(
+          orientTransition.radius,
+          orientTransition.phi,
+          THREE.MathUtils.lerp(orientTransition.fromTheta, orientTransition.toTheta, k),
+        );
+        applySpherical(sph);
+        if (orientTransition.resetUp) {
+          camera.up.copy(orientTransition.fromUp).lerp(orientTransition.toUp, k).normalize();
+          camera.lookAt(controls.target);
+        }
+        controls.update();
       }
-      controls.update();
       if (orientTransition.t >= orientTransition.dur) orientTransition = null;
       return;
     }
@@ -418,6 +702,14 @@ export function createCameraSystem(canvas, dataset) {
       controls.target.lerpVectors(localTransition.fromL, localTransition.toL, k);
       smoothUp.copy(localTransition.fromUp).lerp(localTransition.toUp, k).normalize();
       camera.up.copy(smoothUp);
+      if (localTransition.fromZoom != null && localTransition.toZoom != null) {
+        orthoCamera.zoom = THREE.MathUtils.lerp(
+          localTransition.fromZoom,
+          localTransition.toZoom,
+          k,
+        );
+        orthoCamera.updateProjectionMatrix();
+      }
       camera.lookAt(controls.target);
       controls.update();
       if (localTransition.t >= localTransition.dur) {
@@ -426,7 +718,19 @@ export function createCameraSystem(canvas, dataset) {
         state.cameraMode = release;
         state.playing = false;
         controls.enabled = true;
-        if (release === "orbit") {
+        if (release === "aerial" || release === "top" || release === "2d") {
+          lockMap2DControls();
+          camera.up.y = 0;
+          if (camera.up.lengthSq() < 1e-8) {
+            camera.up.copy(map2dUpAt(nearestStationU(stations, controls.target.x, controls.target.z)));
+          } else {
+            camera.up.normalize();
+          }
+          camera.position.x = controls.target.x;
+          camera.position.z = controls.target.z;
+          camera.lookAt(controls.target);
+          controls.update();
+        } else if (release === "orbit") {
           camera.up.set(0, 1, 0);
           camera.lookAt(controls.target);
         }
@@ -470,58 +774,104 @@ export function createCameraSystem(canvas, dataset) {
       camera.lookAt(smoothL);
       return;
     }
+
+    if (isMap2D()) {
+      // Enforce vertical lock every frame (OrbitControls can drift)
+      lockMap2DControls();
+      controls.update();
+      camera.position.x = controls.target.x;
+      camera.position.z = controls.target.z;
+      if (camera.position.y < mapLookY + 200) camera.position.y = mapLookY + mapAltitude;
+      camera.up.y = 0;
+      if (camera.up.lengthSq() < 1e-8) {
+        camera.up.copy(map2dUpAt(nearestStationU(stations, controls.target.x, controls.target.z)));
+      } else {
+        camera.up.normalize();
+      }
+      camera.lookAt(controls.target);
+      return;
+    }
+
     controls.update();
   }
 
   /**
-   * Zoom to chainage (River Side framing), then free orbit for the mouse.
-   * Drag / pan / scroll anytime cancels the fly and keeps control.
+   * Chainage focus:
+   * - In 2D: pan/zoom only, stay orthographic top-down
+   * - Otherwise: locked forward-looking aerial river profile
    */
   function focusOnXZ(x, z, opts = {}) {
     if (state.cinematicActive) return;
     state.playing = false;
     state.visualMode = "landscape";
-    // Stay in orbit so mouse is the owner; fly is just a soft tween
-    state.cameraMode = "orbit";
     controls.enabled = true;
 
+    if (isMap2D()) {
+      // Pan only — keep current inspection zoom (no sudden close-up)
+      const height = Math.max(activeCamera.position.y, mapLookY + 400);
+      tmpP.set(x, height, z);
+      tmpL.set(x, mapLookY, z);
+      const keepUp = activeCamera.up.clone();
+      keepUp.y = 0;
+      if (keepUp.lengthSq() < 1e-8) keepUp.copy(map2dUpAt(nearestStationU(stations, x, z)));
+      else keepUp.normalize();
+      const keepZoom = orthoCamera.zoom;
+      zoomTransition = null;
+      localTransition = {
+        fromP: activeCamera.position.clone(),
+        fromL: controls.target.clone(),
+        fromUp: activeCamera.up.clone().normalize(),
+        toP: tmpP.clone(),
+        toL: tmpL.clone(),
+        toUp: keepUp,
+        fromZoom: keepZoom,
+        toZoom: keepZoom,
+        t: 0,
+        dur: opts.dur ?? 0.85,
+        releaseMode: "aerial",
+      };
+      return;
+    }
+
+    state.cameraMode = "orbit";
     const u = nearestStationU(stations, x, z);
-    const local = st(u);
-    alongRiverPose(stations, {
+    chainageGisAerialPose(stations, {
       u,
-      height: heightForWidth(local.half, opts.heightMode || "detail"),
-      pitchDeg: opts.pitchDeg ?? 48,
-      lookAhead: opts.lookAhead ?? 0.04,
-      lateralBiasM: opts.lateralBiasM ?? 0,
+      x,
+      z,
+      cameraHeight: opts.cameraHeight ?? 380,
+      cameraDistance: opts.cameraDistance ?? 420,
+      lookAheadDistance: opts.lookAheadDistance ?? 520,
+      lookY: opts.lookY ?? SURFACE_Y + 28,
       outP: tmpP,
       outL: tmpL,
       outUp: tmpUp,
     });
-    // Nudge look-at toward the selected marker so the yellow disc reads clearly
-    tmpL.x = THREE.MathUtils.lerp(tmpL.x, x, 0.45);
-    tmpL.z = THREE.MathUtils.lerp(tmpL.z, z, 0.45);
-    tmpL.y = SURFACE_Y + 1.4;
 
     localTransition = {
-      fromP: camera.position.clone(),
+      fromP: activeCamera.position.clone(),
       fromL: controls.target.clone(),
-      fromUp: camera.up.clone().normalize(),
+      fromUp: activeCamera.up.clone().normalize(),
       toP: tmpP.clone(),
       toL: tmpL.clone(),
-      // World-up destination → OrbitControls feel normal after zoom
       toUp: new THREE.Vector3(0, 1, 0),
       t: 0,
-      dur: opts.dur ?? 0.9,
+      dur: opts.dur ?? 1.0,
       releaseMode: "orbit",
     };
   }
 
   return {
-    camera,
+    get camera() {
+      return activeCamera;
+    },
+    getCamera,
     controls,
     applyMode,
     focusOnXZ,
     update,
+    resize,
+    ensurePerspective: exitMap2D,
     stationAt: st,
     rotateToCompass,
     resetOrientation,

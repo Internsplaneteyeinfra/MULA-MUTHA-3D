@@ -331,20 +331,30 @@ function rasterize(stations, across, depthPoints) {
     }
   }
 
-  // Visual-only smooth of interpolated depths
+  // Visual-only smooth — blur ALL verts so Overview depth looks continuous
+  // (exact Excel hits used to skip smoothing and left rectangular plateaus)
   const smoothed = depths.slice();
-  for (let pass = 0; pass < 2; pass++) {
+  for (let pass = 0; pass < 5; pass++) {
     for (let s = 1; s < stations.length - 1; s++) {
       for (let a = 1; a < across; a++) {
         const i = s * cols + a;
-        if (exact[i]) continue;
         smoothed[i] =
-          (depths[i] * 2 + depths[i - 1] + depths[i + 1] + depths[i - cols] + depths[i + cols]) / 6;
+          (depths[i] * 2 +
+            depths[i - 1] +
+            depths[i + 1] +
+            depths[i - cols] +
+            depths[i + cols]) /
+          6;
       }
     }
-    for (let i = 0; i < depths.length; i++) {
-      if (!exact[i]) depths[i] = smoothed[i];
+    // Soften bank edge columns too (a = 0 and a = across)
+    for (let s = 1; s < stations.length - 1; s++) {
+      const iL = s * cols;
+      const iR = s * cols + across;
+      smoothed[iL] = (depths[iL] * 2 + depths[iL + 1] + depths[iL - cols] + depths[iL + cols]) / 5;
+      smoothed[iR] = (depths[iR] * 2 + depths[iR - 1] + depths[iR - cols] + depths[iR + cols]) / 5;
     }
+    for (let i = 0; i < depths.length; i++) depths[i] = smoothed[i];
   }
 
   let minX = Infinity;
@@ -412,47 +422,51 @@ function neighbors(index, x, z) {
 
 function sampleDepth(x, z, points, index, station) {
   const near = neighbors(index, x, z);
-  let best = null;
-  let bestD = Infinity;
-  for (const p of near) {
-    const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
-    if (d2 < bestD) {
-      bestD = d2;
-      best = p;
-    }
-  }
-  if (best && bestD < 2.5 * 2.5) {
-    return { depth: best.depth, exact: true };
-  }
 
+  // Always inverse-distance blend — never snap to a single Excel point.
+  // Nearest-neighbor snaps create Voronoi "blocks" on the Overview water surface.
   let wSum = 0;
   let dSum = 0;
   let n = 0;
+  let nearestD = Infinity;
   for (const p of near) {
     const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
-    if (d2 > 90 * 90) continue;
-    const w = 1 / Math.max(1.2, d2);
+    if (d2 < nearestD) nearestD = d2;
+    if (d2 > 120 * 120) continue;
+    // Soft IDW: nearby points dominate, but never a hard cell boundary
+    const w = 1 / Math.max(2.5, d2 * 0.35);
     wSum += w;
     dSum += w * p.depth;
     n++;
   }
-  if (n >= 3 && wSum > 0) return { depth: dSum / wSum, exact: false };
+  if (n >= 2 && wSum > 0) {
+    return { depth: dSum / wSum, exact: nearestD < 2.5 * 2.5 };
+  }
 
-  // Wider fallback
+  // Wider fallback across the full point set (capped)
   let w2 = 0;
   let d2s = 0;
   let n2 = 0;
   for (const p of points) {
-    if (Math.abs(p.x - x) > 220 || Math.abs(p.z - z) > 220) continue;
+    if (Math.abs(p.x - x) > 280 || Math.abs(p.z - z) > 280) continue;
     const dd = (p.x - x) ** 2 + (p.z - z) ** 2;
-    const w = 1 / Math.max(4, dd);
+    const w = 1 / Math.max(6, dd * 0.25);
     w2 += w;
     d2s += w * p.depth;
     n2++;
-    if (n2 > 40) break;
+    if (n2 > 60) break;
   }
   if (n2 > 0) return { depth: d2s / w2, exact: false };
-  return { depth: 1.75, exact: false };
+
+  // Channel-shaped fallback from station width (continuous across banks)
+  const u = station
+    ? Math.min(
+        1,
+        Math.hypot(x - station.x, z - station.z) / Math.max(8, station.halfWidth || 40),
+      )
+    : 0.5;
+  const midDepth = 1.75;
+  return { depth: midDepth * (0.55 + 0.45 * (1 - u * u)), exact: false };
 }
 
 export function detectBridgeSites(stations) {

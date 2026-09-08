@@ -1,8 +1,9 @@
 import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
+import { interpolateChainage } from "../../geo/chainage.js";
 
 /**
- * Bottom chainage ruler — every station readable, proportionally placed.
+ * Bottom chainage ruler — every kilometre + endpoints, map-first styling.
  */
 export function mountChainageRuler(root, dataset) {
   const points = [...(dataset?.chainage || [])].sort(
@@ -11,10 +12,11 @@ export function mountChainageRuler(root, dataset) {
   if (!points.length) return { el: null, update() {}, dispose() {} };
 
   const majors = pickRulerStations(points);
-  const maxM = Math.max(...majors.map((p) => Number(p.meters) || 0), 1);
+  const minM = Number(points[0].meters) || 0;
+  const maxM = Math.max(Number(points[points.length - 1].meters) || 0, minM + 1);
 
   const el = document.createElement("div");
-  el.className = "hud chainage-ruler";
+  el.className = "hud chainage-ruler map-chrome";
   el.id = "chainage-ruler";
   el.setAttribute("aria-label", "Chainage ruler");
 
@@ -26,8 +28,8 @@ export function mountChainageRuler(root, dataset) {
       const meters = `${Math.round(m)} m`;
       const edge =
         i === 0 ? " is-edge-start" : i === majors.length - 1 ? " is-edge-end" : "";
-      const alt = i % 2 === 1 ? " is-alt" : "";
-      return `<button type="button" class="chainage-ruler-tick${edge}${alt}" data-meters="${m}" style="left:${pct}%" title="${station} · ${meters}">
+      const sparse = m % 2000 !== 0 && i !== 0 && i !== majors.length - 1 ? " is-sparse" : "";
+      return `<button type="button" class="chainage-ruler-tick${edge}${sparse}" data-meters="${m}" style="left:${pct}%" aria-label="${station}, ${meters}">
         <span class="chainage-ruler-tick-mark"></span>
         <span class="chainage-ruler-label">${station}</span>
         <span class="chainage-ruler-meters">${meters}</span>
@@ -40,6 +42,7 @@ export function mountChainageRuler(root, dataset) {
       <div class="chainage-ruler-title">CHAINAGE</div>
       <div class="chainage-ruler-track" role="list">
         <div class="chainage-ruler-line" aria-hidden="true"></div>
+        <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="1" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
         ${ticksHtml}
         <div class="chainage-ruler-cursor" id="chainage-ruler-cursor" hidden>
           <span class="chainage-ruler-cursor-label" id="chainage-ruler-cursor-label">0+000</span>
@@ -49,6 +52,33 @@ export function mountChainageRuler(root, dataset) {
     </div>
   `;
   root.appendChild(el);
+
+  const range = el.querySelector("#chainage-ruler-input");
+  let inputRaf = 0;
+  let pendingMeters = null;
+  let dragDispatchTimer = 0;
+  let lastDragDispatch = 0;
+  range?.addEventListener("input", () => {
+    pendingMeters = Number(range.value);
+    if (inputRaf) return;
+    inputRaf = requestAnimationFrame(() => {
+      inputRaf = 0;
+      const m = pendingMeters;
+      state.selectedChainageMeters = m;
+      state.showChainage = true;
+      // Avoid restarting the expensive 3D camera tween every render frame.
+      // The latest value is retained, while camera updates are capped at 20 Hz.
+      const now = performance.now();
+      const wait = Math.max(0, 50 - (now - lastDragDispatch));
+      window.clearTimeout(dragDispatchTimer);
+      dragDispatchTimer = window.setTimeout(() => {
+        lastDragDispatch = performance.now();
+        document.dispatchEvent(new CustomEvent("chainage-select", {
+          detail: { meters: pendingMeters, focus: true, dragging: true },
+        }));
+      }, wait);
+    });
+  });
 
   el.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-meters]");
@@ -79,15 +109,19 @@ export function mountChainageRuler(root, dataset) {
       if (cursor) cursor.hidden = true;
       return;
     }
-    const pct = Math.min(100, Math.max(0, (sel / maxM) * 100));
+    if (range && Number.isFinite(sel)) range.value = String(Math.min(maxM, Math.max(minM, sel)));
+    const pct = Math.min(100, Math.max(0, ((sel - minM) / Math.max(1, maxM - minM)) * 100));
     cursor.style.left = `${pct}%`;
     cursor.hidden = false;
     if (cursorLabel) {
-      cursorLabel.textContent = `${metersToStation(sel)} · ${Math.round(sel)} m`;
+      const p = interpolateChainage(points, sel);
+      cursorLabel.textContent = `${p?.label || metersToStation(sel)} · ${Math.round(sel)} m`;
     }
   }
 
   function dispose() {
+    window.cancelAnimationFrame(inputRaf);
+    window.clearTimeout(dragDispatchTimer);
     el.remove();
   }
 
@@ -95,7 +129,7 @@ export function mountChainageRuler(root, dataset) {
   return { el, update, dispose, points: majors };
 }
 
-/** Unique km stations + endpoints; drop near-duplicates so labels stay readable. */
+/** Every 1000 m station + first/last endpoints. */
 function pickRulerStations(points) {
   const byM = new Map();
   for (const p of points) {
@@ -104,35 +138,21 @@ function pickRulerStations(points) {
   }
   const first = points[0];
   const last = points[points.length - 1];
-  if (first) byM.set(Number(first.meters) || 0, { ...first, meters: Number(first.meters) || 0 });
-  if (last) byM.set(Number(last.meters) || 0, { ...last, meters: Number(last.meters) || 0 });
+  const firstM = Number(first?.meters) || 0;
+  const lastM = Number(last?.meters) || 0;
+  if (first) byM.set(firstM, { ...first, meters: firstM });
+  if (last) byM.set(lastM, { ...last, meters: lastM });
 
-  const sorted = [...byM.values()].sort((a, b) => a.meters - b.meters);
-  const maxM = Math.max(...sorted.map((p) => p.meters), 1);
-  const out = [];
-  for (const p of sorted) {
-    if (!out.length) {
-      out.push(p);
-      continue;
-    }
-    const prev = out[out.length - 1];
-    const gapPct = ((p.meters - prev.meters) / maxM) * 100;
-    if (gapPct < 2.5) {
-      // Prefer exact kilometre; otherwise keep the later (end) station
-      const prevIsKm = prev.meters % 1000 === 0;
-      const nextIsKm = p.meters % 1000 === 0;
-      if (!prevIsKm || nextIsKm || p === sorted[sorted.length - 1]) {
-        out[out.length - 1] = p;
-      }
-    } else {
-      out.push(p);
-    }
+  // Ensure full kilometre ladder 0 … floor(last/1000)*1000
+  for (let km = 0; km * 1000 <= lastM + 0.5; km++) {
+    const m = km * 1000;
+    if (!byM.has(m)) byM.set(m, { meters: m, label: metersToStation(m), major: true });
   }
-  return out;
+
+  return [...byM.values()].sort((a, b) => a.meters - b.meters);
 }
 
 function formatRulerLabel(p) {
   const label = String(p.label || metersToStation(p.meters)).trim();
-  // Normalize "+1+000" style to "1+000"
   return label.replace(/^\+/, "");
 }

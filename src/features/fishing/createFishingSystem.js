@@ -14,6 +14,7 @@ import { state } from "../../state.js";
  * 2) Guaranteed fish + jumps at every Fishing_Locations.kml point
  */
 export async function createFishingSystem(dataset, canvas, camera, uiRoot, extras = {}) {
+  const resolveCam = () => (typeof camera === "function" ? camera() : camera);
   const group = new THREE.Group();
   group.name = "fishingSystem";
 
@@ -67,7 +68,7 @@ export async function createFishingSystem(dataset, canvas, camera, uiRoot, extra
     const rect = canvas.getBoundingClientRect();
     pointer.x = ((e.clientX - rect.left) / rect.width) * 2 - 1;
     pointer.y = -((e.clientY - rect.top) / rect.height) * 2 + 1;
-    raycaster.setFromCamera(pointer, camera);
+    raycaster.setFromCamera(pointer, resolveCam());
     const hits = raycaster.intersectObjects(markers.pickables(), false);
     if (!hits.length) {
       selected = null;

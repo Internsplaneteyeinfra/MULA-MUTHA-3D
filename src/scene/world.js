@@ -5,6 +5,9 @@ import { createKmlSkeleton } from "./kmlSkeleton.js";
 import { createRiver, applyExaggeration, applyRiverLook, SURFACE_Y } from "./river.js";
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
+import { createVegetationApiLayer } from "./vegetationApiLayer.js";
+import { fetchVegetationForAoi } from "../services/vegetationService.js";
+import { mountVegetationStatus } from "../ui/components/vegetationStatus.js";
 import { createBridges, updateBridgeLabels, updateBridgePiers } from "./bridges.js";
 import { createCameraSystem } from "./cinematic.js";
 import { attachInspect } from "./inspect.js";
@@ -18,11 +21,15 @@ import { createDrainageLayer } from "./drainageLayer.js";
 import { createNallaFlowSystem } from "./drainage/nallaFlowSystem.js";
 import { createDepthZonesLayer } from "./depthZonesLayer.js";
 import { createFloodLayer } from "./floodLayer.js";
-import { fillPierUniforms } from "./waterShader.js";
+import { createApiFloodLayer } from "./apiFloodLayer.js";
+import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
 import { createCinematicController } from "../animation/cinematicController.js";
-import { computeActiveSceneBounds } from "../geo/sceneBounds.js";
+import { computeActiveSceneBounds, computeSceneBounds } from "../geo/sceneBounds.js";
 import { createQualityProfile, createThrottle } from "../perf/quality.js";
+import { createAtmosphericSky } from "./sky/atmosphericSky.js";
+import { interpolateChainage } from "../geo/chainage.js";
+import { nearestStationU, stationAt } from "./riverCamera.js";
 
 export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
   const quality = createQualityProfile();
@@ -51,29 +58,20 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
 
   const scene = new THREE.Scene();
-  scene.background = new THREE.Color("#9ab0a0");
-  const fogDensity = dataset.dtm ? 0.000038 : 0.000055;
-  scene.fog = new THREE.FogExp2("#a8b8a8", fogDensity);
-
-  scene.add(
-    new THREE.Mesh(
-      new THREE.SphereGeometry(28000, 24, 16),
-      new THREE.ShaderMaterial({
-        side: THREE.BackSide,
-        depthWrite: false,
-        toneMapped: false,
-        vertexShader: `varying vec3 vP; void main(){ vP=position; gl_Position=projectionMatrix*modelViewMatrix*vec4(position,1.0); }`,
-        fragmentShader: `varying vec3 vP; void main(){
-          float h=normalize(vP).y*0.5+0.5;
-          vec3 c=mix(vec3(0.86,0.82,0.74), mix(vec3(0.78,0.86,0.84), vec3(0.48,0.64,0.76), smoothstep(0.4,0.95,h)), smoothstep(0.28,0.7,h));
-          gl_FragColor=vec4(c,1.0);
-        }`,
-      }),
-    ),
-  );
+  // Match terrain grass/olive so overview doesn’t look like a cut-out on white
+  const GROUND_SURROUND = "#6a7e5c";
+  const GROUND_FOG = "#7a8e6e";
+  const MAP2D_SURROUND = "#c5d0bc"; // clean GIS surround (no green fog wash)
+  scene.background = null; // cinematic sky dome provides background
+  const fogDensity = dataset.dtm ? 0.000022 : 0.00004;
+  const groundFog = new THREE.FogExp2(GROUND_FOG, fogDensity);
+  scene.fog = groundFog;
+  scene.userData.groundSurround = GROUND_SURROUND;
+  scene.userData.groundFog = GROUND_FOG;
 
   // Soft daylight — warm sun + cooler sky bounce (buildings only benefit; hydrology unchanged)
-  scene.add(new THREE.HemisphereLight(0xd5e4ee, 0x6a5e4c, 0.95));
+  const hemi = new THREE.HemisphereLight(0xd5e4ee, 0x6a5e4c, 0.95);
+  scene.add(hemi);
   const sun = new THREE.DirectionalLight(0xffe6c8, 1.48);
   sun.position.set(-2400, 3400, 1500);
   sun.castShadow = q.shadows;
@@ -92,6 +90,48 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   fill.position.set(1600, 900, -1400);
   scene.add(fill);
 
+  const sceneBounds = computeSceneBounds(dataset);
+  const atmosphericSky = createAtmosphericSky({
+    scene,
+    sun,
+    hemi,
+    fill,
+    renderer,
+    bounds: sceneBounds,
+  });
+  // Seed sky quality from render tier when user hasn't forced a sky tier
+  if (!new URLSearchParams(location.search).get("skyQuality")) {
+    state.skyQuality = q.tier === "low" ? "low" : q.tier === "medium" ? "medium" : "high";
+    atmosphericSky.syncFromState();
+  }
+
+  const LIGHT_DEFAULT = { hemi: 0.95, sun: 1.48, fill: 0.32 };
+  const LIGHT_MAP2D = { hemi: 1.14, sun: 1.05, fill: 0.55 };
+
+  function isMap2DMode() {
+    const m = state.cameraMode;
+    return m === "aerial" || m === "top" || m === "2d";
+  }
+
+  /** Crisp GIS lighting — no fog/haze (Overview keeps atmosphere). */
+  function applyMap2DClarity() {
+    scene.fog = null;
+    atmosphericSky.setVisible(false);
+    scene.background = new THREE.Color(MAP2D_SURROUND);
+    hemi.intensity = LIGHT_MAP2D.hemi;
+    sun.intensity = LIGHT_MAP2D.sun;
+    fill.intensity = LIGHT_MAP2D.fill;
+    sun.castShadow = false;
+    renderer.toneMappingExposure = 1.22;
+  }
+
+  function restoreAtmosphereClarity() {
+    if (scene.fog !== groundFog) scene.fog = groundFog;
+    scene.background = null;
+    atmosphericSky.setVisible(state.skyEnabled !== false);
+    sun.castShadow = q.shadows && state.skyEnabled !== false;
+  }
+
   const terrain = createTerrain(dataset);
   const kmlSkeleton = createKmlSkeleton(dataset);
   const river = createRiver(dataset);
@@ -101,8 +141,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const nallaFlow = createNallaFlowSystem(dataset, drainageLayer);
   drainageLayer.add(nallaFlow);
   const depthZonesLayer = createDepthZonesLayer(dataset);
+  const rawSurveyPoints = createRawSurveyPointLayer(dataset);
   const floodLayer = createFloodLayer(dataset);
+  /** MODE A — JalNetra API flood (source of truth for inundation extent). */
+  const apiFloodLayer = createApiFloodLayer(dataset);
+  /** @deprecated alias — prefer apiFloodLayer */
+  const floodSimLayer = apiFloodLayer;
   fillPierUniforms(river.material, dataset);
+  applyWaterPreset(state.waterPreset || "calmRealistic");
+  syncWaterMaterial(river.material);
+  console.info(
+    "[water] Untitled 2.abc = animated Plane sim (mesh cache 0–400@24fps). " +
+      "Calm GPU waves applied to KML river mesh — ABC plane not used as corridor geometry.",
+  );
   const particles = createFlowParticles(dataset);
   const waterFx = createWaterEffects(dataset);
   const chainage = createChainageLayer(dataset);
@@ -110,6 +161,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const bridges = createBridges(dataset);
 
   scene.add(terrain.mesh);
+  if (terrain.surround) scene.add(terrain.surround);
   scene.add(terrain.outline);
   scene.add(kmlSkeleton);
   scene.add(river.bed);
@@ -125,7 +177,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(riverBanks);
   scene.add(drainageLayer);
   scene.add(depthZonesLayer);
+  scene.add(rawSurveyPoints);
   scene.add(floodLayer);
+  scene.add(apiFloodLayer);
 
   const uiRoot = document.getElementById("ui-root");
 
@@ -133,8 +187,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(sun.target);
 
   const cam = createCameraSystem(canvas, dataset);
-  const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, cam.camera, canvas);
-  attachInspect(canvas, cam.camera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip, {
+  const getCamera = () => cam.camera;
+  const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, getCamera, canvas);
+  attachInspect(canvas, getCamera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip, {
     getDrainageGroup: () => drainageLayer,
     getDepthZonesGroup: () => depthZonesLayer,
     getNallaFlow: () => nallaFlow,
@@ -151,19 +206,27 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   treesGroup.name = "treesPending";
   scene.add(treesGroup);
 
+  const vegApiGroup = new THREE.Group();
+  vegApiGroup.name = "vegetationApiPending";
+  scene.add(vegApiGroup);
+
   const fishGroup = new THREE.Group();
   fishGroup.name = "fishPending";
   scene.add(fishGroup);
 
   let urbanResult = null;
   let treesResult = null;
+  let vegApiResult = null;
   let fishing = null;
+
+  const vegStatus = mountVegetationStatus(uiRoot);
 
   // Buildings/roads (~12MB GeoJSON) load AFTER first paint so the spinner is not stuck
   const loadUrbanLayers = async () => {
     try {
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
-        const osm = await dataset.loadOsmLater();
+        const lowTier = quality.get().tier === "low";
+        const osm = await dataset.loadOsmLater({ lite: lowTier });
         dataset.osm = osm;
         if (osm.alignment && !osm.alignment.ok) {
           console.error("OSM–KML ALIGNMENT ISSUE", osm.alignment.issues);
@@ -177,7 +240,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         }
         dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
       }
-      const [gUrban, gTrees] = await Promise.all([createUrban(dataset), createVegetation(dataset)]);
+      const lowTier = quality.get().tier === "low";
+      const [gUrban, gTrees] = await Promise.all([
+        createUrban(dataset),
+        lowTier ? Promise.resolve(new THREE.Group()) : createVegetation(dataset),
+      ]);
       urbanResult = gUrban;
       urbanGroup.add(gUrban);
       treesResult = gTrees;
@@ -185,23 +252,63 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
     }
+
+    // JalNetra Vegetation Type — independent layer; does not block terrain
+    if (quality.get().tier !== "low") {
+      loadJalnetraVegetation().catch((err) => {
+        console.warn("Vegetation Type API:", err?.message || err);
+      });
+    }
   };
+
+  async function loadJalnetraVegetation() {
+    state.vegetationStatus = "loading";
+    state.vegetationMessage = "Analyzing vegetation...";
+    vegStatus.show("Analyzing vegetation...", "loading");
+    try {
+      const data = await fetchVegetationForAoi();
+      if (data.empty || !data.features?.length) {
+        state.vegetationStatus = "empty";
+        state.vegetationMessage =
+          "No vegetation detected for the selected AOI and date range.";
+        vegStatus.show(state.vegetationMessage, "empty");
+        setTimeout(() => vegStatus.hide(), 6000);
+        return;
+      }
+      const layer = await createVegetationApiLayer(dataset, data);
+      vegApiResult = layer;
+      vegApiGroup.clear();
+      vegApiGroup.add(layer);
+      layer.visible = true;
+      vegApiGroup.visible = true;
+      state.vegetationStatus = "ready";
+      state.vegetationMessage = "";
+      vegStatus.hide();
+    } catch (err) {
+      state.vegetationStatus = "error";
+      state.vegetationMessage = err?.message || "Vegetation analysis failed.";
+      vegStatus.show(state.vegetationMessage, "error");
+      setTimeout(() => vegStatus.hide(), 8000);
+    }
+  }
 
   // Yield one frame so the canvas can present before heavy OSM parse
   requestAnimationFrame(() => {
     setTimeout(loadUrbanLayers, 50);
   });
 
-  createFishingSystem(dataset, canvas, cam.camera, uiRoot, { waterEffects: waterFx })
-    .then((sys) => {
-      fishing = sys;
-      fishGroup.add(sys.group);
-      if (sys.zones) cinematic.setFishingZones(sys.zones);
-      if (dataset.fishingZones?.length) {
-        dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
-      }
-    })
-    .catch((err) => console.warn("Fishing system load:", err.message));
+  if (quality.get().tier !== "low") {
+    createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
+      .then((sys) => {
+        fishing = sys;
+        fishGroup.add(sys.group);
+        if (sys.zones) cinematic.setFishingZones(sys.zones);
+        if (dataset.fishingZones?.length) {
+          dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
+        }
+      })
+      .catch((err) => console.warn("Fishing system load:", err.message));
+  }
 
   // Click a red chainage pin to select it; hover THAT pin for station/meters.
   // Everywhere else, river water-depth hover stays (inspect).
@@ -226,7 +333,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     if (state.cinematicActive || !state.showChainage) return;
     const selM = state.selectedChainageMeters;
     if (selM == null) return;
-    const sel = (dataset.chainage || []).find((c) => c.meters === selM);
+    const sel = interpolateChainage(dataset.chainage, selM);
     if (!sel || sel.x == null) return;
     chainTipWorld.set(sel.x, SURFACE_Y + 8, sel.z);
     chainTipNdc.copy(chainTipWorld).project(cam.camera);
@@ -245,6 +352,23 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return chainage.pick?.(chainPickRay, cam.camera, maxDistM) || null;
   }
 
+  // Keep every selected reach readable: wide sections get more altitude and
+  // look-ahead, while narrow sections stay close enough to inspect the banks.
+  function chainageCameraOptions(point, dragging = false) {
+    const stations = dataset.corridor?.stations || [];
+    const u = stations.length && point?.x != null && point?.z != null
+      ? nearestStationU(stations, point.x, point.z)
+      : 0.5;
+    const station = stations.length ? stationAt(stations, u) : null;
+    const halfWidth = Math.max(8, Number(station?.half) || 8);
+    return {
+      cameraHeight: THREE.MathUtils.clamp(halfWidth * 1.8, 95, 230),
+      cameraDistance: THREE.MathUtils.clamp(halfWidth * 2.8, 140, 360),
+      lookAheadDistance: THREE.MathUtils.clamp(halfWidth * 4.2, 260, 600),
+      dur: dragging ? 0.45 : 1.55,
+    };
+  }
+
   canvas.addEventListener("click", (e) => {
     if (state.cinematicActive || !state.showChainage) return;
     const hit = resolveChainageUnderCursor(e, 110);
@@ -257,27 +381,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   document.addEventListener("chainage-select", (e) => {
     if (state.cinematicActive) return;
-    // Selecting any station → show every chainage label with meters
     state.showChainage = true;
-    state.showChainageLabels = true;
+    // 3D scene shows only the selected label — do not flood with all station texts
+    state.showChainageLabels = false;
     const labelsEl = document.querySelector("#chain-labels");
     if (labelsEl) {
-      labelsEl.checked = true;
+      labelsEl.checked = false;
       labelsEl.dispatchEvent(new Event("change", { bubbles: true }));
     }
     if (e.detail?.focus === false) return;
     const m = e.detail?.meters;
     if (m == null) return;
-    const p = (dataset.chainage || []).find((c) => c.meters === m);
+    const p = interpolateChainage(dataset.chainage, m);
     if (!p || p.x == null) return;
-    cam.focusOnXZ?.(p.x, p.z, {
-      heightMode: "detail",
-      pitchDeg: 48,
-      lookAhead: 0.04,
-      lateralBiasM: 0,
-      dur: 0.95,
-    });
-    setTimeout(() => pinSelectedChainageTip(), 120);
+    const dragging = !!e.detail?.dragging;
+    cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
+    if (!dragging) setTimeout(() => pinSelectedChainageTip(), 120);
   });
 
   canvas.addEventListener("pointermove", (e) => {
@@ -310,8 +429,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   function resize() {
     const w = canvas.clientWidth || window.innerWidth;
     const h = canvas.clientHeight || window.innerHeight;
-    cam.camera.aspect = w / h;
-    cam.camera.updateProjectionMatrix();
+    cam.resize?.(w, h);
     renderer.setSize(w, h, false);
     // Keep Overview framed to KML after aspect changes
     if (state.cameraMode === "overview" && !cinematic.isActive()) {
@@ -320,13 +438,23 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
   window.addEventListener("resize", resize);
   resize();
-  // Initial load: snap to KML overview with correct aspect
+  // Initial load: start close to the authoritative river centerline.
   cam.applyMode("overview");
+  const initialChainage = dataset.chainage?.[0];
+  if (initialChainage?.x != null && initialChainage?.z != null) {
+    state.selectedChainageMeters = initialChainage.meters;
+    cam.focusOnXZ(initialChainage.x, initialChainage.z, {
+      ...chainageCameraOptions(initialChainage),
+      dur: 0.9,
+    });
+  }
 
   let lastExag = state.depthExaggeration;
   let lastVisual = state.visualMode;
   let lastFlood = state.floodRiseM ?? 0;
-  applyRiverLook(river, false);
+  let lastWaterOn = state.showWater !== false;
+  let lastRiverLook = "water";
+  applyRiverLook(river, "water");
 
   const labelThrottle = createThrottle(q.labelHz);
   const lodThrottle = createThrottle(q.lodHz);
@@ -350,16 +478,111 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   window.__MM_SCENE__ = {
     scene,
     dataset,
+    river,
+    atmosphericSky,
     coordinateGrid,
     riverBanks,
     drainageLayer,
     nallaFlow,
     depthZonesLayer,
     floodLayer,
+    apiFloodLayer,
+    floodSimLayer,
     cam,
+    setRawSurveyPointsVisible(visible) {
+      state.showRawSurveyPoints = !!visible;
+      rawSurveyPoints.visible = state.showRawSurveyPoints;
+    },
+    /** Toggle River water surface; when off, show excavated ground deep view. */
+    setRiverVisible(on) {
+      state.showWater = !!on;
+      const waterOn = !!on;
+      river.mesh.visible = waterOn;
+      if (river.material) river.material.visible = waterOn;
+      applyRiverLook(river, waterOn ? "water" : "depth");
+      lastWaterOn = waterOn;
+      lastRiverLook = waterOn ? "water" : "depth";
+    },
     getDrainageStats: () => drainageLayer.userData?.stats || null,
     getNallaFlowStats: () => nallaFlow.userData?.stats || null,
     getDepthZonesStats: () => depthZonesLayer.userData?.stats || null,
+    /** Enter MODE A — hide illustrative bathtub, keep prior stage for restore. */
+    enterApiFloodMode() {
+      if (state.floodMode !== "api") {
+        state.savedFloodRiseM = state.floodRiseM ?? 0;
+      }
+      state.floodMode = "api";
+      state.showFloodSimulation = true;
+      floodLayer.setFloodRise?.(0);
+      floodLayer.visible = false;
+      lastFlood = 0;
+    },
+    /** Leave MODE A — restore illustrative Water Stage Explorer. */
+    exitApiFloodMode() {
+      apiFloodLayer.clear();
+      state.floodMode = "illustrative";
+      state.floodSimInfo = null;
+      state.floodSimStatus = "idle";
+      state.floodSimMessage = "";
+      const restore = state.savedFloodRiseM;
+      state.savedFloodRiseM = null;
+      if (restore != null) {
+        state.floodRiseM = restore;
+        lastFlood = -1; // force bathtub re-apply next frame
+        const floodEl = document.querySelector("#flood");
+        const floodLabel = document.querySelector("#flood-label");
+        if (floodEl) floodEl.value = String(Math.round(restore * 100));
+        if (floodLabel) floodLabel.textContent = `+${restore.toFixed(1)} m`;
+      }
+    },
+    applyFloodSimulation(result) {
+      window.__MM_SCENE__.enterApiFloodMode();
+      apiFloodLayer.loadFloodResult(result);
+      apiFloodLayer.setVisible(state.showFloodSimulation !== false && state.apiFlood?.showLayer !== false);
+      state.floodSimInfo = result?.info || apiFloodLayer.userData?.info || null;
+      state.floodSimStatus = "ready";
+      apiFloodLayer.userData.onSceneChange = (idx, scene) => {
+        state.apiFlood.currentScene = idx;
+        state.apiFlood.currentDate = scene?.date || null;
+        state.floodSimInfo = apiFloodLayer.userData?.getInfo?.() || state.floodSimInfo;
+        document.dispatchEvent(
+          new CustomEvent("mm-flood-scene", { detail: { index: idx, scene } }),
+        );
+      };
+    },
+    playFloodSimulation() {
+      if (!apiFloodLayer.userData?.hasFlood) return;
+      apiFloodLayer.setVisible(state.showFloodSimulation !== false);
+      apiFloodLayer.play();
+    },
+    playFloodTimeline() {
+      if (!apiFloodLayer.userData?.hasFlood) return;
+      apiFloodLayer.setVisible(state.showFloodSimulation !== false);
+      apiFloodLayer.playTimeline?.();
+    },
+    pauseFloodSimulation() {
+      apiFloodLayer.pause?.();
+    },
+    setFloodScene(index) {
+      apiFloodLayer.setSceneIndex?.(index, { animate: false });
+      apiFloodLayer.setProgress?.(1);
+    },
+    replayFloodSimulation() {
+      if (!apiFloodLayer.userData?.hasFlood) return;
+      apiFloodLayer.setVisible(state.showFloodSimulation !== false);
+      apiFloodLayer.replay();
+    },
+    clearFloodSimulation() {
+      window.__MM_SCENE__.exitApiFloodMode();
+    },
+    focusFloodSimulation() {
+      const b = apiFloodLayer.userData?.getBounds?.();
+      if (!b) return;
+      // Gentle pan only — preserve viewing angle
+      cam.focusOnXZ?.(b.cx, b.cz, { dur: 1.15 });
+    },
+    applyWaterPreset,
+    getWaterDebugInfo: () => getWaterDebugInfo(river.material, dataset),
     /** @deprecated Drainage flow is driven by showDrainage (Nullahs checkbox) only */
     setDrainageFlow(on) {
       state.showDrainage = !!on;
@@ -406,7 +629,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     resetOrientation: () => cam.resetOrientation(),
     zoomIn: () => cam.zoomIn(),
     zoomOut: () => cam.zoomOut(),
-    startWaterFlow: () => cinematic.start(),
+    startWaterFlow: () => {
+      cam.ensurePerspective?.();
+      cinematic.start();
+    },
     pauseWaterFlow: () => cinematic.pause(),
     resumeWaterFlow: () => cinematic.resume(),
     togglePauseWaterFlow: () => cinematic.togglePause(),
@@ -418,61 +644,99 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       syncQualityRuntime();
       state.elapsed += dt;
       river.material.uniforms.uTime.value = state.elapsed;
-      // When not in cinematic, keep water flow/opacity synced to UI (readable streaks)
-      if (!cinematic.isActive()) {
-        river.material.uniforms.uFlowSpeed.value = Math.max(0.35, Math.min(1.0, state.flowSpeed));
-        if (river.material.uniforms.uOpacity) {
-          // When depth-zone polygons are on, thin the surface so bands stay visible
-          const op = state.showDepthZones
-            ? Math.min(state.waterOpacity, 0.52)
-            : Math.max(0.72, state.waterOpacity);
-          river.material.uniforms.uOpacity.value = op;
-        }
+      if (!cinematic.isActive() && river.material.uniforms.uReveal) {
+        river.material.uniforms.uReveal.value = 1.2;
+      }
+      syncWaterMaterial(river.material);
+      if (!cinematic.isActive() && state.showDepthZones && river.material.uniforms.uOpacity) {
+        river.material.uniforms.uOpacity.value = Math.max(
+          0.58,
+          Math.min(state.waterOpacity, 0.78),
+        );
       }
       // Always tint floating water by bathymetry depth (light→dark blue)
       river.material.uniforms.uShowDepth.value = 1;
-      if (river.material.uniforms.uShowFlowVis) {
-        river.material.uniforms.uShowFlowVis.value = state.flowVisibility;
-      }
       const cutaway = state.visualMode === "cutaway";
       river.material.uniforms.uCutaway.value = cutaway ? 1 : 0;
       if (cutaway && !cinematic.isActive()) {
         river.material.uniforms.uOpacity.value = Math.min(state.waterOpacity, 0.28);
       }
-      const bedExag = cutaway ? Math.max(5, state.depthExaggeration) : state.depthExaggeration;
-      const floodRise = state.floodRiseM ?? 0;
-      if (bedExag !== lastExag || state.visualMode !== lastVisual || floodRise !== lastFlood) {
+      const waterOn = !!state.showWater;
+      // River OFF → excavated ground deep view (boosted vertical relief)
+      const bedExag = cutaway
+        ? Math.max(5, state.depthExaggeration)
+        : !waterOn
+          ? Math.max(6.5, state.depthExaggeration * 3.2)
+          : state.depthExaggeration;
+      const apiFloodActive = state.floodMode === "api" && !!apiFloodLayer.userData?.hasFlood;
+      // Bathtub stage ignored while API flood is the active surface
+      const floodRise = apiFloodActive ? 0 : (state.floodRiseM ?? 0);
+      const riverLook = cutaway ? "cutaway" : waterOn ? "water" : "depth";
+      if (
+        bedExag !== lastExag ||
+        state.visualMode !== lastVisual ||
+        floodRise !== lastFlood ||
+        waterOn !== lastWaterOn ||
+        riverLook !== lastRiverLook
+      ) {
         lastExag = bedExag;
         lastVisual = state.visualMode;
         lastFlood = floodRise;
+        lastWaterOn = waterOn;
+        lastRiverLook = riverLook;
         applyExaggeration(river, dataset, bedExag, floodRise);
-        floodLayer.setFloodRise?.(floodRise);
+        if (!apiFloodActive) floodLayer.setFloodRise?.(floodRise);
+        else {
+          floodLayer.setFloodRise?.(0);
+          floodLayer.visible = false;
+        }
         updateBridgePiers(bridges, bedExag);
-        applyRiverLook(river, cutaway);
+        applyRiverLook(river, riverLook);
       }
-      river.mesh.visible = state.showWater;
-      river.bed.visible = state.showBathymetry;
-      river.walls.visible = state.showBathymetry || state.showWater;
-      if (river.wire) river.wire.visible = !!state.showWaterDebug;
-      terrain.mesh.visible = state.showTerrain;
+      // Illustrative bathtub never conflicts with API flood surface
+      if (apiFloodActive) floodLayer.visible = false;
+      // River OFF → hide water; bed stays as earth-tone ground deep view
+      river.mesh.visible = waterOn;
+      if (river.material) river.material.visible = waterOn;
+      river.bed.visible = state.showBathymetry !== false;
+      river.walls.visible = state.showBathymetry !== false;
+      if (river.wire) river.wire.visible = !!state.showWaterDebug && waterOn;
+      terrain.mesh.visible = true;
+      if (terrain.surround) terrain.surround.visible = true;
+      state.showTerrain = true;
       kmlSkeleton.visible = state.showMapReferenceGrid || state.showKmlSkeleton;
       coordinateGrid.visible = state.showMapReferenceGrid || state.showCoordinateGrid;
       if (coordThrottle.ready(dt)) {
         coordLabels.setVisible(state.showMapReferenceGrid || state.showCoordinateGrid);
         coordLabels.update();
       }
+      // Bank overlay is debug/validation only — not drawn over living water
       riverBanks.visible = state.showValidation || state.showOsmAlignment;
       drainageLayer.visible = state.showDrainage;
       nallaFlow.userData?.update?.(dt, cam.camera);
       depthZonesLayer.visible = state.showDepthZones;
       depthZonesLayer.userData?.update?.(dt);
+      rawSurveyPoints.visible = state.showRawSurveyPoints === true;
+      const showFloodSim =
+        state.floodMode === "api" &&
+        state.showFloodSimulation !== false &&
+        state.apiFlood?.showLayer !== false &&
+        !!apiFloodLayer.userData?.hasFlood;
+      apiFloodLayer.visible = showFloodSim;
+      if (showFloodSim) apiFloodLayer.update?.(dt);
       if (urbanResult) urbanResult.visible = true;
       if (urbanResult?.userData?.buildings) urbanResult.userData.buildings.visible = true;
       if (urbanResult?.userData?.roads) urbanResult.userData.roads.visible = true;
       if (lodThrottle.ready(dt)) {
         urbanResult?.userData?.updateLod?.(cam.camera);
       }
+      // Vegetation is always present (OSM + JalNetra)
+      state.showVegetation = true;
+      state.showOsmTrees = true;
       if (treesResult) treesResult.visible = true;
+      if (vegApiResult) vegApiResult.visible = true;
+      if (vegApiGroup) vegApiGroup.visible = true;
+      if (treesGroup) treesGroup.visible = true;
       bridges.visible = true;
       if (labelThrottle.ready(dt)) {
         updateBridgeLabels(bridges, cam.camera);
@@ -481,6 +745,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       terrain.outline.visible = state.showValidation;
       particles.mesh.visible = state.showWater && state.flowVisibility > 0.05;
       waterFx.group.visible = state.showWater;
+      if (particles.mesh.material?.uniforms?.uOpacity) {
+        particles.mesh.material.uniforms.uOpacity.value = state.flowVisibility;
+      } else if (particles.mesh.material) {
+        particles.mesh.material.opacity = Math.min(1, 0.4 + state.flowVisibility * 0.7);
+      }
       // Keep FX reveal in sync when idle (full river visible)
       if (!cinematic.isActive()) {
         const r = river.material.uniforms?.uReveal?.value ?? 1.2;
@@ -497,19 +766,45 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (fishing) fishing.update(dt, cam.camera);
       if (!cinematic.isActive()) cam.update(dt);
       const h = cam.camera.position.y;
-      if (state.cinematicUnderwater) {
-        scene.fog.density = 0.000008;
-        scene.fog.color.set("#7aabba");
-        scene.background.set("#5a8fa0");
+      if (isMap2DMode() && !state.cinematicActive) {
+        // True 2D GIS view — no fog, haze, or atmospheric wash
+        applyMap2DClarity();
+      } else if (state.cinematicUnderwater) {
+        atmosphericSky.setVisible(false);
+        if (scene.fog !== groundFog) scene.fog = groundFog;
+        groundFog.density = 0.000008;
+        groundFog.color.set("#7aabba");
+        if (!scene.background) scene.background = new THREE.Color("#5a8fa0");
+        else scene.background.set("#5a8fa0");
         renderer.toneMappingExposure = 1.55;
       } else {
-        const atmospheric = Math.min(0.000055, 0.000028 + h / 8_000_000);
-        scene.fog.density = cutaway ? 0.000028 : atmospheric;
-        scene.fog.color.set(h > 800 ? "#b0c0b8" : "#a8b8a8");
-        scene.background.set(h > 1200 ? "#98a898" : "#9ab0a0");
-        renderer.toneMappingExposure = h > 1000 ? 1.18 : 1.22;
+        restoreAtmosphereClarity();
+        const atmospheric = Math.min(0.00006, 0.00003 + h / 7_500_000);
+        groundFog.density = cutaway ? 0.000028 : atmospheric * (0.7 + (state.skyAtmosphere ?? 0.55) * 0.5);
+        groundFog.color.set(h > 900 ? "#889a78" : scene.userData.groundFog || "#7a8e6e");
+        // Sky dome is the backdrop — keep scene.background null
+        scene.background = null;
+        atmosphericSky.update(dt, cam.camera);
       }
       renderer.render(scene, cam.camera);
     },
   };
+}
+
+function createRawSurveyPointLayer(dataset) {
+  const points = dataset.points || [];
+  const positions = new Float32Array(points.length * 3);
+  for (let i = 0; i < points.length; i += 1) {
+    const p = points[i];
+    positions[i * 3] = p.x ?? 0;
+    positions[i * 3 + 1] = SURFACE_Y + 3;
+    positions[i * 3 + 2] = p.z ?? 0;
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  const material = new THREE.PointsMaterial({ color: 0x9cecff, size: 4, sizeAttenuation: true, transparent: true, opacity: 0.72, depthWrite: false });
+  const layer = new THREE.Points(geometry, material);
+  layer.name = "rawSurveyPoints";
+  layer.visible = false;
+  return layer;
 }

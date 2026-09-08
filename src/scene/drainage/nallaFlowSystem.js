@@ -3,11 +3,9 @@ import { state } from "../../state.js";
 import { resolveNallaFlow } from "./flowDirectionResolver.js";
 import { createNallaWaterMaterial } from "./nallaWaterMaterial.js";
 
-const LIFT = 2.55;
-
 /**
  * Continuous nalla water surfaces (shader ribbons).
- * No particles, rings, or debug markers in the default experience.
+ * Open ground = surface channel; under buildings = recessed culvert.
  */
 export function createNallaFlowSystem(dataset, drainageGroup) {
   const group = new THREE.Group();
@@ -42,7 +40,12 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     if (path.pts.length < 2) continue;
 
     const ordered = rec.flowTowardEnd ? path.pts : path.pts.slice().reverse();
-    const curvePts = ordered.map((p) => new THREE.Vector3(p.x, p.y + LIFT, p.z));
+    const curvePts = ordered.map((p) => {
+      const under = p.under || 0;
+      // Open ground: clear surface channel; under building: follow recessed culvert
+      const lift = under > 0.35 ? 0.1 : 0.4;
+      return new THREE.Vector3(p.x, p.y + lift, p.z);
+    });
     if (curvePts.length < 2) continue;
 
     const curve = new THREE.CatmullRomCurve3(curvePts, false, "catmullrom", 0.12);
@@ -50,6 +53,8 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     rec.curve = curve;
     rec.curveLength = length;
     rec.orderedPts = ordered;
+    rec.openGroundShare =
+      ordered.reduce((s, p) => s + ((p.under || 0) < 0.2 ? 1 : 0), 0) / ordered.length;
 
     if (rec.connectsToRiver) connected++;
     if (rec.flowDirectionConfidence === "unknown") {
@@ -69,7 +74,7 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
 
     const mesh = new THREE.Mesh(geo, material);
     mesh.name = `nallaWater_${rec.id}`;
-    mesh.renderOrder = 32;
+    mesh.renderOrder = 3;
     mesh.frustumCulled = false;
     mesh.userData.record = rec;
     group.add(mesh);
@@ -159,13 +164,16 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
 function channelRadius(rec) {
   const ww = String(rec.meta?.waterway || "").toLowerCase();
   const L = rec.curveLength || rec.lengthM || 100;
-  let r = 2.8;
-  if (ww === "canal" || ww === "drain") r = 4.2;
-  else if (ww === "stream") r = 3.2;
-  else if (ww === "ditch") r = 2.2;
-  // Longer channels read slightly wider (major collectors)
-  if (L > 800) r *= 1.35;
+  // Bigger ribbons so drainage stays readable on open ground and at overview
+  const open = rec.openGroundShare ?? 1;
+  let r = 3.6;
+  if (ww === "canal" || ww === "drain") r = 5.0;
+  else if (ww === "stream") r = 4.2;
+  else if (ww === "ditch") r = 3.0;
+  if (L > 800) r *= 1.3;
   else if (L > 400) r *= 1.15;
   if (rec.connectsToRiver) r *= 1.08;
+  // Open land: slightly wider; under buildings stay a bit tighter culvert
+  r *= 0.92 + open * 0.28;
   return r;
 }

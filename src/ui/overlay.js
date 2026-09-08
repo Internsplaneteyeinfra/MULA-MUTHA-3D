@@ -1,14 +1,31 @@
 import { state } from "../state.js";
 import { sceneName } from "../scene/cinematic.js";
 import { mountProjectIdentity } from "./components/projectIdentity.js";
+import { mountWeatherWidget } from "./components/weatherWidget.js";
+import { mountAnalyticsControls } from "./components/analyticsControls.js";
+import { mountRiverDataPanel } from "./components/riverDataPanel.js";
+import { interpolateChainage } from "../geo/chainage.js";
 import { mountNavigationControls } from "./components/navigationControls.js";
 import { mountCompassNavigation } from "./components/compassNavigation.js";
 import { mountZoomControls } from "./components/zoomControls.js";
 import { mountLayersPanel } from "./components/layersPanel.js";
+import { mountSettingsPanel } from "./components/settingsPanel.js";
 import { mountWaterFlowControl } from "./components/waterFlowControl.js";
 import { mountChainageRuler } from "./components/chainageRuler.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
+import { mountFloodSimulationToolbar } from "./floodSimulationToolbar.js";
+import { mountFloodResultPanel } from "./floodResultPanel.js";
+import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
+import {
+  runFloodSimulation,
+  cancelJalnetraFloodRequest,
+  shiftApiDate,
+  todayApiDate,
+  getFloodStatus,
+} from "../services/jalnetraFloodService.js";
+
+const cancelFloodSimulationRequest = cancelJalnetraFloodRequest;
 
 export function createTooltip(root) {
   const el = document.createElement("div");
@@ -186,10 +203,272 @@ export function mountUI(root, {
   if (state.showLayers) root.classList.add("layers-open");
 
   mountProjectIdentity(root);
+  mountAnalyticsControls(root, dataset);
+  const weather = mountWeatherWidget(root);
+  const riverData = mountRiverDataPanel(root, dataset);
   const flowBtn = mountWaterFlowControl(root);
   if (flowBtn) flowBtn.hidden = true; // no floating start CTA; pause only during cinematic
   const { panel: layers } = mountLayersPanel(root);
   layers.hidden = !state.showLayers;
+  const { panel: settings } = mountSettingsPanel(root);
+  settings.hidden = !state.showSettings;
+
+  mountCompassNavigation(root, {
+    onCompass: (dir) => onCompass?.(dir),
+    onResetOrientation: () => onResetOrientation?.(),
+  });
+  mountZoomControls(root, { onZoomIn, onZoomOut });
+
+  const floodInfo = mountFloodResultPanel(root, {
+    onReplay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),
+    onFocus: () => window.__MM_SCENE__?.focusFloodSimulation?.(),
+    onClear: () => clearApiFloodUi(),
+  });
+
+  const floodPlayback = mountFloodPlaybackControls(root, {
+    onPlay: () => {
+      state.apiFlood.isPlaying = true;
+      window.__MM_SCENE__?.playFloodTimeline?.();
+    },
+    onPause: () => {
+      state.apiFlood.isPlaying = false;
+      window.__MM_SCENE__?.pauseFloodSimulation?.();
+    },
+    onReplay: () => {
+      state.apiFlood.currentScene = 0;
+      window.__MM_SCENE__?.setFloodScene?.(0);
+      window.__MM_SCENE__?.playFloodTimeline?.();
+      floodPlayback.setIndex(0);
+      syncApiFloodFromLayer();
+    },
+    onSeek: (index) => {
+      state.apiFlood.currentScene = index;
+      window.__MM_SCENE__?.setFloodScene?.(index);
+      syncApiFloodFromLayer();
+    },
+  });
+
+  function setLpFloodStatus(text, kind = "") {
+    const wrap = root.querySelector("#lp-flood-status");
+    const label = root.querySelector(".lp-flood-status-text");
+    const dot = root.querySelector(".lp-flood-status-dot");
+    if (label) label.textContent = text ? `Status · ${text}` : "Status · Idle";
+    if (wrap) wrap.dataset.kind = kind || "";
+    if (dot) dot.dataset.kind = kind || "";
+  }
+
+  function syncIllustrativeDisabled() {
+    const stage = root.querySelector("#lp-illustrative-stage");
+    const apiOn = state.floodMode === "api";
+    if (stage) stage.classList.toggle("is-disabled", apiOn);
+    const floodInput = root.querySelector("#flood");
+    if (floodInput) floodInput.disabled = apiOn;
+  }
+
+  function syncApiFloodFromLayer() {
+    const info = window.__MM_SCENE__?.apiFloodLayer?.userData?.getInfo?.() || state.apiFlood.result?.info;
+    if (info) {
+      state.apiFlood.result = { ...(state.apiFlood.result || {}), info };
+      state.floodSimInfo = info;
+      floodInfo.updateScene(info);
+      const idx = window.__MM_SCENE__?.apiFloodLayer?.userData?.getSceneIndex?.() ?? state.apiFlood.currentScene;
+      state.apiFlood.currentScene = idx;
+      state.apiFlood.currentDate = info.scene_date || null;
+      floodPlayback.setIndex(idx);
+    }
+    syncFloodSimStats();
+  }
+
+  function clearApiFloodUi() {
+    window.__MM_SCENE__?.clearFloodSimulation?.();
+    floodBar?.setStatus("");
+    floodInfo.hide();
+    floodPlayback.hide();
+    state.apiFlood = {
+      ...state.apiFlood,
+      status: "idle",
+      result: null,
+      scenes: [],
+      currentScene: 0,
+      currentDate: null,
+      isPlaying: false,
+      progress: 0,
+      error: null,
+      errorDetails: null,
+      message: "",
+    };
+    state.floodSimStatus = "idle";
+    state.floodSimMessage = "";
+    state.floodSimInfo = null;
+    setLpFloodStatus("Idle", "");
+    syncFloodSimStats();
+    syncIllustrativeDisabled();
+  }
+
+  async function applyFloodResult(result, bar) {
+    const apply = window.__MM_SCENE__?.applyFloodSimulation;
+    if (typeof apply !== "function") {
+      throw new Error("3D scene is not ready yet. Wait for the map to finish loading, then try again.");
+    }
+    apply(result);
+    const scenes = result.scenes || [];
+    state.floodMode = "api";
+    state.apiFlood = {
+      ...state.apiFlood,
+      status: "ready",
+      result,
+      scenes,
+      currentScene: result.currentScene ?? 0,
+      currentDate: result.info?.scene_date || null,
+      isPlaying: true,
+      progress: 0,
+      error: null,
+      errorDetails: null,
+      message: "",
+      showLayer: true,
+    };
+    state.floodSimStatus = "ready";
+    state.floodSimInfo = result.info;
+    state.floodSimMessage = "";
+    state.showFloodSimulation = true;
+    setChecked("flood-sim", true);
+    window.__MM_SCENE__?.apiFloodLayer?.setVisible?.(true);
+    floodInfo.show(result.info);
+    floodPlayback.setScenes(scenes, result.currentScene ?? 0);
+    if (scenes.length >= 2) floodPlayback.show();
+    const ha =
+      typeof result.info?.flood_area_ha === "number"
+        ? `${result.info.flood_area_ha.toFixed(2)} ha`
+        : "ready";
+    const msg = `Flood Ready · ${result.info?.scene_date || "scene"} · ${ha}`;
+    bar.setStatus(msg, "ok");
+    setLpFloodStatus("Complete", "ok");
+    syncFloodSimStats();
+    syncIllustrativeDisabled();
+    window.__MM_SCENE__?.playFloodSimulation?.();
+    setTimeout(() => window.__MM_SCENE__?.focusFloodSimulation?.(), 80);
+  }
+
+  async function executeFloodRun(opts, bar) {
+    cancelFloodSimulationRequest();
+    state.apiFlood.status = "loading";
+    state.apiFlood.error = null;
+    state.apiFlood.errorDetails = null;
+    state.floodSimStatus = "loading";
+    state.floodSimMessage = "Preparing KML…";
+    bar.setStatus("Preparing KML…", "loading");
+    setLpFloodStatus("Running", "loading");
+    try {
+      const result = await runFloodSimulation({
+        ...opts,
+        onProgress: (msg) => {
+          bar.setStatus(msg, "loading");
+          const st = getFloodStatus();
+          state.apiFlood.status = st.status === "ready" ? "running" : st.status;
+          state.apiFlood.message = msg;
+          state.floodSimStatus = /receiv|build|visual|overlay/i.test(msg || "")
+            ? "processing"
+            : "loading";
+          setLpFloodStatus(
+            st.status === "loading" ? "Running" : "Running",
+            "loading",
+          );
+        },
+      });
+      bar.setStatus("Building visualization…", "loading");
+      setLpFloodStatus("Running", "loading");
+      await applyFloodResult(result, bar);
+      return result;
+    } catch (err) {
+      const aborted =
+        err?.name === "AbortError" || /cancel/i.test(err?.message || "");
+      const st = getFloodStatus();
+      if (!aborted) {
+        state.apiFlood.status = "error";
+        state.apiFlood.error = "Flood simulation could not be completed.";
+        state.apiFlood.errorDetails = st.details || err?.message || String(err);
+        state.floodSimStatus = "error";
+        state.floodSimMessage = state.apiFlood.error;
+        bar.setStatus(state.apiFlood.error, "error");
+        setLpFloodStatus("Error", "error");
+        floodInfo.show(null, {
+          error: true,
+          errorDetails: state.apiFlood.errorDetails,
+        });
+      } else {
+        state.apiFlood.status = "idle";
+        state.floodSimStatus = "idle";
+        bar.setStatus("");
+        setLpFloodStatus("Idle", "");
+      }
+      syncIllustrativeDisabled();
+      throw err;
+    } finally {
+      bar.setBusy?.(false);
+    }
+  }
+
+  const floodBar = mountFloodSimulationToolbar(root, {
+    onRun: async ({ start_date, end_date }) => {
+      await executeFloodRun(
+        {
+          start_date,
+          end_date,
+          preferDate: end_date,
+          autoWiden: true,
+        },
+        floodBar,
+      );
+    },
+    onToday: async ({ start_date, end_date, preferDate }) => {
+      const end = end_date || todayApiDate();
+      const start = start_date || shiftApiDate(end, -45);
+      floodBar.setDates(start, end);
+      await executeFloodRun(
+        {
+          start_date: start,
+          end_date: end,
+          preferDate: preferDate || end,
+          autoWiden: true,
+        },
+        floodBar,
+      );
+    },
+  });
+  // Hidden until Flood map-control is pressed
+  if (floodBar?.el) floodBar.el.hidden = !state.showFloodBar;
+
+  window.__MM_FLOOD__ = {
+    clear: clearApiFloodUi,
+    play: () => window.__MM_SCENE__?.playFloodSimulation?.(),
+    replay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),
+    run: (opts) => executeFloodRun(opts, floodBar),
+  };
+
+  function syncFloodSimStats() {
+    const el = root.querySelector("#flood-sim-stats");
+    if (!el) return;
+    const info = state.floodSimInfo || state.apiFlood?.result?.info;
+    const status = state.apiFlood?.status || state.floodSimStatus;
+    if (status === "loading" || status === "running") {
+      el.textContent = state.apiFlood?.message || "Running JalNetra flood simulation…";
+      return;
+    }
+    if (status === "error") {
+      el.textContent = state.apiFlood?.error || state.floodSimMessage || "Flood simulation error.";
+      return;
+    }
+    if (!info) {
+      el.textContent = "Use the top Flood Simulation bar to run.";
+      return;
+    }
+    const bits = [];
+    if (info.scene_date) bits.push(info.scene_date);
+    if (typeof info.flood_area_ha === "number") bits.push(`${info.flood_area_ha.toFixed(2)} ha flood`);
+    if (typeof info.water_area_ha === "number") bits.push(`${info.water_area_ha.toFixed(2)} ha water`);
+    if (info.total_scenes > 1) bits.push(`${info.current_scene || 1}/${info.total_scenes} scenes`);
+    el.textContent = bits.join(" · ") || "Flood extent loaded.";
+  }
 
   let chainPanel = null;
   const nav = mountNavigationControls(root, {
@@ -200,37 +479,59 @@ export function mountUI(root, {
       chainPanel?.close?.();
     },
     onRiverSide: () => {
-      onCamera("local");
+      onCamera("aerial");
       nav.syncActive();
     },
     onLayersToggle: () => toggleLayers(),
+    onDrainageToggle: () => toggleDrainage(),
+    onSettingsToggle: () => toggleSettings(),
+    onFloodToggle: () => toggleFloodBar(),
   });
   nav.setLayersPressed(state.showLayers);
+  nav.setDrainagePressed?.(state.showDrainage);
+  nav.setSettingsPressed?.(state.showSettings);
+  nav.setFloodPressed?.(state.showFloodBar);
 
   const chainRuler = mountChainageRuler(root, dataset);
   chainPanel = mountChainagePanel(root, dataset);
 
-  mountCompassNavigation(root, {
-    onCompass: (dir) => onCompass?.(dir),
-    onResetOrientation: () => onResetOrientation?.(),
+  function syncSelectedChainage(meters) {
+    const point = interpolateChainage(dataset.chainage, meters);
+    if (!point) return;
+    riverData.update(point);
+    weather.updateForChainage(point);
+  }
+
+  document.addEventListener("chainage-select", (event) => {
+    syncSelectedChainage(event.detail?.meters);
   });
-  mountZoomControls(root, { onZoomIn, onZoomOut });
+  const initialChainage = state.selectedChainageMeters ?? dataset.chainage?.[0]?.meters;
+  if (initialChainage != null) {
+    state.selectedChainageMeters = initialChainage;
+    syncSelectedChainage(initialChainage);
+  }
+
+  const depthMin = Number.isFinite(dataset.minDepth) ? dataset.minDepth : 0.5;
+  const depthMax = Number.isFinite(dataset.maxDepth) ? dataset.maxDepth : 2.0;
+  const depthStep = (depthMax - depthMin) / 3;
 
   root.insertAdjacentHTML(
     "beforeend",
     `
-    <aside class="hud depth-legend" id="depth-legend" aria-label="Water depth legend">
+    <aside class="hud depth-legend depth-legend--vertical map-chrome" id="depth-legend" aria-label="Water depth legend">
       <strong>WATER DEPTH</strong>
-      <div class="depth-bar"></div>
-      <div class="depth-ticks">
-        <span>Shallow</span>
-        <span>0.5</span>
-        <span>1.0</span>
-        <span>1.5</span>
-        <span>2.0</span>
-        <span>Deep</span>
+      <div class="depth-legend-body">
+        <div class="depth-bar" aria-hidden="true"></div>
+        <div class="depth-ticks">
+          <span>Shallow</span>
+          <span>${depthMin.toFixed(2)}</span>
+          <span>${(depthMin + depthStep).toFixed(2)}</span>
+          <span>${(depthMin + depthStep * 2).toFixed(2)}</span>
+          <span>${depthMax.toFixed(2)}</span>
+          <span>Deep</span>
+        </div>
       </div>
-      <em class="depth-note">Excel bathymetry model</em>
+      <em class="depth-note">${dataset.dtm ? "FABDEM DTM + Excel bathymetry" : "Excel bathymetry model"}</em>
     </aside>
     <div class="hud gis-timeline" id="path-scrub" hidden>
       <input id="scrub" type="range" min="0" max="1000" value="0" />
@@ -250,32 +551,63 @@ export function mountUI(root, {
   function toggleLayers(force) {
     const open = force ?? !state.showLayers;
     state.showLayers = open;
+    if (open) toggleSettings(false);
     layers.hidden = !open;
     root.classList.toggle("layers-open", open);
     nav.setLayersPressed(open);
   }
 
-  root.querySelector("#layers-close")?.addEventListener("click", () => toggleLayers(false));
+  function toggleSettings(force) {
+    const open = force ?? !state.showSettings;
+    state.showSettings = open;
+    if (open) toggleLayers(false);
+    settings.hidden = !open;
+    nav.setSettingsPressed?.(open);
+  }
 
-  layers.querySelector("#layer-reset")?.addEventListener("click", () => {
+  function toggleDrainage(force) {
+    const on = force ?? !state.showDrainage;
+    state.showDrainage = on;
+    state.showNallaFlow = on;
+    window.__MM_SCENE__?.setDrainageFlow?.(on);
+    nav.setDrainagePressed?.(on);
+  }
+
+  function toggleFloodBar(force) {
+    const open = force ?? !state.showFloodBar;
+    state.showFloodBar = open;
+    if (floodBar?.el) floodBar.el.hidden = !open;
+    nav.setFloodPressed?.(open);
+    // When opening Flood controls, keep the toolbar easy to find
+    if (open && floodBar?.el) {
+      floodBar.el.classList.add("is-open");
+    } else if (floodBar?.el) {
+      floodBar.el.classList.remove("is-open");
+    }
+  }
+
+  root.querySelector("#layers-close")?.addEventListener("click", () => toggleLayers(false));
+  root.querySelector("#settings-close")?.addEventListener("click", () => toggleSettings(false));
+
+  root.querySelector("#layer-reset")?.addEventListener("click", () => {
     if (state.cinematicActive) return;
     onCamera("reset");
     syncLayersPanelFromState();
     onCamera("overview");
     nav.syncActive();
   });
-  layers.querySelector("#layer-bath-cam")?.addEventListener("click", () => {
+  root.querySelector("#layer-bath-cam")?.addEventListener("click", () => {
     if (state.cinematicActive) return;
     onCamera("bathymetry");
     nav.syncActive();
   });
-  layers.querySelector("#layer-flow-path")?.addEventListener("click", () => {
+  root.querySelector("#layer-flow-path")?.addEventListener("click", () => {
     if (state.cinematicActive) return;
     onCamera("follow");
     pathScrub.hidden = false;
     nav.syncActive();
   });
-  layers.querySelector("#layer-river-cinematic")?.addEventListener("click", () => {
+  root.querySelector("#layer-river-cinematic")?.addEventListener("click", () => {
     if (state.cinematicActive) return;
     const ok = onStartWaterFlow?.();
     if (ok === false) return;
@@ -287,8 +619,26 @@ export function mountUI(root, {
     nav.syncActive();
     if (depthLegend) {
       const cine = state.cinematicActive;
-      depthLegend.hidden = cine || !(state.cameraMode === "bathymetry" || state.showBathymetry);
-      depthLegend.style.opacity = state.cameraMode === "bathymetry" ? "1" : "0.85";
+      // Show depth legend with River on, or when River off (ground deep view)
+      const showLegend =
+        !cine &&
+        (state.showWater || state.cameraMode === "bathymetry" || state.showBathymetry);
+      depthLegend.hidden = !showLegend;
+      depthLegend.style.opacity = state.cameraMode === "bathymetry" || !state.showWater ? "1" : "0.85";
+      const title = depthLegend.querySelector("strong");
+      if (title) {
+        title.textContent = state.showWater ? "WATER DEPTH" : "CHANNEL DEPTH";
+      }
+      const note = depthLegend.querySelector(".depth-note");
+      if (note) {
+        note.textContent = state.showWater
+          ? dataset.dtm
+            ? "FABDEM DTM + Excel bathymetry"
+            : "Excel bathymetry model"
+          : dataset.dtm
+            ? "Ground deep view · FABDEM DTM + Excel bathymetry"
+            : "Ground deep view · Excel bathymetry";
+      }
     }
   }
 
@@ -298,7 +648,10 @@ export function mountUI(root, {
     if (toolsStack) toolsStack.hidden = active;
     if (flowBtn) flowBtn.hidden = !active; // pause control only while cinematic runs
     if (pathScrub) pathScrub.hidden = active || state.cameraMode !== "follow";
-    if (active) toggleLayers(false);
+    if (active) {
+      toggleLayers(false);
+      toggleSettings(false);
+    }
   }
 
   flowBtn?.addEventListener("click", () => {
@@ -317,11 +670,11 @@ export function mountUI(root, {
     if (state.cameraMode !== "follow") onCamera("follow");
   });
 
-  // Urban / vegetation / fish / bridges geometry stay in scene — no Layers UI.
-  // Optional listeners kept only if legacy markup is reintroduced.
+  // Vegetation is always on — keep OSM + JalNetra visible together.
   root.querySelector("#veg")?.addEventListener("change", (e) => {
-    state.showVegetation = e.target.checked;
-    state.showOsmTrees = e.target.checked;
+    e.target.checked = true;
+    state.showVegetation = true;
+    state.showOsmTrees = true;
   });
   root.querySelector("#fish")?.addEventListener("change", (e) => {
     state.showFish = e.target.checked;
@@ -338,16 +691,9 @@ export function mountUI(root, {
   const syncChainMode = () => {
     const meters = root.querySelector("#chain-mode-meters")?.checked;
     state.chainageLabelMode = meters ? "meters" : "station";
-    const stationRow = root.querySelector("#chain-mode-station")?.closest(".layer-row");
-    const metersRow = root.querySelector("#chain-mode-meters")?.closest(".layer-row");
-    if (stationRow) {
-      stationRow.querySelector(".layer-indicator").textContent = !meters ? "🟧" : "⬜";
-      stationRow.classList.toggle("is-on", !meters);
-    }
-    if (metersRow) {
-      metersRow.querySelector(".layer-indicator").textContent = meters ? "🟧" : "⬜";
-      metersRow.classList.toggle("is-on", !!meters);
-    }
+    root.querySelectorAll('input[name="chain-mode"]').forEach((inp) => {
+      inp.closest(".lp-row")?.classList.toggle("is-on", !!inp.checked);
+    });
   };
   root.querySelector("#chain-mode-station")?.addEventListener("change", syncChainMode);
   root.querySelector("#chain-mode-meters")?.addEventListener("change", syncChainMode);
@@ -366,14 +712,13 @@ export function mountUI(root, {
   root.querySelector("#br-names")?.addEventListener("change", (e) => {
     state.showBridgeNames = e.target.checked;
   });
-  root.querySelector("#ter")?.addEventListener("change", (e) => {
-    state.showTerrain = e.target.checked;
-  });
   root.querySelector("#bath")?.addEventListener("change", (e) => {
     state.showBathymetry = e.target.checked;
   });
   root.querySelector("#water")?.addEventListener("change", (e) => {
     state.showWater = e.target.checked;
+    window.__MM_SCENE__?.setRiverVisible?.(e.target.checked);
+    syncCamButtons();
   });
   function setMapReferenceGrid(on) {
     state.showMapReferenceGrid = !!on;
@@ -392,23 +737,6 @@ export function mountUI(root, {
     state.showCoordinateGrid = e.target.checked;
     state.showMapReferenceGrid = state.showKmlSkeleton && state.showCoordinateGrid;
   });
-  root.querySelector("#drainage")?.addEventListener("change", (e) => {
-    state.showDrainage = e.target.checked;
-    state.showNallaFlow = e.target.checked;
-    const statsEl = root.querySelector("#drainage-stats");
-    if (statsEl) {
-      if (!e.target.checked) {
-        statsEl.textContent = "";
-      } else {
-        const stats = window.__MM_SCENE__?.getDrainageStats?.();
-        const n = datasetCountFallback(stats);
-        statsEl.textContent = n
-          ? `Drainage channels that join Mula–Mutha (${n.chains ?? n.features} channels). Water flows automatically along the paths.`
-          : "Drainage channels that join the main river. Water flows automatically when this layer is on.";
-      }
-    }
-  });
-
   root.querySelector("#depth-zones")?.addEventListener("change", (e) => {
     state.showDepthZones = e.target.checked;
     const toolkit = root.querySelector("#glassy-toolkit");
@@ -424,10 +752,25 @@ export function mountUI(root, {
         const stats = window.__MM_SCENE__?.getDepthZonesStats?.();
         const n = stats?.polygons || window.__MM_SCENE__?.dataset?.depthZones?.length || 0;
         statsEl.textContent = n
-          ? `Glassy Jul 2026 depth polygons (real KML). Cyan → blue → violet by depth. (${n} polygons · shared GPU shader)`
-          : "Jul 2026 depth-class bands (glassy flow).";
+          ? `SURVEY / INTERPOLATED DEPTH · measured depth zones (${n} polygons · shared GPU shader)`
+          : "SURVEY / INTERPOLATED DEPTH · visualized by measured depth_m.";
       }
     }
+  });
+  root.querySelector("#raw-survey-points")?.addEventListener("change", (e) => {
+    state.showRawSurveyPoints = e.target.checked;
+    window.__MM_SCENE__?.setRawSurveyPointsVisible?.(e.target.checked);
+  });
+  root.querySelector("#flood-sim")?.addEventListener("change", (e) => {
+    state.showFloodSimulation = e.target.checked;
+    state.apiFlood.showLayer = e.target.checked;
+    window.__MM_SCENE__?.apiFloodLayer?.setVisible?.(e.target.checked);
+    window.__MM_SCENE__?.floodSimLayer?.setVisible?.(e.target.checked);
+    syncFloodSimStats();
+  });
+
+  document.addEventListener("mm-flood-scene", () => {
+    syncApiFloodFromLayer();
   });
   root.querySelector("#glassy-flow")?.addEventListener("change", (e) => {
     state.glassyAnimatedFlow = e.target.checked;
@@ -442,33 +785,97 @@ export function mountUI(root, {
     const data = root.querySelector("#glassy-mode-data");
     state.glassyVizMode = data?.checked ? "data" : "cinematic";
     root.querySelectorAll("[name=glassy-mode]").forEach((inp) => {
-      const row = inp.closest(".layer-row");
-      const ind = row?.querySelector(".layer-indicator");
-      if (ind) ind.textContent = inp.checked ? "🟧" : "⬜";
+      inp.closest(".lp-row")?.classList.toggle("is-on", !!inp.checked);
     });
   }
   root.querySelector("#glassy-mode-cine")?.addEventListener("change", syncGlassyMode);
   root.querySelector("#glassy-mode-data")?.addEventListener("change", syncGlassyMode);
 
-  function datasetCountFallback(stats) {
-    if (stats?.features) return stats;
-    const nFeat = window.__MM_SCENE__?.dataset?.drainage?.length || 0;
-    return nFeat ? { features: nFeat, chains: "?", bridges: 0 } : null;
-  }
   root.querySelector("#opacity")?.addEventListener("input", (e) => {
     state.waterOpacity = Number(e.target.value) / 100;
   });
   root.querySelector("#flow")?.addEventListener("input", (e) => {
-    state.flowSpeed = Number(e.target.value) / 100;
+    // Safe range (0.20–1.00): min still moves; max stays calm/cinematic
+    const v = Math.max(0.2, Math.min(1, Number(e.target.value) / 100));
+    state.flowSpeed = v;
+    state.waterOverallSpeed = Math.max(0.25, Math.min(0.95, v * 0.85 + 0.1));
   });
   root.querySelector("#flowvis")?.addEventListener("input", (e) => {
     state.flowVisibility = Number(e.target.value) / 100;
   });
+  root.querySelector("#water-anim")?.addEventListener("change", (e) => {
+    state.waterAnimEnabled = e.target.checked;
+  });
+  root.querySelector("#water-preset")?.addEventListener("change", (e) => {
+    window.__MM_SCENE__?.applyWaterPreset?.(e.target.value);
+    syncLayersPanelFromState();
+  });
+  root.querySelector("#water-overall")?.addEventListener("input", (e) => {
+    state.waterOverallSpeed = Number(e.target.value) / 100;
+  });
+  root.querySelector("#water-primary-amp")?.addEventListener("input", (e) => {
+    state.primaryWaveAmplitude = Number(e.target.value) / 100;
+  });
+  root.querySelector("#water-ripple")?.addEventListener("input", (e) => {
+    state.rippleAmplitude = Number(e.target.value) / 100;
+  });
+  root.querySelectorAll("[data-wq]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("[data-wq]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.waterQuality = btn.dataset.wq;
+    });
+  });
+
+  // ── Sky & Atmosphere ──
+  const syncSky = () => window.__MM_SCENE__?.atmosphericSky?.syncFromState?.();
+  root.querySelector("#sky-enabled")?.addEventListener("change", (e) => {
+    state.skyEnabled = e.target.checked;
+    window.__MM_SCENE__?.atmosphericSky?.setEnabled?.(e.target.checked);
+  });
+  root.querySelector("#sky-preset")?.addEventListener("change", (e) => {
+    window.__MM_SCENE__?.atmosphericSky?.applyPreset?.(e.target.value);
+    syncLayersPanelFromState();
+  });
+  root.querySelector("#sky-cloud-density")?.addEventListener("input", (e) => {
+    state.skyCloudDensity = Number(e.target.value) / 100;
+    syncSky();
+  });
+  root.querySelector("#sky-cloud-speed")?.addEventListener("input", (e) => {
+    state.skyCloudSpeed = Number(e.target.value) / 100;
+    syncSky();
+  });
+  root.querySelector("#sky-sun")?.addEventListener("input", (e) => {
+    state.skySunIntensity = Number(e.target.value) / 100;
+    syncSky();
+  });
+  root.querySelector("#sky-atmosphere")?.addEventListener("input", (e) => {
+    state.skyAtmosphere = Number(e.target.value) / 100;
+    syncSky();
+  });
+  root.querySelector("#sky-haze")?.addEventListener("input", (e) => {
+    state.skyHorizonHaze = Number(e.target.value) / 100;
+    syncSky();
+  });
+  root.querySelector("#sky-shadows")?.addEventListener("change", (e) => {
+    state.skyCloudShadows = e.target.checked;
+    syncSky();
+  });
+  root.querySelectorAll("[data-sky-q]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("[data-sky-q]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      state.skyQuality = btn.dataset.skyQ;
+      syncSky();
+    });
+  });
+
   function syncFloodLabel(cm) {
     const label = root.querySelector("#flood-label");
     if (label) label.textContent = `+${(cm / 100).toFixed(1)} m`;
   }
   root.querySelector("#flood")?.addEventListener("input", (e) => {
+    if (state.floodMode === "api") return;
     const cm = Number(e.target.value) || 0;
     state.floodRiseM = cm / 100;
     syncFloodLabel(cm);
@@ -494,7 +901,38 @@ export function mountUI(root, {
       state.showMapReferenceGrid || (state.showKmlSkeleton && state.showCoordinateGrid),
     );
     setChecked("depth-zones", state.showDepthZones);
+    setChecked("raw-survey-points", state.showRawSurveyPoints);
+    setChecked("flood-sim", state.showFloodSimulation !== false);
     setChecked("glassy-flow", state.glassyAnimatedFlow);
+    setChecked("water-anim", state.waterAnimEnabled !== false);
+    setChecked("sky-enabled", state.skyEnabled !== false);
+    setChecked("sky-shadows", state.skyCloudShadows !== false);
+    const skyPreset = root.querySelector("#sky-preset");
+    if (skyPreset) skyPreset.value = state.skyPreset || "calmRealistic";
+    const skyDens = root.querySelector("#sky-cloud-density");
+    const skySpd = root.querySelector("#sky-cloud-speed");
+    const skySun = root.querySelector("#sky-sun");
+    const skyAtm = root.querySelector("#sky-atmosphere");
+    const skyHz = root.querySelector("#sky-haze");
+    if (skyDens) skyDens.value = String(Math.round((state.skyCloudDensity ?? 0.42) * 100));
+    if (skySpd) skySpd.value = String(Math.round((state.skyCloudSpeed ?? 0.32) * 100));
+    if (skySun) skySun.value = String(Math.round((state.skySunIntensity ?? 1) * 100));
+    if (skyAtm) skyAtm.value = String(Math.round((state.skyAtmosphere ?? 0.55) * 100));
+    if (skyHz) skyHz.value = String(Math.round((state.skyHorizonHaze ?? 0.48) * 100));
+    root.querySelectorAll("[data-sky-q]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.skyQ === (state.skyQuality || "high"));
+    });
+    const waterPreset = root.querySelector("#water-preset");
+    if (waterPreset) waterPreset.value = state.waterPreset || "calmRealistic";
+    const wOverall = root.querySelector("#water-overall");
+    const wPrim = root.querySelector("#water-primary-amp");
+    const wRip = root.querySelector("#water-ripple");
+    if (wOverall) wOverall.value = String(Math.round((state.waterOverallSpeed ?? 0.55) * 100));
+    if (wPrim) wPrim.value = String(Math.round((state.primaryWaveAmplitude ?? 0.14) * 100));
+    if (wRip) wRip.value = String(Math.round((state.rippleAmplitude ?? 0.035) * 100));
+    root.querySelectorAll("[data-wq]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.wq === (state.waterQuality || "high"));
+    });
     const toolkit = root.querySelector("#glassy-toolkit");
     if (toolkit) toolkit.hidden = !state.showDepthZones;
     const cine = root.querySelector("#glassy-mode-cine");
@@ -524,7 +962,10 @@ export function mountUI(root, {
     const flow = root.querySelector("#flow");
     const flowvis = root.querySelector("#flowvis");
     if (opacity) opacity.value = String(Math.round((state.waterOpacity ?? 0.72) * 100));
-    if (flow) flow.value = String(Math.round((state.flowSpeed ?? 0.85) * 100));
+    if (flow) {
+      const flowPct = Math.round((state.flowSpeed ?? 0.45) * 100);
+      flow.value = String(Math.max(20, Math.min(100, flowPct)));
+    }
     if (flowvis) flowvis.value = String(Math.round((state.flowVisibility ?? 0) * 100));
     const flood = root.querySelector("#flood");
     if (flood) {
@@ -535,7 +976,7 @@ export function mountUI(root, {
     root.querySelectorAll("[data-exag]").forEach((btn) => {
       btn.classList.toggle("active", Number(btn.dataset.exag) === state.depthExaggeration);
     });
-    ["water", "drainage", "map-ref-grid", "depth-zones", "br-names", "chain", "chain-labels", "glassy-flow"].forEach(
+    ["water", "drainage", "map-ref-grid", "depth-zones", "raw-survey-points", "flood-sim", "br-names", "chain", "chain-labels", "glassy-flow", "water-anim", "sky-enabled", "sky-shadows"].forEach(
       (id) => bindLayerIndicator(root, id),
     );
   }
@@ -589,4 +1030,5 @@ export function mountUI(root, {
   requestAnimationFrame(tickHud);
 
   syncLayersPanelFromState();
+  syncFloodSimStats();
 }

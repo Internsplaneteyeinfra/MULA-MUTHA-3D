@@ -8,6 +8,7 @@ import { pickNullahAt } from "./drainageLayer.js";
 import { pickDepthZoneAt } from "./depthZonesLayer.js";
 
 export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset, tooltip, opts = {}) {
+  const resolveCam = () => (typeof camera === "function" ? camera() : camera);
   const targets = Array.isArray(riverMeshes) ? [...riverMeshes] : [riverMeshes];
   if (terrainMesh) targets.push(terrainMesh);
   const raycaster = new THREE.Raycaster();
@@ -56,7 +57,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
 
   function inspect(e) {
     ndc(e);
-    raycaster.setFromCamera(pointer, camera);
+    const cam = resolveCam();
+    raycaster.setFromCamera(pointer, cam);
 
     // Selected chainage hover owns the tooltip — don't replace with water depth
     if (state.chainageTipActive) return;
@@ -161,7 +163,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     }
 
     if (state.inspectMode) {
-      const osmHit = pickOsmFeature(dataset, pointer, camera, canvas, e);
+      const osmHit = pickOsmFeature(dataset, pointer, cam, canvas, e);
       if (osmHit) {
         tooltip.show(e.clientX, e.clientY, osmHit);
         return;

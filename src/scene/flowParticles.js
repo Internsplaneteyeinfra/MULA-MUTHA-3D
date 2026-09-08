@@ -59,7 +59,7 @@ export function createFlowParticles(dataset) {
         float front = 1.0 - smoothstep(0.0, 0.06, abs(aAlong - uReveal));
         vA *= mix(0.75, 1.35, front * step(0.02, uReveal) * step(uReveal, 1.05));
         vec4 mv = modelViewMatrix * vec4(p, 1.0);
-        gl_PointSize = mix(3.4, 6.5, front) * (420.0 / -mv.z) * alive;
+        gl_PointSize = mix(4.2, 8.0, front) * (480.0 / -mv.z) * alive;
         gl_Position = projectionMatrix * mv;
       }
     `,
@@ -70,7 +70,7 @@ export function createFlowParticles(dataset) {
         float d = length(c);
         if (d > 0.5 || vA < 0.01) discard;
         float a = smoothstep(0.5, 0.0, d) * vA;
-        gl_FragColor = vec4(0.82, 0.96, 1.0, a * 0.82);
+        gl_FragColor = vec4(0.78, 0.95, 1.0, a * 0.92);
       }
     `,
   });

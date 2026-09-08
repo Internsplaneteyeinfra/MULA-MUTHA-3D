@@ -14,6 +14,13 @@ function isLikelySharedOrRemote() {
   return true;
 }
 
+export function isLowMemoryDevice() {
+  const memoryGb = Number(navigator.deviceMemory || 0);
+  const cores = Number(navigator.hardwareConcurrency || 0);
+  const narrowTouchDevice = navigator.maxTouchPoints > 0 && window.innerWidth < 900;
+  return (memoryGb > 0 && memoryGb <= 4) || (cores > 0 && cores <= 4) || narrowTouchDevice;
+}
+
 function readForcedTier() {
   const q = new URLSearchParams(location.search);
   const v = (q.get("quality") || q.get("perf") || "").toLowerCase();
@@ -23,7 +30,7 @@ function readForcedTier() {
 
 export function createQualityProfile() {
   const forced = readForcedTier();
-  let tier = forced || (isLikelySharedOrRemote() ? "low" : "high");
+  let tier = forced || (isLikelySharedOrRemote() || isLowMemoryDevice() ? "low" : "high");
 
   const settings = () => profileFor(tier);
 

@@ -3,7 +3,7 @@ import { terrainHeightAt } from "./terrain.js";
 import { classifyTreeAsset, preloadTreeAssets } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 
-const MAX_TREES = 4200;
+const MAX_TREES = 11000;
 
 /**
  * Vegetation from OSM trees + parks + riparian buffer.
@@ -46,25 +46,25 @@ export async function createVegetation(dataset) {
     pickables.push(placements[placements.length - 1]);
   }
 
-  const riparianStep = osmTrees.length > 40 ? 6 : 3;
-  const riparianDens = osmTrees.length > 40 ? 0.28 : 0.55;
+  const riparianStep = osmTrees.length > 40 ? 2 : 1;
+  const riparianDens = osmTrees.length > 40 ? 0.78 : 0.92;
   for (let i = 0; i < stations.length; i += riparianStep) {
     const st = stations[i];
     for (const side of [-1, 1]) {
       const px = -st.flowZ;
       const pz = st.flowX;
       if (rng() > riparianDens) continue;
-      const n = 1 + Math.floor(rng() * 2);
+      const n = 2 + Math.floor(rng() * 3);
       for (let k = 0; k < n; k++) {
-        const dist = st.halfWidth + 10 + rng() * 28;
-        const along = (rng() - 0.5) * 18;
+        const dist = st.halfWidth + 8 + rng() * 36;
+        const along = (rng() - 0.5) * 22;
         const x = st.x + px * side * dist + st.flowX * along;
         const z = st.z + pz * side * dist + st.flowZ * along;
         if (blocked(x, z, buildings, roads, stations)) continue;
         placements.push({
           x,
           z,
-          scale: 0.85 + rng() * 1.1,
+          scale: 0.9 + rng() * 1.25,
           rotY: rng() * Math.PI * 2,
           assetId: classifyTreeAsset({}, "riparian", rng),
           kind: "riparian",
@@ -77,7 +77,7 @@ export async function createVegetation(dataset) {
     const props = poly;
     const areaHint = polygonArea(poly.vertices);
     const dense = props.natural === "wood" || props.landuse === "forest";
-    const count = Math.min(dense ? 64 : 48, Math.max(4, Math.floor(areaHint / (dense ? 700 : 900))));
+    const count = Math.min(dense ? 160 : 120, Math.max(10, Math.floor(areaHint / (dense ? 260 : 360))));
     for (let i = 0; i < count; i++) {
       const p = randomInPolygon(poly.vertices, rng);
       if (!p) continue;
@@ -85,7 +85,7 @@ export async function createVegetation(dataset) {
       placements.push({
         x: p.x,
         z: p.z,
-        scale: 0.9 + rng() * 1.4,
+        scale: 0.95 + rng() * 1.5,
         rotY: rng() * Math.PI * 2,
         assetId: classifyTreeAsset(props, dense ? "forest" : "park", rng),
         kind: dense ? "forest" : "park",
@@ -191,7 +191,7 @@ function blocked(x, z, buildings, roads, stations, allowNearRoad = false) {
   }
   if (!allowNearRoad) {
     for (const r of roads) {
-      if (Math.hypot(r.midX - x, r.midZ - z) < (r.widthM || 5) * 1.2) return true;
+      if (Math.hypot(r.midX - x, r.midZ - z) < (r.widthM || 5) * 0.85) return true;
     }
   }
   return false;

@@ -8,202 +8,266 @@
   --gis-active: #F59E0B;
   --gis-success: #5AC878;
   --gis-panel-w: 320px;
-  --layers-panel-w: 268px;
+  --layers-panel-w: 260px;
 }
 
 #ui-root.gis-ui {
   z-index: 10;
 }
 
-/* —— Project identity —— */
+/* —— Project identity (map-first: no dark card) —— */
 .gis-brand {
   top: 16px;
   left: 16px;
-  padding: 12px 14px;
+  padding: 0;
   z-index: 10;
-  background: rgba(18, 28, 35, 0.88);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.22);
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  box-shadow: none !important;
   max-width: min(340px, 46vw);
+  pointer-events: none;
 }
 .gis-brand strong {
   display: block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 700;
   letter-spacing: 0.08em;
-  color: var(--gis-text);
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.45);
 }
 .gis-brand p {
   margin: 5px 0 0;
   font-size: 10px;
   line-height: 1.45;
-  color: var(--gis-muted);
+  color: rgba(230, 240, 245, 0.82);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
-/* —— Top navigation cluster —— */
-.gis-nav-wrap {
+/* —— Map-chrome: kill dark HUD shells —— */
+.gis-ui .map-chrome.hud,
+.gis-ui .depth-legend.map-chrome,
+.gis-ui .chainage-ruler.map-chrome,
+.gis-ui .gis-brand.map-chrome {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* —— Floating icon buttons (tooltips for icon-only chrome) —— */
+.icon-button {
+  appearance: none;
+  position: relative;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  color: rgba(255, 255, 255, 0.92);
+  cursor: pointer;
+  padding: 6px;
+  margin: 0;
+  display: inline-grid;
+  place-items: center;
+  transition: transform 160ms ease, filter 160ms ease, color 160ms ease;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+}
+.icon-button:hover {
+  transform: scale(1.12);
+  filter: drop-shadow(0 0 6px rgba(100, 200, 255, 0.8));
+  color: #fff;
+}
+.icon-button.active,
+.icon-button[aria-pressed="true"] {
+  color: #5bc0eb;
+  filter: drop-shadow(0 0 8px rgba(91, 192, 235, 0.9));
+}
+.icon-button::after {
+  content: attr(data-tip);
   position: absolute;
-  top: 16px;
   left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 8px;
-  z-index: 10;
-  max-width: min(96vw, 720px);
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-2px);
+  padding: 3px 7px;
+  border-radius: 4px;
+  background: rgba(8, 14, 18, 0.55);
+  color: rgba(255, 255, 255, 0.95);
+  font: 500 10px/1.2 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 140ms ease, transform 140ms ease;
+  z-index: 40;
+  text-shadow: none;
+  box-shadow: none;
 }
-.navigation-controls {
-  display: flex;
-  gap: 6px;
-  padding: 5px;
-  background: rgba(18, 28, 35, 0.82);
-  backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-}
-.nav-button {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(22, 36, 45, 0.75);
-  color: var(--gis-text);
-  border-radius: 10px;
-  padding: 7px 12px;
-  font: 500 11px/1.2 "IBM Plex Sans", system-ui, sans-serif;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: border-color 180ms ease, background 180ms ease, transform 180ms ease;
-}
-.nav-button:hover {
-  border-color: rgba(75, 179, 211, 0.45);
-  background: rgba(28, 48, 58, 0.88);
-}
-.nav-button.active {
-  border-color: var(--gis-active);
-  background: rgba(245, 158, 11, 0.12);
-}
-.nav-icon {
-  font-size: 16px;
-  line-height: 1;
+.icon-button:hover::after,
+.icon-button:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 
-.layers-toggle-button {
-  appearance: none;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  background: rgba(18, 28, 35, 0.88);
-  backdrop-filter: blur(12px);
-  color: var(--gis-text);
-  border-radius: 10px;
-  padding: 7px 12px;
-  font: 500 11px/1.2 "IBM Plex Sans", system-ui, sans-serif;
-  cursor: pointer;
-  display: inline-flex;
-  align-items: center;
-  gap: 6px;
-  transition: border-color 180ms ease, transform 180ms ease;
-  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.18);
-}
-.layers-toggle-button:hover {
-  border-color: rgba(75, 179, 211, 0.45);
-}
-.layers-toggle-button[aria-pressed="true"] {
-  border-color: var(--gis-water);
-}
-
-/* —— Compass + zoom —— */
+/* —— Right-side map control stack —— */
 .gis-tools-stack {
   position: absolute;
   top: 16px;
-  right: calc(16px + var(--layers-panel-w) + 14px);
+  right: 16px;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
   z-index: 20;
+  width: 58px;
   transition: right 280ms ease;
 }
-#ui-root:not(.layers-open) .gis-tools-stack {
-  right: 16px;
+#ui-root.layers-open .gis-tools-stack {
+  right: calc(16px + var(--layers-panel-w) + 14px);
+}
+
+.map-ctrl-btn {
+  appearance: none;
+  margin: 0;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(25, 45, 48, 0.42);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-radius: 10px;
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  color: rgba(220, 235, 235, 0.82);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 500 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 0.3px;
+  transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
+}
+.map-ctrl-btn--icon {
+  width: 48px;
+  height: 40px;
+  padding: 0;
+}
+.map-ctrl-btn--labeled {
+  width: 58px;
+  height: 58px;
+  padding: 6px 4px;
+  flex-direction: column;
+  gap: 5px;
+}
+.map-ctrl-icon {
+  display: grid;
+  place-items: center;
+  color: rgba(220, 235, 235, 0.82);
+}
+.map-ctrl-svg {
+  display: block;
+  color: inherit;
+}
+.map-ctrl-label {
+  color: rgba(220, 235, 235, 0.72);
+  font-size: 10px;
+  font-weight: 500;
+  letter-spacing: 0.3px;
+  line-height: 1;
+}
+.map-ctrl-btn:hover {
+  background: rgba(56, 189, 248, 0.08);
+  border-color: rgba(56, 189, 248, 0.35);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  color: rgb(125, 211, 252);
+}
+.map-ctrl-btn:hover .map-ctrl-icon,
+.map-ctrl-btn:hover .map-ctrl-label {
+  color: rgb(125, 211, 252);
+}
+.map-ctrl-btn.active,
+.map-ctrl-btn[aria-pressed="true"] {
+  background: rgba(56, 189, 248, 0.1);
+  border: 1px solid rgba(56, 189, 248, 0.55);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.1);
+  color: #7dd3fc;
+}
+.map-ctrl-btn.active .map-ctrl-icon,
+.map-ctrl-btn[aria-pressed="true"] .map-ctrl-icon,
+.map-ctrl-btn.active .map-ctrl-label,
+.map-ctrl-btn[aria-pressed="true"] .map-ctrl-label {
+  color: #7dd3fc;
+}
+
+.zoom-controls {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-top: 2px;
+}
+.zoom-controls .map-ctrl-btn {
+  width: 48px;
+}
+
+.gis-view-modes {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+/* legacy top nav removed — keep inert if leftover markup appears */
+.gis-nav-wrap {
+  display: none !important;
 }
 
 .compass-nav {
-  width: 112px;
-  height: 112px;
+  width: 96px;
+  height: 96px;
+  flex-shrink: 0;
   border-radius: 50%;
-  background: rgba(19, 31, 40, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.25);
-  backdrop-filter: blur(14px);
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
   display: grid;
   grid-template-columns: repeat(3, 1fr);
   grid-template-rows: repeat(3, 1fr);
   place-items: center;
-  padding: 6px;
+  padding: 4px;
   gap: 0;
 }
 .compass-btn {
   appearance: none;
   border: none;
   background: transparent;
-  color: rgba(242, 247, 248, 0.88);
+  color: rgba(255, 255, 255, 0.9);
   font-size: 11px;
   line-height: 1;
-  width: 30px;
-  height: 30px;
-  border-radius: 50%;
+  width: 28px;
+  height: 28px;
+  border-radius: 0;
   cursor: pointer;
-  transition: transform 180ms ease, background 180ms ease, color 180ms ease;
+  transition: transform 160ms ease, filter 160ms ease, color 160ms ease;
   display: grid;
   place-items: center;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 .compass-btn:hover {
-  transform: scale(1.05);
-  background: rgba(75, 179, 211, 0.16);
+  transform: scale(1.12);
+  background: transparent;
   color: #fff;
+  filter: drop-shadow(0 0 6px rgba(100, 200, 255, 0.8));
 }
 .compass-btn.cardinal {
   font-size: 12px;
   font-weight: 600;
-  color: var(--gis-water);
+  color: rgba(180, 230, 250, 0.95);
 }
 .compass-btn.center {
-  font-size: 18px;
-  color: var(--gis-text);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  background: rgba(28, 44, 54, 0.65);
-}
-
-.zoom-controls {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  background: rgba(19, 31, 40, 0.92);
-  border: 1px solid rgba(255, 255, 255, 0.15);
-  border-radius: 10px;
-  overflow: hidden;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
-}
-.zoom-btn {
-  appearance: none;
+  font-size: 16px;
+  color: rgba(255, 255, 255, 0.95);
   border: none;
   background: transparent;
-  color: var(--gis-text);
-  width: 36px;
-  height: 32px;
-  font-size: 18px;
-  line-height: 1;
-  cursor: pointer;
-  transition: background 180ms ease;
-}
-.zoom-btn:hover {
-  background: rgba(75, 179, 211, 0.16);
-}
-.zoom-btn + .zoom-btn {
-  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 /* —— Layers panel —— */
@@ -217,13 +281,13 @@
   z-index: 30;
   display: flex;
   flex-direction: column;
-  /* Semi-transparent so the 3D map reads through */
-  background: rgba(14, 22, 28, 0.62) !important;
-  backdrop-filter: blur(14px) saturate(1.1);
-  -webkit-backdrop-filter: blur(14px) saturate(1.1);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 14px;
-  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.28);
+  /* Open-only panel: light glass so map still reads through */
+  background: rgba(14, 22, 28, 0.42) !important;
+  backdrop-filter: blur(10px) saturate(1.05);
+  -webkit-backdrop-filter: blur(10px) saturate(1.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.18);
   overflow: hidden;
   animation: layersSlideIn 280ms ease;
 }
@@ -460,6 +524,22 @@
 .layers-panel .water-controls-block .ctrl-row {
   margin: 2px 4px 0;
 }
+.layers-panel .water-controls-block .ctrl-select {
+  width: 100%;
+  margin-top: 2px;
+  appearance: none;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(12, 18, 24, 0.85);
+  color: var(--gis-text);
+  border-radius: 6px;
+  padding: 4px 8px;
+  font: 500 10px/1.3 "IBM Plex Sans", sans-serif;
+  cursor: pointer;
+}
+.layers-panel .water-controls-block .ctrl-select:focus {
+  outline: 1px solid rgba(110, 180, 220, 0.45);
+  outline-offset: 1px;
+}
 .layers-panel .water-controls-block .exag-row {
   margin: 6px 4px 0;
 }
@@ -615,11 +695,33 @@
   background: rgba(30, 90, 80, 0.55) !important;
 }
 
-/* —— Depth legend reposition —— */
+/* —— Depth legend (vertical, no dark container) —— */
 .gis-ui .depth-legend {
   left: 16px;
-  bottom: 72px;
+  bottom: 78px;
   z-index: 12;
+  width: auto;
+  min-width: 0;
+  padding: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+}
+.gis-ui .depth-legend strong {
+  color: rgba(255, 255, 255, 0.95);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+  letter-spacing: 0.12em;
+  margin-bottom: 8px;
+}
+.gis-ui .depth-legend .depth-ticks span,
+.gis-ui .depth-legend .depth-note {
+  color: rgba(235, 245, 250, 0.9);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.gis-ui .depth-legend .depth-bar {
+  border: none;
+  box-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
 }
 
 /* —— Timeline (follow mode, hidden by default) —— */
@@ -648,131 +750,169 @@
   text-align: center;
 }
 
-/* —— Chainage detail + annotations panel —— */
+/* —— Chainage detail + annotations panel (compact premium GIS) —— */
 .chainage-panel {
   top: 92px;
   left: 16px;
-  width: min(300px, calc(100vw - 32px));
+  width: min(330px, calc(100vw - 32px));
   max-height: calc(100vh - 120px);
   z-index: 28;
   display: flex;
   flex-direction: column;
-  background: rgba(14, 22, 28, 0.88);
-  backdrop-filter: blur(14px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 14px;
-  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.32);
+  padding: 0;
+  background: rgba(18, 35, 40, 0.55) !important;
+  backdrop-filter: blur(18px) !important;
+  -webkit-backdrop-filter: blur(18px) !important;
+  border: 1px solid rgba(255, 255, 255, 0.14) !important;
+  border-radius: 14px !important;
+  box-shadow: 0 12px 40px rgba(0, 0, 0, 0.22) !important;
   overflow: hidden;
 }
 .chainage-panel[hidden] { display: none !important; }
+.chainage-panel .ch-icon {
+  display: block;
+  flex-shrink: 0;
+}
 .chainage-panel-header {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: space-between;
   gap: 10px;
-  padding: 12px 12px 10px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  background: rgba(8, 14, 18, 0.35);
+  padding: 16px 16px 0;
+  margin-bottom: 14px;
+  border-bottom: none;
+  background: transparent;
+  min-height: 0;
+}
+.chainage-panel-title {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: #7dd3fc;
+}
+.chainage-panel-title .ch-icon {
+  color: #38bdf8;
 }
 .chainage-panel-header strong {
   display: block;
-  font-size: 9px;
-  letter-spacing: 0.16em;
-  color: #f5c518;
-}
-.chainage-panel-station {
-  display: block;
-  margin-top: 4px;
-  font: 700 18px/1.1 "IBM Plex Sans", system-ui, sans-serif;
-  color: var(--gis-text);
+  margin: 0;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #7dd3fc;
 }
 .chainage-panel-close {
   appearance: none;
   border: none;
   background: transparent;
-  color: var(--gis-muted);
-  font-size: 14px;
+  color: rgba(255, 255, 255, 0.55);
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
   cursor: pointer;
-  padding: 2px 6px;
   border-radius: 6px;
+  padding: 0;
 }
 .chainage-panel-close:hover {
-  color: var(--gis-text);
-  background: rgba(255,255,255,0.08);
+  color: #fff;
+  background: rgba(255, 255, 255, 0.08);
 }
 .chainage-panel-body {
-  padding: 10px 12px 12px;
+  padding: 0 16px 16px;
   overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 0;
 }
 .chainage-panel-nav {
-  display: grid;
-  grid-template-columns: 1fr auto 1fr;
-  gap: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 44px;
+}
+.chainage-panel-station {
+  flex: 1;
+  min-width: 0;
+  text-align: center;
+  font: 650 28px/1 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 1px;
+  color: rgba(255, 255, 255, 0.95);
+  user-select: none;
 }
 .chainage-panel-nav-btn {
   appearance: none;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(22, 36, 45, 0.75);
-  color: var(--gis-text);
-  border-radius: 8px;
-  padding: 7px 8px;
-  font: 600 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  flex-shrink: 0;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  border: 1px solid rgba(56, 189, 248, 0.45);
+  background: rgba(56, 189, 248, 0.05);
+  color: #7dd3fc;
   cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
 }
 .chainage-panel-nav-btn:hover:not(:disabled) {
-  border-color: rgba(245, 197, 24, 0.45);
+  background: rgba(56, 189, 248, 0.12);
+  border-color: #38bdf8;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.15);
 }
 .chainage-panel-nav-btn:disabled {
-  opacity: 0.35;
+  opacity: 0.32;
   cursor: default;
+  box-shadow: none;
 }
 .chainage-panel-anno-btn {
   appearance: none;
   width: 100%;
-  border: 1px solid rgba(245, 197, 24, 0.35);
-  background: rgba(245, 197, 24, 0.1);
-  color: #f5c518;
-  border-radius: 8px;
-  padding: 8px 10px;
-  font: 600 11px/1 "IBM Plex Sans", system-ui, sans-serif;
+  height: 44px;
+  margin-top: 16px;
+  border: 1px solid rgba(245, 158, 11, 0.55);
+  background: rgba(245, 158, 11, 0.06);
+  color: #fbbf24;
+  border-radius: 10px;
+  padding: 0 12px;
+  font: 600 12px/1 "IBM Plex Sans", system-ui, sans-serif;
   letter-spacing: 0.04em;
   cursor: pointer;
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 8px;
+  gap: 10px;
   transition: background 160ms ease, border-color 160ms ease;
 }
 .chainage-panel-anno-btn:hover {
-  background: rgba(245, 197, 24, 0.18);
-  border-color: rgba(245, 197, 24, 0.5);
+  background: rgba(245, 158, 11, 0.12);
+  border-color: #f59e0b;
 }
 .chainage-panel-anno-btn.is-open {
-  background: rgba(245, 197, 24, 0.22);
-  border-color: rgba(245, 197, 24, 0.55);
+  background: rgba(245, 158, 11, 0.14);
+  border-color: #f59e0b;
 }
-.chainage-panel-anno-icon {
-  font-size: 14px;
-  line-height: 1;
+.chainage-panel-anno-label {
+  color: #fbbf24;
 }
 .chainage-panel-anno-count {
   min-width: 18px;
   height: 18px;
   padding: 0 5px;
   border-radius: 999px;
-  background: #f5c518;
+  background: rgba(251, 191, 36, 0.92);
   color: #1a1406;
   font: 700 10px/18px "IBM Plex Sans", system-ui, sans-serif;
   text-align: center;
 }
 .chainage-panel-notes {
   display: grid;
-  gap: 6px;
-  padding-top: 8px;
-  border-top: 1px solid rgba(255,255,255,0.1);
+  gap: 8px;
+  margin-top: 12px;
+  padding-top: 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.1);
 }
 .chainage-panel-notes[hidden] {
   display: none !important;
@@ -786,35 +926,35 @@
 .chainage-panel-notes-head strong {
   font-size: 9px;
   letter-spacing: 0.12em;
-  color: #f5c518;
+  color: #fbbf24;
 }
 .chainage-panel-notes-hint {
   font-size: 8px;
-  color: var(--gis-muted);
+  color: rgba(180, 194, 200, 0.85);
 }
 #ch-panel-note-input {
   width: 100%;
   resize: vertical;
   min-height: 64px;
   border-radius: 8px;
-  border: 1px solid rgba(255,255,255,0.12);
-  background: rgba(8, 14, 18, 0.55);
-  color: var(--gis-text);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(8, 14, 18, 0.4);
+  color: rgba(243, 247, 248, 0.95);
   padding: 8px;
   font: 500 11px/1.4 "IBM Plex Sans", system-ui, sans-serif;
 }
 .chainage-panel-add {
   appearance: none;
-  border: 1px solid rgba(245, 197, 24, 0.35);
-  background: rgba(245, 197, 24, 0.14);
-  color: #f5c518;
+  border: 1px solid rgba(245, 158, 11, 0.45);
+  background: rgba(245, 158, 11, 0.08);
+  color: #fbbf24;
   border-radius: 8px;
   padding: 8px 10px;
   font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
   letter-spacing: 0.06em;
   cursor: pointer;
 }
-.chainage-panel-add:hover { background: rgba(245, 197, 24, 0.22); }
+.chainage-panel-add:hover { background: rgba(245, 158, 11, 0.14); }
 .chainage-panel-note-list {
   list-style: none;
   margin: 0;
@@ -825,11 +965,11 @@
 .chainage-panel-note {
   padding: 8px;
   border-radius: 8px;
-  background: rgba(255,255,255,0.05);
-  border: 1px solid rgba(255,255,255,0.08);
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.08);
 }
 .chainage-panel-note.empty {
-  color: var(--gis-muted);
+  color: rgba(180, 194, 200, 0.85);
   font-size: 10px;
   text-align: center;
 }
@@ -837,7 +977,7 @@
   margin: 0;
   font-size: 11px;
   line-height: 1.4;
-  color: var(--gis-text);
+  color: rgba(243, 247, 248, 0.95);
   white-space: pre-wrap;
   word-break: break-word;
 }
@@ -850,7 +990,7 @@
 }
 .chainage-panel-note-meta time {
   font-size: 9px;
-  color: var(--gis-muted);
+  color: rgba(180, 194, 200, 0.85);
 }
 .chainage-panel-note-del {
   appearance: none;
@@ -862,50 +1002,52 @@
   padding: 2px 4px;
 }
 
-/* —— Bottom chainage ruler —— */
+/* —— Bottom chainage ruler (map-first) —— */
 .chainage-ruler {
   left: 50%;
-  bottom: 12px;
+  bottom: 10px;
   transform: translateX(-50%);
   z-index: 12;
-  width: min(1240px, calc(100vw - 24px));
-  padding: 10px 14px 12px;
-  background: rgba(12, 18, 24, 0.82);
-  backdrop-filter: blur(10px);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 10px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  width: min(1280px, calc(100vw - 20px));
+  padding: 4px 8px 6px;
+  background: transparent !important;
+  backdrop-filter: none !important;
+  border: none !important;
+  border-radius: 0;
+  box-shadow: none !important;
 }
 .chainage-ruler-row {
   display: grid;
   grid-template-columns: auto 1fr;
-  gap: 14px;
+  gap: 10px;
   align-items: start;
 }
 .chainage-ruler-title {
-  font: 700 11px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
   letter-spacing: 0.14em;
-  color: #f5c518;
+  color: rgba(255, 230, 140, 0.95);
   white-space: nowrap;
-  padding-top: 18px;
+  padding-top: 14px;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 .chainage-ruler-track {
   position: relative;
-  height: 58px;
-  margin: 0 18px;
+  height: 52px;
+  margin: 0 10px;
 }
 .chainage-ruler-line {
   position: absolute;
   left: 0;
   right: 0;
-  top: 22px;
+  top: 12px;
   height: 1px;
-  background: rgba(230, 236, 240, 0.72);
+  background: rgba(255, 255, 255, 0.55);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.45);
 }
 .chainage-ruler-tick {
   appearance: none;
   position: absolute;
-  top: 14px;
+  top: 6px;
   transform: translateX(-50%);
   border: none;
   background: transparent;
@@ -915,11 +1057,12 @@
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
+  gap: 1px;
   width: max-content;
-  max-width: 52px;
-  color: var(--gis-text);
+  max-width: 48px;
+  color: rgba(255, 255, 255, 0.95);
   z-index: 1;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
 }
 .chainage-ruler-tick.is-edge-start {
   transform: translateX(0);
@@ -929,31 +1072,32 @@
 }
 .chainage-ruler-tick-mark {
   width: 1px;
-  height: 9px;
-  background: rgba(230, 236, 240, 0.9);
+  height: 8px;
+  background: rgba(255, 255, 255, 0.9);
   flex-shrink: 0;
+  box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
 }
 .chainage-ruler-label {
-  font: 600 9px/1.15 "IBM Plex Sans", system-ui, sans-serif;
+  font: 600 8px/1.15 "IBM Plex Sans", system-ui, sans-serif;
   letter-spacing: 0;
-  color: rgba(242, 247, 248, 0.92);
+  color: rgba(255, 255, 255, 0.95);
   white-space: nowrap;
   text-align: center;
 }
 .chainage-ruler-meters {
-  font: 500 8px/1 "IBM Plex Sans", system-ui, sans-serif;
-  color: rgba(154, 170, 178, 0.95);
+  font: 500 7px/1 "IBM Plex Sans", system-ui, sans-serif;
+  color: rgba(220, 235, 240, 0.88);
   white-space: nowrap;
   text-align: center;
 }
 .chainage-ruler-tick.is-alt .chainage-ruler-label {
-  margin-top: 10px;
+  margin-top: 0;
 }
 .chainage-ruler-tick.is-alt .chainage-ruler-tick-mark {
-  height: 18px;
+  height: 8px;
 }
 .chainage-ruler-tick.is-active .chainage-ruler-label {
-  color: #f5c518;
+  color: #ffe082;
   font-weight: 700;
 }
 .chainage-ruler-tick.is-active .chainage-ruler-meters {
@@ -975,9 +1119,9 @@
   z-index: 3;
 }
 .chainage-ruler-cursor-dot {
-  width: 9px;
-  height: 9px;
-  border-radius: 2px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
   background: #f5c518;
   box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
 }
@@ -985,27 +1129,497 @@
   display: block;
   padding: 2px 5px;
   border-radius: 3px;
-  background: #f5c518;
+  background: rgba(245, 197, 24, 0.92);
   color: #1a1406;
   font: 700 9px/1 "IBM Plex Sans", system-ui, sans-serif;
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
 
+/* —— Flood Simulation bar + info —— */
+.flood-sim-bar {
+  position: absolute;
+  top: 12px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 26;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  max-width: min(920px, calc(100vw - 160px));
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(18, 32, 38, 0.55);
+  border: 1px solid rgba(200, 220, 230, 0.14);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.18);
+  pointer-events: auto;
+}
+.flood-sim-bar[hidden] {
+  display: none !important;
+}
+.flood-sim-bar__brand {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: rgba(230, 240, 245, 0.92);
+  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+  white-space: nowrap;
+}
+.flood-sim-bar__icon { opacity: 0.9; }
+.flood-sim-bar__controls {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+.flood-sim-date {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  color: rgba(200, 220, 230, 0.75);
+  font: 600 9px/1 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+}
+.flood-sim-date input[type="date"] {
+  appearance: none;
+  border: 1px solid rgba(200, 220, 230, 0.18);
+  background: rgba(8, 16, 20, 0.45);
+  color: #e8f0f4;
+  border-radius: 6px;
+  padding: 4px 6px;
+  font: 500 11px/1.2 "IBM Plex Sans", system-ui, sans-serif;
+  color-scheme: dark;
+}
+.flood-sim-arrow {
+  color: rgba(180, 200, 210, 0.55);
+  font-size: 12px;
+}
+.flood-sim-btn {
+  appearance: none;
+  border: 1px solid rgba(200, 220, 230, 0.18);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e8f0f4;
+  border-radius: 7px;
+  padding: 6px 10px;
+  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: background 140ms ease, border-color 140ms ease;
+}
+.flood-sim-btn:hover:not(:disabled) {
+  background: rgba(56, 189, 248, 0.12);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+.flood-sim-btn:disabled {
+  opacity: 0.55;
+  cursor: wait;
+}
+.flood-sim-btn--today {
+  background: rgba(56, 189, 248, 0.1);
+}
+.flood-sim-btn--run {
+  background: rgba(14, 116, 144, 0.45);
+  border-color: rgba(56, 189, 248, 0.28);
+  min-width: 148px;
+  justify-content: center;
+}
+.flood-sim-btn--run.is-loading {
+  background: rgba(30, 60, 70, 0.55);
+}
+.flood-sim-run-label,
+.flood-sim-run-loading {
+  align-items: center;
+  gap: 5px;
+}
+/* Author CSS must not override [hidden] — toggle via .is-loading only */
+.flood-sim-run-label {
+  display: inline-flex;
+}
+.flood-sim-run-loading {
+  display: none;
+}
+.flood-sim-btn--run.is-loading .flood-sim-run-label {
+  display: none !important;
+}
+.flood-sim-btn--run.is-loading .flood-sim-run-loading {
+  display: inline-flex !important;
+}
+.flood-spin {
+  animation: floodSpin 0.9s linear infinite;
+}
+@keyframes floodSpin {
+  to { transform: rotate(360deg); }
+}
+.flood-sim-bar__status {
+  flex: 1 1 140px;
+  min-width: 120px;
+  font: 500 10px/1.3 "IBM Plex Sans", system-ui, sans-serif;
+  color: rgba(200, 220, 230, 0.78);
+}
+.flood-sim-bar__status[data-kind="error"] { color: #fca5a5; }
+.flood-sim-bar__status[data-kind="ok"] { color: #86efac; }
+.flood-sim-bar__status[data-kind="loading"] { color: #7dd3fc; }
+
+.flood-info-panel {
+  position: absolute;
+  top: 64px;
+  left: 16px;
+  z-index: 25;
+  width: min(280px, calc(100vw - 32px));
+  padding: 10px 12px 12px;
+  border-radius: 10px;
+  background: rgba(18, 32, 38, 0.58);
+  border: 1px solid rgba(200, 220, 230, 0.14);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.2);
+  color: #e8f0f4;
+}
+.flood-info-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  letter-spacing: 0.06em;
+}
+.flood-info-close {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: rgba(220, 230, 235, 0.7);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+.flood-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  font: 500 11px/1.35 "IBM Plex Sans", system-ui, sans-serif;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+}
+.flood-info-row .k { color: rgba(180, 200, 210, 0.65); }
+.flood-info-row .v { color: #eef5f8; text-align: right; }
+.flood-info-panel__actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.flood-info-action {
+  appearance: none;
+  border: 1px solid rgba(200, 220, 230, 0.16);
+  background: rgba(255, 255, 255, 0.05);
+  color: #e8f0f4;
+  border-radius: 7px;
+  padding: 7px 8px;
+  font: 600 11px/1 "IBM Plex Sans", system-ui, sans-serif;
+  cursor: pointer;
+}
+.flood-info-action:hover {
+  background: rgba(56, 189, 248, 0.12);
+}
+.flood-info-action--danger:hover {
+  background: rgba(248, 113, 113, 0.14);
+  border-color: rgba(248, 113, 113, 0.35);
+}
+.lp-flood-actions {
+  display: grid;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+.lp-flood-data {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+.lp-flood-data__title {
+  font-size: 10px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  color: rgba(226, 232, 240, 0.92);
+  margin-bottom: 4px;
+}
+.lp-flood-mode-hint {
+  margin: 0 0 8px;
+}
+.lp-flood-data__row {
+  display: grid;
+  grid-template-columns: auto 1fr 1fr;
+  gap: 6px;
+  align-items: end;
+  margin-bottom: 8px;
+}
+.lp-flood-date {
+  display: grid;
+  gap: 2px;
+  font-size: 9px;
+  color: rgba(148, 163, 184, 0.95);
+}
+.lp-flood-date input[type="date"] {
+  width: 100%;
+  min-width: 0;
+  font-size: 11px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(15, 23, 42, 0.55);
+  color: #e2e8f0;
+}
+.lp-flood-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  background: rgba(30, 41, 59, 0.85);
+  color: #e2e8f0;
+  font-size: 10px;
+  font-weight: 650;
+  letter-spacing: 0.04em;
+  padding: 7px 10px;
+  cursor: pointer;
+}
+.lp-flood-btn:hover:not(:disabled) {
+  border-color: rgba(125, 211, 252, 0.45);
+}
+.lp-flood-btn:disabled {
+  opacity: 0.55;
+  cursor: not-allowed;
+}
+.lp-flood-btn--today {
+  padding: 7px 8px;
+  background: rgba(14, 116, 144, 0.35);
+}
+.lp-flood-btn--run {
+  width: 100%;
+  margin-bottom: 8px;
+  background: rgba(8, 47, 73, 0.9);
+  border-color: rgba(56, 189, 248, 0.35);
+}
+.lp-flood-btn--run.is-loading .lp-flood-run-label { display: none; }
+.lp-flood-btn--run.is-loading .lp-flood-run-loading { display: inline; }
+.lp-flood-run-loading[hidden] { display: none !important; }
+.lp-flood-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  color: rgba(186, 198, 214, 0.95);
+  margin-bottom: 8px;
+  min-height: 18px;
+}
+.lp-flood-status-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: rgba(148, 163, 184, 0.55);
+  flex-shrink: 0;
+}
+.lp-flood-status-dot[data-kind="loading"],
+.lp-flood-status[data-kind="loading"] .lp-flood-status-dot {
+  background: #7dd3fc;
+  box-shadow: 0 0 0 3px rgba(125, 211, 252, 0.18);
+}
+.lp-flood-status-dot[data-kind="ok"],
+.lp-flood-status[data-kind="ok"] .lp-flood-status-dot {
+  background: #86efac;
+}
+.lp-flood-status-dot[data-kind="error"],
+.lp-flood-status[data-kind="error"] .lp-flood-status-dot {
+  background: #fca5a5;
+}
+.lp-flood-status[data-kind="ok"] { color: #86efac; }
+.lp-flood-status[data-kind="error"] { color: #fca5a5; }
+.lp-flood-status[data-kind="loading"] { color: #7dd3fc; }
+.lp-illustrative-stage {
+  margin-top: 12px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(148, 163, 184, 0.18);
+}
+.lp-illustrative-stage.is-disabled {
+  opacity: 0.45;
+  pointer-events: none;
+}
+.lp-illustrative-stage.is-disabled::after {
+  content: "Disabled while API Flood Simulation is active";
+  display: block;
+  font-size: 9px;
+  color: rgba(148, 163, 184, 0.9);
+  margin-top: 4px;
+}
+.lp-disclaimer-warn {
+  color: rgba(251, 191, 36, 0.92) !important;
+  margin-top: 6px;
+}
+
+/* Flood Result panel (left) */
+.flood-result-panel,
+.flood-info-panel {
+  position: absolute;
+  left: 16px;
+  top: 88px;
+  z-index: 28;
+  width: min(260px, calc(100vw - 32px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(12, 18, 28, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  backdrop-filter: blur(10px);
+  color: #e2e8f0;
+  font-size: 11px;
+}
+.flood-result-panel__head,
+.flood-info-panel__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+  letter-spacing: 0.06em;
+  font-size: 10px;
+}
+.flood-result-close,
+.flood-info-close {
+  background: transparent;
+  border: none;
+  color: rgba(226, 232, 240, 0.8);
+  font-size: 16px;
+  cursor: pointer;
+  line-height: 1;
+}
+.flood-result-disclaimer {
+  margin: 0 0 8px;
+  font-size: 9px;
+  color: rgba(148, 163, 184, 0.95);
+  line-height: 1.35;
+}
+.flood-result-row,
+.flood-info-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(148, 163, 184, 0.1);
+}
+.flood-result-row .k,
+.flood-info-row .k { color: rgba(148, 163, 184, 0.95); }
+.flood-result-row .v,
+.flood-info-row .v { text-align: right; font-variant-numeric: tabular-nums; }
+.flood-result-panel__actions,
+.flood-info-panel__actions {
+  display: grid;
+  gap: 6px;
+  margin-top: 10px;
+}
+.flood-result-action,
+.flood-info-action {
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.75);
+  color: #e2e8f0;
+  font-size: 10px;
+  padding: 6px 8px;
+  cursor: pointer;
+  text-align: left;
+}
+.flood-result-action:hover,
+.flood-info-action:hover {
+  border-color: rgba(125, 211, 252, 0.4);
+}
+.flood-result-action--danger:hover,
+.flood-info-action--danger:hover {
+  border-color: rgba(248, 113, 113, 0.45);
+  background: rgba(248, 113, 113, 0.12);
+}
+.flood-result-details {
+  margin-top: 8px;
+  font-size: 10px;
+  color: rgba(186, 198, 214, 0.95);
+}
+.flood-result-details__pre {
+  white-space: pre-wrap;
+  word-break: break-word;
+  margin: 6px 0 0;
+  font-size: 9px;
+  color: rgba(252, 165, 165, 0.95);
+  max-height: 90px;
+  overflow: auto;
+}
+
+/* Flood Playback — independent from chainage scrubber */
+.flood-playback {
+  position: absolute;
+  left: 50%;
+  bottom: 72px;
+  transform: translateX(-50%);
+  z-index: 27;
+  width: min(420px, calc(100vw - 24px));
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(12, 18, 28, 0.88);
+  border: 1px solid rgba(148, 163, 184, 0.22);
+  backdrop-filter: blur(10px);
+  color: #e2e8f0;
+}
+.flood-playback__label {
+  font-size: 9px;
+  letter-spacing: 0.08em;
+  font-weight: 700;
+  margin-bottom: 6px;
+  color: rgba(186, 198, 214, 0.95);
+}
+.flood-playback__controls {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+.flood-playback-btn {
+  flex: 1;
+  border-radius: 7px;
+  border: 1px solid rgba(148, 163, 184, 0.28);
+  background: rgba(30, 41, 59, 0.8);
+  color: #e2e8f0;
+  font-size: 10px;
+  padding: 6px 4px;
+  cursor: pointer;
+}
+.flood-playback-btn:hover {
+  border-color: rgba(125, 211, 252, 0.4);
+}
+.flood-playback__timeline {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.flood-playback__timeline input[type="range"] {
+  flex: 1;
+}
+.flood-playback-track-end {
+  opacity: 0.45;
+  font-size: 11px;
+}
+.flood-playback__meta {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 6px;
+  font-size: 10px;
+  color: rgba(186, 198, 214, 0.95);
+  font-variant-numeric: tabular-nums;
+}
+
 /* —— Responsive —— */
 @media (max-width: 900px) {
   :root { --layers-panel-w: 280px; }
-  .gis-nav-wrap {
-    left: auto;
-    right: 16px;
-    transform: none;
-    flex-direction: column;
-    align-items: flex-end;
-    top: 88px;
-  }
-  .navigation-controls {
-    flex-wrap: wrap;
-    justify-content: flex-end;
+  .gis-tools-stack {
+    width: 58px;
+    right: 12px;
   }
   .chainage-ruler {
     width: calc(100vw - 16px);
@@ -1032,22 +1646,18 @@
     to { opacity: 1; transform: translateY(0); }
   }
   .gis-tools-stack {
-    top: auto;
-    bottom: 88px;
+    top: 12px;
+    bottom: auto;
     right: 12px !important;
+    width: 58px;
   }
   .gis-brand {
-    max-width: calc(100vw - 32px);
-  }
-  .gis-nav-wrap {
-    top: auto;
-    bottom: 140px;
-    right: 12px;
+    max-width: calc(100vw - 90px);
   }
   .chainage-ruler {
     bottom: 8px;
     width: calc(100vw - 12px);
-    padding: 8px 8px 10px;
+    padding: 4px 6px;
   }
   .chainage-ruler-row {
     grid-template-columns: 1fr;
@@ -1060,4 +1670,253 @@
     margin: 0 10px;
     height: 56px;
   }
+}
+
+/* Extra-large accessibility pass. */
+#ui-root.gis-ui { font-size: 16px; }
+#ui-root.gis-ui .gis-brand strong { font-size: 18px; }
+#ui-root.gis-ui .gis-brand-mark { display:flex; align-items:center; gap:9px; }
+#ui-root.gis-ui .planet-eye-logo { display:grid; place-items:center; width:30px; height:30px; color:#7fe7ff; filter:drop-shadow(0 0 6px rgba(69,211,241,.55)); }
+#ui-root.gis-ui .gis-brand-mark b { display:block; margin-top:3px; color:#8bd3e4; font-size:12px; letter-spacing:.13em; font-weight:600; }
+#ui-root.gis-ui .gis-brand p { font-size: 14px; }
+#ui-root.gis-ui .gis-brand small { font-size: 12px; }
+.analytics-controls { position:fixed; left:clamp(290px, 24vw, 520px); top:max(14px, env(safe-area-inset-top)); z-index:20; display:flex; gap:6px; pointer-events:auto; }
+.analytics-controls button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:7px 10px; color:#dff8ff; background:rgba(10,28,39,.78); border:1px solid rgba(107,210,235,.24); border-radius:8px; font:600 12px/1.1 "IBM Plex Sans", system-ui, sans-serif; cursor:pointer; }
+.analytics-controls button:hover { background:rgba(22,67,86,.9); border-color:rgba(120,225,246,.62); }
+.river-data-action-value { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
+.river-data-icon { display:grid; place-items:center; width:27px; height:27px; padding:0; color:#8de9fb; background:rgba(28,101,123,.42); border:1px solid rgba(113,225,243,.35); border-radius:6px; cursor:pointer; }
+.river-data-icon:hover { background:rgba(34,137,164,.7); }
+.river-analysis-modal-backdrop { position:fixed; inset:0; z-index:80; display:grid; place-items:center; background:rgba(2,10,15,.28); pointer-events:auto; }
+.river-analysis-modal-backdrop[hidden] { display:none; }
+.river-analysis-modal { position:relative; width:min(360px,calc(100vw - 32px)); padding:20px; color:#eaf8fb; background:rgba(8,24,34,.96); border:1px solid rgba(113,220,241,.35); border-radius:12px; box-shadow:0 20px 70px rgba(0,0,0,.45); }
+.river-analysis-modal h2 { margin:0 0 14px; color:#8ce5f6; font-size:15px; letter-spacing:.12em; }
+.river-analysis-modal p { margin:9px 0; color:rgba(220,240,245,.72); font-size:13px; }
+.river-analysis-modal p b { display:inline-block; min-width:145px; color:#f3fbfd; }
+.river-analysis-close { position:absolute; top:9px; right:9px; display:grid; place-items:center; width:30px; height:30px; padding:0; color:#dff8ff; background:transparent; border:0; cursor:pointer; }
+.analytics-modal { width:min(520px,calc(100vw - 32px)); }
+.analytics-status,.analytics-unavailable,.analytics-note { color:rgba(220,240,245,.72); font-size:13px; }
+.analytics-unavailable { color:#ffc4a8; }
+.model-badge { color:#8fe7fa; font-size:12px; letter-spacing:.08em; }
+.analytics-chart { margin:14px 0; padding:8px; border:1px solid rgba(113,220,241,.16); border-radius:8px; background:rgba(2,12,18,.36); }
+.analytics-chart svg { display:block; width:100%; height:110px; }
+.analytics-chart small { color:rgba(220,240,245,.65); font-size:11px; }
+.weather-copy small { display:block; margin-top:3px; color:rgba(178,211,220,.72); font-size:11px; }
+.river-data-grid > span, .river-data-grid > b { white-space: nowrap; }
+.river-data-grid > b { overflow: hidden; text-overflow: ellipsis; }
+.river-data-action-value { min-width: 126px; }
+.weather-widget { min-height: 94px; }
+.analytics-controls { left: clamp(390px, 28vw, 650px); max-width: calc(100vw - 700px); overflow: hidden; }
+@media (max-width: 1200px) { .analytics-controls { left: 390px; max-width: calc(100vw - 650px); gap:4px; } .analytics-controls button { padding-inline:8px; } }
+@media (max-width: 900px) { .chainage-ruler-tick.is-sparse { display:none; } .analytics-controls { left:260px; max-width:calc(100vw - 360px); } }
+@media (max-width: 640px) { .weather-widget { min-height:42px; } .analytics-controls { left:10px; max-width:calc(100vw - 20px); } }
+@media (max-width: 900px) { .analytics-controls { left:260px; } .analytics-controls span { display:none; } .analytics-controls button { width:34px; justify-content:center; padding:7px; } }
+@media (max-width: 640px) { .analytics-controls { left:10px; top:76px; } }
+#ui-root.gis-ui .weather-copy strong { font-size: 13px; }
+#ui-root.gis-ui .weather-copy span { font-size: 14px; }
+#ui-root.gis-ui .weather-copy b { font-size: 18px; }
+#ui-root.gis-ui .weather-time { font-size: 14px; }
+#ui-root.gis-ui .map-ctrl-label { font-size: 14px; }
+#ui-root.gis-ui .view-toggle-title { font-size: 12px; }
+#ui-root.gis-ui .view-toggle-btn { font-size: 14px; }
+#ui-root.gis-ui .chainage-ruler-title { font-size: 15px; }
+#ui-root.gis-ui .chainage-ruler-label { font-size: 13px; }
+#ui-root.gis-ui .chainage-ruler-meters { font-size: 12px; }
+#ui-root.gis-ui .chainage-ruler-cursor-label { font-size: 13px; }
+#ui-root.gis-ui .depth-legend strong { font-size: 14px; }
+#ui-root.gis-ui .depth-ticks { font-size: 13px; }
+#ui-root.gis-ui .river-data-heading { font-size: 14px; }
+#ui-root.gis-ui .river-data-station { font-size: 27px; }
+#ui-root.gis-ui .river-data-grid { font-size: 14px; }
+#ui-root.gis-ui .river-data-grid b:last-child { font-size: 12px; }
+#ui-root.gis-ui .layers-panel .lp-section-title { font-size: 15px; }
+#ui-root.gis-ui .layers-panel .lp-slider-label,
+#ui-root.gis-ui .layers-panel .lp-select-wrap,
+#ui-root.gis-ui .layers-panel .lp-mode-pair,
+#ui-root.gis-ui .layers-panel .lp-chip-row { font-size: 14px; }
+#ui-root.gis-ui .layers-panel .lp-hint-text,
+#ui-root.gis-ui .layers-panel .lp-flood-data__title { font-size: 13px; }
+#ui-root.gis-ui .layers-panel .lp-action { font-size: 14px; }
+
+@media (max-width: 640px) {
+  #ui-root.gis-ui .gis-brand strong { font-size: 16px; }
+  #ui-root.gis-ui .gis-brand p { font-size: 12px; }
+  #ui-root.gis-ui .river-data-station { font-size: 23px; }
+  #ui-root.gis-ui .river-data-grid { font-size: 12px; }
+}
+
+.river-data-panel {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  top: clamp(210px, 32vh, 330px);
+  z-index: 18;
+  width: min(230px, calc(100vw - 120px));
+  padding: 12px 13px;
+  border: 1px solid rgba(112, 211, 239, 0.22);
+  background: rgba(8, 22, 31, 0.78);
+  backdrop-filter: blur(14px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+.chainage-ruler-input { position:absolute; left:0; right:0; top:18px; z-index:5; width:100%; height:18px; margin:0; appearance:none; background:transparent; cursor:ew-resize; }
+.chainage-ruler-input::-webkit-slider-runnable-track { height:4px; background:rgba(116,215,238,.18); border-radius:999px; }
+.chainage-ruler-input::-moz-range-track { height:4px; background:rgba(116,215,238,.18); border-radius:999px; }
+.chainage-ruler-input::-webkit-slider-thumb { width:14px; height:14px; margin-top:-5px; appearance:none; border:2px solid #b9f5ff; border-radius:50%; background:#168eac; box-shadow:0 0 0 3px rgba(71,210,239,.2); }
+.chainage-ruler-input::-moz-range-thumb { width:11px; height:11px; border:2px solid #b9f5ff; border-radius:50%; background:#168eac; box-shadow:0 0 0 3px rgba(71,210,239,.2); }
+.chainage-ruler-tick { z-index:6; }
+.river-data-heading { display:flex; align-items:center; gap:7px; color:#79d8ef; font-size:10px; letter-spacing:.14em; font-weight:700; }
+.river-data-station { margin:8px 0 10px; color:#f0fbff; font:600 22px/1.05 ui-monospace, SFMono-Regular, Consolas, monospace; }
+.river-data-grid { display:grid; grid-template-columns:1fr auto; gap:7px 10px; color:rgba(215,235,241,.62); font-size:10px; }
+.river-data-grid b { color:#eaf8fb; font-weight:600; text-align:right; max-width:145px; }
+.river-data-grid b:last-child { font-size:9px; }
+@media (max-height: 820px) { .river-data-panel { top:190px; } }
+@media (max-width: 640px) { .river-data-panel { left:10px; top:150px; width:min(205px,calc(100vw - 90px)); padding:10px; } .river-data-station { font-size:18px; } }
+
+/* Readability pass: make the inspection HUD comfortable to read at map scale. */
+#ui-root.gis-ui { font-size: 14px; }
+#ui-root.gis-ui .gis-brand strong { font-size: 16px; }
+#ui-root.gis-ui .gis-brand p { font-size: 12px; }
+#ui-root.gis-ui .gis-brand small { font-size: 11px; }
+#ui-root.gis-ui .weather-copy strong { font-size: 11px; }
+#ui-root.gis-ui .weather-copy span { font-size: 12px; }
+#ui-root.gis-ui .weather-copy b { font-size: 16px; }
+#ui-root.gis-ui .weather-time { font-size: 12px; }
+#ui-root.gis-ui .map-ctrl-label { font-size: 12px; }
+#ui-root.gis-ui .view-toggle-title { font-size: 10px; }
+#ui-root.gis-ui .view-toggle-btn { font-size: 12px; }
+#ui-root.gis-ui .chainage-ruler-title { font-size: 13px; }
+#ui-root.gis-ui .chainage-ruler-label { font-size: 11px; }
+#ui-root.gis-ui .chainage-ruler-meters { font-size: 10px; }
+#ui-root.gis-ui .chainage-ruler-cursor-label { font-size: 11px; }
+#ui-root.gis-ui .depth-legend strong { font-size: 12px; }
+#ui-root.gis-ui .depth-ticks { font-size: 11px; }
+#ui-root.gis-ui .river-data-heading { font-size: 12px; }
+#ui-root.gis-ui .river-data-station { font-size: 24px; }
+#ui-root.gis-ui .river-data-grid { font-size: 12px; }
+#ui-root.gis-ui .river-data-grid b:last-child { font-size: 10px; }
+#ui-root.gis-ui .layers-panel { font-size: 14px; }
+#ui-root.gis-ui .layers-panel .lp-section-title { font-size: 13px; }
+#ui-root.gis-ui .layers-panel .lp-slider-label,
+#ui-root.gis-ui .layers-panel .lp-select-wrap,
+#ui-root.gis-ui .layers-panel .lp-mode-pair,
+#ui-root.gis-ui .layers-panel .lp-chip-row { font-size: 12px; }
+#ui-root.gis-ui .layers-panel .lp-hint-text,
+#ui-root.gis-ui .layers-panel .lp-flood-data__title { font-size: 11px; }
+#ui-root.gis-ui .layers-panel .lp-action { font-size: 12px; }
+
+@media (max-width: 640px) {
+  #ui-root.gis-ui .gis-brand strong { font-size: 14px; }
+  #ui-root.gis-ui .gis-brand p { font-size: 11px; }
+  #ui-root.gis-ui .river-data-station { font-size: 20px; }
+  #ui-root.gis-ui .river-data-grid { font-size: 11px; }
+}
+
+/* Fixed HUD layout: the scene moves underneath this viewport layer. */
+#ui-root.gis-ui {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  overflow: hidden;
+}
+#ui-root.gis-ui > * { pointer-events: auto; }
+
+.gis-brand {
+  top: max(14px, env(safe-area-inset-top));
+  left: max(14px, env(safe-area-inset-left));
+  max-width: min(360px, calc(100vw - 360px));
+  padding: 11px 13px 10px;
+  border: 1px solid rgba(182, 222, 235, .17) !important;
+  border-radius: 10px;
+  background: rgba(8, 20, 27, .48) !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .16) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+}
+.gis-brand-mark { display: flex; align-items: center; gap: 8px; }
+.gis-brand-mark > span { width: 7px; height: 7px; border-radius: 50%; background: #65d5eb; box-shadow: 0 0 9px rgba(101, 213, 235, .65); }
+.gis-brand-mark strong { font-size: clamp(12px, 1vw, 14px); letter-spacing: .13em; }
+.gis-brand p { margin: 5px 0 0 15px; font-size: 10px; color: rgba(179, 225, 237, .88); }
+.gis-brand small { display: block; margin: 3px 0 0 15px; font-size: 9px; line-height: 1.35; color: rgba(226, 239, 243, .62); }
+
+.weather-widget {
+  position: absolute;
+  top: max(14px, env(safe-area-inset-top));
+  right: max(14px, env(safe-area-inset-right));
+  z-index: 19;
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 9px;
+  width: min(252px, 22vw);
+  min-width: 210px;
+  padding: 9px 11px;
+  border: 1px solid rgba(182, 222, 235, .17);
+  border-radius: 10px;
+  background: rgba(8, 20, 27, .48);
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.weather-icon { display: grid; place-items: center; color: #86dded; }
+.weather-copy { min-width: 0; display: grid; gap: 4px; }
+.weather-copy strong { font-size: 9px; letter-spacing: .1em; color: rgba(229, 242, 246, .86); white-space: nowrap; }
+.weather-copy span { display: flex; align-items: baseline; gap: 7px; font-size: 10px; color: rgba(178, 211, 220, .72); }
+.weather-copy b { color: #e9f8fb; font-size: 13px; font-weight: 600; }
+.weather-copy i { font-style: normal; }
+.weather-time { padding-left: 9px; border-left: 1px solid rgba(193, 225, 234, .16); color: #a7dfea; font: 500 11px/1 "IBM Plex Mono", monospace; }
+
+.gis-tools-stack {
+  top: clamp(104px, 13vh, 132px);
+  right: max(14px, env(safe-area-inset-right));
+  gap: 9px;
+  width: 68px;
+}
+.view-toggle {
+  width: 68px;
+  padding: 7px 5px 6px;
+  border: 1px solid rgba(182, 222, 235, .14);
+  border-radius: 10px;
+  background: rgba(8, 20, 27, .5);
+  box-shadow: 0 7px 18px rgba(0, 0, 0, .14);
+  backdrop-filter: blur(12px);
+}
+.view-toggle-title { display: block; margin-bottom: 5px; text-align: center; color: rgba(184, 216, 225, .58); font: 600 8px/1 "IBM Plex Mono", monospace; letter-spacing: .1em; }
+.view-toggle-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: 6px; background: rgba(0, 0, 0, .18); }
+.view-toggle-btn { appearance: none; min-width: 0; height: 25px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: rgba(206, 226, 232, .66); font: 600 10px/1 "IBM Plex Sans", sans-serif; cursor: pointer; transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+.view-toggle-btn:hover { color: #dff9ff; background: rgba(77, 189, 220, .12); }
+.view-toggle-btn.active { color: #e8fcff; background: rgba(48, 174, 210, .46); box-shadow: 0 0 10px rgba(56, 189, 248, .16); }
+
+.gis-ui .chainage-ruler {
+  bottom: max(10px, env(safe-area-inset-bottom));
+  width: min(82vw, 1400px);
+  padding: 9px 12px 8px;
+  border: 1px solid rgba(182, 222, 235, .17) !important;
+  border-radius: 10px;
+  background: rgba(8, 20, 27, .42) !important;
+  box-shadow: 0 10px 26px rgba(0, 0, 0, .16) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
+}
+.gis-ui .depth-legend { bottom: clamp(78px, 11vh, 116px); left: max(14px, env(safe-area-inset-left)); }
+
+@media (max-height: 820px) {
+  .weather-widget { padding: 7px 9px; }
+  .gis-tools-stack { top: 94px; gap: 6px; }
+  .map-ctrl-btn--labeled { height: 52px; }
+  .gis-ui .depth-legend { bottom: 74px; }
+}
+@media (max-width: 900px) {
+  .gis-brand { max-width: min(320px, calc(100vw - 300px)); }
+  .weather-widget { width: 210px; min-width: 0; }
+  .gis-tools-stack { right: 10px; }
+  .gis-ui .chainage-ruler { width: min(92vw, 1100px); }
+}
+@media (max-width: 640px) {
+  .gis-brand { left: 10px; top: 10px; max-width: calc(100vw - 92px); padding: 8px 9px; }
+  .gis-brand p, .gis-brand small { margin-left: 0; }
+  .weather-widget { top: 10px; right: 10px; width: 42px; min-width: 42px; height: 42px; padding: 0; grid-template-columns: 1fr; border-radius: 10px; }
+  .weather-copy, .weather-time { display: none; }
+  .gis-tools-stack { top: 64px; right: 10px !important; width: 58px; }
+  .view-toggle { width: 58px; }
+  .gis-ui .chainage-ruler { bottom: 6px; width: calc(100vw - 12px); }
 }

@@ -89,24 +89,32 @@ export function createBridges(dataset) {
       bridge.add(rail);
     }
 
-    // Approach ramps — connect deck to bank roads
+    // Approach ramps — longer so land roads meet the deck cleanly
     for (const end of [
       { p: g.start, outward: -1 },
       { p: g.end, outward: 1 },
     ]) {
       const ground = terrainHeightAt(end.p.x, end.p.z, stations);
-      const rampLen = 28;
+      const rampLen = 36;
       const rx = end.p.x + dir.x * end.outward * (rampLen * 0.5);
       const rz = end.p.z + dir.z * end.outward * (rampLen * 0.5);
-      const rampY = (deckY + ground) * 0.5 + 0.4;
-      const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 1.2, thick * 0.9), asphaltMat);
+      const rampY = (deckY + ground) * 0.5 + 0.35;
+      const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 1.25, thick * 0.95), asphaltMat);
       ramp.position.set(rx, rampY, rz);
       ramp.quaternion.copy(quat);
-      // Tip ramp down toward bank
       const pitch = Math.atan2(deckY - ground - 1.5, rampLen);
       ramp.rotateZ(end.outward * -pitch * 0.85);
       ramp.receiveShadow = true;
       bridge.add(ramp);
+
+      // Flat toe pad so OSM road asphalt can meet the ramp
+      const toeX = end.p.x + dir.x * end.outward * (rampLen + 6);
+      const toeZ = end.p.z + dir.z * end.outward * (rampLen + 6);
+      const toe = new THREE.Mesh(new THREE.BoxGeometry(14, 0.35, thick * 1.05), asphaltMat);
+      toe.position.set(toeX, ground + 0.2, toeZ);
+      toe.quaternion.copy(quat);
+      toe.receiveShadow = true;
+      bridge.add(toe);
 
       const abutH = Math.max(5, deckY - ground);
       const abut = new THREE.Mesh(new THREE.BoxGeometry(10, abutH, thick * 1.05), abutMat);
