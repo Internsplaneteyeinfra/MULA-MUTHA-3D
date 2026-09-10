@@ -22,7 +22,6 @@ const LAYER_IDS = [
   "br-names",
   "veg",
   "depth-zones",
-  "raw-survey-points",
   "flood-sim",
   "chain",
 ];
@@ -76,7 +75,6 @@ export function mountLayersPanel(root) {
         `
         <div class="depth-zones-section" id="depth-zones-section">
           ${layerRowHtml({ icon: Layers3, label: "Show Depth Zones", id: "depth-zones" })}
-          ${layerRowHtml({ icon: Layers3, label: "Raw Survey Points", id: "raw-survey-points", hint: "11,580 points · GPU batched" })}
           <div class="layers-stats depth lp-stats" id="depth-zones-stats"></div>
         </div>
       `,

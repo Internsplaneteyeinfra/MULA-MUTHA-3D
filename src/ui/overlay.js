@@ -33,14 +33,26 @@ export function createTooltip(root) {
   root.appendChild(el);
   return {
     show(x, y, info) {
-      el.style.left = `${Math.min(x, window.innerWidth - 300)}px`;
-      el.style.top = `${Math.min(y, window.innerHeight - 280)}px`;
+      el.style.left = `${Math.min(x, window.innerWidth - 220)}px`;
+      el.style.top = `${Math.min(y, window.innerHeight - 180)}px`;
       el.classList.add("visible");
+      el.classList.toggle("tooltip--survey", !!info.rawSurveyPoint);
       if (info.chainageHover) {
         el.innerHTML = `
           <h3>CHAINAGE</h3>
           <div class="kv"><span class="k">Station</span><span class="v">${info.label ?? "—"}</span></div>
           <div class="kv"><span class="k">Meters</span><span class="v depth">${info.meters != null ? Math.round(info.meters) + " m" : "—"}</span></div>
+        `;
+        return;
+      }
+      if (info.rawSurveyPoint) {
+        el.innerHTML = `
+          <h3>SURVEY POINT${info.pointId != null ? ` · #${info.pointId}` : ""}</h3>
+          <div class="kv"><span class="k">Depth</span><span class="v depth">${info.depth != null ? Number(info.depth).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Lat</span><span class="v">${info.lat != null ? Number(info.lat).toFixed(5) + "°" : "—"}</span></div>
+          <div class="kv"><span class="k">Lon</span><span class="v">${info.lon != null ? Number(info.lon).toFixed(5) + "°" : "—"}</span></div>
+          <div class="kv"><span class="k">Bed</span><span class="v">${info.riverbedElevation != null ? Number(info.riverbedElevation).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Ch.</span><span class="v">${info.chainage ?? (info.chainageM != null ? Math.round(info.chainageM) + " m" : "—")}</span></div>
         `;
         return;
       }
@@ -59,6 +71,22 @@ export function createTooltip(root) {
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
           <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">Water moving toward Mula–Mutha</em>
+        `;
+        return;
+      }
+      if (info.hydrologySalinity) {
+        const desc = info.description
+          ? String(info.description).replace(/<br\s*\/?>/gi, " · ").replace(/<[^>]+>/g, "")
+          : "";
+        el.innerHTML = `
+          <h3>SALINITY</h3>
+          <div class="kv"><span class="k">Class</span><span class="v">${info.class_label || info.class || "—"}</span></div>
+          ${info.range ? `<div class="kv"><span class="k">Range</span><span class="v">${info.range}</span></div>` : ""}
+          ${info.name ? `<div class="kv"><span class="k">Name</span><span class="v">${info.name}</span></div>` : ""}
+          ${desc ? `<div class="kv"><span class="k">Description</span><span class="v">${desc}</span></div>` : ""}
+          ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
+          ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">NDSI model · terrain-draped</em>
         `;
         return;
       }
@@ -130,6 +158,7 @@ export function createTooltip(root) {
     },
     hide() {
       el.classList.remove("visible");
+      el.classList.remove("tooltip--survey");
     },
   };
 }
@@ -482,6 +511,14 @@ export function mountUI(root, {
       onCamera("aerial");
       nav.syncActive();
     },
+    on3D: () => {
+      const chain = dataset.chainage || [];
+      if (!chain.length) return;
+      const midRaw = (chain[0].meters + chain[chain.length - 1].meters) * 0.5;
+      const midM = Math.round(midRaw / 100) * 100;
+      window.__MM_SCENE__?.goToChainageView?.(midM);
+      nav.syncActive();
+    },
     onLayersToggle: () => toggleLayers(),
     onDrainageToggle: () => toggleDrainage(),
     onSettingsToggle: () => toggleSettings(),
@@ -757,10 +794,6 @@ export function mountUI(root, {
       }
     }
   });
-  root.querySelector("#raw-survey-points")?.addEventListener("change", (e) => {
-    state.showRawSurveyPoints = e.target.checked;
-    window.__MM_SCENE__?.setRawSurveyPointsVisible?.(e.target.checked);
-  });
   root.querySelector("#flood-sim")?.addEventListener("change", (e) => {
     state.showFloodSimulation = e.target.checked;
     state.apiFlood.showLayer = e.target.checked;
@@ -901,7 +934,6 @@ export function mountUI(root, {
       state.showMapReferenceGrid || (state.showKmlSkeleton && state.showCoordinateGrid),
     );
     setChecked("depth-zones", state.showDepthZones);
-    setChecked("raw-survey-points", state.showRawSurveyPoints);
     setChecked("flood-sim", state.showFloodSimulation !== false);
     setChecked("glassy-flow", state.glassyAnimatedFlow);
     setChecked("water-anim", state.waterAnimEnabled !== false);
@@ -976,7 +1008,7 @@ export function mountUI(root, {
     root.querySelectorAll("[data-exag]").forEach((btn) => {
       btn.classList.toggle("active", Number(btn.dataset.exag) === state.depthExaggeration);
     });
-    ["water", "drainage", "map-ref-grid", "depth-zones", "raw-survey-points", "flood-sim", "br-names", "chain", "chain-labels", "glassy-flow", "water-anim", "sky-enabled", "sky-shadows"].forEach(
+    ["water", "drainage", "map-ref-grid", "depth-zones", "flood-sim", "br-names", "chain", "chain-labels", "glassy-flow", "water-anim", "sky-enabled", "sky-shadows"].forEach(
       (id) => bindLayerIndicator(root, id),
     );
   }

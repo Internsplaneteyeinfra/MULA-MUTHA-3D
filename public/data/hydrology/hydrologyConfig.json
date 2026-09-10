@@ -1,0 +1,81 @@
+{
+  "version": 1,
+  "crs": "EPSG:4326",
+  "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
+  "layers": [
+    {
+      "id": "geology",
+      "name": "GEOLOGY",
+      "available": true,
+      "type": "groundOverlay",
+      "crs": "EPSG:4326",
+      "bounds": {
+        "north": 18.56235850242967,
+        "south": 18.509121676972974,
+        "east": 73.99637575213919,
+        "west": 73.8497860331936
+      },
+      "overlay": "/data/hydrology/geology/overlay.png",
+      "legend": "/data/hydrology/geology/legend.png",
+      "meta": "/data/hydrology/geology/meta.json",
+      "source": "b7acfdf14dfa4a5a9c0ec4c050e2d000.kmz",
+      "opacity": 0.78,
+      "gridSegments": 96,
+      "liftM": 0.35,
+      "renderType": "terrainDrapedTexture"
+    },
+    {
+      "id": "water_quality",
+      "name": "WATER QUALITY",
+      "available": false,
+      "reason": "No Water Quality dataset is connected to the RiverEye Hydrology layer.",
+      "unavailableLabel": "DATA UNAVAILABLE"
+    },
+    {
+      "id": "salinity",
+      "name": "SALINITY",
+      "available": true,
+      "type": "polygon",
+      "crs": "EPSG:4326",
+      "data": "/data/hydrology/salinity.geojson",
+      "source": "111efbd6d8d0406d9f50a2506cd30388.kml",
+      "opacity": 0.65,
+      "liftM": 0.35,
+      "bounds": {
+        "west": 73.85350886366767,
+        "east": 73.99328672187666,
+        "south": 18.510033465985874,
+        "north": 18.561462016001716
+      },
+      "classes": [
+        { "id": "very_low", "label": "Very Low Salinity", "color": "#0000FF", "range": "-1.00 to -0.60" },
+        { "id": "low", "label": "Low Salinity", "color": "#00BFFF", "range": "-0.60 to -0.20" },
+        { "id": "moderate", "label": "Moderate Salinity", "color": "#00FF00", "range": "-0.20 to 0.20" },
+        { "id": "high", "label": "High Salinity", "color": "#FFFF00", "range": "0.20 to 0.60" },
+        { "id": "very_high", "label": "Very High Salinity", "color": "#FF0000", "range": "0.60 to 1.00" }
+      ],
+      "renderType": "terrainDrapedPolygonsMergedByClass"
+    },
+    {
+      "id": "pollution",
+      "name": "POLLUTION",
+      "available": false,
+      "reason": "No Pollution dataset is connected to the RiverEye Hydrology layer.",
+      "unavailableLabel": "DATA UNAVAILABLE"
+    },
+    {
+      "id": "landuse",
+      "name": "LAND USE",
+      "available": false,
+      "reason": "Mula-Mutha land-use dataset not available. Existing source is Mumbai/Mithi extent.",
+      "unavailableLabel": "DATA UNAVAILABLE — MULA-MUTHA DATASET REQUIRED"
+    },
+    {
+      "id": "aqi",
+      "name": "AQI",
+      "available": false,
+      "reason": "No AQI dataset is connected to the RiverEye Hydrology layer.",
+      "unavailableLabel": "DATA UNAVAILABLE"
+    }
+  ]
+}

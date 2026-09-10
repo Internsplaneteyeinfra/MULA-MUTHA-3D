@@ -9,6 +9,7 @@ import { lucideHtml } from "../icons.js";
 export function mountNavigationControls(root, {
   onOverview,
   onRiverSide,
+  on3D,
   onLayersToggle,
   onDrainageToggle,
   onSettingsToggle,
@@ -22,10 +23,10 @@ export function mountNavigationControls(root, {
   }
 
   const modes = document.createElement("div");
-  modes.className = "gis-view-modes";
+  modes.className = "gis-view-modes right-toolbar";
   modes.setAttribute("aria-label", "Map view controls");
   modes.innerHTML = `
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled" id="nav-overview" data-mode="overview" aria-label="Overview">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button" id="nav-overview" data-mode="overview" aria-label="Overview">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(MapPinned, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Overview</span>
     </button>
@@ -36,18 +37,18 @@ export function mountNavigationControls(root, {
         <button type="button" class="view-toggle-btn" id="nav-3d" data-mode="overview" aria-label="3D perspective view">3D</button>
       </div>
     </div>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon drainage-toggle-button" id="drainage-btn" aria-label="Drainage" aria-pressed="false" title="Toggle drainage channels">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon toolbar-button drainage-toggle-button" id="drainage-btn" aria-label="Drainage" aria-pressed="false" title="Toggle drainage channels">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Droplets, { size: 20, className: "map-ctrl-svg" })}</span>
     </button>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled layers-toggle-button" id="layers-btn" aria-label="Layers" aria-pressed="false">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button layers-toggle-button" id="layers-btn" aria-label="Layers" aria-pressed="false">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Layers, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Layers</span>
     </button>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled settings-toggle-button" id="settings-btn" aria-label="Settings" aria-pressed="false">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button settings-toggle-button" id="settings-btn" aria-label="Settings" aria-pressed="false">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Settings, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Settings</span>
     </button>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled flood-toggle-button" id="flood-btn" aria-label="Flood" aria-pressed="false">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button flood-toggle-button" id="flood-btn" aria-label="Flood" aria-pressed="false">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(CloudRain, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Flood</span>
     </button>
@@ -74,7 +75,9 @@ export function mountNavigationControls(root, {
   });
   view3dBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
-    onOverview?.();
+    // 3D → mid-chainage eye-level corridor (not wide Overview)
+    if (on3D) on3D();
+    else onOverview?.();
     syncActive();
   });
   layersBtn.addEventListener("click", () => {

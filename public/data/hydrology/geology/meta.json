@@ -1,0 +1,12 @@
+﻿{
+  "name": "Spectral Lithology / Surface Material",
+  "sourceKmz": "b7acfdf14dfa4a5a9c0ec4c050e2d000.kmz",
+  "bounds": {
+    "north": 18.56235850242967,
+    "south": 18.509121676972974,
+    "east": 73.99637575213919,
+    "west": 73.8497860331936
+  },
+  "overlayUrl": "/data/hydrology/geology/overlay.png",
+  "legendUrl": "/data/hydrology/geology/legend.png"
+}

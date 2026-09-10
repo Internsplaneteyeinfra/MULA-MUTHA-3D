@@ -430,7 +430,7 @@ function paintChainageLabel(spr, text) {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
   const label = String(text || "—");
-  ctx.font = "800 34px 'Segoe UI', system-ui, sans-serif";
+  ctx.font = "700 34px Inter, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.lineWidth = 6;

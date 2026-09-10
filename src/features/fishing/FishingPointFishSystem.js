@@ -865,7 +865,7 @@ function createFishDebugOverlay(root) {
   panel.hidden = true;
   panel.style.cssText =
     "position:fixed;left:12px;bottom:12px;z-index:60;max-width:340px;padding:10px 12px;" +
-    "background:rgba(8,16,22,0.82);color:#d8eef4;font:11px/1.35 'IBM Plex Mono',monospace;" +
+    "background:rgba(8,16,22,0.82);color:#d8eef4;font:11px/1.35 Inter,system-ui,sans-serif;" +
     "border:1px solid rgba(154,212,224,0.35);border-radius:8px;pointer-events:none;white-space:pre-wrap;";
   root.appendChild(panel);
 

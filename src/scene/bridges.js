@@ -419,7 +419,7 @@ function paintBridgeLabel(spr, text, fullName) {
     const shown = String(text || "Bridge");
     const clipped = shown.length > 42 ? `${shown.slice(0, 40)}…` : shown;
     ctx.fillStyle = "#e8ffe8";
-    ctx.font = "800 64px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = "700 64px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.shadowColor = "rgba(0,0,0,0.65)";
@@ -439,7 +439,7 @@ function paintBridgeLabel(spr, text, fullName) {
     ctx.lineWidth = 8;
     ctx.stroke();
     ctx.fillStyle = "#7dff9a";
-    ctx.font = "800 72px 'Segoe UI', system-ui, sans-serif";
+    ctx.font = "700 72px Inter, system-ui, sans-serif";
     ctx.textAlign = "center";
     ctx.textBaseline = "middle";
     ctx.fillText("B", cx, cy + 4);

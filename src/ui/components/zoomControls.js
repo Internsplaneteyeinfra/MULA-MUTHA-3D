@@ -9,10 +9,10 @@ export function mountZoomControls(root, { onZoomIn, onZoomOut }) {
   el.className = "zoom-controls";
   el.setAttribute("aria-label", "Zoom");
   el.innerHTML = `
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon toolbar-button zoom-btn" id="zoom-in" title="Zoom in" aria-label="Zoom in">
       ${lucideHtml(Plus, { size: 20, className: "map-ctrl-svg" })}
     </button>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon toolbar-button zoom-btn" id="zoom-out" title="Zoom out" aria-label="Zoom out">
       ${lucideHtml(Minus, { size: 20, className: "map-ctrl-svg" })}
     </button>
   `;

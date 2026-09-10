@@ -22,6 +22,7 @@ import { createNallaFlowSystem } from "./drainage/nallaFlowSystem.js";
 import { createDepthZonesLayer } from "./depthZonesLayer.js";
 import { createFloodLayer } from "./floodLayer.js";
 import { createApiFloodLayer } from "./apiFloodLayer.js";
+import { createHydrologyLayer } from "./hydrologyLayer.js";
 import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
 import { createCinematicController } from "../animation/cinematicController.js";
@@ -29,7 +30,6 @@ import { computeActiveSceneBounds, computeSceneBounds } from "../geo/sceneBounds
 import { createQualityProfile, createThrottle } from "../perf/quality.js";
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
-import { nearestStationU, stationAt } from "./riverCamera.js";
 
 export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
   const quality = createQualityProfile();
@@ -145,6 +145,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const floodLayer = createFloodLayer(dataset);
   /** MODE A — JalNetra API flood (source of truth for inundation extent). */
   const apiFloodLayer = createApiFloodLayer(dataset);
+  /** Hydrology thematic overlays (Geology + Salinity). */
+  const hydrologyLayer = createHydrologyLayer(dataset);
   /** @deprecated alias — prefer apiFloodLayer */
   const floodSimLayer = apiFloodLayer;
   fillPierUniforms(river.material, dataset);
@@ -180,6 +182,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(rawSurveyPoints);
   scene.add(floodLayer);
   scene.add(apiFloodLayer);
+  scene.add(hydrologyLayer);
 
   const uiRoot = document.getElementById("ui-root");
 
@@ -193,6 +196,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     getDrainageGroup: () => drainageLayer,
     getDepthZonesGroup: () => depthZonesLayer,
     getNallaFlow: () => nallaFlow,
+    getHydrologyGroup: () => hydrologyLayer,
+    getRawSurveyLayer: () => rawSurveyPoints,
   });
 
   // Progressive load: core scene visible first (river + terrain + water)
@@ -352,20 +357,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return chainage.pick?.(chainPickRay, cam.camera, maxDistM) || null;
   }
 
-  // Keep every selected reach readable: wide sections get more altitude and
-  // look-ahead, while narrow sections stay close enough to inspect the banks.
-  function chainageCameraOptions(point, dragging = false) {
-    const stations = dataset.corridor?.stations || [];
-    const u = stations.length && point?.x != null && point?.z != null
-      ? nearestStationU(stations, point.x, point.z)
-      : 0.5;
-    const station = stations.length ? stationAt(stations, u) : null;
-    const halfWidth = Math.max(8, Number(station?.half) || 8);
+  // Eye-level corridor (reference screenshot): low boat height, nearly flat look.
+  // Height 16 / back 55 / ahead 180 / lookY ≈ eye → horizon mid-frame, marker mid-foreground.
+  function chainageCameraOptions(_point, dragging = false) {
     return {
-      cameraHeight: THREE.MathUtils.clamp(halfWidth * 1.8, 95, 230),
-      cameraDistance: THREE.MathUtils.clamp(halfWidth * 2.8, 140, 360),
-      lookAheadDistance: THREE.MathUtils.clamp(halfWidth * 4.2, 260, 600),
-      dur: dragging ? 0.45 : 1.55,
+      cameraHeight: 16,
+      cameraDistance: 55,
+      lookAheadDistance: 180,
+      lookY: SURFACE_Y + 12,
+      lateralOffset: 0,
+      fov: 58,
+      dur: dragging ? 0.22 : 0.85,
+      ease: "outCubic",
+      dragging: !!dragging,
     };
   }
 
@@ -488,10 +492,48 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     floodLayer,
     apiFloodLayer,
     floodSimLayer,
+    hydrologyLayer,
+    async showHydrologyLayer(id) {
+      return hydrologyLayer.userData?.showLayer?.(id);
+    },
+    hideHydrology() {
+      hydrologyLayer.userData?.hideAll?.();
+    },
+    getHydrologyActiveId() {
+      return hydrologyLayer.userData?.getActiveId?.() ?? null;
+    },
+    validateHydrologyExtent() {
+      return hydrologyLayer.userData?.validateExtent?.() ?? null;
+    },
     cam,
-    setRawSurveyPointsVisible(visible) {
-      state.showRawSurveyPoints = !!visible;
-      rawSurveyPoints.visible = state.showRawSurveyPoints;
+    /** Exit 2D if needed and fly to chainage eye-level view (used by VIEW → 3D). */
+    goToChainageView(meters) {
+      if (cinematic.isActive()) return;
+      cam.ensurePerspective?.();
+      const chain = dataset.chainage || [];
+      if (!chain.length) return;
+      const first = chain[0].meters;
+      const last = chain[chain.length - 1].meters;
+      let m = Number(meters);
+      if (!Number.isFinite(m)) m = Math.round(((first + last) * 0.5) / 100) * 100;
+      m = Math.min(last, Math.max(first, m));
+      const p = interpolateChainage(chain, m);
+      if (!p || p.x == null) return;
+      state.selectedChainageMeters = p.meters;
+      state.showChainage = true;
+      state.showChainageLabels = false;
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, false), dur: 1.0 });
+      document.dispatchEvent(
+        new CustomEvent("chainage-select", {
+          detail: { meters: p.meters, notes: false, focus: false },
+        }),
+      );
+      setTimeout(() => pinSelectedChainageTip(), 120);
+    },
+    setRawSurveyPointsVisible(_visible) {
+      state.showRawSurveyPoints = false;
+      rawSurveyPoints.visible = false;
+      rawSurveyPoints.userData?.setSelected?.(null);
     },
     /** Toggle River water surface; when off, show excavated ground deep view. */
     setRiverVisible(on) {
@@ -716,7 +758,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       nallaFlow.userData?.update?.(dt, cam.camera);
       depthZonesLayer.visible = state.showDepthZones;
       depthZonesLayer.userData?.update?.(dt);
-      rawSurveyPoints.visible = state.showRawSurveyPoints === true;
+      rawSurveyPoints.visible = false;
       const showFloodSim =
         state.floodMode === "api" &&
         state.showFloodSimulation !== false &&
@@ -793,18 +835,63 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
 function createRawSurveyPointLayer(dataset) {
   const points = dataset.points || [];
+  const minD = Number(dataset.minDepth) || 0;
+  const maxD = Number(dataset.maxDepth) || 1;
+  const span = Math.max(0.001, maxD - minD);
   const positions = new Float32Array(points.length * 3);
+  const colors = new Float32Array(points.length * 3);
+  const y = SURFACE_Y + 3;
   for (let i = 0; i < points.length; i += 1) {
     const p = points[i];
     positions[i * 3] = p.x ?? 0;
-    positions[i * 3 + 1] = SURFACE_Y + 3;
+    positions[i * 3 + 1] = y;
     positions[i * 3 + 2] = p.z ?? 0;
+    const t = THREE.MathUtils.clamp(((p.depth ?? minD) - minD) / span, 0, 1);
+    // Light sky → deep navy (matches water depth legend)
+    colors[i * 3] = (200 + (4 - 200) * t) / 255;
+    colors[i * 3 + 1] = (234 + (20 - 234) * t) / 255;
+    colors[i * 3 + 2] = (255 + (40 - 255) * t) / 255;
   }
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const material = new THREE.PointsMaterial({ color: 0x9cecff, size: 4, sizeAttenuation: true, transparent: true, opacity: 0.72, depthWrite: false });
+  geometry.setAttribute("color", new THREE.BufferAttribute(colors, 3));
+  const material = new THREE.PointsMaterial({
+    size: 5.5,
+    sizeAttenuation: true,
+    transparent: true,
+    opacity: 0.78,
+    depthWrite: false,
+    vertexColors: true,
+  });
   const layer = new THREE.Points(geometry, material);
   layer.name = "rawSurveyPoints";
   layer.visible = false;
+  layer.userData.points = points;
+  layer.userData.pointY = y;
+
+  const highlight = new THREE.Mesh(
+    new THREE.BoxGeometry(3.2, 3.2, 3.2),
+    new THREE.MeshBasicMaterial({
+      color: 0xffcc33,
+      transparent: true,
+      opacity: 0.9,
+      depthWrite: false,
+    }),
+  );
+  highlight.name = "rawSurveyHighlight";
+  highlight.visible = false;
+  highlight.renderOrder = 20;
+  layer.add(highlight);
+  layer.userData.highlight = highlight;
+
+  layer.userData.setSelected = (point) => {
+    if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.z)) {
+      highlight.visible = false;
+      return;
+    }
+    highlight.position.set(point.x, y, point.z);
+    highlight.visible = true;
+  };
+
   return layer;
 }

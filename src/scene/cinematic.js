@@ -410,6 +410,10 @@ export function createCameraSystem(canvas, dataset) {
       state.cameraMode = "overview";
       state.playing = false;
       state.visualMode = "landscape";
+      if (perspCamera.fov !== 48) {
+        perspCamera.fov = 48;
+        perspCamera.updateProjectionMatrix();
+      }
       fullRiverOverviewPose(stations, overviewBounds, 1, tmpP, tmpL, tmpUp, {
         fovDeg: perspCamera.fov,
         aspect: Math.max(0.5, perspCamera.aspect || viewportSize().aspect),
@@ -697,8 +701,16 @@ export function createCameraSystem(canvas, dataset) {
 
     if (localTransition) {
       localTransition.t += dt;
-      const k = easeInOutCubic(Math.min(1, localTransition.t / localTransition.dur));
+      const tNorm = Math.min(1, localTransition.t / localTransition.dur);
+      const easeFn = localTransition.ease === "outCubic" ? easeOutCubic : easeInOutCubic;
+      const k = easeFn(tNorm);
       camera.position.lerpVectors(localTransition.fromP, localTransition.toP, k);
+      // Arc above the surface mid-flight so the low eye-level path clears houses/buildings.
+      // Peak at midpoint (sin πt); settles back to the exact low pose at the end.
+      const lift = localTransition.transitLift || 0;
+      if (lift > 0) {
+        camera.position.y += Math.sin(Math.PI * tNorm) * lift;
+      }
       controls.target.lerpVectors(localTransition.fromL, localTransition.toL, k);
       smoothUp.copy(localTransition.fromUp).lerp(localTransition.toUp, k).normalize();
       camera.up.copy(smoothUp);
@@ -710,10 +722,16 @@ export function createCameraSystem(canvas, dataset) {
         );
         orthoCamera.updateProjectionMatrix();
       }
+      // Drive orientation directly — do NOT controls.update() mid-tween
+      // (OrbitControls damping/spherical rewrite fights forward river poses).
       camera.lookAt(controls.target);
-      controls.update();
       if (localTransition.t >= localTransition.dur) {
         const release = localTransition.releaseMode || "orbit";
+        // Snap to exact end pose
+        camera.position.copy(localTransition.toP);
+        controls.target.copy(localTransition.toL);
+        camera.up.copy(localTransition.toUp).normalize();
+        camera.lookAt(controls.target);
         localTransition = null;
         state.cameraMode = release;
         state.playing = false;
@@ -733,6 +751,8 @@ export function createCameraSystem(canvas, dataset) {
         } else if (release === "orbit") {
           camera.up.set(0, 1, 0);
           camera.lookAt(controls.target);
+          // One sync so the next OrbitControls.update uses this pose
+          controls.update();
         }
       }
       return;
@@ -834,20 +854,61 @@ export function createCameraSystem(canvas, dataset) {
     }
 
     state.cameraMode = "orbit";
+    // Restore free orbit polar range (2D mode locks polar to 0)
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.enableRotate = true;
+    controls.enablePan = true;
+
     const u = nearestStationU(stations, x, z);
     chainageGisAerialPose(stations, {
       u,
       x,
       z,
-      cameraHeight: opts.cameraHeight ?? 380,
-      cameraDistance: opts.cameraDistance ?? 420,
-      lookAheadDistance: opts.lookAheadDistance ?? 520,
-      lookY: opts.lookY ?? SURFACE_Y + 28,
+      // Low forward cinematic: back > height, look ahead along river (not at P)
+      cameraHeight: opts.cameraHeight ?? 16,
+      cameraDistance: opts.cameraDistance ?? 55,
+      lookAheadDistance: opts.lookAheadDistance ?? 180,
+      lookY: opts.lookY ?? SURFACE_Y + 12,
+      lateralOffset: opts.lateralOffset ?? 0,
       outP: tmpP,
       outL: tmpL,
       outUp: tmpUp,
     });
 
+    // Wide corridor FOV — both banks + horizon (matches reference boat view)
+    if (activeCamera.isPerspectiveCamera) {
+      activeCamera.fov = Number.isFinite(opts.fov) ? opts.fov : 58;
+      activeCamera.updateProjectionMatrix();
+    }
+
+    // Prevent OrbitControls from fighting the fly-to mid-tween
+    controls.enabled = false;
+
+    // Straight along clear river; arc up only when the hop path passes buildings.
+    const eyeH = Number.isFinite(opts.cameraHeight) ? opts.cameraHeight : 16;
+    const hopDist = Math.hypot(tmpP.x - activeCamera.position.x, tmpP.z - activeCamera.position.z);
+    let transitLift = 0;
+    if (opts.transitLift != null) {
+      transitLift = opts.transitLift;
+    } else if (!opts.dragging) {
+      transitLift = estimateBuildingTransitLift(
+        activeCamera.position,
+        tmpP,
+        dataset?.osm?.buildings,
+        eyeH,
+      );
+    }
+
+    // Clear-river hops stay quick/straight; building clears get a longer arc so walls read well.
+    let dur = opts.dur ?? 0.85;
+    let ease = opts.ease || "outCubic";
+    if (transitLift > 0) {
+      dur = Math.max(dur, THREE.MathUtils.clamp(0.95 + hopDist * 0.0012, 1.05, 1.45));
+      ease = "inOutCubic";
+    }
+
+    // Replace any in-flight transition — never stack competing fly-tos
     localTransition = {
       fromP: activeCamera.position.clone(),
       fromL: controls.target.clone(),
@@ -856,8 +917,10 @@ export function createCameraSystem(canvas, dataset) {
       toL: tmpL.clone(),
       toUp: new THREE.Vector3(0, 1, 0),
       t: 0,
-      dur: opts.dur ?? 1.0,
+      dur,
+      ease,
       releaseMode: "orbit",
+      transitLift,
     };
   }
 
@@ -880,8 +943,58 @@ export function createCameraSystem(canvas, dataset) {
   };
 }
 
+/**
+ * Lift only when the camera hop chord passes near buildings taller than eye height.
+ * Clear river stretches (typical 100 m chainage steps) return 0 → straight path.
+ */
+function estimateBuildingTransitLift(from, to, buildings, eyeHeight = 16) {
+  if (!buildings?.length) return 0;
+  const dx = to.x - from.x;
+  const dz = to.z - from.z;
+  const dist = Math.hypot(dx, dz);
+  // Short open-river hops stay flat (100 m slider steps along clear water)
+  if (dist < 45) return 0;
+
+  const pad = 85;
+  const minX = Math.min(from.x, to.x) - pad;
+  const maxX = Math.max(from.x, to.x) + pad;
+  const minZ = Math.min(from.z, to.z) - pad;
+  const maxZ = Math.max(from.z, to.z) + pad;
+  const distSq = dist * dist;
+  let maxClear = 0;
+  let hits = 0;
+
+  for (let i = 0; i < buildings.length; i++) {
+    const b = buildings[i];
+    const bx = b.midX;
+    const bz = b.midZ;
+    if (!Number.isFinite(bx) || !Number.isFinite(bz)) continue;
+    if (bx < minX || bx > maxX || bz < minZ || bz > maxZ) continue;
+
+    const t = THREE.MathUtils.clamp(((bx - from.x) * dx + (bz - from.z) * dz) / distSq, 0, 1);
+    const px = from.x + dx * t;
+    const pz = from.z + dz * t;
+    const lat = Math.hypot(bx - px, bz - pz);
+    // Only buildings that sit near the flight path (not far bank scenery)
+    if (lat > 62) continue;
+
+    const bh = Math.max(8, Number(b.heightM) || 12);
+    if (bh + 6 <= eyeHeight) continue;
+    hits += 1;
+    // Clear the roof with extra air so façades read during the arc
+    maxClear = Math.max(maxClear, bh - eyeHeight + 26);
+  }
+
+  if (!hits) return 0;
+  return THREE.MathUtils.clamp(maxClear, 26, 52);
+}
+
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function easeOutCubic(t) {
+  return 1 - (1 - t) ** 3;
 }
 
 function sceneBounds(dataset) {

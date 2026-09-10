@@ -19,7 +19,15 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   let lastE = null;
   const getDrainageGroup = opts.getDrainageGroup;
   const getDepthZonesGroup = opts.getDepthZonesGroup;
+  const getHydrologyGroup = opts.getHydrologyGroup;
   const getNallaFlow = opts.getNallaFlow;
+  const getRawSurveyLayer = opts.getRawSurveyLayer;
+  const SURVEY_PICK_R2 = 14 * 14;
+  /** After click, keep the compact card visible for ~5 seconds. */
+  let stickySurveyPoint = null;
+  let stickySurveyTimer = 0;
+  let stickySurveyXY = { x: 0, y: 0 };
+  const STICKY_SURVEY_MS = 5000;
 
   function ndc(e) {
     const rect = canvas.getBoundingClientRect();
@@ -55,10 +63,115 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     return null;
   }
 
-  function inspect(e) {
+  function showRawSurveyTooltip(e, pick, surveyLayer) {
+    surveyLayer?.userData?.setSelected?.(pick);
+    const ch = nearestChainage(pick.x, pick.z, dataset.chainage);
+    const waterSurface = SURFACE_Y;
+    const riverbedY = waterSurface - (Number(pick.depth) || 0);
+    const t =
+      (pick.depth - dataset.minDepth) /
+      Math.max(0.001, dataset.maxDepth - dataset.minDepth);
+    state.hover = {
+      lon: pick.lon,
+      lat: pick.lat,
+      x: pick.x,
+      z: pick.z,
+      depth: pick.depth,
+      chainage: ch?.label,
+      rawSurvey: true,
+    };
+    tooltip.show(e.clientX, e.clientY, {
+      rawSurveyPoint: true,
+      pointId: pick.id,
+      lon: pick.lon,
+      lat: pick.lat,
+      depth: pick.depth,
+      riverbedElevation: riverbedY,
+      chainage: ch?.label,
+      chainageM: ch?.meters,
+      color: depthColorHex(t),
+    });
+  }
+
+  function clearStickySurvey() {
+    if (stickySurveyTimer) {
+      window.clearTimeout(stickySurveyTimer);
+      stickySurveyTimer = 0;
+    }
+    stickySurveyPoint = null;
+    getRawSurveyLayer?.()?.userData?.setSelected?.(null);
+  }
+
+  function holdStickySurvey(pick, e) {
+    if (stickySurveyTimer) window.clearTimeout(stickySurveyTimer);
+    stickySurveyPoint = pick;
+    stickySurveyXY = { x: e.clientX, y: e.clientY };
+    stickySurveyTimer = window.setTimeout(() => {
+      stickySurveyTimer = 0;
+      stickySurveyPoint = null;
+      getRawSurveyLayer?.()?.userData?.setSelected?.(null);
+      tooltip.hide();
+      if (state.hover?.rawSurvey) state.hover = null;
+    }, STICKY_SURVEY_MS);
+  }
+
+  function inspect(e, { fromClick = false } = {}) {
     ndc(e);
     const cam = resolveCam();
     raycaster.setFromCamera(pointer, cam);
+
+    // Raw survey: click holds compact card ~5s (mouse move does not clear early)
+    if (state.showRawSurveyPoints && !state.cinematicActive) {
+      const surveyLayer = getRawSurveyLayer?.();
+
+      let wx = null;
+      let wz = null;
+      const planeY = surveyLayer?.userData?.pointY ?? SURFACE_Y + 3;
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -planeY);
+      const pt = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(plane, pt)) {
+        wx = pt.x;
+        wz = pt.z;
+      } else {
+        const planeHit = raycaster.intersectObjects(targets, false)[0];
+        if (planeHit) {
+          wx = planeHit.point.x;
+          wz = planeHit.point.z;
+        }
+      }
+
+      if (wx != null) {
+        const { best, d } = nearest(wx, wz);
+        if (best && d <= SURVEY_PICK_R2) {
+          if (fromClick) {
+            holdStickySurvey(best, e);
+            showRawSurveyTooltip(e, best, surveyLayer);
+          } else if (stickySurveyPoint) {
+            showRawSurveyTooltip(
+              { clientX: stickySurveyXY.x, clientY: stickySurveyXY.y },
+              stickySurveyPoint,
+              surveyLayer,
+            );
+          } else {
+            showRawSurveyTooltip(e, best, surveyLayer);
+          }
+          return;
+        }
+      }
+
+      if (stickySurveyPoint) {
+        showRawSurveyTooltip(
+          { clientX: stickySurveyXY.x, clientY: stickySurveyXY.y },
+          stickySurveyPoint,
+          surveyLayer,
+        );
+        return;
+      }
+
+      surveyLayer?.userData?.setSelected?.(null);
+    } else if (stickySurveyPoint) {
+      clearStickySurvey();
+    }
 
     // Selected chainage hover owns the tooltip — don't replace with water depth
     if (state.chainageTipActive) return;
@@ -128,6 +241,28 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         }
       }
       if (wx != null) {
+        const hydro = getHydrologyGroup?.();
+        if (hydro?.visible && hydro.userData?.getActiveId?.() === "salinity") {
+          const feat = hydro.userData.pickAt?.(wx, wz);
+          if (feat) {
+            tooltip.show(e.clientX, e.clientY, {
+              hydrologySalinity: true,
+              name: feat.name || feat.class_label || "Salinity",
+              class_label: feat.class_label,
+              class: feat.class,
+              range: feat.range,
+              description: feat.description,
+              color: feat.color,
+              localX: feat.x,
+              localZ: feat.z,
+              lon: feat.vertices?.[0]?.lon,
+              lat: feat.vertices?.[0]?.lat,
+            });
+            state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label };
+            return;
+          }
+        }
+
         const dzGroup = getDepthZonesGroup?.();
         const feat = pickDepthZoneAt(dzGroup, wx, wz);
         if (feat) {
@@ -298,8 +433,9 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   }
 
   canvas.addEventListener("pointermove", onMove);
-  canvas.addEventListener("click", inspect);
+  canvas.addEventListener("click", (e) => inspect(e, { fromClick: true }));
   canvas.addEventListener("pointerleave", () => {
+    clearStickySurvey();
     tooltip.hide();
     state.hover = null;
   });

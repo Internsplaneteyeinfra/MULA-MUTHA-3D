@@ -1,0 +1,39 @@
+version: '3.8'
+
+services:
+  # Production service
+  naditwin:
+    build:
+      context: .
+      target: production
+    ports:
+      - "8080:8080"
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8080/api/rivers')"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+  # Development service with all tools
+  naditwin-dev:
+    build:
+      context: .
+      target: dev-tools
+    ports:
+      - "8080:8080"
+    volumes:
+      - .:/app
+      - ./data:/app/data
+    environment:
+      - PYTHONUNBUFFERED=1
+    command: ["run.py", "--port", "8080", "--no-browser"]
+    profiles:
+      - dev
+
+networks:
+  default:
+    driver: bridge

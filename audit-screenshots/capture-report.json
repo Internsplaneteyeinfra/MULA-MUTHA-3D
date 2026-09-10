@@ -1,4 +1,0 @@
-{
-  "capturedAt": "2026-09-01T11:07:20.089Z",
-  "validation": "PROJECTION VALIDATION\n✓\nKML → Terrain\n0.0 m\n✓\nKML → Water mesh\n0.1 m\n✓\nKML → Buildings\n0.0 m\n✓\nKML → Roads\n0.0 m\n✓\nKML → Bridges\n0.0 m\n✓\nKML → Fishing points\n0.0 m\nKML master · WGS84 → EPSG:32643 → ENU · geoReference.js"
-}

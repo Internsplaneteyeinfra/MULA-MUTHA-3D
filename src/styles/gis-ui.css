@@ -1,9 +1,9 @@
-/* GIS dashboard UI — minimal cinematic controls */
+/* GIS dashboard UI — Zoom Earth–style type hierarchy */
 :root {
   --gis-bg: #101A21;
   --gis-panel: rgba(20, 30, 38, 0.94);
-  --gis-text: #F2F7F8;
-  --gis-muted: #9AAAB2;
+  --gis-text: var(--text-primary, #ffffff);
+  --gis-muted: var(--text-muted, #8a9ba8);
   --gis-water: #4BB3D3;
   --gis-active: #F59E0B;
   --gis-success: #5AC878;
@@ -13,6 +13,42 @@
 
 #ui-root.gis-ui {
   z-index: 10;
+  font-family: var(--font-ui);
+  color: var(--gis-text);
+  -webkit-font-smoothing: antialiased;
+}
+
+/* Section / category labels (LIVE MAPS style) */
+.gis-ui .type-section,
+.gis-ui .panel-section-title,
+.gis-ui .layers-section-title,
+.gis-ui .settings-section-title,
+.gis-ui .view-toggle-title {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  letter-spacing: var(--type-section-tracking);
+  text-transform: uppercase;
+  color: var(--text-secondary, #c5d0d8);
+}
+
+/* Menu / control item labels inherit Inter */
+.gis-ui button,
+.gis-ui input,
+.gis-ui select,
+.gis-ui label,
+.gis-ui .map-ctrl-btn,
+.gis-ui .view-toggle-btn,
+.gis-ui .map-ctrl-label {
+  font-family: var(--font-ui);
+}
+
+/* Primary values / titles */
+.gis-ui .type-value,
+.gis-ui .river-data-value,
+.gis-ui .chainage-ruler-selected {
+  font-family: var(--font-ui);
+  font-weight: 700;
+  color: var(--text-primary, #ffffff);
 }
 
 /* —— Project identity (map-first: no dark card) —— */
@@ -93,7 +129,7 @@
   border-radius: 4px;
   background: rgba(8, 14, 18, 0.55);
   color: rgba(255, 255, 255, 0.95);
-  font: 500 10px/1.2 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 10px/1.2 var(--font-ui);
   letter-spacing: 0.02em;
   white-space: nowrap;
   opacity: 0;
@@ -140,7 +176,7 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  font: 500 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 10px/1 var(--font-ui);
   letter-spacing: 0.3px;
   transition: background 140ms ease, border-color 140ms ease, box-shadow 140ms ease, color 140ms ease;
 }
@@ -423,23 +459,26 @@
   margin: 0 4px 2px;
 }
 .section-head-title {
-  font-size: 9px;
-  font-weight: 600;
-  letter-spacing: 0.1em;
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--gis-water);
+  color: var(--text-secondary, #c5d0d8);
 }
 .section-head-sub {
   font-size: 8px;
-  color: var(--gis-muted);
+  color: var(--text-muted, var(--gis-muted));
   opacity: 0.9;
 }
 
 .layers-section-title {
   margin: 4px;
-  font-size: 9px;
-  letter-spacing: 0.1em;
-  color: var(--gis-muted);
+  font-family: var(--font-ui);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  color: var(--text-secondary, var(--gis-muted));
   text-transform: uppercase;
 }
 .layers-divider {
@@ -533,7 +572,7 @@
   color: var(--gis-text);
   border-radius: 6px;
   padding: 4px 8px;
-  font: 500 10px/1.3 "IBM Plex Sans", sans-serif;
+  font: 500 10px/1.3 var(--font-ui);
   cursor: pointer;
 }
 .layers-panel .water-controls-block .ctrl-select:focus {
@@ -557,7 +596,7 @@
   color: var(--gis-muted);
   border-radius: 8px;
   padding: 6px 8px;
-  font: 500 9px/1 "IBM Plex Sans", sans-serif;
+  font: 500 9px/1 var(--font-ui);
   letter-spacing: 0.08em;
   cursor: pointer;
   text-align: left;
@@ -622,7 +661,7 @@
   color: var(--gis-text);
   border-radius: 5px;
   padding: 3px 7px;
-  font: 500 9px/1 "IBM Plex Sans", sans-serif;
+  font: 500 9px/1 var(--font-ui);
   cursor: pointer;
 }
 .exag-row button.active {
@@ -650,7 +689,7 @@
   color: #EAF7FA;
   border-radius: 12px;
   padding: 10px 18px;
-  font: 600 11px/1.2 "IBM Plex Sans", system-ui, sans-serif;
+  font: 600 11px/1.2 var(--font-ui);
   letter-spacing: 0.1em;
   cursor: pointer;
   z-index: 15;
@@ -752,10 +791,10 @@
 
 /* —— Chainage detail + annotations panel (compact premium GIS) —— */
 .chainage-panel {
-  top: 92px;
-  left: 16px;
-  width: min(330px, calc(100vw - 32px));
-  max-height: calc(100vh - 120px);
+  top: clamp(118px, 18vh, 168px);
+  left: calc(max(14px, env(safe-area-inset-left)) + 240px);
+  width: min(300px, calc(100vw - 320px));
+  max-height: calc(100vh - 200px);
   z-index: 28;
   display: flex;
   flex-direction: column;
@@ -837,7 +876,7 @@
   flex: 1;
   min-width: 0;
   text-align: center;
-  font: 650 28px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 650 28px/1 var(--font-ui);
   letter-spacing: 1px;
   color: rgba(255, 255, 255, 0.95);
   user-select: none;
@@ -877,7 +916,7 @@
   color: #fbbf24;
   border-radius: 10px;
   padding: 0 12px;
-  font: 600 12px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 600 12px/1 var(--font-ui);
   letter-spacing: 0.04em;
   cursor: pointer;
   display: inline-flex;
@@ -904,7 +943,7 @@
   border-radius: 999px;
   background: rgba(251, 191, 36, 0.92);
   color: #1a1406;
-  font: 700 10px/18px "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 10px/18px var(--font-ui);
   text-align: center;
 }
 .chainage-panel-notes {
@@ -941,7 +980,7 @@
   background: rgba(8, 14, 18, 0.4);
   color: rgba(243, 247, 248, 0.95);
   padding: 8px;
-  font: 500 11px/1.4 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 11px/1.4 var(--font-ui);
 }
 .chainage-panel-add {
   appearance: none;
@@ -950,7 +989,7 @@
   color: #fbbf24;
   border-radius: 8px;
   padding: 8px 10px;
-  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 10px/1 var(--font-ui);
   letter-spacing: 0.06em;
   cursor: pointer;
 }
@@ -1017,18 +1056,75 @@
   box-shadow: none !important;
 }
 .chainage-ruler-row {
-  display: grid;
-  grid-template-columns: auto 1fr;
-  gap: 10px;
-  align-items: start;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.chainage-ruler-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  flex-wrap: wrap;
 }
 .chainage-ruler-title {
-  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
-  letter-spacing: 0.14em;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: 700 11px/1 var(--font-ui);
+  letter-spacing: 0.12em;
   color: rgba(255, 230, 140, 0.95);
   white-space: nowrap;
-  padding-top: 14px;
+  padding-top: 0;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
+}
+.chainage-ruler-title strong {
+  color: #eaf8fb;
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.04em;
+}
+.chainage-ruler-title-sep {
+  color: rgba(180, 220, 235, 0.45);
+  font-weight: 500;
+}
+.chainage-ruler-step {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border-radius: 8px;
+  border: 1px solid rgba(112, 211, 239, 0.28);
+  background: rgba(8, 22, 31, 0.55);
+  color: #9fe7f6;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.chainage-ruler-step:hover {
+  background: rgba(34, 100, 120, 0.55);
+  border-color: rgba(125, 211, 252, 0.55);
+}
+.chainage-ruler-anno {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  height: 28px;
+  padding: 0 10px;
+  margin-left: 4px;
+  border-radius: 8px;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+  background: rgba(40, 28, 12, 0.45);
+  color: rgba(255, 214, 140, 0.92);
+  font: 600 10px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.chainage-ruler-anno:hover {
+  background: rgba(245, 158, 11, 0.16);
+  border-color: rgba(245, 158, 11, 0.55);
 }
 .chainage-ruler-track {
   position: relative;
@@ -1078,14 +1174,14 @@
   box-shadow: 0 0 2px rgba(0, 0, 0, 0.6);
 }
 .chainage-ruler-label {
-  font: 600 8px/1.15 "IBM Plex Sans", system-ui, sans-serif;
+  font: 600 8px/1.15 var(--font-ui);
   letter-spacing: 0;
   color: rgba(255, 255, 255, 0.95);
   white-space: nowrap;
   text-align: center;
 }
 .chainage-ruler-meters {
-  font: 500 7px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 7px/1 var(--font-ui);
   color: rgba(220, 235, 240, 0.88);
   white-space: nowrap;
   text-align: center;
@@ -1131,7 +1227,7 @@
   border-radius: 3px;
   background: rgba(245, 197, 24, 0.92);
   color: #1a1406;
-  font: 700 9px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 9px/1 var(--font-ui);
   white-space: nowrap;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
 }
@@ -1164,7 +1260,7 @@
   align-items: center;
   gap: 6px;
   color: rgba(230, 240, 245, 0.92);
-  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 10px/1 var(--font-ui);
   letter-spacing: 0.06em;
   white-space: nowrap;
 }
@@ -1180,7 +1276,7 @@
   align-items: center;
   gap: 5px;
   color: rgba(200, 220, 230, 0.75);
-  font: 600 9px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 600 9px/1 var(--font-ui);
   letter-spacing: 0.04em;
 }
 .flood-sim-date input[type="date"] {
@@ -1190,7 +1286,7 @@
   color: #e8f0f4;
   border-radius: 6px;
   padding: 4px 6px;
-  font: 500 11px/1.2 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 11px/1.2 var(--font-ui);
   color-scheme: dark;
 }
 .flood-sim-arrow {
@@ -1204,7 +1300,7 @@
   color: #e8f0f4;
   border-radius: 7px;
   padding: 6px 10px;
-  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 10px/1 var(--font-ui);
   letter-spacing: 0.04em;
   cursor: pointer;
   display: inline-flex;
@@ -1259,7 +1355,7 @@
 .flood-sim-bar__status {
   flex: 1 1 140px;
   min-width: 120px;
-  font: 500 10px/1.3 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 10px/1.3 var(--font-ui);
   color: rgba(200, 220, 230, 0.78);
 }
 .flood-sim-bar__status[data-kind="error"] { color: #fca5a5; }
@@ -1285,7 +1381,7 @@
   align-items: center;
   justify-content: space-between;
   margin-bottom: 8px;
-  font: 700 10px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 700 10px/1 var(--font-ui);
   letter-spacing: 0.06em;
 }
 .flood-info-close {
@@ -1302,7 +1398,7 @@
   justify-content: space-between;
   gap: 10px;
   padding: 3px 0;
-  font: 500 11px/1.35 "IBM Plex Sans", system-ui, sans-serif;
+  font: 500 11px/1.35 var(--font-ui);
   border-bottom: 1px solid rgba(255, 255, 255, 0.05);
 }
 .flood-info-row .k { color: rgba(180, 200, 210, 0.65); }
@@ -1319,7 +1415,7 @@
   color: #e8f0f4;
   border-radius: 7px;
   padding: 7px 8px;
-  font: 600 11px/1 "IBM Plex Sans", system-ui, sans-serif;
+  font: 600 11px/1 var(--font-ui);
   cursor: pointer;
 }
 .flood-info-action:hover {
@@ -1680,9 +1776,250 @@
 #ui-root.gis-ui .gis-brand-mark b { display:block; margin-top:3px; color:#8bd3e4; font-size:12px; letter-spacing:.13em; font-weight:600; }
 #ui-root.gis-ui .gis-brand p { font-size: 14px; }
 #ui-root.gis-ui .gis-brand small { font-size: 12px; }
-.analytics-controls { position:fixed; left:clamp(290px, 24vw, 520px); top:max(14px, env(safe-area-inset-top)); z-index:20; display:flex; gap:6px; pointer-events:auto; }
-.analytics-controls button { display:inline-flex; align-items:center; gap:6px; min-height:34px; padding:7px 10px; color:#dff8ff; background:rgba(10,28,39,.78); border:1px solid rgba(107,210,235,.24); border-radius:8px; font:600 12px/1.1 "IBM Plex Sans", system-ui, sans-serif; cursor:pointer; }
-.analytics-controls button:hover { background:rgba(22,67,86,.9); border-color:rgba(120,225,246,.62); }
+.analytics-controls,
+.top-navigation {
+  position: fixed;
+  left: 50%;
+  top: max(14px, env(safe-area-inset-top));
+  transform: translateX(-50%);
+  z-index: 20;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: calc(100vw - 520px);
+  pointer-events: auto;
+}
+.analytics-controls .nav-button,
+.top-navigation .nav-button,
+.analytics-controls > button {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  box-sizing: border-box;
+  height: 36px;
+  min-height: 36px;
+  min-width: 118px;
+  padding: 0 14px;
+  color: rgba(223, 248, 255, 0.9);
+  background: rgba(8, 22, 31, 0.72);
+  border: 1px solid rgba(107, 210, 235, 0.22);
+  border-radius: 9px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  font: 600 12px/1 var(--font-ui);
+  letter-spacing: 0.02em;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+}
+.analytics-controls .nav-button-icon {
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  flex: 0 0 16px;
+  color: inherit;
+}
+.analytics-controls .nav-button-label {
+  white-space: nowrap;
+}
+.analytics-controls .nav-button:hover,
+.analytics-controls > button:hover {
+  background: rgba(22, 67, 86, 0.88);
+  border-color: rgba(120, 225, 246, 0.55);
+  color: #eaf8fb;
+}
+.analytics-controls .nav-button.active,
+.analytics-controls .nav-button[aria-pressed="true"] {
+  color: #dff9ff;
+  background: rgba(20, 78, 98, 0.82);
+  border-color: rgba(91, 200, 232, 0.72);
+  box-shadow: 0 0 0 1px rgba(91, 200, 232, 0.28), 0 0 14px rgba(56, 189, 248, 0.18);
+}
+
+/* Compact River Data + attached profile popup */
+.river-data-panel {
+  position: absolute;
+  left: max(14px, env(safe-area-inset-left));
+  top: clamp(118px, 18vh, 168px);
+  z-index: 18;
+  width: min(228px, calc(100vw - 120px));
+  padding: 12px 12px 10px;
+  border: 1px solid rgba(112, 211, 239, 0.22);
+  border-radius: 12px;
+  background: rgba(8, 22, 31, 0.78);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+}
+.river-data-heading {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  color: #79d8ef;
+  font-size: 11px;
+  letter-spacing: 0.14em;
+  font-weight: 700;
+}
+.river-data-station {
+  margin: 8px 0 10px;
+  color: #f0fbff;
+  font: 600 22px/1.05 ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.river-data-rows {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.river-data-row {
+  appearance: none;
+  display: grid;
+  grid-template-columns: 22px 1fr auto 16px;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  min-height: 36px;
+  padding: 6px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(112, 211, 239, 0.16);
+  background: rgba(6, 18, 26, 0.45);
+  color: rgba(215, 235, 241, 0.78);
+  text-align: left;
+  cursor: pointer;
+  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+}
+.river-data-row:hover {
+  background: rgba(28, 101, 123, 0.28);
+  border-color: rgba(113, 225, 243, 0.4);
+  color: #eaf8fb;
+}
+.river-data-row.is-active {
+  background: rgba(28, 101, 123, 0.38);
+  border-color: rgba(91, 200, 232, 0.62);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.12);
+  color: #eaf8fb;
+}
+.river-data-row-icon {
+  display: grid;
+  place-items: center;
+  color: #8de9fb;
+}
+.river-data-row-label {
+  font: 600 12px/1 var(--font-ui);
+}
+.river-data-row-value {
+  font: 600 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #eaf8fb;
+}
+.river-data-row-action {
+  display: grid;
+  place-items: center;
+  color: rgba(141, 233, 251, 0.75);
+  transition: transform 180ms ease;
+}
+.river-data-row.is-active .river-data-row-action {
+  transform: rotate(90deg);
+}
+
+.river-profile-popup {
+  position: absolute;
+  left: 0;
+  top: calc(100% + 8px);
+  z-index: 25;
+  width: min(340px, calc(100vw - 28px));
+  opacity: 0;
+  transform: translateY(-8px);
+  pointer-events: none;
+  transition: opacity 240ms ease, transform 240ms ease;
+}
+.river-profile-popup.is-open {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.river-profile-popup[hidden] {
+  display: none;
+}
+.river-profile-popup-inner {
+  padding: 12px 12px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(112, 211, 239, 0.28);
+  background: rgba(6, 18, 26, 0.94);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+}
+.river-profile-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.river-profile-title {
+  margin: 0;
+  color: #8ce5f6;
+  font: 700 12px/1.2 var(--font-ui);
+  letter-spacing: 0.12em;
+}
+.river-profile-meta {
+  margin: 6px 0 0;
+  color: rgba(220, 240, 245, 0.72);
+  font-size: 11px;
+}
+.river-profile-meta strong {
+  color: #eaf8fb;
+  font-weight: 600;
+}
+.river-profile-sep {
+  margin: 0 4px;
+  opacity: 0.5;
+}
+.river-profile-close {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #dff8ff;
+  cursor: pointer;
+}
+.river-profile-close:hover {
+  background: rgba(120, 200, 220, 0.12);
+}
+.river-profile-chart {
+  min-height: 118px;
+}
+.river-profile-svg {
+  display: block;
+  width: 100%;
+  height: 118px;
+}
+.river-profile-tick {
+  fill: rgba(180, 210, 220, 0.65);
+  font: 500 9px/1 var(--font-ui);
+}
+.river-profile-axes {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  color: rgba(180, 210, 220, 0.55);
+  font-size: 10px;
+  letter-spacing: 0.04em;
+}
+.river-profile-empty {
+  margin: 18px 0;
+  color: rgba(220, 240, 245, 0.65);
+  font-size: 12px;
+  text-align: center;
+}
+
 .river-data-action-value { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
 .river-data-icon { display:grid; place-items:center; width:27px; height:27px; padding:0; color:#8de9fb; background:rgba(28,101,123,.42); border:1px solid rgba(113,225,243,.35); border-radius:6px; cursor:pointer; }
 .river-data-icon:hover { background:rgba(34,137,164,.7); }
@@ -1693,24 +2030,144 @@
 .river-analysis-modal p { margin:9px 0; color:rgba(220,240,245,.72); font-size:13px; }
 .river-analysis-modal p b { display:inline-block; min-width:145px; color:#f3fbfd; }
 .river-analysis-close { position:absolute; top:9px; right:9px; display:grid; place-items:center; width:30px; height:30px; padding:0; color:#dff8ff; background:transparent; border:0; cursor:pointer; }
-.analytics-modal { width:min(520px,calc(100vw - 32px)); }
+.analytics-modal { width:min(560px,calc(100vw - 32px)); }
 .analytics-status,.analytics-unavailable,.analytics-note { color:rgba(220,240,245,.72); font-size:13px; }
 .analytics-unavailable { color:#ffc4a8; }
 .model-badge { color:#8fe7fa; font-size:12px; letter-spacing:.08em; }
 .analytics-chart { margin:14px 0; padding:8px; border:1px solid rgba(113,220,241,.16); border-radius:8px; background:rgba(2,12,18,.36); }
 .analytics-chart svg { display:block; width:100%; height:110px; }
 .analytics-chart small { color:rgba(220,240,245,.65); font-size:11px; }
+.forecast-chart.analytics-chart svg { height: 200px; }
+.forecast-panel { display: grid; gap: 10px; }
+.forecast-subtitle { margin: 0 !important; color: rgba(220,240,245,.7); font-size: 12px !important; }
+.forecast-horizons {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+.forecast-horizons-label {
+  margin-right: 4px;
+  color: rgba(180, 210, 220, 0.7);
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.forecast-horizon-btn {
+  appearance: none;
+  min-width: 44px;
+  height: 28px;
+  padding: 0 10px;
+  border-radius: 7px;
+  border: 1px solid rgba(112, 211, 239, 0.22);
+  background: rgba(8, 22, 31, 0.55);
+  color: rgba(223, 248, 255, 0.88);
+  font: 600 12px/1 var(--font-ui);
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease;
+}
+.forecast-horizon-btn:hover {
+  border-color: rgba(125, 211, 252, 0.5);
+  background: rgba(28, 101, 123, 0.35);
+}
+.forecast-horizon-btn.is-active {
+  color: #eaf8fb;
+  border-color: rgba(91, 200, 232, 0.7);
+  background: rgba(28, 101, 123, 0.5);
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.16);
+}
+.forecast-meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  color: rgba(200, 225, 235, 0.72);
+  font-size: 12px;
+}
+.forecast-meta strong {
+  color: #eaf8fb;
+  font-weight: 600;
+  min-width: 0 !important;
+  display: inline !important;
+}
+.forecast-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  font-size: 11px;
+  color: rgba(200, 225, 235, 0.75);
+}
+.forecast-leg::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+.forecast-leg--med::before { background: #5bc8e8; height: 3px; }
+.forecast-leg--p10::before,
+.forecast-leg--p90::before {
+  background: rgba(125, 211, 252, 0.7);
+  border-top: 1px dashed rgba(125, 211, 252, 0.9);
+  height: 0;
+  box-shadow: 0 1px 0 rgba(125, 211, 252, 0.5);
+}
+.forecast-tick {
+  fill: rgba(180, 210, 220, 0.65);
+  font: 500 10px/1 var(--font-ui);
+}
+.forecast-axis-label {
+  fill: rgba(180, 210, 220, 0.55);
+  font: 500 10px/1 var(--font-ui);
+}
+.forecast-sel-label {
+  fill: #fbbf24;
+  font: 700 11px/1 var(--font-mono);
+}
+.forecast-retry {
+  appearance: none;
+  margin-top: 8px;
+  height: 32px;
+  padding: 0 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(112, 211, 239, 0.35);
+  background: rgba(28, 101, 123, 0.4);
+  color: #dff8ff;
+  font: 600 12px/1 var(--font-ui);
+  cursor: pointer;
+}
+.forecast-retry:hover {
+  background: rgba(34, 137, 164, 0.55);
+}
 .weather-copy small { display:block; margin-top:3px; color:rgba(178,211,220,.72); font-size:11px; }
 .river-data-grid > span, .river-data-grid > b { white-space: nowrap; }
 .river-data-grid > b { overflow: hidden; text-overflow: ellipsis; }
 .river-data-action-value { min-width: 126px; }
 .weather-widget { min-height: 94px; }
-.analytics-controls { left: clamp(390px, 28vw, 650px); max-width: calc(100vw - 700px); overflow: hidden; }
-@media (max-width: 1200px) { .analytics-controls { left: 390px; max-width: calc(100vw - 650px); gap:4px; } .analytics-controls button { padding-inline:8px; } }
-@media (max-width: 900px) { .chainage-ruler-tick.is-sparse { display:none; } .analytics-controls { left:260px; max-width:calc(100vw - 360px); } }
-@media (max-width: 640px) { .weather-widget { min-height:42px; } .analytics-controls { left:10px; max-width:calc(100vw - 20px); } }
-@media (max-width: 900px) { .analytics-controls { left:260px; } .analytics-controls span { display:none; } .analytics-controls button { width:34px; justify-content:center; padding:7px; } }
-@media (max-width: 640px) { .analytics-controls { left:10px; top:76px; } }
+@media (max-width: 1200px) {
+  .analytics-controls, .top-navigation { max-width: calc(100vw - 460px); gap: 6px; }
+  .analytics-controls .nav-button { min-width: 104px; padding: 0 10px; }
+}
+@media (max-width: 900px) {
+  .chainage-ruler-tick.is-sparse { display:none; }
+  .analytics-controls, .top-navigation { max-width: calc(100vw - 280px); }
+  .analytics-controls .nav-button-label { display: none; }
+  .analytics-controls .nav-button { min-width: 36px; width: 36px; padding: 0; }
+}
+@media (max-width: 640px) {
+  .weather-widget { min-height:42px; }
+  .analytics-controls, .top-navigation { left: 10px; right: auto; transform: none; top: 76px; max-width: calc(100vw - 20px); }
+  .river-data-panel { left:10px; top:150px; width:min(205px,calc(100vw - 90px)); padding:10px; }
+  .river-data-station { font-size:18px; }
+  .river-profile-popup { width: min(300px, calc(100vw - 20px)); }
+  .chainage-panel {
+    left: 10px;
+    top: auto;
+    bottom: 110px;
+    width: min(300px, calc(100vw - 20px));
+  }
+}
 #ui-root.gis-ui .weather-copy strong { font-size: 13px; }
 #ui-root.gis-ui .weather-copy span { font-size: 14px; }
 #ui-root.gis-ui .weather-copy b { font-size: 18px; }
@@ -1724,10 +2181,10 @@
 #ui-root.gis-ui .chainage-ruler-cursor-label { font-size: 13px; }
 #ui-root.gis-ui .depth-legend strong { font-size: 14px; }
 #ui-root.gis-ui .depth-ticks { font-size: 13px; }
-#ui-root.gis-ui .river-data-heading { font-size: 14px; }
-#ui-root.gis-ui .river-data-station { font-size: 27px; }
-#ui-root.gis-ui .river-data-grid { font-size: 14px; }
-#ui-root.gis-ui .river-data-grid b:last-child { font-size: 12px; }
+#ui-root.gis-ui .river-data-heading { font-size: 12px; }
+#ui-root.gis-ui .river-data-station { font-size: 22px; }
+#ui-root.gis-ui .river-data-row-label,
+#ui-root.gis-ui .river-data-row-value { font-size: 12px; }
 #ui-root.gis-ui .layers-panel .lp-section-title { font-size: 15px; }
 #ui-root.gis-ui .layers-panel .lp-slider-label,
 #ui-root.gis-ui .layers-panel .lp-select-wrap,
@@ -1740,35 +2197,30 @@
 @media (max-width: 640px) {
   #ui-root.gis-ui .gis-brand strong { font-size: 16px; }
   #ui-root.gis-ui .gis-brand p { font-size: 12px; }
-  #ui-root.gis-ui .river-data-station { font-size: 23px; }
-  #ui-root.gis-ui .river-data-grid { font-size: 12px; }
+  #ui-root.gis-ui .river-data-station { font-size: 20px; }
 }
 
-.river-data-panel {
-  position: absolute;
-  left: max(14px, env(safe-area-inset-left));
-  top: clamp(210px, 32vh, 330px);
-  z-index: 18;
-  width: min(230px, calc(100vw - 120px));
-  padding: 12px 13px;
-  border: 1px solid rgba(112, 211, 239, 0.22);
-  background: rgba(8, 22, 31, 0.78);
-  backdrop-filter: blur(14px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
-}
 .chainage-ruler-input { position:absolute; left:0; right:0; top:18px; z-index:5; width:100%; height:18px; margin:0; appearance:none; background:transparent; cursor:ew-resize; }
 .chainage-ruler-input::-webkit-slider-runnable-track { height:4px; background:rgba(116,215,238,.18); border-radius:999px; }
 .chainage-ruler-input::-moz-range-track { height:4px; background:rgba(116,215,238,.18); border-radius:999px; }
 .chainage-ruler-input::-webkit-slider-thumb { width:14px; height:14px; margin-top:-5px; appearance:none; border:2px solid #b9f5ff; border-radius:50%; background:#168eac; box-shadow:0 0 0 3px rgba(71,210,239,.2); }
 .chainage-ruler-input::-moz-range-thumb { width:11px; height:11px; border:2px solid #b9f5ff; border-radius:50%; background:#168eac; box-shadow:0 0 0 3px rgba(71,210,239,.2); }
 .chainage-ruler-tick { z-index:6; }
-.river-data-heading { display:flex; align-items:center; gap:7px; color:#79d8ef; font-size:10px; letter-spacing:.14em; font-weight:700; }
-.river-data-station { margin:8px 0 10px; color:#f0fbff; font:600 22px/1.05 ui-monospace, SFMono-Regular, Consolas, monospace; }
-.river-data-grid { display:grid; grid-template-columns:1fr auto; gap:7px 10px; color:rgba(215,235,241,.62); font-size:10px; }
-.river-data-grid b { color:#eaf8fb; font-weight:600; text-align:right; max-width:145px; }
-.river-data-grid b:last-child { font-size:9px; }
-@media (max-height: 820px) { .river-data-panel { top:190px; } }
-@media (max-width: 640px) { .river-data-panel { left:10px; top:150px; width:min(205px,calc(100vw - 90px)); padding:10px; } .river-data-station { font-size:18px; } }
+.chainage-ruler-tick.is-active .chainage-ruler-label,
+.chainage-ruler-tick.active .chainage-ruler-label {
+  color: #dff9ff;
+  font-weight: 700;
+}
+@media (max-height: 720px) {
+  .river-profile-popup {
+    top: auto;
+    bottom: calc(100% + 8px);
+    transform: translateY(8px);
+  }
+  .river-profile-popup.is-open {
+    transform: translateY(0);
+  }
+}
 
 /* Readability pass: make the inspection HUD comfortable to read at map scale. */
 #ui-root.gis-ui { font-size: 14px; }
@@ -1782,16 +2234,12 @@
 #ui-root.gis-ui .map-ctrl-label { font-size: 12px; }
 #ui-root.gis-ui .view-toggle-title { font-size: 10px; }
 #ui-root.gis-ui .view-toggle-btn { font-size: 12px; }
-#ui-root.gis-ui .chainage-ruler-title { font-size: 13px; }
+#ui-root.gis-ui .chainage-ruler-title { font-size: 12px; }
 #ui-root.gis-ui .chainage-ruler-label { font-size: 11px; }
 #ui-root.gis-ui .chainage-ruler-meters { font-size: 10px; }
 #ui-root.gis-ui .chainage-ruler-cursor-label { font-size: 11px; }
 #ui-root.gis-ui .depth-legend strong { font-size: 12px; }
 #ui-root.gis-ui .depth-ticks { font-size: 11px; }
-#ui-root.gis-ui .river-data-heading { font-size: 12px; }
-#ui-root.gis-ui .river-data-station { font-size: 24px; }
-#ui-root.gis-ui .river-data-grid { font-size: 12px; }
-#ui-root.gis-ui .river-data-grid b:last-child { font-size: 10px; }
 #ui-root.gis-ui .layers-panel { font-size: 14px; }
 #ui-root.gis-ui .layers-panel .lp-section-title { font-size: 13px; }
 #ui-root.gis-ui .layers-panel .lp-slider-label,
@@ -1805,8 +2253,8 @@
 @media (max-width: 640px) {
   #ui-root.gis-ui .gis-brand strong { font-size: 14px; }
   #ui-root.gis-ui .gis-brand p { font-size: 11px; }
-  #ui-root.gis-ui .river-data-station { font-size: 20px; }
-  #ui-root.gis-ui .river-data-grid { font-size: 11px; }
+  #ui-root.gis-ui .river-data-station { font-size: 18px; }
+  .chainage-ruler-anno span { display: none; }
 }
 
 /* Fixed HUD layout: the scene moves underneath this viewport layer. */
@@ -1863,7 +2311,7 @@
 .weather-copy span { display: flex; align-items: baseline; gap: 7px; font-size: 10px; color: rgba(178, 211, 220, .72); }
 .weather-copy b { color: #e9f8fb; font-size: 13px; font-weight: 600; }
 .weather-copy i { font-style: normal; }
-.weather-time { padding-left: 9px; border-left: 1px solid rgba(193, 225, 234, .16); color: #a7dfea; font: 500 11px/1 "IBM Plex Mono", monospace; }
+.weather-time { padding-left: 9px; border-left: 1px solid rgba(193, 225, 234, .16); color: #a7dfea; font: 500 11px/1 var(--font-mono); }
 
 .gis-tools-stack {
   top: clamp(104px, 13vh, 132px);
@@ -1880,9 +2328,9 @@
   box-shadow: 0 7px 18px rgba(0, 0, 0, .14);
   backdrop-filter: blur(12px);
 }
-.view-toggle-title { display: block; margin-bottom: 5px; text-align: center; color: rgba(184, 216, 225, .58); font: 600 8px/1 "IBM Plex Mono", monospace; letter-spacing: .1em; }
+.view-toggle-title { display: block; margin-bottom: 5px; text-align: center; color: rgba(184, 216, 225, .58); font: 600 8px/1 var(--font-mono); letter-spacing: .1em; }
 .view-toggle-segment { display: grid; grid-template-columns: 1fr 1fr; gap: 2px; padding: 2px; border-radius: 6px; background: rgba(0, 0, 0, .18); }
-.view-toggle-btn { appearance: none; min-width: 0; height: 25px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: rgba(206, 226, 232, .66); font: 600 10px/1 "IBM Plex Sans", sans-serif; cursor: pointer; transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease; }
+.view-toggle-btn { appearance: none; min-width: 0; height: 25px; padding: 0; border: 0; border-radius: 4px; background: transparent; color: rgba(206, 226, 232, .66); font: 600 10px/1 var(--font-ui); cursor: pointer; transition: background 160ms ease, color 160ms ease, box-shadow 160ms ease; }
 .view-toggle-btn:hover { color: #dff9ff; background: rgba(77, 189, 220, .12); }
 .view-toggle-btn.active { color: #e8fcff; background: rgba(48, 174, 210, .46); box-shadow: 0 0 10px rgba(56, 189, 248, .16); }
 
@@ -1919,4 +2367,312 @@
   .gis-tools-stack { top: 64px; right: 10px !important; width: 58px; }
   .view-toggle { width: 58px; }
   .gis-ui .chainage-ruler { bottom: 6px; width: calc(100vw - 12px); }
+}
+
+/* Hydrology thematic UI */
+.hydro-panel { display: grid; gap: 10px; }
+.hydro-cat-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px; }
+.hydro-cat-btn {
+  text-align: left; border-radius: 8px; border: 1px solid rgba(120, 200, 220, 0.28);
+  background: rgba(12, 40, 55, 0.72); color: #d7f3fa; padding: 10px 12px;
+  font: 650 11px/1.2 var(--font-ui); letter-spacing: 0.04em; cursor: pointer;
+}
+.hydro-cat-btn:hover { border-color: rgba(120, 225, 246, 0.55); background: rgba(22, 67, 86, 0.88); }
+.hydro-cat-btn.is-active {
+  color: #dff9ff; background: rgba(20, 78, 98, 0.82);
+  border-color: rgba(91, 200, 232, 0.72);
+  box-shadow: 0 0 0 1px rgba(91, 200, 232, 0.28);
+}
+.hydro-status { font-size: 12px; color: rgba(220,240,245,.78); }
+.hydro-unavail {
+  border: 1px solid rgba(120, 200, 220, 0.22); border-radius: 8px;
+  padding: 10px 12px; background: rgba(8, 28, 40, 0.55);
+}
+.hydro-unavail strong { display: block; margin-bottom: 6px; color: #e8fcff; letter-spacing: 0.03em; }
+.hydro-unavail p { margin: 0; color: rgba(178,211,220,.78); line-height: 1.45; }
+.hydro-legend-hud {
+  position: absolute; left: max(14px, env(safe-area-inset-left));
+  bottom: clamp(88px, 12vh, 140px); z-index: 40;
+  width: min(280px, calc(100vw - 28px));
+  padding: 10px 12px; border-radius: 12px;
+  background: rgba(8, 24, 34, 0.82); border: 1px solid rgba(120, 200, 220, 0.28);
+  backdrop-filter: blur(10px); color: #dff8ff;
+  box-shadow: 0 10px 28px rgba(0,0,0,.28);
+}
+.hydro-legend-hud-title {
+  font: 700 11px/1 var(--font-ui);
+  letter-spacing: 0.08em; margin-bottom: 8px; color: #9fe6f5;
+}
+.hydro-legend-hud-img { display: block; width: 100%; height: auto; border-radius: 6px; }
+.hydro-legend-hud-row { display: flex; align-items: center; gap: 8px; font-size: 11px; margin: 4px 0; color: rgba(220,240,245,.86); }
+.hydro-swatch { width: 14px; height: 10px; border-radius: 2px; border: 1px solid rgba(255,255,255,.25); flex-shrink: 0; }
+.hydro-legend-clear {
+  margin-top: 8px; width: 100%; border-radius: 7px; border: 1px solid rgba(120, 200, 220, 0.35);
+  background: rgba(28, 101, 123, 0.35); color: #dff8ff; padding: 7px 10px;
+  font: 600 11px/1 var(--font-ui); cursor: pointer;
+}
+.hydro-legend-clear:hover { background: rgba(34, 137, 164, 0.5); }
+
+/* ═══════════════════════════════════════════════════════════
+   Geology workspace — horizontal glass overlay (reference UI)
+   ═══════════════════════════════════════════════════════════ */
+.geology-workspace {
+  position: fixed;
+  left: 50%;
+  top: calc(max(14px, env(safe-area-inset-top)) + 48px);
+  transform: translateX(-50%);
+  z-index: 19;
+  width: min(1180px, calc(100vw - 36px));
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  pointer-events: none;
+}
+.geology-workspace[hidden] {
+  display: none !important;
+}
+.geology-workspace > * {
+  pointer-events: auto;
+}
+.geo-glass {
+  background: rgba(255, 255, 255, 0.16);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  border-radius: 16px;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+}
+
+.geology-module-row {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  padding: 12px 16px;
+  min-height: 72px;
+}
+.geology-intro {
+  flex: 0 1 260px;
+  min-width: 180px;
+}
+.geology-intro-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.geology-intro-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  color: #eaf8ff;
+  background: rgba(56, 189, 248, 0.22);
+  border: 1px solid rgba(125, 211, 252, 0.45);
+}
+.geology-intro-title {
+  margin: 0;
+  font: 700 15px/1.1 var(--font-ui);
+  letter-spacing: 0.04em;
+  color: #ffffff;
+  text-transform: uppercase;
+}
+.geology-intro-sub {
+  margin: 6px 0 0;
+  font: 500 11px/1.4 var(--font-ui);
+  color: rgba(232, 244, 250, 0.78);
+  max-width: 280px;
+}
+.geology-modules {
+  flex: 1 1 auto;
+  display: grid;
+  grid-template-columns: repeat(6, minmax(0, 1fr));
+  gap: 8px;
+  min-width: 0;
+}
+.geology-module-btn {
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  min-height: 62px;
+  padding: 8px 6px 7px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.12);
+  color: #f4fafc;
+  cursor: pointer;
+  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+}
+.geology-module-btn:hover {
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.45);
+  transform: translateY(-1px);
+}
+.geology-module-btn.is-active {
+  background: rgba(56, 189, 248, 0.22);
+  border-color: rgba(103, 232, 249, 0.85);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 18px rgba(34, 211, 238, 0.35);
+}
+.geology-module-icon {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+}
+.geology-module-label {
+  font: 600 10px/1.15 var(--font-ui);
+  letter-spacing: 0.02em;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.92);
+}
+.geology-module-chip {
+  position: absolute;
+  top: 5px;
+  right: 5px;
+  padding: 2px 5px;
+  border-radius: 999px;
+  font: 700 7px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #083344;
+  background: rgba(125, 211, 252, 0.9);
+}
+
+.geology-lithology-row {
+  display: grid;
+  grid-template-columns: repeat(8, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px 12px;
+}
+.geology-litho-card {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-height: 58px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  background: rgba(255, 255, 255, 0.14);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+}
+.geology-litho-icon {
+  flex: 0 0 auto;
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.35));
+}
+.geology-litho-text {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.geology-litho-name {
+  font: 600 9px/1.2 var(--font-ui);
+  color: rgba(240, 248, 252, 0.86);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.geology-litho-pct {
+  font: 700 15px/1 var(--font-ui);
+  color: #ffffff;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+
+.geology-status {
+  padding: 10px 14px;
+  color: rgba(236, 248, 252, 0.9);
+  font: 500 12px/1.4 var(--font-ui);
+}
+.geology-status strong {
+  display: block;
+  margin-bottom: 2px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  font-size: 11px;
+}
+.geology-status p {
+  margin: 0;
+  color: rgba(220, 236, 242, 0.78);
+}
+.geology-bathy-dash {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+.geology-bathy-icon {
+  display: grid;
+  place-items: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: rgba(125, 211, 252, 0.2);
+  border: 1px solid rgba(125, 211, 252, 0.45);
+}
+
+/* Push left panels down so geology rows stay clear of River Data */
+#ui-root.gis-ui.geology-open .river-data-panel {
+  top: clamp(210px, 28vh, 300px);
+}
+#ui-root.gis-ui.geology-open .weather-widget {
+  top: max(14px, env(safe-area-inset-top));
+}
+
+/* Compact top nav for 6 items */
+.analytics-controls .nav-button,
+.top-navigation .nav-button {
+  min-width: 0;
+  padding: 0 11px;
+  height: 34px;
+  min-height: 34px;
+  background: rgba(255, 255, 255, 0.14);
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+.analytics-controls .nav-button.active,
+.analytics-controls .nav-button[aria-pressed="true"] {
+  background: rgba(56, 189, 248, 0.28);
+  border-color: rgba(103, 232, 249, 0.75);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25), 0 0 16px rgba(34, 211, 238, 0.28);
+}
+
+@media (max-width: 1100px) {
+  .geology-module-row {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  .geology-intro {
+    flex: none;
+    max-width: none;
+  }
+  .geology-intro-sub {
+    max-width: none;
+  }
+  .geology-lithology-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+}
+@media (max-width: 720px) {
+  .geology-modules {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+  .geology-lithology-row {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .analytics-controls .nav-button-label {
+    display: none;
+  }
+  .analytics-controls .nav-button {
+    min-width: 36px;
+    padding: 0 8px;
+  }
 }

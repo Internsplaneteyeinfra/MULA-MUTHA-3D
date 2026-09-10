@@ -187,10 +187,23 @@ export function mountChainagePanel(root, dataset) {
     renderNotes(currentMeters);
   });
 
+  // Do not auto-open this panel on every chainage change (keeps map-first default).
+  // Sync silently while closed; open only when already visible or explicitly requested.
   document.addEventListener("chainage-select", (e) => {
     const m = e.detail?.meters;
     if (m == null) return;
+    if (e.detail?.openPanel || !el.hidden) {
+      open(m);
+      return;
+    }
+    currentMeters = m;
+  });
+
+  document.addEventListener("chainage-panel-open", (e) => {
+    const m = e.detail?.meters ?? state.selectedChainageMeters ?? sortedChainage(dataset)[0]?.meters;
+    if (m == null) return;
     open(m);
+    if (e.detail?.notes) setNotesOpen(true);
   });
 
   return {

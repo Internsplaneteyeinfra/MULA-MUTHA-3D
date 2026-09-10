@@ -92,7 +92,7 @@ export const state = {
   nallaFlowSpeed: 0.65,
   /** Jul 2026 depth-class polygons (1.5–2.0 m) — Layers → Depth zones (glassy). */
   showDepthZones: false,
-  /** Raw Excel/CSV survey points — opt-in, batched as one GPU point cloud. */
+  /** Raw Excel/CSV survey points — removed from Layers UI; kept off. */
   showRawSurveyPoints: false,
   /** Glassy depth-zone animation on when layer is visible. */
   glassyAnimatedFlow: true,

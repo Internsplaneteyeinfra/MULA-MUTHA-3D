@@ -115,21 +115,25 @@ export function pointAlongRiver(stations, u, distanceM) {
 }
 
 /**
- * Locked Chainage camera profile: high aerial looking FORWARD along the river.
- * Same height / back-distance / look-ahead / tilt at every station.
- * Only yaw follows the local centerline tangent (curves rotate the view).
+ * Locked Chainage camera — eye-level boat / corridor view (reference screenshot).
  *
- * camera = P - dir * CAMERA_DISTANCE + UP * CAMERA_HEIGHT
- * look   = P + dir * LOOK_AHEAD_DISTANCE  (slightly above water)
+ * CRITICAL vs top-down aerial:
+ *   - very low height (≈12–22 m) so banks fill the sides like the reference
+ *   - look nearly horizontal (lookY ≈ camera eye) so horizon sits mid-frame
+ *   - back distance keeps marker in mid-foreground, never under the camera
+ *
+ *   camera = P - D*BACK + UP*HEIGHT + side*LATERAL
+ *   target = P + D*AHEAD  at near-eye height (not lookAt(P))
  */
 export function chainageGisAerialPose(stations, {
   u,
   x,
   z,
-  cameraHeight = 380,
-  cameraDistance = 420,
-  lookAheadDistance = 520,
-  lookY = SURFACE_Y + 28,
+  cameraHeight = 16,
+  cameraDistance = 55,
+  lookAheadDistance = 180,
+  lookY = SURFACE_Y + 12,
+  lateralOffset = 0,
   outP,
   outL,
   outUp,
@@ -141,19 +145,34 @@ export function chainageGisAerialPose(stations, {
   uu = THREE.MathUtils.clamp(uu ?? 0.5, 0, 0.995);
 
   const st = stationAt(stations, uu);
-  // Prefer explicit selected XZ when provided (exact marker), else station sample
   const px = Number.isFinite(x) ? x : st.x;
   const pz = Number.isFinite(z) ? z : st.z;
 
-  // Local river direction from nearby centerline (prev → next)
-  const tan = smoothTangent(stations, uu, 0.025);
-  const h = cameraHeight;
-  const back = cameraDistance;
-  const ahead = pointAlongRiver(stations, uu, lookAheadDistance);
+  // Local river direction from prev→next centerline (not world axes)
+  const tan = smoothTangent(stations, uu, 0.045);
+  const sideX = -tan.z;
+  const sideZ = tan.x;
 
-  outP.set(px - tan.x * back, SURFACE_Y + h, pz - tan.z * back);
-  // Look ahead along the river — not straight down at the marker
-  outL.set(ahead.x, lookY, ahead.z);
+  // Eye-level corridor band (reference): stay above water, never aerial
+  const h = THREE.MathUtils.clamp(cameraHeight, 10, 28);
+  let back = THREE.MathUtils.clamp(cameraDistance, 35, 100);
+  if (back < h * 2.5) back = h * 3; // marker clearly ahead in mid-foreground
+  const aheadDist = THREE.MathUtils.clamp(lookAheadDistance, 100, 280);
+  const lateral = THREE.MathUtils.clamp(lateralOffset, -25, 25);
+  // Keep look nearly level with the camera so horizon stays mid-frame
+  const eyeLookY = Number.isFinite(lookY) ? lookY : SURFACE_Y + Math.max(8, h * 0.75);
+
+  outP.set(
+    px - tan.x * back + sideX * lateral,
+    SURFACE_Y + h,
+    pz - tan.z * back + sideZ * lateral,
+  );
+  // Far forward look along D — yellow centerline runs bottom→horizon
+  outL.set(
+    px + tan.x * aheadDist,
+    eyeLookY,
+    pz + tan.z * aheadDist,
+  );
   if (outUp) outUp.set(0, 1, 0);
   return tan;
 }

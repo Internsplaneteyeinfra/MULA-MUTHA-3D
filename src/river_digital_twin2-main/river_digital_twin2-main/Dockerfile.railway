@@ -1,0 +1,20 @@
+# Railway-optimized Dockerfile for NadiTwin Project
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Copy application files (no external dependencies needed for runtime)
+COPY naditwin/ ./naditwin/
+COPY run.py .
+COPY data/ ./data/
+
+# Create non-root user
+RUN useradd -m -u 1000 railway && chown -R railway:railway /app
+USER railway
+
+# Railway will provide PORT via environment variable
+EXPOSE $PORT
+
+# Start command - Railway will inject PORT automatically
+CMD ["python", "run.py", "--no-browser"]

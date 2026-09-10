@@ -133,7 +133,7 @@ function makeFishingLabel(text) {
   ctx.lineWidth = 3;
   ctx.strokeRect(12, 10, 296, 52);
   ctx.fillStyle = "#e8f8fc";
-  ctx.font = "700 26px 'Segoe UI', system-ui, sans-serif";
+  ctx.font = "700 26px Inter, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
   ctx.fillText(String(text), 160, 36);
