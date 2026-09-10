@@ -129,6 +129,7 @@ export function createRiver(dataset) {
       vertexColors: true,
       roughness: 0.92,
       metalness: 0.04,
+      side: THREE.DoubleSide,
       polygonOffset: true,
       polygonOffsetFactor: 2,
       polygonOffsetUnits: 2,
@@ -217,10 +218,11 @@ function createBoundaryWalls(bath, dataset, exag) {
 }
 
 /**
- * @param {"water"|"depth"|"cutaway"} mode
+ * @param {"water"|"depth"|"cutaway"|"erosionDark"} mode
  *   water  — soft bed under living water
  *   depth  — River off: excavated ground / channel deep view (earth tones)
  *   cutaway — exaggerated cutaway look
+ *   erosionDark — near-black channel so neon bank-erosion overlay pops
  */
 export function applyRiverLook(river, mode = "water") {
   const look =
@@ -228,11 +230,15 @@ export function applyRiverLook(river, mode = "water") {
       ? "cutaway"
       : mode === false || mode === "water"
         ? "water"
-        : mode;
+        : mode === "erosionDark"
+          ? "erosionDark"
+          : mode === "depth"
+            ? "depth"
+            : mode;
   const attrName =
     look === "cutaway"
       ? "colorCut"
-      : look === "depth"
+      : look === "depth" || look === "erosionDark"
         ? "colorDepthView"
         : "colorLand";
   const from = river.bed.geometry.getAttribute(attrName)
@@ -242,6 +248,15 @@ export function applyRiverLook(river, mode = "water") {
     to.array.set(from.array);
     to.needsUpdate = true;
   }
+  if (look === "erosionDark" && to) {
+    const arr = to.array;
+    for (let i = 0; i < arr.length; i += 3) {
+      arr[i] *= 0.1;
+      arr[i + 1] *= 0.12;
+      arr[i + 2] *= 0.14;
+    }
+    to.needsUpdate = true;
+  }
   for (const child of river.walls.children) {
     const col = child.geometry.attributes.color;
     for (let i = 0; i < col.count; i++) {
@@ -249,7 +264,10 @@ export function applyRiverLook(river, mode = "water") {
       // Keep the measured channel edge readable beneath translucent blue water.
       // The old brown wall became almost black under Chrome's scene lighting.
       if (look === "water") col.setXYZ(i, 0.32, 0.52, 0.58);
-      else if (look === "depth") {
+      else if (look === "erosionDark") {
+        if (isBed) col.setXYZ(i, 0.04, 0.05, 0.06);
+        else col.setXYZ(i, 0.09, 0.1, 0.11);
+      } else if (look === "depth") {
         // Cut-bank earth walls for ground deep view — never water-blue
         if (isBed) col.setXYZ(i, 0.42, 0.36, 0.26);
         else col.setXYZ(i, 0.68, 0.60, 0.44);
@@ -263,11 +281,12 @@ export function applyRiverLook(river, mode = "water") {
   }
   // Base tint: depth mode must read as soil/rock, not water
   if (river.bed.material?.color) {
-    if (look === "depth") river.bed.material.color.set("#c4b896");
+    if (look === "erosionDark") river.bed.material.color.set("#080a0c");
+    else if (look === "depth") river.bed.material.color.set("#c4b896");
     else if (look === "cutaway") river.bed.material.color.set("#ffffff");
     else river.bed.material.color.set("#ffffff");
   }
-  river.bed.material.roughness = look === "cutaway" ? 0.52 : look === "depth" ? 0.92 : 0.92;
+  river.bed.material.roughness = look === "cutaway" ? 0.52 : 0.92;
   river.bed.material.metalness = look === "cutaway" ? 0.2 : 0.02;
   river.bed.material.needsUpdate = true;
 }

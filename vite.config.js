@@ -15,7 +15,9 @@ export default defineConfig({
       "Cache-Control": "public, max-age=120",
     },
     watch: {
-      ignored: ["**/public/data/**"],
+      // Do not ignore public/data entirely — new overlays must be served.
+      // Ignore only huge rasters that thrash the watcher.
+      ignored: ["**/public/data/**/*.tif", "**/public/data/**/*.csv"],
     },
   },
   build: {

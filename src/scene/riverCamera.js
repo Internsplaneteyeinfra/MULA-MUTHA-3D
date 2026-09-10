@@ -34,6 +34,10 @@ export function stationAt(stations, u) {
     flowX: fx / len,
     flowZ: fz / len,
     half: a.halfWidth + (c.halfWidth - a.halfWidth) * k,
+    along:
+      Number.isFinite(a.along) && Number.isFinite(c.along)
+        ? a.along + (c.along - a.along) * k
+        : t * estimateRiverLength(stations),
     t,
   };
 }
@@ -156,25 +160,40 @@ export function chainageGisAerialPose(stations, {
   // Eye-level corridor band (reference): stay above water, never aerial
   const h = THREE.MathUtils.clamp(cameraHeight, 10, 28);
   let back = THREE.MathUtils.clamp(cameraDistance, 35, 100);
-  if (back < h * 2.5) back = h * 3; // marker clearly ahead in mid-foreground
+  if (back < h * 2.5) back = h * 3;
+  // Near chainage start/end: do not step off the river onto dry bank
+  // (P - D*back at u≈0 places the camera upstream of 0+000).
+  const alongM = Number.isFinite(st.along) ? st.along : uu * estimateRiverLength(stations);
+  if (alongM < back + 20) {
+    back = Math.max(12, alongM * 0.55);
+  }
   const aheadDist = THREE.MathUtils.clamp(lookAheadDistance, 100, 280);
   const lateral = THREE.MathUtils.clamp(lateralOffset, -25, 25);
-  // Keep look nearly level with the camera so horizon stays mid-frame
   const eyeLookY = Number.isFinite(lookY) ? lookY : SURFACE_Y + Math.max(8, h * 0.75);
 
+  // Walk along centerline so the camera stays in the river corridor
+  const camPt = pointAlongRiver(stations, uu, -back);
+  const lookPt = pointAlongRiver(stations, uu, aheadDist);
+
   outP.set(
-    px - tan.x * back + sideX * lateral,
+    camPt.x + sideX * lateral,
     SURFACE_Y + h,
-    pz - tan.z * back + sideZ * lateral,
+    camPt.z + sideZ * lateral,
   );
-  // Far forward look along D — yellow centerline runs bottom→horizon
-  outL.set(
-    px + tan.x * aheadDist,
-    eyeLookY,
-    pz + tan.z * aheadDist,
-  );
+  outL.set(lookPt.x, eyeLookY, lookPt.z);
   if (outUp) outUp.set(0, 1, 0);
   return tan;
+}
+
+function estimateRiverLength(stations) {
+  if (!stations?.length) return 1;
+  const last = stations[stations.length - 1];
+  if (Number.isFinite(last.along)) return Math.max(1, last.along);
+  let len = 0;
+  for (let i = 1; i < stations.length; i++) {
+    len += Math.hypot(stations[i].x - stations[i - 1].x, stations[i].z - stations[i - 1].z);
+  }
+  return Math.max(1, len);
 }
 
 /**

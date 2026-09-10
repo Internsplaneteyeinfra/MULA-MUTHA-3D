@@ -70,6 +70,10 @@ export const state = {
   showRiverBanks: false,
   depthExaggeration: 2,
   showWater: true,
+  /** When true, update-loop keeps river water hidden (Bank Erosion overlay). */
+  hydrologyHidesWater: false,
+  /** When true, hide API/illustrative flood so bank erosion ribbon stays readable. */
+  hydrologyHidesFlood: false,
   showBathymetry: true,
   showVegetation: true,
   /** JalNetra Vegetation Type API layer status: idle|loading|ready|empty|error */
@@ -123,6 +127,24 @@ export const state = {
   selectedChainageMeters: null,
   /** True while hovering the selected chainage (suppresses water-depth tip). */
   chainageTipActive: false,
+  /** True while bank-erosion class card owns the map tooltip (sticky or hover). */
+  bankErosionTipActive: false,
+  /** True while Geology → Bank Erosion overlay is the active focus mode. */
+  bankErosionMode: false,
+  /** True while Geology → Spectral Lithology overlay is active. */
+  lithologyMode: false,
+  /** True while a lithology click tip/marker is pinned. */
+  lithologyTipActive: false,
+  /** True while Geology → Joining Streams drainage mode is active. */
+  joiningStreamsMode: false,
+  /** True while a joining-stream click selection owns the info card. */
+  joiningStreamsTipActive: false,
+  /** True while Geology → Main Stem centerline is visible. */
+  mainStemMode: false,
+  /** True while Geology → Bathymetry depth-zone overlay is active. */
+  bathymetryMode: false,
+  /** True while click width/depth measure overlay is visible on the river. */
+  riverMeasureActive: false,
   cinematicActive: false,
   cinematicPaused: false,
   cinematicProgress: 0,

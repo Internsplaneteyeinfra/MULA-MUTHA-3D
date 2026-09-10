@@ -38,10 +38,10 @@ export function buildCorridorFromKml(ringLocal, depthPoints, opts = {}) {
   }
 
   // Orient path so chainage increases downstream (geographic east for Mutha).
-  // Prefer tip easting when available (correct with mirrored local X).
+  // Use tip easting (CRS metres), not local X sign.
   let shouldReverse = false;
   if (Number.isFinite(tipA?.easting) && Number.isFinite(tipB?.easting)) {
-    // stations[0] sits at tipA (min local X); reverse if that tip is already farther east
+    // stations[0] sits at tipA; reverse if that tip is already farther east
     shouldReverse = tipA.easting > tipB.easting;
   } else {
     const dx = stations[stations.length - 1].x - stations[0].x;
@@ -328,6 +328,28 @@ function rasterize(stations, across, depthPoints) {
       const i0 = s * cols + a;
       indices.push(i0, i0 + cols, i0 + 1);
       indices.push(i0 + 1, i0 + cols, i0 + cols + 1);
+    }
+  }
+
+  // Ensure triangles face +Y (camera from above). Removing flipX can reverse
+  // bank left/right winding so FrontSide water/bed would be fully culled.
+  if (indices.length >= 3) {
+    const a = indices[0];
+    const b = indices[1];
+    const c = indices[2];
+    const ax = positions[a * 3];
+    const az = positions[a * 3 + 2];
+    const bx = positions[b * 3];
+    const bz = positions[b * 3 + 2];
+    const cx = positions[c * 3];
+    const cz = positions[c * 3 + 2];
+    const ny = (bx - ax) * (cz - az) - (bz - az) * (cx - ax);
+    if (ny < 0) {
+      for (let i = 0; i < indices.length; i += 3) {
+        const t = indices[i + 1];
+        indices[i + 1] = indices[i + 2];
+        indices[i + 2] = t;
+      }
     }
   }
 

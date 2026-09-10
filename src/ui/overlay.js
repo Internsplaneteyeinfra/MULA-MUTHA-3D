@@ -33,10 +33,46 @@ export function createTooltip(root) {
   root.appendChild(el);
   return {
     show(x, y, info) {
-      el.style.left = `${Math.min(x, window.innerWidth - 220)}px`;
-      el.style.top = `${Math.min(y, window.innerHeight - 180)}px`;
       el.classList.add("visible");
       el.classList.toggle("tooltip--survey", !!info.rawSurveyPoint);
+      el.classList.toggle("tooltip--bank-erosion", !!info.bankErosionHover);
+      el.classList.toggle("tooltip--lithology", !!info.lithologyClick);
+      if (info.lithologyClick) {
+        // Anchor at geographic screen point; CSS translates card above + leader to tip
+        el.style.left = `${x}px`;
+        el.style.top = `${y}px`;
+        const color = info.color || "#94A3B8";
+        const label = info.label || "—";
+        const pct = info.pct || "—";
+        el.innerHTML = `
+          <div class="litho-card">
+            <span class="litho-swatch" style="background:${color}"></span>
+            <span class="litho-label">${label}</span>
+            <span class="litho-pct">${pct}</span>
+          </div>
+        `;
+        return;
+      }
+      el.style.left = `${Math.min(x, window.innerWidth - 220)}px`;
+      el.style.top = `${Math.min(y, window.innerHeight - 180)}px`;
+      if (info.bankErosionHover) {
+        const color = info.color || "#7CFF2A";
+        const label = info.label || info.class_label || "—";
+        const pct = info.pct || "—";
+        el.innerHTML = `
+          <div class="be-card">
+            <span class="be-swatch" style="background:${color}"></span>
+            <div class="be-body">
+              <div class="be-title">BANK EROSION</div>
+              <div class="be-row">
+                <span class="be-label">${label}</span>
+                <span class="be-pct">${pct}</span>
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
       if (info.chainageHover) {
         el.innerHTML = `
           <h3>CHAINAGE</h3>
@@ -109,8 +145,15 @@ export function createTooltip(root) {
         return;
       }
       if (info.compact) {
+        const measureRows =
+          info.riverMeasure && info.leftWidthM != null && info.rightWidthM != null
+            ? `
+          <div class="kv"><span class="k">LEFT WIDTH</span><span class="v depth">${Number(info.leftWidthM).toFixed(1)} m</span></div>
+          <div class="kv"><span class="k">RIGHT WIDTH</span><span class="v depth">${Number(info.rightWidthM).toFixed(1)} m</span></div>
+          <div class="kv"><span class="k">TOTAL WIDTH</span><span class="v">${info.widthM != null ? Number(info.widthM).toFixed(1) + " m" : "—"}</span></div>`
+            : "";
         el.innerHTML = `
-          <h3>RIVER · HOVER</h3>
+          <h3>${info.riverMeasure ? "RIVER · MEASURE" : "RIVER · HOVER"}</h3>
           <div class="kv"><span class="k">LAT</span><span class="v">${info.lat.toFixed(6)}° N</span></div>
           <div class="kv"><span class="k">LON</span><span class="v">${info.lon.toFixed(6)}° E</span></div>
           ${info.localX != null ? `<div class="kv"><span class="k">LOCAL X</span><span class="v">${info.localX.toFixed(1)} m</span></div>` : ""}
@@ -119,6 +162,7 @@ export function createTooltip(root) {
           ${info.waterSurface != null ? `<div class="kv"><span class="k">WATER</span><span class="v">${info.waterSurface.toFixed(1)} m</span></div>` : ""}
           ${info.riverbedElevation != null ? `<div class="kv"><span class="k">RIVERBED</span><span class="v">${info.riverbedElevation.toFixed(1)} m</span></div>` : ""}
           <div class="kv"><span class="k">DEPTH</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
+          ${measureRows}
           ${info.flowDirection ? `<div class="kv"><span class="k">FLOW</span><span class="v">${info.flowDirection}${info.flowSpeed != null ? ` · ${info.flowSpeed.toFixed(1)} m/s` : ""}</span></div>` : ""}
           ${info.chainage ? `<div class="kv"><span class="k">CHAINAGE</span><span class="v">${info.chainage}</span></div>` : ""}
         `;
@@ -159,6 +203,8 @@ export function createTooltip(root) {
     hide() {
       el.classList.remove("visible");
       el.classList.remove("tooltip--survey");
+      el.classList.remove("tooltip--bank-erosion");
+      el.classList.remove("tooltip--lithology");
     },
   };
 }
@@ -231,10 +277,19 @@ export function mountUI(root, {
   root.classList.add("gis-ui");
   if (state.showLayers) root.classList.add("layers-open");
 
+  const leftStack = document.createElement("div");
+  leftStack.id = "left-ui-stack";
+  leftStack.className = "left-ui-stack";
+  root.appendChild(leftStack);
+
   mountProjectIdentity(root);
   mountAnalyticsControls(root, dataset);
   const weather = mountWeatherWidget(root);
-  const riverData = mountRiverDataPanel(root, dataset);
+  const riverData = mountRiverDataPanel(leftStack, dataset);
+  // River Data stays first; Bank Erosion (if already reparented) follows.
+  if (leftStack.firstElementChild !== riverData.el) {
+    leftStack.prepend(riverData.el);
+  }
   const flowBtn = mountWaterFlowControl(root);
   if (flowBtn) flowBtn.hidden = true; // no floating start CTA; pause only during cinematic
   const { panel: layers } = mountLayersPanel(root);
@@ -512,11 +567,8 @@ export function mountUI(root, {
       nav.syncActive();
     },
     on3D: () => {
-      const chain = dataset.chainage || [];
-      if (!chain.length) return;
-      const midRaw = (chain[0].meters + chain[chain.length - 1].meters) * 0.5;
-      const midM = Math.round(midRaw / 100) * 100;
-      window.__MM_SCENE__?.goToChainageView?.(midM);
+      // Always land on chainage 8+000 with a smooth fly-in.
+      window.__MM_SCENE__?.goToChainageView?.(8000);
       nav.syncActive();
     },
     onLayersToggle: () => toggleLayers(),
@@ -555,21 +607,6 @@ export function mountUI(root, {
   root.insertAdjacentHTML(
     "beforeend",
     `
-    <aside class="hud depth-legend depth-legend--vertical map-chrome" id="depth-legend" aria-label="Water depth legend">
-      <strong>WATER DEPTH</strong>
-      <div class="depth-legend-body">
-        <div class="depth-bar" aria-hidden="true"></div>
-        <div class="depth-ticks">
-          <span>Shallow</span>
-          <span>${depthMin.toFixed(2)}</span>
-          <span>${(depthMin + depthStep).toFixed(2)}</span>
-          <span>${(depthMin + depthStep * 2).toFixed(2)}</span>
-          <span>${depthMax.toFixed(2)}</span>
-          <span>Deep</span>
-        </div>
-      </div>
-      <em class="depth-note">${dataset.dtm ? "FABDEM DTM + Excel bathymetry" : "Excel bathymetry model"}</em>
-    </aside>
     <div class="hud gis-timeline" id="path-scrub" hidden>
       <input id="scrub" type="range" min="0" max="1000" value="0" />
       <span class="scene-label" id="scene-label">OVERVIEW · FULL AOI</span>
@@ -577,10 +614,37 @@ export function mountUI(root, {
   `,
   );
 
+  const depthLegend = document.createElement("aside");
+  depthLegend.id = "depth-legend";
+  depthLegend.className = "depth-legend depth-legend--vertical depth-legend--stack";
+  depthLegend.setAttribute("aria-label", "Water depth legend");
+  depthLegend.innerHTML = `
+    <strong>WATER DEPTH</strong>
+    <div class="depth-legend-body">
+      <div class="depth-bar" aria-hidden="true"></div>
+      <div class="depth-ticks">
+        <span>Shallow</span>
+        <span>${depthMin.toFixed(2)}</span>
+        <span>${(depthMin + depthStep).toFixed(2)}</span>
+        <span>${(depthMin + depthStep * 2).toFixed(2)}</span>
+        <span>${depthMax.toFixed(2)}</span>
+        <span>Deep</span>
+      </div>
+    </div>
+  `;
+  const floodBtnEl = root.querySelector("#flood-btn");
+  const viewModes = root.querySelector(".gis-view-modes");
+  if (floodBtnEl?.parentElement) {
+    floodBtnEl.insertAdjacentElement("afterend", depthLegend);
+  } else if (viewModes) {
+    viewModes.appendChild(depthLegend);
+  } else {
+    root.appendChild(depthLegend);
+  }
+
   const scrub = root.querySelector("#scrub");
   const sceneLabel = root.querySelector("#scene-label");
   const pathScrub = root.querySelector("#path-scrub");
-  const depthLegend = root.querySelector("#depth-legend");
   const brand = root.querySelector("#hud-brand");
   const navWrap = root.querySelector(".gis-nav-wrap");
   const toolsStack = root.querySelector(".gis-tools-stack");
@@ -656,25 +720,13 @@ export function mountUI(root, {
     nav.syncActive();
     if (depthLegend) {
       const cine = state.cinematicActive;
-      // Show depth legend with River on, or when River off (ground deep view)
       const showLegend =
         !cine &&
         (state.showWater || state.cameraMode === "bathymetry" || state.showBathymetry);
       depthLegend.hidden = !showLegend;
-      depthLegend.style.opacity = state.cameraMode === "bathymetry" || !state.showWater ? "1" : "0.85";
       const title = depthLegend.querySelector("strong");
       if (title) {
         title.textContent = state.showWater ? "WATER DEPTH" : "CHANNEL DEPTH";
-      }
-      const note = depthLegend.querySelector(".depth-note");
-      if (note) {
-        note.textContent = state.showWater
-          ? dataset.dtm
-            ? "FABDEM DTM + Excel bathymetry"
-            : "Excel bathymetry model"
-          : dataset.dtm
-            ? "Ground deep view · FABDEM DTM + Excel bathymetry"
-            : "Ground deep view · Excel bathymetry";
       }
     }
   }
@@ -685,6 +737,7 @@ export function mountUI(root, {
     if (toolsStack) toolsStack.hidden = active;
     if (flowBtn) flowBtn.hidden = !active; // pause control only while cinematic runs
     if (pathScrub) pathScrub.hidden = active || state.cameraMode !== "follow";
+    if (!active) syncCamButtons();
     if (active) {
       toggleLayers(false);
       toggleSettings(false);
@@ -827,22 +880,12 @@ export function mountUI(root, {
   root.querySelector("#opacity")?.addEventListener("input", (e) => {
     state.waterOpacity = Number(e.target.value) / 100;
   });
-  root.querySelector("#flow")?.addEventListener("input", (e) => {
-    // Safe range (0.20–1.00): min still moves; max stays calm/cinematic
-    const v = Math.max(0.2, Math.min(1, Number(e.target.value) / 100));
-    state.flowSpeed = v;
-    state.waterOverallSpeed = Math.max(0.25, Math.min(0.95, v * 0.85 + 0.1));
-  });
   root.querySelector("#flowvis")?.addEventListener("input", (e) => {
     state.flowVisibility = Number(e.target.value) / 100;
   });
-  root.querySelector("#water-anim")?.addEventListener("change", (e) => {
-    state.waterAnimEnabled = e.target.checked;
-  });
-  root.querySelector("#water-preset")?.addEventListener("change", (e) => {
-    window.__MM_SCENE__?.applyWaterPreset?.(e.target.value);
-    syncLayersPanelFromState();
-  });
+  // Water animation is always on — no Layers toggle / style / flow controls.
+  state.waterAnimEnabled = true;
+  state.animateWater = true;
   root.querySelector("#water-overall")?.addEventListener("input", (e) => {
     state.waterOverallSpeed = Number(e.target.value) / 100;
   });
@@ -936,7 +979,8 @@ export function mountUI(root, {
     setChecked("depth-zones", state.showDepthZones);
     setChecked("flood-sim", state.showFloodSimulation !== false);
     setChecked("glassy-flow", state.glassyAnimatedFlow);
-    setChecked("water-anim", state.waterAnimEnabled !== false);
+    state.waterAnimEnabled = true;
+    state.animateWater = true;
     setChecked("sky-enabled", state.skyEnabled !== false);
     setChecked("sky-shadows", state.skyCloudShadows !== false);
     const skyPreset = root.querySelector("#sky-preset");
@@ -1008,7 +1052,7 @@ export function mountUI(root, {
     root.querySelectorAll("[data-exag]").forEach((btn) => {
       btn.classList.toggle("active", Number(btn.dataset.exag) === state.depthExaggeration);
     });
-    ["water", "drainage", "map-ref-grid", "depth-zones", "flood-sim", "br-names", "chain", "chain-labels", "glassy-flow", "water-anim", "sky-enabled", "sky-shadows"].forEach(
+    ["water", "drainage", "map-ref-grid", "depth-zones", "flood-sim", "br-names", "chain", "chain-labels", "glassy-flow", "sky-enabled", "sky-shadows"].forEach(
       (id) => bindLayerIndicator(root, id),
     );
   }

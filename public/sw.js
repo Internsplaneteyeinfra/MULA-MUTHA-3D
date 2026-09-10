@@ -1,5 +1,5 @@
 /** Cache static assets for fast repeat visits. */
-const CACHE = "mula-mutha-v2";
+const CACHE = "mula-mutha-v5";
 const PRECACHE = ["/", "/index.html"];
 
 self.addEventListener("install", (e) => {
@@ -19,15 +19,46 @@ self.addEventListener("activate", (e) => {
 self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
-  if (!url.pathname.startsWith("/data/") &&
-      !url.pathname.startsWith("/assets/") &&
-      !url.pathname.startsWith("/models/") &&
-      !url.pathname.endsWith(".glb") &&
-      !url.pathname.endsWith(".geojson") &&
-      !url.pathname.endsWith(".kml") &&
-      !url.pathname.endsWith(".csv") &&
-      !url.pathname.endsWith(".tif") &&
-      !url.pathname.endsWith(".png")) {
+
+  // Never cache hydrology config / bank-erosion raster — must stay fresh
+  if (
+    url.pathname.includes("/hydrology/hydrologyConfig.json") ||
+    url.pathname.includes("/hydrology/bank_erosion/")
+  ) {
+    e.respondWith(fetch(e.request, { cache: "no-store" }));
+    return;
+  }
+
+  if (
+    !url.pathname.startsWith("/data/") &&
+    !url.pathname.startsWith("/assets/") &&
+    !url.pathname.startsWith("/models/") &&
+    !url.pathname.endsWith(".glb") &&
+    !url.pathname.endsWith(".geojson") &&
+    !url.pathname.endsWith(".kml") &&
+    !url.pathname.endsWith(".csv") &&
+    !url.pathname.endsWith(".tif") &&
+    !url.pathname.endsWith(".png")
+  ) {
+    return;
+  }
+
+  // Network-first for JSON so layer defs are not stuck on stale cache
+  if (url.pathname.endsWith(".json")) {
+    e.respondWith(
+      fetch(e.request)
+        .then(async (res) => {
+          if (res.ok) {
+            const cache = await caches.open(CACHE);
+            cache.put(e.request, res.clone());
+          }
+          return res;
+        })
+        .catch(async () => {
+          const cache = await caches.open(CACHE);
+          return (await cache.match(e.request)) || Response.error();
+        }),
+    );
     return;
   }
 

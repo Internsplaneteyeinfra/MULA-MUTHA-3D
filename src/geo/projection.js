@@ -26,8 +26,10 @@ export const utmToLonLat = (e, n) => {
 
 /**
  * Local scene frame: one origin for ALL layers.
- * Three.js: Y = up, Z = north.
- * X is mirrored (−east) so left/right banks match the KML / Google Earth view.
+ * Three.js: Y = up, X = east, Z = north (EPSG:32643 easting/northing, unmirrored).
+ *
+ * Chainage 0+000 is west (~73.855°E); chainage increases downstream to the east (~73.993°E).
+ * Do not mirror X — that reverses geographic east/west while leaving CRS numbers looking fine.
  *
  * @param {Array<{easting:number,northing:number}>} points
  * @param {{ originLonLat?: { lon:number, lat:number } }} [opts]
@@ -50,8 +52,8 @@ export function createLocalFrame(points, opts = {}) {
     n0 /= Math.max(1, points.length);
   }
 
-  /** Scene +X = west (mirrored easting). Keeps Z = north. */
-  const flipX = true;
+  /** Scene +X = east, +Z = north (standard ENU in XZ). */
+  const flipX = false;
 
   function toLocal(easting, northing) {
     const x = easting - e0;

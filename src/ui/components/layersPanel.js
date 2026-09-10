@@ -81,31 +81,9 @@ export function mountLayersPanel(root) {
       )}
 
       ${sectionHtml(
-        "lp-sec-water-flood",
-        "Water & Flood Controls",
+        "lp-sec-flood",
+        "Flood Controls",
         `
-        <div class="toolkit water-controls-block">
-          ${layerRowHtml({ icon: Waves, label: "Animate Water", id: "water-anim", checked: true })}
-          <div class="lp-select-wrap">
-            <span class="lp-slider-label">Water Style</span>
-            <div class="lp-select">
-              ${lucideHtml(Waves, { size: 14 })}
-              <select id="water-preset" aria-label="Water Style">
-                <option value="calmRealistic" selected>Calm Realistic</option>
-                <option value="glassyCalm">Glassy Calm</option>
-                <option value="naturalRiver">Natural River</option>
-                <option value="windRipples">Wind Ripples</option>
-                <option value="cinematic">Cinematic</option>
-              </select>
-              ${lucideHtml(ChevronDown, { size: 14, className: "lp-icon lp-select-chevron" })}
-            </div>
-          </div>
-          <div class="lp-slider">
-            <span class="lp-slider-label">Flow Speed</span>
-            <input id="flow" type="range" min="20" max="100" value="45" aria-label="Flow Speed" />
-          </div>
-        </div>
-
         <div class="lp-flood-data" id="lp-flood-data">
           <div class="lp-flood-data__title">API FLOOD SIMULATION</div>
           <p class="lp-hint-text">Flood extent generated from JalNetra Flood API results.</p>
@@ -139,10 +117,7 @@ export function mountLayersPanel(root) {
     </div>
   `;
   root.appendChild(panel);
-  bindAllLayerIndicators(root, [
-    ...LAYER_IDS,
-    "water-anim",
-  ]);
+  bindAllLayerIndicators(root, LAYER_IDS);
 
   return { panel, layerIds: LAYER_IDS };
 }

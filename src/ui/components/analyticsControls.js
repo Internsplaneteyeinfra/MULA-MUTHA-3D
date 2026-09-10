@@ -1,4 +1,14 @@
-import { Droplets, TrendingUp, Database, Waves, Home, Mountain } from "lucide";
+import {
+  Mountain,
+  TrendingUp,
+  Droplets,
+  Pickaxe,
+  Sprout,
+  MapPinPlus,
+  Sun,
+  Waves,
+  SunMedium,
+} from "lucide";
 import { lucideHtml } from "../icons.js";
 import { mountGeologyWorkspace } from "./geologyWorkspace.js";
 import {
@@ -17,29 +27,37 @@ const HYDROLOGY_CATEGORIES = [
   { id: "aqi", name: "AQI" },
 ];
 
+/** Icon-only transparent toolbar — 9 independent buttons, same destinations. */
+const NAV_ITEMS = [
+  { icon: Mountain, tip: "Vehicle", type: "vehicle", tone: "tone-mountain", badge: null },
+  { icon: TrendingUp, tip: "Hydrograph", type: "hydrograph", tone: "tone-graph", badge: null },
+  { icon: Droplets, tip: "Hydrology", type: "hydrology", tone: "tone-droplet", badge: null },
+  { icon: Pickaxe, tip: "Geology", type: "geology", tone: "tone-drill", badge: null },
+  { icon: Sprout, tip: "Environment", type: "simulations", tone: "tone-plant", badge: null },
+  { icon: MapPinPlus, tip: "Monitoring", type: "monitoring", tone: "tone-pin", badge: null },
+  { icon: Sun, tip: "Environmental Conditions", type: "environment", tone: "tone-sun", badge: null },
+  { icon: Waves, tip: "Flood / Water", type: "flood", tone: "tone-waves", badge: null },
+  { icon: SunMedium, tip: "Weather", type: "weather", tone: "tone-brightness", badge: "1" },
+];
+
 /**
- * Top analytics nav: Home | Geology | Hydrology | Hydrograph | Data Simulations | Flood Analysis.
- * Geology opens the horizontal glass workspace (not a modal).
+ * Top analytics nav — fully transparent strip; each icon is a real <button>.
+ * Existing Vehicle / Geology / Hydrology / Hydrograph / Simulations / Flood still work.
  */
 export function mountAnalyticsControls(root, dataset) {
   const el = document.createElement("nav");
-  el.className = "analytics-controls top-navigation";
+  el.className = "analytics-controls top-navigation analytics-controls--glass";
   el.setAttribute("aria-label", "River analytics");
-  el.innerHTML = [
-    [Home, "Home", "home"],
-    [Mountain, "Geology", "geology"],
-    [Droplets, "Hydrology", "hydrology"],
-    [TrendingUp, "Hydrograph", "hydrograph"],
-    [Database, "Data Simulations", "simulations"],
-    [Waves, "Flood Analysis", "flood"],
-  ]
-    .map(
-      ([icon, label, type]) =>
-        `<button type="button" class="nav-button" data-analytics="${type}" title="${label}" aria-pressed="false">` +
-        `<span class="nav-button-icon" aria-hidden="true">${lucideHtml(icon, { size: 15 })}</span>` +
-        `<span class="nav-button-label">${label}</span></button>`,
-    )
-    .join("");
+  el.setAttribute("role", "toolbar");
+  el.innerHTML = NAV_ITEMS.map(
+    ({ icon, tip, type, tone, badge }) =>
+      `<button type="button" class="nav-button ${tone}" data-analytics="${type}" data-tip="${tip}" aria-label="${tip}" title="${tip}" aria-pressed="false">` +
+      `<span class="nav-button-icon" aria-hidden="true">${lucideHtml(icon, { size: 20, strokeWidth: 1.75, className: "nav-icon-svg" })}</span>` +
+      (badge
+        ? `<span class="nav-button-badge" aria-hidden="true">${badge}</span>`
+        : "") +
+      `</button>`,
+  ).join("");
   root.appendChild(el);
 
   const geology = mountGeologyWorkspace(root);
@@ -136,21 +154,32 @@ export function mountAnalyticsControls(root, dataset) {
     });
   }
 
+  function isGeologyNav(type) {
+    return type === "geology" || type === "vehicle";
+  }
+
+  function openGeologyWorkspace(moduleId = "vehicle") {
+    closeModal();
+    clearHydroLegend();
+    setActive(moduleId === "vehicle" ? "vehicle" : "geology");
+    geology.open(moduleId);
+  }
+
   modal.addEventListener("click", (event) => {
     if (event.target === modal) {
       closeModal();
-      if (activeType !== "geology") setActive(null);
+      if (!isGeologyNav(activeType)) setActive(null);
     }
   });
   modal.querySelector(".river-analysis-close").addEventListener("click", () => {
     closeModal();
-    if (activeType !== "geology") setActive(null);
+    if (!isGeologyNav(activeType)) setActive(null);
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
     if (!modal.hidden) {
       closeModal();
-      if (activeType !== "geology") setActive(null);
+      if (!isGeologyNav(activeType)) setActive(null);
     } else if (geology.isOpen()) {
       closeAll();
     }
@@ -161,19 +190,53 @@ export function mountAnalyticsControls(root, dataset) {
     if (!button) return;
     const type = button.dataset.analytics;
 
+    // Soft extras — reuse existing UI without new routing.
+    if (type === "monitoring") {
+      closeAll();
+      window.__MM_SCENE__?.hideHydrology?.();
+      clearHydroLegend();
+      document.querySelector("#nav-overview")?.click();
+      setActive(null);
+      return;
+    }
+    if (type === "environment") {
+      geology.close();
+      closeModal();
+      clearHydroLegend();
+      setActive("environment");
+      document.querySelector("#settings-btn")?.click();
+      return;
+    }
+    if (type === "weather") {
+      setActive("weather");
+      const weather = document.querySelector(".weather-widget");
+      weather?.classList.add("is-nav-pulse");
+      window.setTimeout(() => weather?.classList.remove("is-nav-pulse"), 1600);
+      return;
+    }
+
+    // Mountain / Vehicle → open Geology workspace with Vehicle selected
+    if (type === "vehicle") {
+      openGeologyWorkspace("vehicle");
+      return;
+    }
+
+    // Pickaxe / Geology → toggle Geology workspace
+    if (type === "geology") {
+      if (geology.isOpen() && (activeType === "geology" || activeType === "vehicle")) {
+        closeAll();
+        return;
+      }
+      openGeologyWorkspace("vehicle");
+      setActive("geology");
+      return;
+    }
+
     if (type === "home") {
       closeAll();
       window.__MM_SCENE__?.hideHydrology?.();
       clearHydroLegend();
       setActive(null);
-      return;
-    }
-
-    if (type === "geology") {
-      closeModal();
-      clearHydroLegend();
-      setActive("geology");
-      geology.open();
       return;
     }
 

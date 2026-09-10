@@ -22,12 +22,78 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   const getHydrologyGroup = opts.getHydrologyGroup;
   const getNallaFlow = opts.getNallaFlow;
   const getRawSurveyLayer = opts.getRawSurveyLayer;
+  const riverWidthMeasure = opts.riverWidthMeasure;
   const SURVEY_PICK_R2 = 14 * 14;
   /** After click, keep the compact card visible for ~5 seconds. */
   let stickySurveyPoint = null;
   let stickySurveyTimer = 0;
   let stickySurveyXY = { x: 0, y: 0 };
   const STICKY_SURVEY_MS = 5000;
+  /** Bank-erosion class card stays until click-away / layer off / other module. */
+  let stickyBankErosion = null;
+  let stickyBankErosionXY = { x: 0, y: 0 };
+
+  function showBankErosionTooltip(clientX, clientY, feat) {
+    tooltip.show(clientX, clientY, {
+      bankErosionHover: true,
+      label: feat.label || feat.class_label || "Bank erosion",
+      class_label: feat.class_label || feat.label,
+      pct: feat.pct,
+      color: feat.color,
+      lon: feat.lon,
+      lat: feat.lat,
+      localX: feat.x,
+      localZ: feat.z,
+    });
+    state.hover = {
+      x: feat.x,
+      z: feat.z,
+      bankErosion: feat.class_label || feat.label,
+    };
+    state.bankErosionTipActive = true;
+    state.chainageTipActive = false;
+    riverWidthMeasure?.hide?.();
+  }
+
+  function clearStickyBankErosion() {
+    stickyBankErosion = null;
+    state.bankErosionTipActive = false;
+  }
+
+  function holdStickyBankErosion(feat, e) {
+    stickyBankErosion = feat;
+    stickyBankErosionXY = { x: e.clientX, y: e.clientY };
+    showBankErosionTooltip(e.clientX, e.clientY, feat);
+  }
+
+  function pickWorldXZ() {
+    let wx = null;
+    let wz = null;
+    const planeHit = raycaster.intersectObjects(targets, false)[0];
+    if (planeHit) {
+      wx = planeHit.point.x;
+      wz = planeHit.point.z;
+    } else {
+      const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SURFACE_Y);
+      const pt = new THREE.Vector3();
+      if (raycaster.ray.intersectPlane(plane, pt)) {
+        wx = pt.x;
+        wz = pt.z;
+      }
+    }
+    return { wx, wz };
+  }
+
+  function pickBankErosionAtPointer() {
+    const hydro = getHydrologyGroup?.();
+    if (!hydro?.visible || hydro.userData?.getActiveId?.() !== "bank_erosion") {
+      return { hydro: null, feat: null, wx: null, wz: null };
+    }
+    const { wx, wz } = pickWorldXZ();
+    if (wx == null) return { hydro, feat: null, wx: null, wz: null };
+    const feat = hydro.userData.pickAt?.(wx, wz) || null;
+    return { hydro, feat, wx, wz };
+  }
 
   function ndc(e) {
     const rect = canvas.getBoundingClientRect();
@@ -120,7 +186,101 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     const cam = resolveCam();
     raycaster.setFromCamera(pointer, cam);
 
-    // Raw survey: click holds compact card ~5s (mouse move does not clear early)
+    if (state.cinematicActive) {
+      riverWidthMeasure?.hide?.();
+      return;
+    }
+
+    // Spectral Lithology — CLICK only (no hover identification).
+    if (state.lithologyMode || getHydrologyGroup?.()?.userData?.getActiveId?.() === "geology") {
+      if (fromClick) {
+        const { wx, wz } = pickWorldXZ();
+        const hydro = getHydrologyGroup?.();
+        let litho = null;
+        if (wx != null && hydro?.userData?.getActiveId?.() === "geology") {
+          litho = hydro.userData.pickAt?.(wx, wz);
+        }
+        if (litho) {
+          state.lithologyTipActive = true;
+          state.chainageTipActive = false;
+          riverWidthMeasure?.hide?.();
+          window.__MM_SCENE__?.setLithologyPick?.({
+            x: litho.x,
+            z: litho.z,
+            y: SURFACE_Y + 2.5,
+            label: litho.label,
+            pct: litho.pct,
+            color: litho.color,
+            lon: litho.lon,
+            lat: litho.lat,
+            clientX: e.clientX,
+            clientY: e.clientY,
+          });
+          tooltip.show(e.clientX, e.clientY, {
+            lithologyClick: true,
+            label: litho.label || litho.class_label,
+            pct: litho.pct,
+            color: litho.color,
+            lon: litho.lon,
+            lat: litho.lat,
+          });
+          state.hover = { x: litho.x, z: litho.z, lithology: litho.label };
+          return;
+        }
+        state.lithologyTipActive = false;
+        window.__MM_SCENE__?.clearLithologyPick?.();
+        tooltip.hide();
+        state.hover = null;
+        riverWidthMeasure?.hide?.();
+        return;
+      }
+      if (state.lithologyTipActive) return;
+      if (state.lithologyMode) {
+        state.hover = null;
+        return;
+      }
+    } else if (state.lithologyTipActive) {
+      state.lithologyTipActive = false;
+      window.__MM_SCENE__?.clearLithologyPick?.();
+    }
+
+    // Bank erosion owns map tooltip while its layer is on (before chainage tip).
+    if (state.bankErosionMode || getHydrologyGroup?.()?.userData?.getActiveId?.() === "bank_erosion") {
+      const { feat } = pickBankErosionAtPointer();
+      if (feat) {
+        if (fromClick) {
+          holdStickyBankErosion(feat, e);
+        } else if (stickyBankErosion) {
+          showBankErosionTooltip(stickyBankErosionXY.x, stickyBankErosionXY.y, stickyBankErosion);
+        } else {
+          showBankErosionTooltip(e.clientX, e.clientY, feat);
+        }
+        return;
+      }
+      if (fromClick) {
+        clearStickyBankErosion();
+        // Stay in bank-erosion focus: no river depth/width measure competing.
+        tooltip.hide();
+        state.hover = null;
+        riverWidthMeasure?.hide?.();
+        return;
+      }
+      if (stickyBankErosion) {
+        showBankErosionTooltip(stickyBankErosionXY.x, stickyBankErosionXY.y, stickyBankErosion);
+        return;
+      }
+      // Hovering empty area — allow pinned chainage tip; skip depth/width tips.
+      if (state.bankErosionMode) {
+        state.bankErosionTipActive = false;
+        state.hover = null;
+        return;
+      }
+    } else if (stickyBankErosion || state.bankErosionTipActive) {
+      clearStickyBankErosion();
+    }
+
+    // Chainage tip owns hover tooltip — but river click must still measure width/depth.
+    if (state.chainageTipActive && !fromClick) return;
     if (state.showRawSurveyPoints && !state.cinematicActive) {
       const surveyLayer = getRawSurveyLayer?.();
 
@@ -173,11 +333,53 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       clearStickySurvey();
     }
 
-    // Selected chainage hover owns the tooltip — don't replace with water depth
-    if (state.chainageTipActive) return;
+    // Selected chainage tip owns hover — clicks still fall through to river measure.
+    if (state.chainageTipActive && !fromClick) return;
 
-    // Nullah hover (when Drainage layer is on) — priority over river depth
-    if (state.showDrainage && !state.cinematicActive) {
+    // Joining Streams — CLICK only for drainage ID (no hover tip).
+    // Do NOT freeze camera / chainage / other scene interaction.
+    if (state.joiningStreamsMode && state.showDrainage && !state.cinematicActive) {
+      if (fromClick) {
+        const { wx, wz } = pickWorldXZ();
+        if (wx != null) {
+          const drainageGroup = getDrainageGroup?.();
+          const nullah = pickNullahAt(drainageGroup, wx, wz, 36);
+          if (nullah) {
+            const m = nullah.meta || {};
+            const flowRec = getNallaFlow?.()?.userData?.getRecordByPickMeta?.(m) || null;
+            const rec = flowRec || {
+              meta: m,
+              name: m.name,
+              lengthM: nullah.lengthM,
+              connectsToRiver: false,
+              directionReason: "",
+              id: m.osmId || m.name || "nalla",
+            };
+            state.joiningStreamsTipActive = true;
+            riverWidthMeasure?.hide?.();
+            window.__MM_SCENE__?.selectJoiningStream?.(rec);
+            state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
+            return;
+          }
+        }
+        // Missed drainage — clear selection but fall through so chainage/river keep working
+        if (state.joiningStreamsTipActive) {
+          state.joiningStreamsTipActive = false;
+          window.__MM_SCENE__?.clearJoiningStreamSelection?.();
+        }
+      } else {
+        // Hover: never open drainage info; keep normal scene hover/camera free
+        if (!state.joiningStreamsTipActive) {
+          // skip nullah hover tips only
+        }
+      }
+    } else if (state.joiningStreamsTipActive && !state.joiningStreamsMode) {
+      state.joiningStreamsTipActive = false;
+      window.__MM_SCENE__?.clearJoiningStreamSelection?.();
+    }
+
+    // Nullah hover (when Drainage layer is on, outside Joining Streams mode)
+    if (state.showDrainage && !state.joiningStreamsMode && !state.cinematicActive) {
       const planeHit = raycaster.intersectObjects(targets, false)[0];
       let wx = null;
       let wz = null;
@@ -309,6 +511,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     if (!hit) {
       tooltip.hide();
       state.hover = null;
+      if (fromClick) riverWidthMeasure?.hide?.();
       return;
     }
     const { x, z } = hit.point;
@@ -316,6 +519,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     if (!state.inspectMode && !isRiver) {
       tooltip.hide();
       state.hover = null;
+      if (fromClick) riverWidthMeasure?.hide?.();
       return;
     }
     const geo = dataset.frame.toLonLat(x, z);
@@ -377,6 +581,20 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       chainage: ch?.label,
     };
 
+    let measure = null;
+    if (fromClick && isRiver) {
+      measure = riverWidthMeasure?.showAt?.({ x, z, depth }) || null;
+      if (measure) {
+        state.hover.leftWidthM = measure.leftM;
+        state.hover.rightWidthM = measure.rightM;
+        state.hover.widthM = measure.widthM;
+        // Prefer measure tooltip over pinned chainage card while active.
+        state.chainageTipActive = false;
+        // Zoom out a bit, keep camera locked on current chainage corridor.
+        window.__MM_SCENE__?.frameRiverMeasure?.(x, z, ch?.meters);
+      }
+    }
+
     if (!state.inspectMode && isRiver) {
       tooltip.show(e.clientX, e.clientY, {
         compact: true,
@@ -392,6 +610,10 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         flowSpeed,
         chainage: ch?.meters != null ? `${(ch.meters / 1000).toFixed(2)} km` : ch?.label,
         chainageM: ch?.meters,
+        leftWidthM: measure?.leftM,
+        rightWidthM: measure?.rightM,
+        widthM: measure?.widthM,
+        riverMeasure: !!measure,
       });
       return;
     }

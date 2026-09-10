@@ -1,5 +1,5 @@
 {
-  "version": 1,
+  "version": 3,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -23,6 +23,36 @@
       "gridSegments": 96,
       "liftM": 0.35,
       "renderType": "terrainDrapedTexture"
+    },
+    {
+      "id": "bank_erosion",
+      "name": "BANK EROSION HOTSPOTS",
+      "available": true,
+      "type": "groundOverlay",
+      "crs": "EPSG:4326",
+      "bounds": {
+        "north": 18.54742583968735,
+        "south": 18.520745875749,
+        "east": 73.9935113006977,
+        "west": 73.85472158930123
+      },
+      "overlay": "/data/hydrology/bank_erosion/overlay.png",
+      "legend": "/data/hydrology/bank_erosion/legend.png",
+      "meta": "/data/hydrology/bank_erosion/meta.json",
+      "source": "bank_erosion_hotspot.kmz",
+      "opacity": 1,
+      "gridSegments": 144,
+      "liftM": 1.6,
+      "renderType": "terrainDrapedTexture",
+      "legendTitle": "Bank erosion hotspots",
+      "legendSubtitle": "2016–2026 classified overlay.",
+      "legendClasses": [
+        { "id": "none", "label": "No erosion", "color": "#7CFF2A", "pct": "83.1%" },
+        { "id": "low", "label": "Low erosion", "color": "#FFE600", "pct": "15.5%" },
+        { "id": "moderate", "label": "Moderate erosion", "color": "#FF8C00", "pct": "1.4%" },
+        { "id": "high", "label": "High erosion", "color": "#FF3737", "pct": "0%" },
+        { "id": "very_high", "label": "Very high erosion", "color": "#A0001E", "pct": "0%" }
+      ]
     },
     {
       "id": "water_quality",

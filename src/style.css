@@ -265,6 +265,62 @@ html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; backg
   margin: 0;
   line-height: 1.35;
 }
+.tooltip.tooltip--bank-erosion {
+  min-width: 0;
+  width: max-content;
+  max-width: 280px;
+  padding: 10px 14px;
+  background: #ffffff;
+  border: 1px solid rgba(15, 23, 42, 0.08);
+  border-radius: 12px;
+  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.18);
+  backdrop-filter: none;
+  color: #0f172a;
+}
+.tooltip.tooltip--bank-erosion .be-card {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.tooltip.tooltip--bank-erosion .be-swatch {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex: 0 0 auto;
+  box-shadow: 0 0 0 1px rgba(15, 23, 42, 0.08);
+}
+.tooltip.tooltip--bank-erosion .be-body {
+  display: grid;
+  gap: 2px;
+  min-width: 140px;
+}
+.tooltip.tooltip--bank-erosion .be-title {
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+  line-height: 1.2;
+}
+.tooltip.tooltip--bank-erosion .be-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 18px;
+}
+.tooltip.tooltip--bank-erosion .be-label {
+  font-size: 14px;
+  font-weight: 700;
+  color: #0f172a;
+  line-height: 1.25;
+}
+.tooltip.tooltip--bank-erosion .be-pct {
+  font-size: 13px;
+  font-weight: 600;
+  color: #64748b;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .fishing-panel {
   right: 16px; bottom: 72px; min-width: 220px; padding: 10px 12px; z-index: 25;
 }
@@ -327,12 +383,14 @@ html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; backg
 }
 
 .depth-legend {
-  left: 16px; bottom: 16px; padding: 0; width: auto;
+  position: relative;
+  left: auto; right: auto; bottom: auto; padding: 8px 9px; width: auto;
   font-size: 10px; color: var(--muted); z-index: 20;
-  background: transparent !important;
-  border: none !important;
-  backdrop-filter: none !important;
-  box-shadow: none !important;
+  background: rgba(8, 22, 31, 0.52) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 12px;
+  backdrop-filter: blur(12px) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18) !important;
 }
 .depth-legend strong {
   display: block; font-size: 10px; letter-spacing: 0.14em;

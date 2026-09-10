@@ -2,12 +2,14 @@ import * as THREE from "three";
 import { state } from "../../state.js";
 import { resolveNallaFlow } from "./flowDirectionResolver.js";
 import { createNallaWaterMaterial } from "./nallaWaterMaterial.js";
+import { createJoiningStreamsEffects } from "./joiningStreamsEffects.js";
 
 /**
  * Continuous nalla water surfaces (shader ribbons).
  * Open ground = surface channel; under buildings = recessed culvert.
+ * Joining Streams mode adds pipes / arrows / confluence mist via effects child.
  */
-export function createNallaFlowSystem(dataset, drainageGroup) {
+export function createNallaFlowSystem(dataset, drainageGroup, opts = {}) {
   const group = new THREE.Group();
   group.name = "nallaFlowSystem";
   group.visible = false;
@@ -22,6 +24,8 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     group.userData.stats = { nallas: 0, connected: 0, unknownDir: 0 };
     group.userData.playReveal = () => {};
     group.userData.setActive = () => {};
+    group.userData.setSelected = () => {};
+    group.userData.setJoiningStreamsMode = () => {};
     return group;
   }
 
@@ -36,13 +40,11 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     const rec = resolveNallaFlow(path, stations);
     rec.index = i;
 
-    // Skip only if totally unusable
     if (path.pts.length < 2) continue;
 
     const ordered = rec.flowTowardEnd ? path.pts : path.pts.slice().reverse();
     const curvePts = ordered.map((p) => {
       const under = p.under || 0;
-      // Open ground: clear surface channel; under building: follow recessed culvert
       const lift = under > 0.35 ? 0.1 : 0.4;
       return new THREE.Vector3(p.x, p.y + lift, p.z);
     });
@@ -59,7 +61,6 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     if (rec.connectsToRiver) connected++;
     if (rec.flowDirectionConfidence === "unknown") {
       unknownDir++;
-      // Still show neutral water (no fake claimed direction) — log only
       console.debug("[nalla-flow] ambiguous direction", rec.name || rec.id, rec.directionReason);
     }
 
@@ -84,9 +85,20 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
 
   let revealT = 0;
   let active = false;
+  let joiningMode = false;
+  /** @type {null | object} */
+  let selectedRec = null;
 
   group.userData.records = records;
   group.userData.material = material;
+
+  // Effects read records from group.userData — assign records first
+  const effects = createJoiningStreamsEffects(group, {
+    uiRoot: opts.uiRoot,
+    getCamera: opts.getCamera,
+  });
+  group.add(effects);
+  group.userData.effects = effects;
   group.userData.stats = {
     nallas: records.length,
     connected,
@@ -105,6 +117,8 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     } else {
       group.visible = false;
       material.uniforms.uReveal.value = 0;
+      effects.userData.setActive(false);
+      selectedRec = null;
     }
   };
 
@@ -126,12 +140,27 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     );
   };
 
-  group.userData.setSelected = () => {};
+  group.userData.setSelected = (recOrNull) => {
+    selectedRec = recOrNull || null;
+    effects.userData.setSelected(selectedRec);
+    material.uniforms.uSelectedBoost.value = selectedRec ? 0.35 : 0;
+  };
+
+  group.userData.setJoiningStreamsMode = (on) => {
+    joiningMode = !!on;
+    material.uniforms.uJoiningStyle.value = joiningMode ? 1 : 0;
+    material.uniforms.uOpacity.value = joiningMode ? 0.82 : 0.9;
+    effects.userData.setActive(joiningMode && active);
+    if (!joiningMode) {
+      selectedRec = null;
+      effects.userData.setSelected(null);
+      material.uniforms.uSelectedBoost.value = 0;
+    }
+  };
 
   console.info("Nalla water surfaces", group.userData.stats);
 
-  function update(dt) {
-    // Single control: Small channels (Nullahs) layer checkbox → state.showDrainage
+  function update(dt, camera) {
     const want = !!state.showDrainage;
     if (want !== active) {
       if (want) group.userData.playReveal();
@@ -139,22 +168,29 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
     }
     if (!want) {
       group.visible = false;
+      effects.userData.setActive(false);
       return;
     }
     group.visible = true;
-    // Continuous looping flow — never freeze after reveal; time always advances
     const t = state.elapsed != null ? state.elapsed : material.uniforms.uTime.value + dt;
     material.uniforms.uTime.value = t;
-    material.uniforms.uFlowSpeed.value = state.nallaFlowSpeed ?? 0.65;
+    material.uniforms.uFlowSpeed.value =
+      joiningMode || state.joiningStreamsMode
+        ? Math.min(0.45, state.nallaFlowSpeed ?? 0.45)
+        : state.nallaFlowSpeed ?? 0.65;
     material.uniforms.uActive.value = 1;
+    material.uniforms.uJoiningStyle.value = joiningMode || state.joiningStreamsMode ? 1 : 0;
 
-    // One-time fill reveal (opacity along path); surface motion continues via uTime forever
     if (revealT < 1) {
       revealT = Math.min(1, revealT + dt * 1.4);
       material.uniforms.uReveal.value = revealT;
     } else {
       material.uniforms.uReveal.value = 1;
     }
+
+    const fxOn = !!(joiningMode || state.joiningStreamsMode);
+    effects.userData.setActive(fxOn);
+    if (fxOn) effects.userData.update(dt, camera);
   }
 
   group.userData.update = update;
@@ -164,7 +200,6 @@ export function createNallaFlowSystem(dataset, drainageGroup) {
 function channelRadius(rec) {
   const ww = String(rec.meta?.waterway || "").toLowerCase();
   const L = rec.curveLength || rec.lengthM || 100;
-  // Bigger ribbons so drainage stays readable on open ground and at overview
   const open = rec.openGroundShare ?? 1;
   let r = 3.6;
   if (ww === "canal" || ww === "drain") r = 5.0;
@@ -173,7 +208,6 @@ function channelRadius(rec) {
   if (L > 800) r *= 1.3;
   else if (L > 400) r *= 1.15;
   if (rec.connectsToRiver) r *= 1.08;
-  // Open land: slightly wider; under buildings stay a bit tighter culvert
   r *= 0.92 + open * 0.28;
   return r;
 }

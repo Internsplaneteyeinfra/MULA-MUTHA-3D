@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Bank Erosion Hotspot (2016-2026)</name>
+  <description>Bank erosion hotspot classification, clipped to the Mula-Mutha AOI boundary so the light-green 'No Erosion' fill no longer spills onto surrounding land. Hotspot = number of year-to-year periods with detected erosion.</description>
+  <ScreenOverlay>
+    <name>Legend</name>
+    <Icon><href>files/legend.png</href></Icon>
+    <overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+    <screenXY x="0.01" y="0.99" xunits="fraction" yunits="fraction"/>
+    <rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+    <size x="0" y="0" xunits="fraction" yunits="fraction"/>
+  </ScreenOverlay>
+  <GroundOverlay>
+    <name>Bank Erosion Hotspot (2016-2026)</name>
+    <description>Bank erosion hotspot classification, clipped to the Mula-Mutha AOI boundary so the light-green 'No Erosion' fill no longer spills onto surrounding land. Hotspot = number of year-to-year periods with detected erosion.</description>
+    <Icon><href>files/overlay.png</href><viewBoundScale>0.75</viewBoundScale></Icon>
+    <LatLonBox>
+      <north>18.54742583968735</north><south>18.520745875749</south><east>73.9935113006977</east><west>73.85472158930123</west>
+      <rotation>0</rotation>
+    </LatLonBox>
+  </GroundOverlay>
+</Document>
+</kml>

@@ -21,6 +21,9 @@ export function createNallaWaterMaterial() {
       uOpacity: { value: 0.9 },
       uReveal: { value: 0 },
       uActive: { value: 0 },
+      /** 1 = Joining Streams dark-navy pipe look */
+      uJoiningStyle: { value: 0 },
+      uSelectedBoost: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec2 vUv;
@@ -44,6 +47,8 @@ export function createNallaWaterMaterial() {
       uniform float uOpacity;
       uniform float uReveal;
       uniform float uActive;
+      uniform float uJoiningStyle;
+      uniform float uSelectedBoost;
 
       varying vec2 vUv;
       varying vec3 vWorld;
@@ -80,12 +85,11 @@ export function createNallaWaterMaterial() {
         if (fill < 0.02) discard;
 
         float spd = max(0.35, uFlowSpeed);
-        // Layer 1 — slow body distortion (loops via continuous time)
-        float tSlow = uTime * (0.22 * spd);
-        // Layer 2 — faster surface highlights / streaks
-        float tFast = uTime * (0.62 * spd);
+        // Joining Streams: slower body motion so pipe + arrows stay readable
+        float styleSlow = mix(1.0, 0.55, uJoiningStyle);
+        float tSlow = uTime * (0.22 * spd * styleSlow);
+        float tFast = uTime * (0.62 * spd * styleSlow);
 
-        // Along-channel flow: fract keeps pattern looping forever
         float alongSlow = fract(vAlong * 6.0 - tSlow);
         float alongFast = fract(vAlong * 10.0 - tFast);
         float across = vAcross;
@@ -96,45 +100,51 @@ export function createNallaWaterMaterial() {
         float nSlow = fbm(uvSlow);
         float nFast = fbm(uvFast + vec2(nSlow * 0.35, 0.0));
 
-        // Directional streaks traveling downstream (visibly move within ~1s)
         float streakA = smoothstep(0.55, 0.92, sin(alongFast * 6.2831853) * 0.5 + 0.5 + nFast * 0.25);
         float streakB = smoothstep(0.62, 0.95, sin((alongSlow + 0.33) * 6.2831853) * 0.5 + 0.5);
         float streak = max(streakA * 0.85, streakB * 0.45);
 
         float edge = abs(across * 2.0 - 1.0);
-        vec3 deep = vec3(0.10, 0.34, 0.58);
-        vec3 mid = vec3(0.22, 0.55, 0.78);
-        vec3 cyan = vec3(0.55, 0.90, 1.0);
+
+        // Default bright cyan-blue ribbons
+        vec3 deepA = vec3(0.10, 0.34, 0.58);
+        vec3 midA = vec3(0.22, 0.55, 0.78);
+        vec3 cyanA = vec3(0.55, 0.90, 1.0);
+        // Joining Streams: dark navy pipe + cyan edge
+        vec3 deepB = vec3(0.04, 0.12, 0.28);
+        vec3 midB = vec3(0.08, 0.28, 0.48);
+        vec3 cyanB = vec3(0.35, 0.78, 0.98);
+        vec3 deep = mix(deepA, deepB, uJoiningStyle);
+        vec3 mid = mix(midA, midB, uJoiningStyle);
+        vec3 cyan = mix(cyanA, cyanB, uJoiningStyle);
         vec3 foam = vec3(0.85, 0.95, 1.0);
 
         vec3 col = mix(deep, mid, smoothstep(0.0, 0.5, edge) * 0.65 + nSlow * 0.35);
-        col = mix(col, cyan, smoothstep(0.55, 0.92, edge) * 0.4);
-        // Moving highlights (primary “water is flowing” cue)
-        col += cyan * streak * (0.55 - edge * 0.25);
-        col += foam * streakA * (0.22 - edge * 0.12);
+        col = mix(col, cyan, smoothstep(0.55, 0.92, edge) * mix(0.4, 0.72, uJoiningStyle));
+        col += cyan * streak * (0.55 - edge * 0.25) * mix(1.0, 0.55, uJoiningStyle);
+        col += foam * streakA * (0.22 - edge * 0.12) * mix(1.0, 0.4, uJoiningStyle);
         col *= mix(0.88, 1.12, nSlow);
+        col = mix(col, col * vec3(1.15, 1.2, 1.28), uSelectedBoost * 0.55);
 
-        // Soft wave shimmer across width
         float wave = sin((across + nSlow) * 12.0 + uTime * spd * 1.8) * 0.5 + 0.5;
         col += cyan * wave * 0.06 * (1.0 - edge);
 
         vec3 V = normalize(cameraPosition - vWorld);
         float ndv = abs(dot(normalize(vec3(0.0, 1.0, 0.0)), V));
         float fres = pow(1.0 - ndv, 2.4);
-        col += cyan * fres * 0.2;
+        col += cyan * fres * mix(0.2, 0.35, uJoiningStyle);
 
-        // Mouth: slightly brighter where nalla meets river — still keeps flowing
         float mouth = smoothstep(0.78, 1.0, vAlong);
         col = mix(col, mix(col, cyan, 0.4), mouth * 0.4);
 
         float alpha = uOpacity * fill;
-        alpha *= mix(0.98, 0.58, edge);
+        alpha *= mix(0.98, mix(0.58, 0.72, uJoiningStyle), edge);
         alpha *= mix(1.0, 0.85, mouth);
         alpha *= mix(0.8, 1.0, fres * 0.45 + 0.55);
-        // Pulse alpha slightly with streaks so motion reads even at distance
         alpha *= mix(0.92, 1.0, streak * 0.5);
+        alpha = mix(alpha, min(0.96, alpha + 0.08), uSelectedBoost);
 
-        gl_FragColor = vec4(col, clamp(alpha, 0.0, 0.94));
+        gl_FragColor = vec4(col, clamp(alpha, 0.0, mix(0.94, 0.88, uJoiningStyle)));
       }
     `,
   });

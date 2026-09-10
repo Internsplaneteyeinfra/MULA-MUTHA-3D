@@ -260,14 +260,20 @@ export function createCameraSystem(canvas, dataset) {
     };
   }
 
-  function exitMap2D() {
+  function exitMap2D({ preserveUp = false } = {}) {
     if (activeCamera === perspCamera) {
       unlockPerspectiveControls();
       return;
     }
     perspCamera.position.copy(orthoCamera.position);
-    perspCamera.up.set(0, 1, 0);
-    controls.target.copy(controls.target);
+    if (preserveUp) {
+      // Keep map bearing for a continuous 2D→3D fly (avoids an instant world-up snap).
+      perspCamera.up.copy(orthoCamera.up);
+      if (perspCamera.up.lengthSq() < 1e-8) perspCamera.up.set(0, 1, 0);
+      else perspCamera.up.normalize();
+    } else {
+      perspCamera.up.set(0, 1, 0);
+    }
     activeCamera = perspCamera;
     controls.object = perspCamera;
     unlockPerspectiveControls();
@@ -934,7 +940,7 @@ export function createCameraSystem(canvas, dataset) {
     focusOnXZ,
     update,
     resize,
-    ensurePerspective: exitMap2D,
+    ensurePerspective: (opts) => exitMap2D(opts),
     stationAt: st,
     rotateToCompass,
     resetOrientation,

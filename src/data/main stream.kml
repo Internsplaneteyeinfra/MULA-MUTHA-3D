@@ -1,0 +1,78 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document id="document">
+	<name>Untitled KML file</name>
+	<Schema name="clipped" id="clipped">
+		<SimpleField type="string" name="full_id">
+		</SimpleField>
+		<SimpleField type="string" name="osm_id">
+		</SimpleField>
+		<SimpleField type="string" name="osm_type">
+		</SimpleField>
+		<SimpleField type="string" name="waterway">
+		</SimpleField>
+		<SimpleField type="string" name="addr:city">
+		</SimpleField>
+		<SimpleField type="string" name="highway">
+		</SimpleField>
+		<SimpleField type="string" name="bicycle">
+		</SimpleField>
+		<SimpleField type="string" name="wikidata">
+		</SimpleField>
+		<SimpleField type="string" name="bridge">
+		</SimpleField>
+		<SimpleField type="string" name="name:hi">
+		</SimpleField>
+		<SimpleField type="string" name="intermittent">
+		</SimpleField>
+		<SimpleField type="string" name="int_name">
+		</SimpleField>
+		<SimpleField type="string" name="boat">
+		</SimpleField>
+		<SimpleField type="string" name="width">
+		</SimpleField>
+		<SimpleField type="string" name="name:gu">
+		</SimpleField>
+		<SimpleField type="string" name="name:en">
+		</SimpleField>
+		<SimpleField type="string" name="tunnel">
+		</SimpleField>
+		<SimpleField type="string" name="name:mr">
+		</SimpleField>
+		<SimpleField type="string" name="layer">
+		</SimpleField>
+	</Schema>
+	<Placemark id="clipped.4">
+		<name>Mula-Mutha</name>
+		<Style>
+			<LineStyle>
+				<color>ff0000ff</color>
+			</LineStyle>
+			<PolyStyle>
+				<fill>0</fill>
+			</PolyStyle>
+			<ListStyle>
+				<listItemType>check</listItemType>
+				<bgColor>00ffffff</bgColor>
+				<maxSnippetLines>2</maxSnippetLines>
+			</ListStyle>
+		</Style>
+		<ExtendedData>
+			<SchemaData schemaUrl="#clipped">
+				<SimpleData name="full_id">w52880515</SimpleData>
+				<SimpleData name="osm_id">52880515</SimpleData>
+				<SimpleData name="osm_type">way</SimpleData>
+				<SimpleData name="waterway">river</SimpleData>
+				<SimpleData name="name:mr">मुळा-मुठा</SimpleData>
+			</SchemaData>
+		</ExtendedData>
+		<MultiGeometry>
+			<LineString>
+				<coordinates>
+					73.86034739999999,18.5315656,0 73.8613087,18.5322655,0 73.86170060000001,18.5327457,0 73.8622785,18.5334536,0 73.8634373,18.5353009,0 73.8648105,18.5371319,0 73.865995,18.5380678,0 73.86820090000001,18.5391257,0 73.8695484,18.5395895,0 73.87131650000001,18.5400778,0 73.8719789,18.5402889,0 73.8793754,18.5426456,0 73.8833494,18.5431583,0 73.88770100000001,18.5437604,0 73.8916921,18.5438093,0 73.8948249,18.5427107,0 73.9007043,18.5412866,0 73.9017429,18.5409774,0 73.90279,18.5410425,0 73.9036054,18.5408147,0 73.9038046,18.5408422,0 73.90613740000001,18.5411646,0 73.9094951,18.5408058,0 73.9106366,18.539992,0 73.914911,18.5394956,0 73.9155118,18.5398455,0 73.91583799999999,18.539813,0 73.91771369999999,18.5391569,0 73.9224176,18.5391225,0 73.9236547,18.5390495,0 73.92502709999999,18.5384069,0 73.9303999,18.5365184,0 73.9335756,18.5361115,0 73.9348957,18.5359049,0 73.936995,18.5356738,0 73.93825699999999,18.5358057,0 73.9397031,18.5364337,0 73.9405048,18.5373982,0 73.943532,18.543354,0 73.94481949999999,18.5445747,0 73.9462786,18.5451443,0 73.9481669,18.5453884,0 73.9498021,18.5454901,0 73.9536432,18.545729,0 73.9560761,18.5463845,0 73.95796439999999,18.5467185,0 73.95950929999999,18.546682,0 73.96061229999999,18.5463649,0 73.9618998,18.5452256,0 73.9649038,18.5438423,0 73.96722130000001,18.5431913,0 73.9695387,18.5430285,0 73.97159859999999,18.5419707,0 73.9734869,18.5409128,0 73.9745169,18.5391225,0 73.97580429999999,18.5347281,0 73.9770918,18.5331005,0 73.9786367,18.5311474,0 73.98464490000001,18.5271597,0 73.9899664,18.5243113,0 73.9917688,18.5221139,0 73.9922918,18.5200427,0 73.9923697,18.5173122,0 73.9915215,18.5130719,0 73.991867,18.5102009,0 73.9919924623366,18.5100520000367,0 
+				</coordinates>
+			</LineString>
+		</MultiGeometry>
+	</Placemark>
+</Document>
+</kml>

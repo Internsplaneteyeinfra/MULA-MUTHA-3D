@@ -11,9 +11,10 @@ import { mountVegetationStatus } from "../ui/components/vegetationStatus.js";
 import { createBridges, updateBridgeLabels, updateBridgePiers } from "./bridges.js";
 import { createCameraSystem } from "./cinematic.js";
 import { attachInspect } from "./inspect.js";
+import { createRiverWidthMeasure } from "./riverWidthMeasure.js";
 import { createFlowParticles } from "./flowParticles.js";
 import { createWaterEffects } from "./waterEffects.js";
-import { createChainageLayer } from "./chainageMarkers.js";
+import { createChainageLayer, nearestChainage } from "./chainageMarkers.js";
 import { createProjectionValidation } from "./validation.js";
 import { createCoordinateGrid, mountCoordinateLabels } from "./coordinateGrid.js";
 import { createRiverBankOverlay } from "./riverBanks.js";
@@ -23,6 +24,7 @@ import { createDepthZonesLayer } from "./depthZonesLayer.js";
 import { createFloodLayer } from "./floodLayer.js";
 import { createApiFloodLayer } from "./apiFloodLayer.js";
 import { createHydrologyLayer } from "./hydrologyLayer.js";
+import { createMainStemLayer } from "./mainStemLayer.js";
 import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
 import { createCinematicController } from "../animation/cinematicController.js";
@@ -30,6 +32,7 @@ import { computeActiveSceneBounds, computeSceneBounds } from "../geo/sceneBounds
 import { createQualityProfile, createThrottle } from "../perf/quality.js";
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
+import mainStemKmlRaw from "../data/main stream.kml?raw";
 
 export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
   const quality = createQualityProfile();
@@ -138,8 +141,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const coordinateGrid = createCoordinateGrid(dataset);
   const riverBanks = createRiverBankOverlay(dataset);
   const drainageLayer = createDrainageLayer(dataset);
-  const nallaFlow = createNallaFlowSystem(dataset, drainageLayer);
+  const nallaFlow = createNallaFlowSystem(dataset, drainageLayer, {
+    uiRoot: document.getElementById("ui-root"),
+  });
   drainageLayer.add(nallaFlow);
+  const mainStemLayer = createMainStemLayer(dataset, mainStemKmlRaw);
   const depthZonesLayer = createDepthZonesLayer(dataset);
   const rawSurveyPoints = createRawSurveyPointLayer(dataset);
   const floodLayer = createFloodLayer(dataset);
@@ -178,11 +184,38 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(coordinateGrid);
   scene.add(riverBanks);
   scene.add(drainageLayer);
+  scene.add(mainStemLayer);
   scene.add(depthZonesLayer);
   scene.add(rawSurveyPoints);
   scene.add(floodLayer);
   scene.add(apiFloodLayer);
   scene.add(hydrologyLayer);
+
+  // Spectral Lithology click marker (white point + ring)
+  const lithologyPick = new THREE.Group();
+  lithologyPick.name = "lithologyPick";
+  lithologyPick.visible = false;
+  const lithoRing = new THREE.Mesh(
+    new THREE.RingGeometry(1.8, 2.4, 48),
+    new THREE.MeshBasicMaterial({
+      color: 0xffffff,
+      transparent: true,
+      opacity: 0.85,
+      side: THREE.DoubleSide,
+      depthTest: false,
+    }),
+  );
+  lithoRing.rotation.x = -Math.PI / 2;
+  const lithoDot = new THREE.Mesh(
+    new THREE.SphereGeometry(0.55, 16, 16),
+    new THREE.MeshBasicMaterial({ color: 0xffffff, depthTest: false }),
+  );
+  lithologyPick.add(lithoRing, lithoDot);
+  lithologyPick.renderOrder = 60;
+  scene.add(lithologyPick);
+  /** @type {null | { x:number, z:number, y:number, label:string, pct:string, color:string }} */
+  let lithologyPickInfo = null;
+  const lithoNdc = new THREE.Vector3();
 
   const uiRoot = document.getElementById("ui-root");
 
@@ -192,12 +225,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const cam = createCameraSystem(canvas, dataset);
   const getCamera = () => cam.camera;
   const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, getCamera, canvas);
+  const riverWidthMeasure = createRiverWidthMeasure(dataset);
+  scene.add(riverWidthMeasure.group);
+
   attachInspect(canvas, getCamera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip, {
     getDrainageGroup: () => drainageLayer,
     getDepthZonesGroup: () => depthZonesLayer,
     getNallaFlow: () => nallaFlow,
     getHydrologyGroup: () => hydrologyLayer,
     getRawSurveyLayer: () => rawSurveyPoints,
+    riverWidthMeasure,
   });
 
   // Progressive load: core scene visible first (river + terrain + water)
@@ -336,6 +373,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   /** Keep the floating CHAINAGE card pinned next to the selected marker (River Side structure). */
   function pinSelectedChainageTip() {
     if (state.cinematicActive || !state.showChainage) return;
+    // Bank-erosion class card owns the tooltip until dismissed.
+    // Bank-erosion / lithology tips own the floating card; joining-streams uses left panel.
+    if (state.bankErosionTipActive || state.lithologyTipActive) return;
     const selM = state.selectedChainageMeters;
     if (selM == null) return;
     const sel = interpolateChainage(dataset.chainage, selM);
@@ -347,6 +387,26 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const sx = rect.left + (chainTipNdc.x * 0.5 + 0.5) * rect.width + 18;
     const sy = rect.top + (-chainTipNdc.y * 0.5 + 0.5) * rect.height - 10;
     showChainageTipAt(sx, sy, sel);
+  }
+
+  /** Keep Spectral Lithology click card pinned to the geographic pick marker. */
+  function pinLithologyPickTip() {
+    if (!state.lithologyTipActive || !lithologyPickInfo) return;
+    const info = lithologyPickInfo;
+    chainTipWorld.set(info.x, info.y ?? SURFACE_Y + 2.5, info.z);
+    lithoNdc.copy(chainTipWorld).project(cam.camera);
+    if (lithoNdc.z > 1) return;
+    const rect = canvas.getBoundingClientRect();
+    const sx = rect.left + (lithoNdc.x * 0.5 + 0.5) * rect.width;
+    const sy = rect.top + (-lithoNdc.y * 0.5 + 0.5) * rect.height;
+    tooltip.show(sx, sy, {
+      lithologyClick: true,
+      label: info.label,
+      pct: info.pct,
+      color: info.color,
+      lon: info.lon,
+      lat: info.lat,
+    });
   }
 
   function resolveChainageUnderCursor(e, maxDistM = 70) {
@@ -411,7 +471,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         state.chainageTipActive = false;
         return;
       }
-      // Prefer pinned tip on selection; river hover handles the rest
+      // Prefer pinned tip on selection; pause while river width measure is up
+      if (state.riverMeasureActive) {
+        state.chainageTipActive = false;
+        return;
+      }
       if (state.selectedChainageMeters != null) {
         pinSelectedChainageTip();
         return;
@@ -435,6 +499,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const h = canvas.clientHeight || window.innerHeight;
     cam.resize?.(w, h);
     renderer.setSize(w, h, false);
+    kmlSkeleton.userData?.setResolution?.(w, h);
+    mainStemLayer.userData?.setResolution?.(w, h);
     // Keep Overview framed to KML after aspect changes
     if (state.cameraMode === "overview" && !cinematic.isActive()) {
       cam.applyMode("overview");
@@ -494,10 +560,71 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     floodSimLayer,
     hydrologyLayer,
     async showHydrologyLayer(id) {
-      return hydrologyLayer.userData?.showLayer?.(id);
+      const result = await hydrologyLayer.userData?.showLayer?.(id);
+      // Bank erosion ribbon sits on the river corridor — keep water/flood hidden
+      // every frame via state flags (update() otherwise restores them).
+      const showErosion =
+        id === "bank_erosion" && result?.available && result?.ok !== false && !result?.superseded;
+      const showLithology =
+        id === "geology" && result?.available && result?.ok !== false && !result?.superseded;
+      state.hydrologyHidesWater = !!showErosion;
+      state.hydrologyHidesFlood = !!showErosion;
+      state.bankErosionMode = !!showErosion;
+      state.lithologyMode = !!showLithology;
+      const ui = document.getElementById("ui-root");
+      ui?.classList.toggle("bank-erosion-mode", !!showErosion);
+      ui?.classList.toggle("lithology-mode", !!showLithology);
+      if (!showErosion) state.bankErosionTipActive = false;
+      if (!showLithology) {
+        state.lithologyTipActive = false;
+        lithologyPick.visible = false;
+        lithologyPickInfo = null;
+      }
+      if (showErosion) {
+        console.info("[bank_erosion] overlay on", result?.stats || null);
+      }
+      return result;
     },
     hideHydrology() {
       hydrologyLayer.userData?.hideAll?.();
+      state.hydrologyHidesWater = false;
+      state.hydrologyHidesFlood = false;
+      state.bankErosionMode = false;
+      state.bankErosionTipActive = false;
+      state.lithologyMode = false;
+      state.lithologyTipActive = false;
+      document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
+      lithologyPick.visible = false;
+      lithologyPickInfo = null;
+    },
+    setLithologyPick(info) {
+      if (!info || info.x == null || info.z == null) {
+        lithologyPick.visible = false;
+        lithologyPickInfo = null;
+        state.lithologyTipActive = false;
+        return;
+      }
+      lithologyPickInfo = info;
+      lithologyPick.position.set(info.x, info.y ?? SURFACE_Y + 2.5, info.z);
+      lithologyPick.visible = true;
+      state.lithologyTipActive = true;
+      // Immediate tip at click; pinLithologyPickTip keeps it geo-locked while camera moves
+      if (info.clientX != null && info.clientY != null) {
+        tooltip.show(info.clientX, info.clientY, {
+          lithologyClick: true,
+          label: info.label,
+          pct: info.pct,
+          color: info.color,
+          lon: info.lon,
+          lat: info.lat,
+        });
+      }
+    },
+    clearLithologyPick() {
+      lithologyPick.visible = false;
+      lithologyPickInfo = null;
+      state.lithologyTipActive = false;
+      tooltip.hide();
     },
     getHydrologyActiveId() {
       return hydrologyLayer.userData?.getActiveId?.() ?? null;
@@ -509,26 +636,78 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     /** Exit 2D if needed and fly to chainage eye-level view (used by VIEW → 3D). */
     goToChainageView(meters) {
       if (cinematic.isActive()) return;
-      cam.ensurePerspective?.();
+      const wasMap2d =
+        state.cameraMode === "aerial" ||
+        state.cameraMode === "top" ||
+        state.cameraMode === "2d";
+      // Preserve map up so the fly starts from the current top-down pose.
+      cam.ensurePerspective?.(wasMap2d ? { preserveUp: true } : undefined);
       const chain = dataset.chainage || [];
       if (!chain.length) return;
       const first = chain[0].meters;
       const last = chain[chain.length - 1].meters;
       let m = Number(meters);
-      if (!Number.isFinite(m)) m = Math.round(((first + last) * 0.5) / 100) * 100;
+      if (!Number.isFinite(m)) m = 8000;
       m = Math.min(last, Math.max(first, m));
       const p = interpolateChainage(chain, m);
       if (!p || p.x == null) return;
       state.selectedChainageMeters = p.meters;
       state.showChainage = true;
       state.showChainageLabels = false;
-      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, false), dur: 1.0 });
+
+      const startY = cam.camera?.position?.y ?? 0;
+      const eyeH = 16;
+      // Gentle descent arc when coming down from map altitude.
+      const descentLift =
+        wasMap2d || startY > eyeH + 120
+          ? Math.min(420, Math.max(90, (startY - eyeH) * 0.22))
+          : 0;
+
+      cam.focusOnXZ?.(p.x, p.z, {
+        ...chainageCameraOptions(p, false),
+        dur: wasMap2d ? 3.4 : 2.6,
+        ease: "inOutCubic",
+        transitLift: descentLift,
+      });
       document.dispatchEvent(
         new CustomEvent("chainage-select", {
           detail: { meters: p.meters, notes: false, focus: false },
         }),
       );
-      setTimeout(() => pinSelectedChainageTip(), 120);
+      // Pin tip after the fly settles so it doesn't fight the animation.
+      const tipDelay = wasMap2d ? 3400 : 2600;
+      setTimeout(() => pinSelectedChainageTip(), tipDelay);
+    },
+    /**
+     * River click measure: pull camera back for readable width/depth labels,
+     * but keep the view locked on the active (or nearest) chainage station.
+     */
+    frameRiverMeasure(_x, _z, metersHint) {
+      if (cinematic.isActive()) return;
+      cam.ensurePerspective?.();
+      const chain = dataset.chainage || [];
+      if (!chain.length) return;
+      let m = state.selectedChainageMeters;
+      if (m == null && Number.isFinite(metersHint)) m = metersHint;
+      if (m == null) {
+        const near = nearestChainage(_x, _z, chain);
+        m = near?.meters;
+      }
+      if (m == null) return;
+      const p = interpolateChainage(chain, m);
+      if (!p || p.x == null) return;
+      state.selectedChainageMeters = p.meters;
+      // Zoomed-out corridor pose — still chainage-locked, not free overview.
+      cam.focusOnXZ?.(p.x, p.z, {
+        cameraHeight: 26,
+        cameraDistance: 92,
+        lookAheadDistance: 150,
+        lookY: SURFACE_Y + 14,
+        lateralOffset: 0,
+        fov: 58,
+        dur: 0.55,
+        ease: "outCubic",
+      });
     },
     setRawSurveyPointsVisible(_visible) {
       state.showRawSurveyPoints = false;
@@ -634,9 +813,90 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (dEl) dEl.checked = !!on;
       if (on) nallaFlow.userData?.playReveal?.();
       else nallaFlow.userData?.setActive?.(false);
+      document.getElementById("drainage-btn")?.setAttribute("aria-pressed", on ? "true" : "false");
+      document.getElementById("drainage-btn")?.classList.toggle("active", !!on);
     },
     toggleDrainageFlow() {
       window.__MM_SCENE__.setDrainageFlow(!state.showDrainage);
+    },
+    /** Geology → Joining Streams: drainage pipes + arrows + mist + click info */
+    setJoiningStreams(on) {
+      const active = !!on;
+      state.joiningStreamsMode = active;
+      if (!active) {
+        state.joiningStreamsTipActive = false;
+        nallaFlow.userData?.setSelected?.(null);
+        window.__MM_JOINING_CARD__?.clear?.();
+      }
+      // Never disable OrbitControls / canvas pointer events — layer only.
+      if (cam?.controls) cam.controls.enabled = true;
+      nallaFlow.userData?.setJoiningStreamsMode?.(active);
+      window.__MM_SCENE__.setDrainageFlow(active);
+      document.getElementById("ui-root")?.classList.toggle("joining-streams-mode", active);
+      return { ok: true, active };
+    },
+    /** Geology → Main Stem: Mula–Mutha centerline from main stream.kml */
+    setMainStem(on) {
+      const active = !!on;
+      state.mainStemMode = active;
+      mainStemLayer.userData?.setVisible?.(active);
+      document.getElementById("ui-root")?.classList.toggle("main-stem-mode", active);
+      return {
+        ok: true,
+        active,
+        available: (mainStemLayer.userData?.stats?.paths || 0) > 0,
+        stats: mainStemLayer.userData?.stats || null,
+      };
+    },
+    /** Geology → Bathymetry: Jul 2026 depth-zone KML polygons */
+    setBathymetry(on) {
+      const active = !!on;
+      state.bathymetryMode = active;
+      state.showDepthZones = active;
+      if (active) {
+        state.glassyRevealActive = true;
+        state.glassyVizMode = "data";
+        state.glassyWaterOpacity = Math.max(state.glassyWaterOpacity ?? 0.72, 0.85);
+        depthZonesLayer.userData?.playReveal?.();
+      } else {
+        state.glassyRevealActive = false;
+        if (state.glassyVizMode === "data") state.glassyVizMode = "cinematic";
+        depthZonesLayer.userData?.setSelected?.(null);
+        state.selectedDepthZoneId = null;
+      }
+      depthZonesLayer.userData?.setVisible?.(active);
+      depthZonesLayer.visible = active;
+      const el = document.querySelector("#depth-zones");
+      if (el && el.checked !== active) {
+        el.checked = active;
+        el.dispatchEvent(new Event("change", { bubbles: true }));
+      }
+      const toolkit = document.querySelector("#glassy-toolkit");
+      if (toolkit) toolkit.hidden = !active;
+      document.getElementById("ui-root")?.classList.toggle("bathymetry-mode", active);
+      const stats = depthZonesLayer.userData?.stats || null;
+      return {
+        ok: true,
+        active,
+        available: (stats?.built || stats?.polygons || 0) > 0,
+        stats,
+      };
+    },
+    selectJoiningStream(rec) {
+      if (!rec) {
+        state.joiningStreamsTipActive = false;
+        nallaFlow.userData?.setSelected?.(null);
+        window.__MM_JOINING_CARD__?.clear?.();
+        return;
+      }
+      state.joiningStreamsTipActive = true;
+      nallaFlow.userData?.setSelected?.(rec);
+      window.__MM_JOINING_CARD__?.show?.(rec);
+    },
+    clearJoiningStreamSelection() {
+      state.joiningStreamsTipActive = false;
+      nallaFlow.userData?.setSelected?.(null);
+      window.__MM_JOINING_CARD__?.clear?.();
     },
     startGlassyTour() {
       state.showDepthZones = true;
@@ -691,9 +951,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       syncWaterMaterial(river.material);
       if (!cinematic.isActive() && state.showDepthZones && river.material.uniforms.uOpacity) {
+        // Keep river translucent so Jul 2026 depth classes read clearly
+        const cap = state.bathymetryMode ? 0.42 : 0.78;
         river.material.uniforms.uOpacity.value = Math.max(
-          0.58,
-          Math.min(state.waterOpacity, 0.78),
+          state.bathymetryMode ? 0.28 : 0.58,
+          Math.min(state.waterOpacity, cap),
         );
       }
       // Always tint floating water by bathymetry depth (light→dark blue)
@@ -703,7 +965,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (cutaway && !cinematic.isActive()) {
         river.material.uniforms.uOpacity.value = Math.min(state.waterOpacity, 0.28);
       }
-      const waterOn = !!state.showWater;
+      const waterOn = !!state.showWater && !state.hydrologyHidesWater;
+      const erosionDark = !!state.hydrologyHidesWater;
       // River OFF → excavated ground deep view (boosted vertical relief)
       const bedExag = cutaway
         ? Math.max(5, state.depthExaggeration)
@@ -713,7 +976,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const apiFloodActive = state.floodMode === "api" && !!apiFloodLayer.userData?.hasFlood;
       // Bathtub stage ignored while API flood is the active surface
       const floodRise = apiFloodActive ? 0 : (state.floodRiseM ?? 0);
-      const riverLook = cutaway ? "cutaway" : waterOn ? "water" : "depth";
+      // Bank erosion: dark channel so neon green/yellow ribbon pops (reference look)
+      const riverLook = cutaway
+        ? "cutaway"
+        : erosionDark
+          ? "erosionDark"
+          : waterOn
+            ? "water"
+            : "depth";
       if (
         bedExag !== lastExag ||
         state.visualMode !== lastVisual ||
@@ -737,12 +1007,20 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       // Illustrative bathtub never conflicts with API flood surface
       if (apiFloodActive) floodLayer.visible = false;
-      // River OFF → hide water; bed stays as earth-tone ground deep view
+      if (state.hydrologyHidesFlood) {
+        floodLayer.visible = false;
+        apiFloodLayer.visible = false;
+      }
+      // River OFF / Bank Erosion mode → hide water; bed stays as ground deep view
       river.mesh.visible = waterOn;
       if (river.material) river.material.visible = waterOn;
       river.bed.visible = state.showBathymetry !== false;
       river.walls.visible = state.showBathymetry !== false;
       if (river.wire) river.wire.visible = !!state.showWaterDebug && waterOn;
+      // Keep hydrology draped overlays on when a layer is active
+      if (hydrologyLayer.userData?.getActiveId?.()) {
+        hydrologyLayer.visible = true;
+      }
       terrain.mesh.visible = true;
       if (terrain.surround) terrain.surround.visible = true;
       state.showTerrain = true;
@@ -755,11 +1033,13 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       // Bank overlay is debug/validation only — not drawn over living water
       riverBanks.visible = state.showValidation || state.showOsmAlignment;
       drainageLayer.visible = state.showDrainage;
+      mainStemLayer.visible = !!state.mainStemMode;
       nallaFlow.userData?.update?.(dt, cam.camera);
       depthZonesLayer.visible = state.showDepthZones;
       depthZonesLayer.userData?.update?.(dt);
       rawSurveyPoints.visible = false;
       const showFloodSim =
+        !state.hydrologyHidesFlood &&
         state.floodMode === "api" &&
         state.showFloodSimulation !== false &&
         state.apiFlood?.showLayer !== false &&
@@ -785,8 +1065,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       validation.visible = state.showValidation || state.showOsmAlignment;
       terrain.outline.visible = state.showValidation;
-      particles.mesh.visible = state.showWater && state.flowVisibility > 0.05;
-      waterFx.group.visible = state.showWater;
+      particles.mesh.visible = waterOn && state.flowVisibility > 0.05;
+      waterFx.group.visible = waterOn;
       if (particles.mesh.material?.uniforms?.uOpacity) {
         particles.mesh.material.uniforms.uOpacity.value = state.flowVisibility;
       } else if (particles.mesh.material) {
@@ -802,8 +1082,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (waterFx.group.visible) waterFx.update(dt);
       if (chainThrottle.ready(dt)) {
         chainage.update(cam.camera);
-        pinSelectedChainageTip();
+        if (state.lithologyTipActive) pinLithologyPickTip();
+        else if (!state.riverMeasureActive) pinSelectedChainageTip();
       }
+      riverWidthMeasure.update?.(cam.camera);
       cinematic.update(dt);
       if (fishing) fishing.update(dt, cam.camera);
       if (!cinematic.isActive()) cam.update(dt);

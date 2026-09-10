@@ -1,18 +1,59 @@
 /**
  * Hydrology thematic overlays for MULA-MUTHA-3D.
- * Geology (terrain-draped GroundOverlay) + Salinity (class-merged polygons).
+ * Ground overlays (geology, bank_erosion) + Salinity polygons.
  * Land Use / WQ / Pollution / AQI are config-only unavailable — no fake data.
  *
  * Self-contained under /data/hydrology — no runtime dependency on Shweta_River-2.0.
  */
 import * as THREE from "three";
 import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
-import { lonLatToLocal } from "../geo/geoReference.js";
+import { lonLatToLocal, localToLonLat } from "../geo/geoReference.js";
 import { overlayBoxToLocalBounds } from "../utils/floodGeometry.js";
 import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
+/** Bundled asset — Vite always serves this (public/data new files can 404 as HTML). */
+import bankErosionOverlayUrl from "../assets/hydrology/bank_erosion_overlay.png";
+import bankErosionLegendUrl from "../assets/hydrology/bank_erosion_legend.png";
+import { LITHOLOGY_CLASSES } from "../ui/components/geologyWorkspace.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
+const CONFIG_VERSION = 3;
+
+/** Hardcoded fallbacks so Bank Erosion works even if an old config is cached. */
+const BUILTIN_LAYER_DEFS = {
+  bank_erosion: {
+    id: "bank_erosion",
+    name: "BANK EROSION HOTSPOTS",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: {
+      north: 18.54742583968735,
+      south: 18.520745875749,
+      east: 73.9935113006977,
+      west: 73.85472158930123,
+    },
+    overlay: bankErosionOverlayUrl,
+    legend: bankErosionLegendUrl,
+    meta: "/data/hydrology/bank_erosion/meta.json",
+    source: "bank_erosion_hotspot.kmz",
+    opacity: 1,
+    gridSegments: 144,
+    liftM: 1.6,
+    flipU: false,
+    flipV: true,
+    renderType: "terrainDrapedTexture",
+    legendTitle: "Bank erosion hotspots",
+    legendSubtitle: "2016–2026 classified overlay.",
+    legendClasses: [
+      { id: "none", label: "No erosion", color: "#7CFF2A", pct: "83.1%" },
+      { id: "low", label: "Low erosion", color: "#FFE600", pct: "15.5%" },
+      { id: "moderate", label: "Moderate erosion", color: "#FF8C00", pct: "1.4%" },
+      { id: "high", label: "High erosion", color: "#FF3737", pct: "0%" },
+      { id: "very_high", label: "Very high erosion", color: "#A0001E", pct: "0%" },
+    ],
+  },
+};
 
 const CLASS_COLOR = {
   "Very Low Salinity": "#0000FF",
@@ -35,8 +76,17 @@ export function createHydrologyLayer(dataset) {
   let config = null;
   /** @type {string|null} */
   let activeId = null;
+  /** Bumps on every show/hide so a slow load cannot overwrite a newer selection. */
+  let showSeq = 0;
+  /** Last UI-requested layer id (survives showSeq races for draped overlays). */
+  let pendingShowId = null;
 
-  const geology = { mesh: null, loaded: false, loading: null };
+  const drapedOverlays = {
+    geology: { mesh: null, loaded: false, loading: null, sampler: null },
+    bank_erosion: { mesh: null, loaded: false, loading: null, sampler: null },
+  };
+  /** @deprecated alias — keep older references working during loadGeology */
+  const geology = drapedOverlays.geology;
   const salinity = {
     root: null,
     loaded: false,
@@ -45,20 +95,38 @@ export function createHydrologyLayer(dataset) {
     meshes: [],
   };
 
+  function mergeBuiltinLayers(cfg) {
+    if (!cfg || !Array.isArray(cfg.layers)) {
+      return { version: CONFIG_VERSION, layers: Object.values(BUILTIN_LAYER_DEFS) };
+    }
+    const byId = new Map(cfg.layers.map((l) => [l.id, l]));
+    for (const [id, def] of Object.entries(BUILTIN_LAYER_DEFS)) {
+      // Always prefer bundled overlay URLs for bank_erosion (public/data may 404 as HTML)
+      byId.set(id, { ...(byId.get(id) || {}), ...def });
+    }
+    return { ...cfg, layers: [...byId.values()] };
+  }
+
   async function ensureConfig() {
     if (config) return config;
-    const res = await fetch(CONFIG_URL, { signal: AbortSignal.timeout(12000) });
+    const url = `${CONFIG_URL}?v=${CONFIG_VERSION}`;
+    const res = await fetch(url, { signal: AbortSignal.timeout(12000), cache: "no-store" });
     if (!res.ok) throw new Error(`Hydrology config unavailable (${res.status})`);
-    config = await res.json();
+    config = mergeBuiltinLayers(await res.json());
     return config;
   }
 
   function layerDef(id) {
-    return config?.layers?.find((l) => l.id === id) || null;
+    const fromConfig = config?.layers?.find((l) => l.id === id);
+    const builtin = BUILTIN_LAYER_DEFS[id];
+    if (fromConfig && builtin) return { ...fromConfig, ...builtin };
+    return fromConfig || builtin || null;
   }
 
   function clearActiveMeshes() {
-    if (geology.mesh) geology.mesh.visible = false;
+    for (const slot of Object.values(drapedOverlays)) {
+      if (slot.mesh) slot.mesh.visible = false;
+    }
     if (salinity.root) salinity.root.visible = false;
   }
 
@@ -77,125 +145,105 @@ export function createHydrologyLayer(dataset) {
   }
 
   /**
-   * Terrain-draped geology GroundOverlay (LatLonBox → subdivided grid).
-   * Vertices are sampled in lon/lat so UVs stay georeferenced under flipX
-   * (west→east image columns match geographic west→east, not local minX→maxX).
+   * Terrain-draped GroundOverlay (LatLonBox → subdivided grid).
+   * Used for geology + bank_erosion KMZ extracts — accurate lon/lat placement.
    */
-  async function loadGeology(def) {
-    const GEO_UV_VERSION = 2;
-    if (geology.loaded && geology.mesh?.userData?.geoUvVersion !== GEO_UV_VERSION) {
-      group.remove(geology.mesh);
-      disposeObject(geology.mesh);
-      geology.mesh = null;
-      geology.loaded = false;
-    }
-    if (geology.loaded) return;
-    if (geology.loading) return geology.loading;
+  async function loadDrapedOverlay(def) {
+    const id = def.id;
+    const slot = drapedOverlays[id];
+    if (!slot) throw new Error(`No draped overlay slot for ${id}`);
 
-    geology.loading = (async () => {
+    const GEO_UV_VERSION = 13;
+    if (
+      slot.loaded &&
+      (slot.mesh?.userData?.geoUvVersion !== GEO_UV_VERSION ||
+        slot.mesh?.userData?.overlayUrl !== def.overlay)
+    ) {
+      group.remove(slot.mesh);
+      disposeObject(slot.mesh);
+      slot.mesh = null;
+      slot.loaded = false;
+      slot.sampler = null;
+    }
+    if (slot.loaded) {
+      if (id === "bank_erosion" && !slot.sampler) {
+        slot.sampler = await createBankErosionSampler(def).catch(() => null);
+      }
+      if (id === "geology" && !slot.sampler) {
+        slot.sampler = await createGeologySampler(def).catch(() => null);
+      }
+      return;
+    }
+    if (slot.loading) return slot.loading;
+
+    slot.loading = (async () => {
       const box = def.bounds;
       const west = Number(box.west);
       const east = Number(box.east);
       const north = Number(box.north);
       const south = Number(box.south);
       if (![west, east, north, south].every(Number.isFinite) || east === west || north === south) {
-        throw new Error("Geology LatLonBox bounds are invalid");
+        throw new Error(`${id} LatLonBox bounds are invalid`);
       }
 
       const bounds = overlayBoxToLocalBounds(box);
-      const segs = Math.max(32, Math.min(160, Number(def.gridSegments) || 96));
       const lift = Number(def.liftM) || 0.35;
       const opacity = Number(def.opacity) ?? 0.78;
-      const lonSpan = east - west;
-      const latSpan = north - south;
 
-      // Optional texture mirror (only if a specific asset needs it — default correct geo UVs)
-      const flipU = !!def.flipU;
-      const flipV = !!def.flipV;
-
-      const positions = new Float32Array((segs + 1) * (segs + 1) * 3);
-      const uvs = new Float32Array((segs + 1) * (segs + 1) * 2);
-      let vi = 0;
-      for (let iy = 0; iy <= segs; iy++) {
-        // Row 0 = north (top of KML overlay image)
-        const tv = iy / segs;
-        const lat = north - tv * latSpan;
-        for (let ix = 0; ix <= segs; ix++) {
-          // Col 0 = west (left of KML overlay image)
-          const tu = ix / segs;
-          const lon = west + tu * lonSpan;
-          const p = lonLatToLocal(lon, lat);
-          const y = sampleHydroY(p.x, p.z, stations, lift);
-          positions[vi * 3] = p.x;
-          positions[vi * 3 + 1] = y;
-          positions[vi * 3 + 2] = p.z;
-          // Three.js: v=0 bottom of texture → map north to v=1
-          let u = tu;
-          let v = 1 - tv;
-          if (flipU) u = 1 - u;
-          if (flipV) v = 1 - v;
-          uvs[vi * 2] = u;
-          uvs[vi * 2 + 1] = v;
-          vi += 1;
-        }
-      }
-
-      const draped = new THREE.BufferGeometry();
-      draped.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-      draped.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
-      const indices = [];
-      for (let iy = 0; iy < segs; iy++) {
-        for (let ix = 0; ix < segs; ix++) {
-          const a = iy * (segs + 1) + ix;
-          const b = a + 1;
-          const c = a + (segs + 1);
-          const d = c + 1;
-          indices.push(a, c, b, b, c, d);
-        }
-      }
-      draped.setIndex(indices);
-      draped.computeVertexNormals();
-
-      const texture = await loadTexture(def.overlay);
-      texture.colorSpace = THREE.SRGBColorSpace;
-      texture.anisotropy = 4;
-      texture.minFilter = THREE.LinearMipmapLinearFilter;
-      texture.magFilter = THREE.LinearFilter;
-      texture.generateMipmaps = true;
-      texture.wrapS = THREE.ClampToEdgeWrapping;
-      texture.wrapT = THREE.ClampToEdgeWrapping;
-      texture.flipY = true;
-      texture.needsUpdate = true;
-
-      const mat = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity,
-        depthWrite: false,
-        side: THREE.DoubleSide,
-        polygonOffset: true,
-        polygonOffsetFactor: -1,
-        polygonOffsetUnits: -1,
+      // Lon/lat draped grid — same pipeline for geology + bank erosion.
+      // With texture.flipY=false, flipV maps image top to geographic north.
+      const mesh = await buildDrapedGridMesh({
+        id,
+        def: {
+          ...def,
+          flipU: false,
+          flipV: true,
+          gridSegments: id === "bank_erosion" ? Math.max(112, Number(def.gridSegments) || 144) : def.gridSegments,
+        },
+        bounds,
+        west,
+        east,
+        north,
+        south,
+        stations,
+        lift: id === "bank_erosion" ? Math.max(lift, 1.2) : lift,
+        opacity: id === "bank_erosion" ? 1 : opacity,
+        version: GEO_UV_VERSION,
+        nearest: id === "bank_erosion",
+        highContrast: id === "bank_erosion",
       });
 
-      const mesh = new THREE.Mesh(draped, mat);
-      mesh.name = "hydrologyGeology";
-      mesh.renderOrder = 4;
-      mesh.visible = false;
-      mesh.userData.hydrology = "geology";
-      mesh.userData.geoUvVersion = GEO_UV_VERSION;
-      mesh.userData.boundsLonLat = { west, east, north, south };
-      mesh.userData.boundsLocal = bounds;
       group.add(mesh);
-      geology.mesh = mesh;
-      geology.loaded = true;
-      geology.loading = null;
+      slot.mesh = mesh;
+      slot.loaded = true;
+      if (id === "bank_erosion") {
+        try {
+          slot.sampler = await createBankErosionSampler(def);
+        } catch (err) {
+          console.warn("[bank_erosion] hover sampler unavailable", err);
+          slot.sampler = null;
+        }
+      }
+      if (id === "geology") {
+        try {
+          slot.sampler = await createGeologySampler(def);
+        } catch (err) {
+          console.warn("[geology] click sampler unavailable", err);
+          slot.sampler = null;
+        }
+      }
+      slot.loading = null;
     })().catch((err) => {
-      geology.loading = null;
+      slot.loading = null;
       throw err;
     });
 
-    return geology.loading;
+    return slot.loading;
+  }
+
+  /** @deprecated use loadDrapedOverlay */
+  async function loadGeology(def) {
+    return loadDrapedOverlay(def);
   }
 
   /**
@@ -308,11 +356,16 @@ export function createHydrologyLayer(dataset) {
    * @returns {Promise<{ ok:boolean, id:string, available:boolean, legend?:object, message?:string, stats?:object }>}
    */
   async function showLayer(id) {
+    const seq = ++showSeq;
+    pendingShowId = id;
     await ensureConfig();
+    if (pendingShowId !== id) return { ok: false, id, available: false, superseded: true };
+
     const def = layerDef(id);
     if (!def) return { ok: false, id, available: false, message: "Unknown hydrology layer" };
 
     if (!def.available) {
+      if (pendingShowId !== id) return { ok: false, id, available: false, superseded: true };
       clearActiveMeshes();
       activeId = id;
       group.visible = false;
@@ -326,27 +379,64 @@ export function createHydrologyLayer(dataset) {
       };
     }
 
-    if (id === "geology") {
-      await loadGeology(def);
+    if (id === "geology" || id === "bank_erosion") {
+      await loadDrapedOverlay(def);
+      if (pendingShowId !== id) {
+        // A newer request won — don't report failure for the stale one
+        return { ok: true, id, available: false, superseded: true };
+      }
       clearActiveMeshes();
-      if (geology.mesh) geology.mesh.visible = true;
+      const slot = drapedOverlays[id];
+      // If a prior failed attempt left loaded=true without mesh, force rebuild once
+      if (!slot?.mesh && slot) {
+        slot.loaded = false;
+        slot.loading = null;
+        await loadDrapedOverlay(def);
+      }
+      if (pendingShowId !== id) {
+        return { ok: true, id, available: false, superseded: true };
+      }
+      clearActiveMeshes();
+      if (slot?.mesh) {
+        slot.mesh.visible = true;
+        if (slot.mesh.material) {
+          slot.mesh.material.opacity = Math.min(1, Number(def.opacity) || 1);
+          slot.mesh.material.needsUpdate = true;
+        }
+      }
       activeId = id;
-      group.visible = true;
+      group.visible = !!slot?.mesh;
+      const legend =
+        def.legendClasses?.length
+          ? {
+              type: "classes",
+              title: def.legendTitle || def.name,
+              subtitle: def.legendSubtitle || null,
+              classes: def.legendClasses.map((c) => ({
+                label: c.label,
+                color: c.color,
+                pct: c.pct,
+              })),
+            }
+          : { type: "image", url: def.legend, title: def.name };
       return {
-        ok: true,
+        ok: !!slot?.mesh,
         id,
-        available: true,
-        legend: { type: "image", url: def.legend, title: def.name },
+        available: !!slot?.mesh,
+        message: slot?.mesh ? undefined : `Failed to build ${id} overlay mesh`,
+        legend,
         stats: {
           bounds: def.bounds,
           segments: def.gridSegments,
           opacity: def.opacity,
+          hasMesh: !!slot?.mesh,
         },
       };
     }
 
     if (id === "salinity") {
       await loadSalinity(def);
+      if (pendingShowId !== id) return { ok: false, id, available: false, superseded: true };
       clearActiveMeshes();
       if (salinity.root) salinity.root.visible = true;
       activeId = id;
@@ -377,6 +467,8 @@ export function createHydrologyLayer(dataset) {
   }
 
   function hideAll() {
+    showSeq += 1;
+    pendingShowId = null;
     clearActiveMeshes();
     activeId = null;
     group.visible = false;
@@ -390,8 +482,14 @@ export function createHydrologyLayer(dataset) {
     return config;
   }
 
-  /** Ray pick salinity feature at local XZ (efficient index scan). */
+  /** Ray pick salinity / bank erosion / geology at local XZ. */
   function pickAt(x, z) {
+    if (activeId === "bank_erosion") {
+      return sampleBankErosionAt(x, z);
+    }
+    if (activeId === "geology") {
+      return sampleGeologyAt(x, z);
+    }
     if (activeId !== "salinity" || !salinity.featureIndex.length) return null;
     let best = null;
     let bestD = Infinity;
@@ -406,13 +504,52 @@ export function createHydrologyLayer(dataset) {
     return best;
   }
 
+  /** Sample bank-erosion class at local XZ from the draped overlay raster. */
+  function sampleBankErosionAt(x, z) {
+    const slot = drapedOverlays.bank_erosion;
+    const sampler = slot?.sampler;
+    if (!sampler || activeId !== "bank_erosion") return null;
+    const ll = localToLonLat(x, z);
+    const hit = sampler.sampleLonLat(ll.lon, ll.lat);
+    if (!hit) return null;
+    return {
+      ...hit,
+      x,
+      z,
+      lon: ll.lon,
+      lat: ll.lat,
+      hydrology: "bank_erosion",
+    };
+  }
+
+  /** Sample spectral lithology class at local XZ (click identification). */
+  function sampleGeologyAt(x, z) {
+    const slot = drapedOverlays.geology;
+    const sampler = slot?.sampler;
+    if (!sampler || activeId !== "geology") return null;
+    const ll = localToLonLat(x, z);
+    const hit = sampler.sampleLonLat(ll.lon, ll.lat);
+    if (!hit) return null;
+    return {
+      ...hit,
+      x,
+      z,
+      lon: ll.lon,
+      lat: ll.lat,
+      hydrology: "geology",
+    };
+  }
+
   function dispose() {
     hideAll();
-    if (geology.mesh) {
-      group.remove(geology.mesh);
-      disposeObject(geology.mesh);
-      geology.mesh = null;
-      geology.loaded = false;
+    for (const slot of Object.values(drapedOverlays)) {
+      if (slot.mesh) {
+        group.remove(slot.mesh);
+        disposeObject(slot.mesh);
+        slot.mesh = null;
+        slot.loaded = false;
+      }
+      slot.sampler = null;
     }
     if (salinity.root) {
       group.remove(salinity.root);
@@ -478,6 +615,8 @@ export function createHydrologyLayer(dataset) {
     getConfig,
     ensureConfig,
     pickAt,
+    sampleBankErosionAt,
+    sampleGeologyAt,
     dispose,
     validateExtent,
     layerDef: (id) => layerDef(id),
@@ -488,7 +627,383 @@ export function createHydrologyLayer(dataset) {
 
 function sampleHydroY(x, z, stations, lift) {
   const ty = stations?.length ? terrainHeightAt(x, z, stations) : SURFACE_Y + 2;
-  return Math.max(ty, SURFACE_Y - 0.6) + lift;
+  // Always sit on/above the water surface so river-corridor overlays are not buried
+  // under the translucent water mesh (SURFACE_Y = 9.4).
+  const base = Math.max(ty, SURFACE_Y);
+  return base + Math.max(0.55, Number(lift) || 0.55);
+}
+
+/**
+ * Decode bank-erosion overlay into ImageData and match pixels to legend classes.
+ * UV mapping must mirror buildDrapedGridMesh (flipV for bank_erosion).
+ */
+async function createBankErosionSampler(def) {
+  const box = def.bounds;
+  const west = Number(box.west);
+  const east = Number(box.east);
+  const north = Number(box.north);
+  const south = Number(box.south);
+  const flipU = false;
+  const flipV = true;
+  const classes = (def.legendClasses || []).map((c) => {
+    const hex = normalizeHex(c.color) || "#888888";
+    const rgb = hexToRgb(hex);
+    return {
+      id: c.id,
+      label: c.label,
+      color: hex,
+      pct: c.pct || null,
+      r: rgb.r,
+      g: rgb.g,
+      b: rgb.b,
+    };
+  });
+
+  const abs = def.overlay.startsWith("http")
+    ? def.overlay
+    : new URL(def.overlay, window.location.origin).href;
+  const res = await fetch(abs, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Bank erosion sampler image unavailable (${res.status})`);
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = imageData;
+
+  function sampleLonLat(lon, lat) {
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    if (lon < west || lon > east || lat < south || lat > north) return null;
+    const u = (lon - west) / (east - west);
+    // Match buildDrapedGridMesh UV: with flipV, north→image top (v=0).
+    const texU = flipU ? 1 - u : u;
+    const texV = flipV
+      ? (north - lat) / (north - south)
+      : (lat - south) / (north - south);
+    const px = Math.min(width - 1, Math.max(0, Math.round(texU * (width - 1))));
+    const py = Math.min(height - 1, Math.max(0, Math.round(texV * (height - 1))));
+    const i = (py * width + px) * 4;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    if (a < 28) return null;
+    // Skip near-black / empty corridor fill
+    if (r + g + b < 40) return null;
+
+    let best = null;
+    let bestD = Infinity;
+    for (const c of classes) {
+      const d = (c.r - r) ** 2 + (c.g - g) ** 2 + (c.b - b) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    // Reject weak matches (mixed / anti-aliased edge far from class colors)
+    if (!best || bestD > 95 * 95) return null;
+    return {
+      class_label: best.label,
+      label: best.label,
+      id: best.id,
+      color: best.color,
+      pct: best.pct,
+      class: best.label,
+    };
+  }
+
+  return { sampleLonLat, width, height, west, east, north, south };
+}
+
+/**
+ * Geology / Spectral Lithology overlay sampler — matches LITHOLOGY_CLASSES colors.
+ * UV matches buildDrapedGridMesh with flipV (north = image top).
+ */
+async function createGeologySampler(def) {
+  const box = def.bounds;
+  const west = Number(box.west);
+  const east = Number(box.east);
+  const north = Number(box.north);
+  const south = Number(box.south);
+  const classes = LITHOLOGY_CLASSES.map((c) => ({
+    id: c.id,
+    label: c.label,
+    color: c.color,
+    pct: c.pct,
+    samples: (c.samples || []).map(([r, g, b]) => ({ r, g, b })),
+  }));
+
+  const abs = def.overlay.startsWith("http")
+    ? def.overlay
+    : new URL(def.overlay, window.location.origin).href;
+  const res = await fetch(abs, { cache: "no-store" });
+  if (!res.ok) throw new Error(`Geology sampler image unavailable (${res.status})`);
+  const blob = await res.blob();
+  const bitmap = await createImageBitmap(blob);
+  const canvas = document.createElement("canvas");
+  canvas.width = bitmap.width;
+  canvas.height = bitmap.height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.drawImage(bitmap, 0, 0);
+  bitmap.close?.();
+  const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
+  const { data, width, height } = imageData;
+
+  function sampleLonLat(lon, lat) {
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    if (lon < west || lon > east || lat < south || lat > north) return null;
+    const texU = (lon - west) / (east - west);
+    // flipV: north → image top (v=0)
+    const texV = (north - lat) / (north - south);
+    const px = Math.min(width - 1, Math.max(0, Math.round(texU * (width - 1))));
+    const py = Math.min(height - 1, Math.max(0, Math.round(texV * (height - 1))));
+    const i = (py * width + px) * 4;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    if (a < 28 || r + g + b < 40) return null;
+
+    let best = null;
+    let bestD = Infinity;
+    for (const c of classes) {
+      for (const s of c.samples) {
+        const d = (s.r - r) ** 2 + (s.g - g) ** 2 + (s.b - b) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+    }
+    if (!best || bestD > 110 * 110) return null;
+    return {
+      class_label: best.label,
+      label: best.label,
+      id: best.id,
+      color: best.color,
+      pct: best.pct,
+      class: best.label,
+    };
+  }
+
+  return { sampleLonLat, width, height, west, east, north, south };
+}
+
+function hexToRgb(hex) {
+  const h = String(hex).replace("#", "");
+  return {
+    r: parseInt(h.slice(0, 2), 16),
+    g: parseInt(h.slice(2, 4), 16),
+    b: parseInt(h.slice(4, 6), 16),
+  };
+}
+
+/** Geology-style terrain-draped grid (keeps Spectral Lithology behaviour). */
+async function buildDrapedGridMesh({
+  id,
+  def,
+  bounds,
+  west,
+  east,
+  north,
+  south,
+  stations,
+  lift,
+  opacity,
+  version,
+  nearest = false,
+  highContrast = false,
+}) {
+  const segs = Math.max(32, Math.min(160, Number(def.gridSegments) || 96));
+  const lonSpan = east - west;
+  const latSpan = north - south;
+  const flipU = !!def.flipU;
+  const flipV = !!def.flipV;
+
+  const positions = new Float32Array((segs + 1) * (segs + 1) * 3);
+  const uvs = new Float32Array((segs + 1) * (segs + 1) * 2);
+  let vi = 0;
+  for (let iy = 0; iy <= segs; iy++) {
+    const tv = iy / segs;
+    const lat = north - tv * latSpan;
+    for (let ix = 0; ix <= segs; ix++) {
+      const tu = ix / segs;
+      const lon = west + tu * lonSpan;
+      const p = lonLatToLocal(lon, lat);
+      const y = sampleHydroY(p.x, p.z, stations, lift);
+      positions[vi * 3] = p.x;
+      positions[vi * 3 + 1] = y;
+      positions[vi * 3 + 2] = p.z;
+      // tu=0 → west, tv=0 → north; with flipY=false, v=1 is image top (=north)
+      let u = tu;
+      let v = 1 - tv;
+      if (flipU) u = 1 - u;
+      if (flipV) v = 1 - v;
+      uvs[vi * 2] = u;
+      uvs[vi * 2 + 1] = v;
+      vi += 1;
+    }
+  }
+
+  const draped = new THREE.BufferGeometry();
+  draped.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  draped.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  const indices = [];
+  for (let iy = 0; iy < segs; iy++) {
+    for (let ix = 0; ix < segs; ix++) {
+      const a = iy * (segs + 1) + ix;
+      const b = a + 1;
+      const c = a + (segs + 1);
+      const d = c + 1;
+      indices.push(a, c, b, b, c, d);
+    }
+  }
+  draped.setIndex(indices);
+  draped.computeVertexNormals();
+
+  const texture = await loadBoostedOverlayTexture(`${def.overlay}?v=${version}`, nearest);
+  const mat = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: Math.min(1, Math.max(highContrast ? 1 : 0.85, opacity)),
+    alphaTest: highContrast ? 0.08 : 0.02,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+  });
+  const mesh = new THREE.Mesh(draped, mat);
+  mesh.name = `hydrology_${id}`;
+  mesh.renderOrder = highContrast ? 48 : 18;
+  mesh.frustumCulled = !highContrast;
+  mesh.visible = false;
+  mesh.userData.hydrology = id;
+  mesh.userData.geoUvVersion = version;
+  mesh.userData.overlayUrl = def.overlay;
+  mesh.userData.boundsLonLat = { west, east, north, south };
+  mesh.userData.boundsLocal = bounds;
+  return mesh;
+}
+
+/**
+ * Flat KMZ GroundOverlay plane in local XZ — bank erosion ribbon stays readable in 2D.
+ * Corners match LatLonBox exactly via lonLatToLocal.
+ */
+async function buildFlatGroundOverlayMesh({
+  id,
+  bounds,
+  west,
+  east,
+  north,
+  south,
+  overlayUrl,
+  opacity,
+  lift,
+  version,
+}) {
+  const nw = lonLatToLocal(west, north);
+  const ne = lonLatToLocal(east, north);
+  const se = lonLatToLocal(east, south);
+  const sw = lonLatToLocal(west, south);
+  const y = SURFACE_Y + Math.max(2.5, Number(lift) || 2.5);
+
+  const positions = new Float32Array([
+    nw.x, y, nw.z,
+    ne.x, y, ne.z,
+    se.x, y, se.z,
+    sw.x, y, sw.z,
+  ]);
+  // Image top = north (Google Earth GroundOverlay convention)
+  const uvs = new Float32Array([
+    0, 1,
+    1, 1,
+    1, 0,
+    0, 0,
+  ]);
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uvs, 2));
+  geo.setIndex([0, 2, 1, 0, 3, 2]);
+  geo.computeVertexNormals();
+
+  const texture = await loadBoostedOverlayTexture(`${overlayUrl}?v=${version}`, true);
+  const mat = new THREE.MeshBasicMaterial({
+    map: texture,
+    transparent: true,
+    opacity: 1,
+    alphaTest: 0.08,
+    depthWrite: false,
+    depthTest: false,
+    side: THREE.DoubleSide,
+    toneMapped: false,
+    blending: THREE.NormalBlending,
+  });
+  const mesh = new THREE.Mesh(geo, mat);
+  mesh.name = `hydrology_${id}`;
+  mesh.renderOrder = 48;
+  mesh.frustumCulled = false;
+  mesh.visible = false;
+  mesh.userData.hydrology = id;
+  mesh.userData.geoUvVersion = version;
+  mesh.userData.overlayUrl = overlayUrl;
+  mesh.userData.boundsLonLat = { west, east, north, south };
+  mesh.userData.boundsLocal = bounds;
+  mesh.userData.flatGroundOverlay = true;
+  return mesh;
+}
+
+/** Load overlay PNG via fetch (avoids stale service-worker image cache) then TextureLoader. */
+async function loadBoostedOverlayTexture(url, nearest) {
+  const abs = url.startsWith("http") ? url : new URL(url, window.location.origin).href;
+  let objectUrl = null;
+  try {
+    const res = await fetch(abs, { cache: "no-store" });
+    if (!res.ok) throw new Error(`HTTP ${res.status} for ${abs}`);
+    const blob = await res.blob();
+    if (!blob || blob.size < 32) throw new Error(`Empty overlay image (${blob?.size || 0} bytes)`);
+    objectUrl = URL.createObjectURL(blob);
+    const texture = await loadTexture(objectUrl);
+    texture.colorSpace = THREE.SRGBColorSpace;
+    texture.generateMipmaps = false;
+    texture.minFilter = THREE.LinearFilter;
+    texture.magFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
+    texture.wrapS = THREE.ClampToEdgeWrapping;
+    texture.wrapT = THREE.ClampToEdgeWrapping;
+    texture.flipY = false;
+    texture.needsUpdate = true;
+    return texture;
+  } catch (err) {
+    // Fallback: direct TextureLoader (same path lithology uses)
+    try {
+      const texture = await loadTexture(abs);
+      texture.colorSpace = THREE.SRGBColorSpace;
+      texture.generateMipmaps = false;
+      texture.minFilter = THREE.LinearFilter;
+      texture.magFilter = nearest ? THREE.NearestFilter : THREE.LinearFilter;
+      texture.wrapS = THREE.ClampToEdgeWrapping;
+      texture.wrapT = THREE.ClampToEdgeWrapping;
+      texture.flipY = false;
+      texture.needsUpdate = true;
+      return texture;
+    } catch (err2) {
+      throw new Error(formatLoadError(err2, abs) || formatLoadError(err, abs));
+    }
+  } finally {
+    if (objectUrl) URL.revokeObjectURL(objectUrl);
+  }
+}
+
+function formatLoadError(err, url) {
+  if (!err) return `Failed to load ${url}`;
+  if (typeof err === "string") return err;
+  if (err.message) return err.message;
+  if (err.type) return `Image load ${err.type} for ${url}`;
+  if (err.target?.src) return `Image load failed: ${err.target.src}`;
+  return `Failed to load ${url}`;
 }
 
 function loadTexture(url) {

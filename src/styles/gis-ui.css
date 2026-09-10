@@ -734,24 +734,39 @@
   background: rgba(30, 90, 80, 0.55) !important;
 }
 
-/* —— Depth legend (vertical, no dark container) —— */
-.gis-ui .depth-legend {
-  left: 16px;
-  bottom: 78px;
+/* —— Depth legend — under Flood in right toolbar —— */
+.gis-ui .depth-legend,
+.gis-view-modes .depth-legend,
+.depth-legend--stack {
+  position: relative;
+  left: auto;
+  right: auto;
+  bottom: auto;
+  top: auto;
   z-index: 12;
   width: auto;
   min-width: 0;
-  padding: 0;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  backdrop-filter: none !important;
+  margin-top: 4px;
+  padding: 8px 9px;
+  background: rgba(8, 22, 31, 0.52) !important;
+  border: 1px solid rgba(255, 255, 255, 0.22) !important;
+  border-radius: 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18) !important;
+  backdrop-filter: blur(12px) !important;
+  -webkit-backdrop-filter: blur(12px) !important;
+  pointer-events: none;
+}
+.gis-ui .depth-legend[hidden],
+.depth-legend--stack[hidden] {
+  display: none !important;
 }
 .gis-ui .depth-legend strong {
   color: rgba(255, 255, 255, 0.95);
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
   letter-spacing: 0.12em;
   margin-bottom: 8px;
+  font-size: 9px;
+  text-align: center;
 }
 .gis-ui .depth-legend .depth-ticks span,
 .gis-ui .depth-legend .depth-note {
@@ -761,6 +776,8 @@
 .gis-ui .depth-legend .depth-bar {
   border: none;
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
+  min-height: 110px;
+  width: 10px;
 }
 
 /* —— Timeline (follow mode, hidden by default) —— */
@@ -1785,88 +1802,271 @@
   z-index: 20;
   display: flex;
   align-items: center;
-  gap: 8px;
-  max-width: calc(100vw - 520px);
+  justify-content: center;
+  gap: clamp(6px, 0.7vw, 10px);
+  width: auto;
+  max-width: calc(100vw - 280px);
+  height: auto;
+  min-height: 44px;
+  padding: 0;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
   pointer-events: auto;
+  overflow: visible;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.analytics-controls::-webkit-scrollbar {
+  display: none;
 }
 .analytics-controls .nav-button,
 .top-navigation .nav-button,
 .analytics-controls > button {
   appearance: none;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 7px;
+  -webkit-appearance: none;
+  position: relative;
+  display: grid;
+  place-items: center;
   box-sizing: border-box;
-  height: 36px;
-  min-height: 36px;
-  min-width: 118px;
-  padding: 0 14px;
-  color: rgba(223, 248, 255, 0.9);
-  background: rgba(8, 22, 31, 0.72);
-  border: 1px solid rgba(107, 210, 235, 0.22);
-  border-radius: 9px;
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.16);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  font: 600 12px/1 var(--font-ui);
-  letter-spacing: 0.02em;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  max-width: 44px;
+  padding: 0;
+  margin: 0;
+  color: rgba(240, 245, 220, 0.92);
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  font: inherit;
+  letter-spacing: 0;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+  flex: 0 0 auto;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease,
+    transform 160ms ease,
+    filter 180ms ease;
 }
 .analytics-controls .nav-button-icon {
   display: grid;
   place-items: center;
-  width: 16px;
-  height: 16px;
-  flex: 0 0 16px;
+  width: 22px;
+  height: 22px;
   color: inherit;
+  transition: transform 180ms ease, filter 180ms ease;
+  pointer-events: none;
+}
+.analytics-controls .nav-button-icon svg,
+.analytics-controls .nav-icon-svg {
+  display: block;
+  width: 20px;
+  height: 20px;
+  stroke: currentColor;
+  pointer-events: none;
 }
 .analytics-controls .nav-button-label {
-  white-space: nowrap;
+  display: none !important;
 }
-.analytics-controls .nav-button:hover,
-.analytics-controls > button:hover {
-  background: rgba(22, 67, 86, 0.88);
-  border-color: rgba(120, 225, 246, 0.55);
-  color: #eaf8fb;
-}
-.analytics-controls .nav-button.active,
-.analytics-controls .nav-button[aria-pressed="true"] {
-  color: #dff9ff;
-  background: rgba(20, 78, 98, 0.82);
-  border-color: rgba(91, 200, 232, 0.72);
-  box-shadow: 0 0 0 1px rgba(91, 200, 232, 0.28), 0 0 14px rgba(56, 189, 248, 0.18);
+.analytics-controls .nav-button-badge {
+  position: absolute;
+  top: -2px;
+  right: -2px;
+  display: grid;
+  place-items: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: #3b9eff;
+  color: #fff;
+  font: 700 10px/1 var(--font-ui);
+  box-shadow: 0 2px 6px rgba(20, 90, 180, 0.45);
+  border: 1.5px solid rgba(255, 255, 255, 0.85);
+  pointer-events: none;
+  z-index: 2;
 }
 
-/* Compact River Data + attached profile popup */
-.river-data-panel {
+/* Preserve original icon colors */
+.analytics-controls .nav-button.tone-mountain { color: #e8d5a3; }
+.analytics-controls .nav-button.tone-graph { color: #f0c85a; }
+.analytics-controls .nav-button.tone-droplet { color: #7ed7f0; }
+.analytics-controls .nav-button.tone-drill { color: #f0a08a; }
+.analytics-controls .nav-button.tone-plant { color: #9fd98a; }
+.analytics-controls .nav-button.tone-pin { color: #7ecfad; }
+.analytics-controls .nav-button.tone-sun { color: #f0b48a; }
+.analytics-controls .nav-button.tone-waves { color: #8fd6f2; }
+.analytics-controls .nav-button.tone-brightness { color: #e8ebe8; }
+
+/* Hover — translucent highlight only on that button */
+.analytics-controls .nav-button:hover,
+.analytics-controls > button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.12);
+  transform: none;
+}
+.analytics-controls .nav-button:hover .nav-button-icon {
+  transform: none;
+  filter: brightness(1.18) drop-shadow(0 0 4px rgba(255, 255, 255, 0.28));
+}
+
+/* Press */
+.analytics-controls .nav-button:active {
+  transform: scale(0.96);
+  transition-duration: 90ms;
+}
+
+/* Active / selected */
+.analytics-controls .nav-button.active,
+.analytics-controls .nav-button[aria-pressed="true"] {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(200, 235, 255, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(140, 210, 240, 0.22),
+    0 0 12px rgba(80, 180, 220, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  animation: none;
+}
+.analytics-controls .nav-button.active .nav-button-icon,
+.analytics-controls .nav-button[aria-pressed="true"] .nav-button-icon {
+  filter: brightness(1.22) drop-shadow(0 0 5px rgba(180, 230, 255, 0.45));
+  transform: none;
+}
+
+/* Professional tooltip */
+.analytics-controls .nav-button::after {
+  content: attr(data-tip);
   position: absolute;
-  left: max(14px, env(safe-area-inset-left));
-  top: clamp(118px, 18vh, 168px);
-  z-index: 18;
-  width: min(228px, calc(100vw - 120px));
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: rgba(12, 22, 28, 0.78);
+  border: 1px solid rgba(210, 230, 240, 0.28);
+  color: #f4fafc;
+  font: 500 11px/1.2 var(--font-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 40;
+}
+.analytics-controls .nav-button:hover::after,
+.analytics-controls .nav-button:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.analytics-controls .nav-button:focus-visible {
+  outline: 2px solid rgba(160, 220, 255, 0.75);
+  outline-offset: 2px;
+  background: rgba(255, 255, 255, 0.12);
+  border-color: rgba(200, 235, 255, 0.35);
+}
+
+.weather-widget.is-nav-pulse {
+  animation: weather-nav-pulse 1.4s ease;
+}
+@keyframes weather-nav-pulse {
+  0%, 100% { box-shadow: 0 10px 26px rgba(0, 0, 0, 0.16); }
+  40% {
+    box-shadow:
+      0 0 0 2px rgba(120, 220, 255, 0.55),
+      0 0 22px rgba(80, 190, 240, 0.45);
+  }
+}
+
+/* Compact River Data + attached profile popup — frosted olive glass */
+.gis-ui .river-data-panel.hud,
+.river-data-panel {
+  position: relative;
+  left: auto;
+  top: auto;
+  z-index: auto;
+  width: 100%;
+  max-width: none;
+  height: auto;
+  min-height: 0;
   padding: 12px 12px 10px;
-  border: 1px solid rgba(112, 211, 239, 0.22);
-  border-radius: 12px;
-  background: rgba(8, 22, 31, 0.78);
-  backdrop-filter: blur(14px);
-  -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 14px 34px rgba(0, 0, 0, 0.24);
+  border: 1px solid rgba(225, 235, 205, 0.30);
+  border-radius: 16px;
+  background: rgba(35, 55, 38, 0.28);
+  backdrop-filter: blur(20px) saturate(125%);
+  -webkit-backdrop-filter: blur(20px) saturate(125%);
+  box-shadow:
+    0 12px 35px rgba(20, 30, 18, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  isolation: isolate;
+  box-sizing: border-box;
+}
+.river-data-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(
+      135deg,
+      rgba(255, 255, 255, 0.16),
+      transparent 28%,
+      transparent 70%,
+      rgba(220, 235, 200, 0.06)
+    );
+  opacity: 0.7;
+}
+.river-data-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  pointer-events: none;
+  z-index: 0;
+  background:
+    linear-gradient(
+      120deg,
+      rgba(255, 255, 255, 0.12) 0%,
+      rgba(255, 255, 255, 0.03) 25%,
+      transparent 45%
+    );
+  opacity: 0.85;
+}
+.river-data-panel > * {
+  position: relative;
+  z-index: 1;
 }
 .river-data-heading {
   display: flex;
   align-items: center;
   gap: 7px;
-  color: #79d8ef;
-  font-size: 11px;
-  letter-spacing: 0.14em;
+  color: rgba(190, 230, 190, 0.95);
+  font-size: 12px;
+  letter-spacing: 1.4px;
   font-weight: 700;
+  text-transform: uppercase;
 }
 .river-data-station {
   margin: 8px 0 10px;
-  color: #f0fbff;
-  font: 600 22px/1.05 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: rgba(248, 250, 242, 0.98);
+  font: 750 24px/1.05 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.3px;
+  text-shadow: 0 1px 8px rgba(0, 0, 0, 0.18);
 }
 .river-data-rows {
   display: flex;
@@ -1880,47 +2080,68 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  min-height: 36px;
-  padding: 6px 8px;
-  border-radius: 9px;
-  border: 1px solid rgba(112, 211, 239, 0.16);
-  background: rgba(6, 18, 26, 0.45);
-  color: rgba(215, 235, 241, 0.78);
+  height: 40px;
+  min-height: 38px;
+  max-height: 42px;
+  padding: 0 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(220, 235, 215, 0.20);
+  background: rgba(255, 255, 255, 0.055);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  color: rgba(235, 242, 228, 0.82);
   text-align: left;
   cursor: pointer;
-  transition: background 180ms ease, border-color 180ms ease, box-shadow 180ms ease, color 180ms ease;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease,
+    box-shadow 180ms ease,
+    color 180ms ease;
 }
 .river-data-row:hover {
-  background: rgba(28, 101, 123, 0.28);
-  border-color: rgba(113, 225, 243, 0.4);
-  color: #eaf8fb;
+  background: rgba(220, 235, 205, 0.10);
+  border-color: rgba(225, 240, 210, 0.38);
+  transform: translateY(-1px);
+  color: rgba(248, 250, 242, 0.96);
+}
+.river-data-row:active {
+  transform: scale(0.98);
 }
 .river-data-row.is-active {
-  background: rgba(28, 101, 123, 0.38);
-  border-color: rgba(91, 200, 232, 0.62);
-  box-shadow: 0 0 12px rgba(56, 189, 248, 0.12);
-  color: #eaf8fb;
+  background: rgba(220, 235, 205, 0.12);
+  border-color: rgba(225, 240, 210, 0.42);
+  box-shadow:
+    inset 0 1px 0 rgba(255, 255, 255, 0.10),
+    0 0 0 1px rgba(190, 220, 170, 0.08);
+  color: rgba(248, 250, 242, 0.96);
 }
 .river-data-row-icon {
   display: grid;
   place-items: center;
-  color: #8de9fb;
+  color: rgba(180, 210, 175, 0.92);
 }
 .river-data-row-label {
   font: 600 12px/1 var(--font-ui);
+  color: rgba(235, 242, 228, 0.82);
 }
 .river-data-row-value {
-  font: 600 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
-  color: #eaf8fb;
+  font: 700 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: rgba(250, 252, 246, 0.98);
 }
 .river-data-row-action {
   display: grid;
   place-items: center;
-  color: rgba(141, 233, 251, 0.75);
-  transition: transform 180ms ease;
+  color: rgba(230, 240, 220, 0.55);
+  transition: transform 180ms ease, color 180ms ease;
+}
+.river-data-row:hover .river-data-row-action {
+  color: rgba(235, 245, 225, 0.72);
 }
 .river-data-row.is-active .river-data-row-action {
   transform: rotate(90deg);
+  color: rgba(235, 245, 225, 0.78);
 }
 
 .river-profile-popup {
@@ -2146,20 +2367,38 @@
 .river-data-action-value { min-width: 126px; }
 .weather-widget { min-height: 94px; }
 @media (max-width: 1200px) {
-  .analytics-controls, .top-navigation { max-width: calc(100vw - 460px); gap: 6px; }
-  .analytics-controls .nav-button { min-width: 104px; padding: 0 10px; }
+  .analytics-controls, .top-navigation { max-width: calc(100vw - 360px); gap: 7px; }
+  .analytics-controls .nav-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; }
 }
 @media (max-width: 900px) {
   .chainage-ruler-tick.is-sparse { display:none; }
-  .analytics-controls, .top-navigation { max-width: calc(100vw - 280px); }
-  .analytics-controls .nav-button-label { display: none; }
-  .analytics-controls .nav-button { min-width: 36px; width: 36px; padding: 0; }
+  .analytics-controls, .top-navigation {
+    max-width: calc(100vw - 200px);
+    gap: 6px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  .analytics-controls .nav-button { width: 42px; height: 42px; min-width: 42px; min-height: 42px; max-width: 42px; border-radius: 11px; }
 }
 @media (max-width: 640px) {
   .weather-widget { min-height:42px; }
-  .analytics-controls, .top-navigation { left: 10px; right: auto; transform: none; top: 76px; max-width: calc(100vw - 20px); }
-  .river-data-panel { left:10px; top:150px; width:min(205px,calc(100vw - 90px)); padding:10px; }
-  .river-data-station { font-size:18px; }
+  .analytics-controls, .top-navigation {
+    left: 50%;
+    right: auto;
+    transform: translateX(-50%);
+    top: 72px;
+    max-width: calc(100vw - 20px);
+    gap: 5px;
+    padding: 0;
+    background: transparent;
+    border: none;
+    box-shadow: none;
+  }
+  .analytics-controls .nav-button { width: 40px; height: 40px; min-width: 40px; min-height: 40px; max-width: 40px; }
+  .river-data-panel { padding: 10px; }
+  .river-data-station { font-size: 22px; }
   .river-profile-popup { width: min(300px, calc(100vw - 20px)); }
   .chainage-panel {
     left: 10px;
@@ -2181,10 +2420,25 @@
 #ui-root.gis-ui .chainage-ruler-cursor-label { font-size: 13px; }
 #ui-root.gis-ui .depth-legend strong { font-size: 14px; }
 #ui-root.gis-ui .depth-ticks { font-size: 13px; }
-#ui-root.gis-ui .river-data-heading { font-size: 12px; }
-#ui-root.gis-ui .river-data-station { font-size: 22px; }
-#ui-root.gis-ui .river-data-row-label,
-#ui-root.gis-ui .river-data-row-value { font-size: 12px; }
+#ui-root.gis-ui .river-data-heading {
+  font-size: 12px;
+  color: rgba(190, 230, 190, 0.95);
+  letter-spacing: 1.4px;
+}
+#ui-root.gis-ui .river-data-station {
+  font-size: 24px;
+  font-weight: 750;
+  color: rgba(248, 250, 242, 0.98);
+}
+#ui-root.gis-ui .river-data-row-label {
+  font-size: 12px;
+  color: rgba(235, 242, 228, 0.82);
+}
+#ui-root.gis-ui .river-data-row-value {
+  font-size: 12px;
+  font-weight: 700;
+  color: rgba(250, 252, 246, 0.98);
+}
 #ui-root.gis-ui .layers-panel .lp-section-title { font-size: 15px; }
 #ui-root.gis-ui .layers-panel .lp-slider-label,
 #ui-root.gis-ui .layers-panel .lp-select-wrap,
@@ -2197,7 +2451,7 @@
 @media (max-width: 640px) {
   #ui-root.gis-ui .gis-brand strong { font-size: 16px; }
   #ui-root.gis-ui .gis-brand p { font-size: 12px; }
-  #ui-root.gis-ui .river-data-station { font-size: 20px; }
+  #ui-root.gis-ui .river-data-station { font-size: 22px; }
 }
 
 .chainage-ruler-input { position:absolute; left:0; right:0; top:18px; z-index:5; width:100%; height:18px; margin:0; appearance:none; background:transparent; cursor:ew-resize; }
@@ -2253,7 +2507,7 @@
 @media (max-width: 640px) {
   #ui-root.gis-ui .gis-brand strong { font-size: 14px; }
   #ui-root.gis-ui .gis-brand p { font-size: 11px; }
-  #ui-root.gis-ui .river-data-station { font-size: 18px; }
+  #ui-root.gis-ui .river-data-station { font-size: 22px; }
   .chainage-ruler-anno span { display: none; }
 }
 
@@ -2318,6 +2572,11 @@
   right: max(14px, env(safe-area-inset-right));
   gap: 9px;
   width: 68px;
+  overflow: visible;
+}
+.gis-view-modes {
+  overflow: visible;
+  align-items: center;
 }
 .view-toggle {
   width: 68px;
@@ -2345,13 +2604,18 @@
   backdrop-filter: blur(10px) !important;
   -webkit-backdrop-filter: blur(10px) !important;
 }
-.gis-ui .depth-legend { bottom: clamp(78px, 11vh, 116px); left: max(14px, env(safe-area-inset-left)); }
+.gis-ui .depth-legend {
+  position: relative;
+  bottom: auto;
+  left: auto;
+  right: auto;
+}
 
 @media (max-height: 820px) {
   .weather-widget { padding: 7px 9px; }
   .gis-tools-stack { top: 94px; gap: 6px; }
   .map-ctrl-btn--labeled { height: 52px; }
-  .gis-ui .depth-legend { bottom: 74px; }
+  .gis-ui .depth-legend .depth-bar { min-height: 88px; }
 }
 @media (max-width: 900px) {
   .gis-brand { max-width: min(320px, calc(100vw - 300px)); }
@@ -2366,6 +2630,7 @@
   .weather-copy, .weather-time { display: none; }
   .gis-tools-stack { top: 64px; right: 10px !important; width: 58px; }
   .view-toggle { width: 58px; }
+  .gis-ui .depth-legend .depth-bar { min-height: 80px; }
   .gis-ui .chainage-ruler { bottom: 6px; width: calc(100vw - 12px); }
 }
 
@@ -2414,19 +2679,25 @@
 .hydro-legend-clear:hover { background: rgba(34, 137, 164, 0.5); }
 
 /* ═══════════════════════════════════════════════════════════
-   Geology workspace — horizontal glass overlay (reference UI)
+   Geology workspace — transparent icon-only HUD toolbar
    ═══════════════════════════════════════════════════════════ */
 .geology-workspace {
   position: fixed;
   left: 50%;
-  top: calc(max(14px, env(safe-area-inset-top)) + 48px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 52px);
   transform: translateX(-50%);
+  margin-left: 0;
   z-index: 19;
-  width: min(1180px, calc(100vw - 36px));
+  width: auto;
+  max-width: calc(100vw - 24px);
   display: flex;
   flex-direction: column;
+  align-items: center;
   gap: 10px;
   pointer-events: none;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 .geology-workspace[hidden] {
   display: none !important;
@@ -2446,99 +2717,164 @@
 .geology-module-row {
   display: flex;
   align-items: center;
-  gap: 16px;
-  padding: 12px 16px;
-  min-height: 72px;
+  justify-content: center;
+  gap: 0;
+  padding: 0;
+  min-height: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
 }
 .geology-intro {
-  flex: 0 1 260px;
-  min-width: 180px;
-}
-.geology-intro-head {
-  display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.geology-intro-icon {
-  display: grid;
-  place-items: center;
-  width: 28px;
-  height: 28px;
-  border-radius: 8px;
-  color: #eaf8ff;
-  background: rgba(56, 189, 248, 0.22);
-  border: 1px solid rgba(125, 211, 252, 0.45);
-}
-.geology-intro-title {
-  margin: 0;
-  font: 700 15px/1.1 var(--font-ui);
-  letter-spacing: 0.04em;
-  color: #ffffff;
-  text-transform: uppercase;
-}
-.geology-intro-sub {
-  margin: 6px 0 0;
-  font: 500 11px/1.4 var(--font-ui);
-  color: rgba(232, 244, 250, 0.78);
-  max-width: 280px;
+  display: none !important;
 }
 .geology-modules {
-  flex: 1 1 auto;
-  display: grid;
-  grid-template-columns: repeat(6, minmax(0, 1fr));
-  gap: 8px;
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(8px, 1vw, 12px);
   min-width: 0;
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
 }
 .geology-module-btn {
   appearance: none;
+  -webkit-appearance: none;
   position: relative;
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  justify-content: center;
-  gap: 5px;
-  min-height: 62px;
-  padding: 8px 6px 7px;
+  display: grid;
+  place-items: center;
+  box-sizing: border-box;
+  width: clamp(52px, 5.2vw, 60px);
+  height: clamp(52px, 5.2vw, 60px);
+  min-width: 48px;
+  min-height: 48px;
+  padding: 0;
+  margin: 0;
   border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.28);
-  background: rgba(255, 255, 255, 0.12);
+  background: transparent;
   color: #f4fafc;
   cursor: pointer;
-  transition: background 160ms ease, border-color 160ms ease, box-shadow 160ms ease, transform 160ms ease;
+  flex: 0 0 auto;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    box-shadow 180ms ease,
+    transform 160ms ease,
+    filter 180ms ease;
 }
 .geology-module-btn:hover {
-  background: rgba(255, 255, 255, 0.2);
-  border-color: rgba(255, 255, 255, 0.45);
-  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.12);
+  border-color: color-mix(in srgb, var(--geo-accent, #38bdf8) 55%, rgba(255, 255, 255, 0.45));
+  box-shadow: 0 0 12px color-mix(in srgb, var(--geo-accent, #38bdf8) 28%, transparent);
+  transform: none;
 }
-.geology-module-btn.is-active {
-  background: rgba(56, 189, 248, 0.22);
-  border-color: rgba(103, 232, 249, 0.85);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.35), 0 0 18px rgba(34, 211, 238, 0.35);
+.geology-module-btn:hover .geology-module-icon {
+  filter: brightness(1.2) drop-shadow(0 0 6px color-mix(in srgb, var(--geo-accent, #38bdf8) 55%, transparent));
+}
+.geology-module-btn:active {
+  transform: scale(0.96);
+  transition-duration: 90ms;
 }
 .geology-module-icon {
   display: grid;
   place-items: center;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--geo-accent, #38bdf8) 35%, transparent));
+  transition: filter 180ms ease;
+}
+.geology-module-icon svg,
+.geology-module-icon .geo-mod-svg {
+  display: block;
   width: 22px;
   height: 22px;
+  stroke: currentColor;
+  pointer-events: none;
 }
-.geology-module-label {
-  font: 600 10px/1.15 var(--font-ui);
-  letter-spacing: 0.02em;
-  text-align: center;
-  color: rgba(255, 255, 255, 0.92);
-}
+.geology-module-label,
 .geology-module-chip {
+  display: none !important;
+}
+.geology-module-btn.is-active,
+.geology-module-btn[aria-pressed="true"] {
+  background: color-mix(in srgb, var(--geo-accent, #38bdf8) 16%, transparent);
+  border-color: color-mix(in srgb, var(--geo-accent, #38bdf8) 75%, white);
+  box-shadow:
+    0 0 0 1px color-mix(in srgb, var(--geo-accent, #38bdf8) 35%, transparent),
+    0 0 14px color-mix(in srgb, var(--geo-accent, #38bdf8) 40%, transparent);
+  animation: none;
+}
+.geology-module-btn.is-active .geology-module-icon,
+.geology-module-btn[aria-pressed="true"] .geology-module-icon {
+  filter: brightness(1.25) drop-shadow(0 0 8px color-mix(in srgb, var(--geo-accent, #38bdf8) 65%, transparent));
+}
+.geology-module-btn:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--geo-accent, #38bdf8) 80%, white);
+  outline-offset: 2px;
+}
+.geology-module-btn::after {
+  content: attr(data-tip);
   position: absolute;
-  top: 5px;
-  right: 5px;
-  padding: 2px 5px;
-  border-radius: 999px;
-  font: 700 7px/1 var(--font-ui);
-  letter-spacing: 0.06em;
-  text-transform: uppercase;
-  color: #083344;
-  background: rgba(125, 211, 252, 0.9);
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-4px);
+  padding: 5px 9px;
+  border-radius: 8px;
+  background: rgba(12, 22, 28, 0.82);
+  border: 1px solid rgba(210, 230, 240, 0.28);
+  color: #f4fafc;
+  font: 500 11px/1.2 var(--font-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  transition: opacity 160ms ease, transform 160ms ease;
+  z-index: 40;
+}
+.geology-module-btn:hover::after,
+.geology-module-btn:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.geology-content {
+  position: relative;
+  min-height: 0;
+}
+.geology-panel {
+  opacity: 0;
+  transform: translateY(6px);
+  transition: opacity 240ms ease-in-out, transform 240ms ease-in-out;
+  pointer-events: none;
+}
+.geology-panel.is-visible {
+  opacity: 1;
+  transform: translateY(0);
+  pointer-events: auto;
+}
+.geology-panel[hidden]:not(.is-leaving) {
+  display: none !important;
+}
+.geology-panel.is-leaving {
+  display: block !important;
+  opacity: 0;
+  transform: translateY(-4px);
+  pointer-events: none;
 }
 
 .geology-lithology-row {
@@ -2618,44 +2954,631 @@
   border: 1px solid rgba(125, 211, 252, 0.45);
 }
 
-/* Push left panels down so geology rows stay clear of River Data */
-#ui-root.gis-ui.geology-open .river-data-panel {
-  top: clamp(210px, 28vh, 300px);
+/* Bank erosion hotspots legend — dock under River Data (left HUD) */
+.bank-erosion-legend {
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px 12px;
+  border-radius: 15px;
+  background: rgba(55, 70, 42, 0.30);
+  backdrop-filter: blur(18px) saturate(125%);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  border: 1px solid rgba(225, 235, 205, 0.36);
+  box-shadow:
+    0 8px 24px rgba(20, 30, 15, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.12);
 }
+.bank-erosion-legend.geo-field-note {
+  --geo-note-accent: #a3e635;
+  padding: 14px 14px 12px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(18, 34, 46, 0.55) 0%, rgba(10, 22, 32, 0.48) 100%);
+  border: 1px solid var(--geo-note-edge);
+  border-left: 3px solid color-mix(in srgb, var(--geo-note-accent, #a3e635) 80%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+.bank-erosion-legend__head {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 0;
+  margin: 0 0 10px;
+  border: none;
+}
+.bank-erosion-legend__head strong {
+  font: 700 13px/1.2 var(--font-ui);
+  color: rgba(248, 250, 242, 0.98);
+  letter-spacing: 0.01em;
+}
+.bank-erosion-legend__head small {
+  font: 500 11px/1.3 var(--font-ui);
+  color: rgba(220, 230, 210, 0.72);
+}
+.bank-erosion-legend__list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.bank-erosion-legend__row {
+  display: grid;
+  grid-template-columns: 11px 1fr auto;
+  align-items: center;
+  gap: 10px;
+}
+.bank-erosion-legend__swatch {
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.bank-erosion-legend__label {
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.2;
+  font-family: var(--font-ui);
+  color: rgba(238, 244, 232, 0.88);
+}
+.bank-erosion-legend__pct {
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1;
+  font-family: var(--font-ui);
+  color: rgba(250, 252, 246, 0.98);
+  font-variant-numeric: tabular-nums;
+  text-align: right;
+}
+
+/* Shared left HUD stack: River Data → gap → Bank Erosion (flex, never overlap) */
+.left-ui-stack {
+  position: fixed;
+  left: clamp(10px, 1.2vw, 22px);
+  top: clamp(100px, 16vh, 180px);
+  width: clamp(190px, 17vw, 235px);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  z-index: 1000;
+  pointer-events: none;
+  box-sizing: border-box;
+  max-height: calc(100vh - 150px);
+  overflow-y: auto;
+  overflow-x: visible;
+}
+#ui-root.gis-ui > .left-ui-stack {
+  pointer-events: none;
+}
+.left-ui-stack > * {
+  pointer-events: auto;
+  position: relative;
+  width: 100%;
+  flex: 0 0 auto;
+  box-sizing: border-box;
+}
+@media (max-width: 1024px) and (min-width: 641px) {
+  .left-ui-stack {
+    left: 12px;
+    top: clamp(120px, 14vh, 150px);
+    width: clamp(200px, 20vw, 220px);
+    gap: 12px;
+  }
+}
+@media (max-width: 640px) {
+  .left-ui-stack {
+    left: 10px;
+    right: 10px;
+    width: calc(100vw - 20px);
+    max-width: 220px;
+    gap: 10px;
+    top: clamp(100px, 14vh, 150px);
+    max-height: calc(100vh - 130px);
+  }
+}
+
+/* Geology open: River Data stays in left stack; no independent top nudge */
 #ui-root.gis-ui.geology-open .weather-widget {
   top: max(14px, env(safe-area-inset-top));
 }
 
-/* Compact top nav for 6 items */
-.analytics-controls .nav-button,
-.top-navigation .nav-button {
-  min-width: 0;
-  padding: 0 11px;
-  height: 34px;
-  min-height: 34px;
-  background: rgba(255, 255, 255, 0.14);
-  border: 1px solid rgba(255, 255, 255, 0.28);
+/* Bank Erosion focus: keep chainage + bank-erosion UI; hide competing map chrome.
+   Does NOT affect 3D scene layers (terrain, buildings, roads, vegetation, sky). */
+#ui-root.gis-ui.bank-erosion-mode .depth-legend,
+#ui-root.gis-ui.bank-erosion-mode .depth-legend--stack,
+#ui-root.gis-ui.bank-erosion-mode .fishing-panel,
+#ui-root.gis-ui.bank-erosion-mode .flood-sim-bar,
+#ui-root.gis-ui.bank-erosion-mode .flood-result-panel,
+#ui-root.gis-ui.bank-erosion-mode .flood-playback,
+#ui-root.gis-ui.bank-erosion-mode .veg-status {
+  display: none !important;
+}
+
+/* Bank Erosion / Lithology / Joining live in .left-ui-stack — relative flow */
+.geology-content:has(.geology-panel--erosion.is-visible),
+.geology-content:has(.geology-panel--lithology.is-visible),
+.geology-content:has(.geology-panel--joining.is-visible),
+.geology-content:has(.geology-panel--main-stem.is-visible),
+.geology-content:has(.geology-panel--bathymetry.is-visible) {
+  min-height: 0;
+  height: 0;
+  overflow: visible;
+}
+.left-ui-stack .geology-panel--erosion,
+.left-ui-stack .geology-panel--erosion.is-visible,
+.left-ui-stack .geology-panel--erosion.is-leaving,
+.left-ui-stack .geology-panel--lithology,
+.left-ui-stack .geology-panel--lithology.is-visible,
+.left-ui-stack .geology-panel--lithology.is-leaving,
+.left-ui-stack .geology-panel--joining,
+.left-ui-stack .geology-panel--joining.is-visible,
+.left-ui-stack .geology-panel--joining.is-leaving,
+.left-ui-stack .geology-panel--main-stem,
+.left-ui-stack .geology-panel--main-stem.is-visible,
+.left-ui-stack .geology-panel--main-stem.is-leaving,
+.left-ui-stack .geology-panel--bathymetry,
+.left-ui-stack .geology-panel--bathymetry.is-visible,
+.left-ui-stack .geology-panel--bathymetry.is-leaving {
+  position: relative;
+  left: auto;
+  top: auto;
+  width: 100%;
+  margin: 0;
+  transform: none;
+  z-index: auto;
+  pointer-events: auto;
+}
+.left-ui-stack .geology-panel--erosion.is-visible,
+.left-ui-stack .geology-panel--lithology.is-visible,
+.left-ui-stack .geology-panel--joining.is-visible,
+.left-ui-stack .geology-panel--main-stem.is-visible,
+.left-ui-stack .geology-panel--bathymetry.is-visible {
+  opacity: 1;
+}
+.left-ui-stack .geology-panel--erosion.is-leaving,
+.left-ui-stack .geology-panel--lithology.is-leaving,
+.left-ui-stack .geology-panel--joining.is-leaving,
+.left-ui-stack .geology-panel--main-stem.is-leaving,
+.left-ui-stack .geology-panel--bathymetry.is-leaving {
+  opacity: 0;
+}
+
+/* Joining Streams left panel */
+.joining-streams-panel {
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(15, 40, 55, 0.38);
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  border: 1px solid rgba(210, 240, 245, 0.28);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.20),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+}
+.joining-streams-panel.geo-field-note {
+  --geo-note-accent: #4ade80;
+  padding: 14px 14px 12px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(18, 34, 46, 0.55) 0%, rgba(10, 22, 32, 0.48) 100%);
+  border: 1px solid var(--geo-note-edge);
+  border-left: 3px solid color-mix(in srgb, var(--geo-note-accent, #4ade80) 80%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+.joining-streams-panel__head {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  margin: 0 0 8px;
+  padding: 0 0 8px;
+  border-bottom: 1px solid rgba(180, 220, 235, 0.22);
+}
+.joining-streams-panel__head strong {
+  font: 650 13px/1.25 var(--font-ui);
+  letter-spacing: 0.01em;
+  color: rgba(245, 252, 255, 0.96);
+}
+.joining-streams-panel__head small {
+  font: 500 11px/1.3 var(--font-ui);
+  color: rgba(190, 220, 230, 0.72);
+}
+.joining-streams-panel__hint {
+  margin: 0 0 10px;
+  font: 500 12px/1.4 var(--font-ui);
+  color: rgba(210, 230, 238, 0.78);
+  max-width: 36ch;
+}
+.joining-streams-panel__card-title {
+  font: 650 11px/1.2 var(--font-ui);
+  letter-spacing: 0.02em;
+  color: rgba(180, 230, 255, 0.9);
+  margin-bottom: 8px;
+  text-transform: none;
+}
+.js-kv {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 6px 10px;
+  margin: 0 0 6px;
+  align-items: start;
+}
+.js-k {
+  font: 550 10px/1.3 var(--font-ui);
+  color: rgba(180, 210, 220, 0.7);
+}
+.js-v {
+  font: 650 11px/1.3 var(--font-ui);
+  color: rgba(245, 252, 255, 0.95);
+  word-break: break-word;
+}
+
+/* ── Geology field notes (survey vernacular, shared shell) ── */
+.geo-field-note {
+  --geo-note-ink: rgba(232, 240, 244, 0.94);
+  --geo-note-mute: rgba(143, 163, 176, 0.92);
+  --geo-note-edge: rgba(125, 211, 252, 0.28);
+  width: 100%;
+  margin: 0;
+  padding: 14px 14px 12px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(18, 34, 46, 0.55) 0%, rgba(10, 22, 32, 0.48) 100%);
+  backdrop-filter: blur(16px) saturate(120%);
+  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  border: 1px solid var(--geo-note-edge);
+  border-left: 3px solid color-mix(in srgb, var(--geo-note-accent, #7dd3fc) 80%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+.geo-field-note--stem {
+  --geo-note-accent: #e8b84a;
+  --geo-note-edge: rgba(232, 184, 74, 0.28);
+}
+.geo-field-note--bathy {
+  --geo-note-accent: #5eb8e8;
+}
+.geo-field-note__head {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 10px;
+  margin: 0 0 8px;
+}
+.geo-field-note__head strong {
+  font: 650 13px/1.25 var(--font-ui);
+  letter-spacing: 0.01em;
+  color: var(--geo-note-ink);
+  text-transform: none;
+}
+.geo-field-note__head small {
+  font: 500 11px/1.3 var(--font-ui);
+  color: var(--geo-note-mute);
+  text-align: right;
+}
+.geo-field-note__hint {
+  margin: 8px 0 0;
+  font: 500 12px/1.4 var(--font-ui);
+  color: var(--geo-note-mute);
+  max-width: 36ch;
+}
+
+/* Bathymetry sounding scale — the one memorable element */
+.bathy-sounding {
+  margin-top: 4px;
+}
+.bathy-sounding__bar {
+  height: 10px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    #87cefa 0%,
+    #4aa3e9 25%,
+    #216fcd 50%,
+    #103f96 75%,
+    #051448 100%
+  );
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
+}
+.bathy-sounding__ticks {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  margin-top: 6px;
+  font: 600 10px/1.2 var(--font-ui);
+  color: rgba(220, 236, 246, 0.88);
+}
+.bathy-sounding__ticks span:first-child {
+  text-align: left;
+}
+.bathy-sounding__ticks span:not(:first-child):not(:last-child) {
+  text-align: center;
+}
+.bathy-sounding__ticks span:last-child {
+  text-align: right;
+}
+.bathy-sounding__ends {
+  display: flex;
+  justify-content: space-between;
+  margin-top: 4px;
+  font: 500 10px/1.2 var(--font-ui);
+  color: var(--geo-note-mute);
+}
+
+/* Main Stem left panel */
+.main-stem-panel {
+  width: 100%;
+  margin: 0;
+}
+
+/* Bathymetry depth-class legend */
+.bathymetry-legend {
+  width: 100%;
+  margin: 0;
+}
+.bathymetry-legend__list {
+  display: none;
+}
+
+/* Named drainage labels (existing names only) */
+.joining-stream-labels {
+  position: fixed;
+  inset: 0;
+  pointer-events: none !important;
+  z-index: 850;
+}
+.joining-stream-label {
+  position: fixed;
+  left: 0;
+  top: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  will-change: transform;
+  pointer-events: none !important;
+}
+.joining-stream-label__text {
+  padding: 6px 10px;
+  border-radius: 12px;
+  background: rgba(8, 35, 50, 0.70);
+  border: 1px solid rgba(100, 210, 255, 0.55);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  color: #fff;
+  font: 650 11px/1.2 var(--font-ui);
+  white-space: nowrap;
+  max-width: min(200px, 42vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+}
+.joining-stream-label__leader {
+  width: 1px;
+  height: 12px;
+  background: rgba(180, 230, 255, 0.75);
+}
+.joining-stream-label.is-dim {
+  opacity: 0.35;
+}
+.joining-stream-label.is-selected .joining-stream-label__text {
+  border-color: rgba(160, 230, 255, 0.9);
+  box-shadow: 0 8px 22px rgba(40, 140, 200, 0.28);
+}
+
+#ui-root.gis-ui.joining-streams-mode .depth-legend,
+#ui-root.gis-ui.joining-streams-mode .depth-legend--stack,
+#ui-root.gis-ui.joining-streams-mode .fishing-panel,
+#ui-root.gis-ui.joining-streams-mode .flood-sim-bar,
+#ui-root.gis-ui.joining-streams-mode .flood-result-panel,
+#ui-root.gis-ui.joining-streams-mode .flood-playback,
+#ui-root.gis-ui.joining-streams-mode .veg-status {
+  display: none !important;
+}
+
+/* Spectral Lithology left legend — premium glass (reference stack) */
+.spectral-lithology-legend {
+  width: 100%;
+  margin: 0;
+  padding: 12px 14px 12px;
+  border-radius: 15px;
+  background: rgba(20, 55, 55, 0.28);
+  backdrop-filter: blur(18px) saturate(125%);
+  -webkit-backdrop-filter: blur(18px) saturate(125%);
+  border: 1px solid rgba(225, 240, 225, 0.30);
+  box-shadow:
+    0 10px 30px rgba(0, 0, 0, 0.18),
+    inset 0 1px 0 rgba(255, 255, 255, 0.14);
+}
+.spectral-lithology-legend.geo-field-note {
+  --geo-note-accent: #5eead4;
+  padding: 14px 14px 12px;
+  border-radius: 10px;
+  background:
+    linear-gradient(180deg, rgba(18, 34, 46, 0.55) 0%, rgba(10, 22, 32, 0.48) 100%);
+  border: 1px solid var(--geo-note-edge);
+  border-left: 3px solid color-mix(in srgb, var(--geo-note-accent, #5eead4) 80%, transparent);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18);
+}
+.spectral-lithology-legend__head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0 0 10px;
+  margin: 0 0 2px;
+  border-bottom: 1px solid rgba(225, 240, 225, 0.22);
+}
+.spectral-lithology-legend__head strong,
+.spectral-lithology-legend .geo-field-note__head strong {
+  font: 650 13px/1.25 var(--font-ui);
+  letter-spacing: 0.01em;
+  color: rgba(248, 252, 248, 0.96);
+  text-transform: none;
+}
+.spectral-lithology-legend__dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #5eead4;
+  box-shadow: 0 0 0 3px rgba(94, 234, 212, 0.22);
+}
+.spectral-lithology-legend__list {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.spectral-lithology-legend__row {
+  display: grid;
+  grid-template-columns: 11px minmax(0, 1fr) auto;
+  align-items: start;
+  gap: 10px;
+}
+.spectral-lithology-legend__swatch {
+  width: 11px;
+  height: 11px;
+  margin-top: 2px;
+  border-radius: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.22);
+}
+.spectral-lithology-legend__label {
+  font-size: 11px;
+  font-weight: 550;
+  line-height: 1.25;
+  font-family: var(--font-ui);
+  color: rgba(238, 248, 242, 0.9);
+}
+.spectral-lithology-legend__pct {
+  font-size: 11px;
+  font-weight: 750;
+  line-height: 1.25;
+  font-family: var(--font-ui);
+  color: rgba(255, 255, 255, 0.95);
+  font-variant-numeric: tabular-nums;
+}
+
+/* Old horizontal percentage card row — never show */
+.geology-lithology-row,
+.geology-panel--lithology .geology-lithology-row {
+  display: none !important;
+}
+
+/* Spectral Lithology click tooltip — frosted glass card + leader */
+.hud.tooltip.tooltip--lithology {
+  padding: 0;
+  background: transparent;
+  border: none;
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  transform: translate(-50%, calc(-100% - 14px));
+  pointer-events: none;
+}
+.hud.tooltip.tooltip--lithology .litho-card {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  max-width: 220px;
+  padding: 8px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(16px) saturate(130%);
+  -webkit-backdrop-filter: blur(16px) saturate(130%);
+  border: 1px solid rgba(255, 255, 255, 0.72);
+  box-shadow:
+    0 10px 28px rgba(15, 25, 20, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.65);
+  position: relative;
+}
+.hud.tooltip.tooltip--lithology .litho-card::after {
+  content: "";
+  position: absolute;
+  left: 50%;
+  bottom: -12px;
+  width: 1px;
+  height: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  transform: translateX(-50%);
+}
+.hud.tooltip.tooltip--lithology .litho-swatch {
+  flex: 0 0 auto;
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  border: 1px solid rgba(30, 40, 35, 0.18);
+}
+.hud.tooltip.tooltip--lithology .litho-label {
+  font: 650 12px/1.2 var(--font-ui);
+  color: rgba(28, 36, 34, 0.92);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.hud.tooltip.tooltip--lithology .litho-pct {
+  font: 750 12px/1 var(--font-ui);
+  color: rgba(28, 36, 34, 0.88);
+  font-variant-numeric: tabular-nums;
+  margin-left: 2px;
+}
+
+/* Lithology focus: declutter competing chrome (same spirit as bank erosion) */
+#ui-root.gis-ui.lithology-mode .depth-legend,
+#ui-root.gis-ui.lithology-mode .depth-legend--stack,
+#ui-root.gis-ui.lithology-mode .fishing-panel,
+#ui-root.gis-ui.lithology-mode .flood-sim-bar,
+#ui-root.gis-ui.lithology-mode .flood-result-panel,
+#ui-root.gis-ui.lithology-mode .flood-playback,
+#ui-root.gis-ui.lithology-mode .veg-status {
+  display: none !important;
+}
+
+/* Transparent icon toolbar — no filled strip / glass panel */
+.analytics-controls,
+.top-navigation,
+.analytics-controls.analytics-controls--glass,
+.top-navigation.analytics-controls--glass {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+.analytics-controls .nav-button,
+.top-navigation .nav-button {
+  min-width: 44px;
+  width: 44px;
+  height: 44px;
+  padding: 0;
+  background: transparent;
+  border: 1px solid transparent;
+  box-shadow: none;
+}
+.analytics-controls .nav-button:hover,
+.top-navigation .nav-button:hover {
+  background: rgba(255, 255, 255, 0.14);
+  border-color: rgba(255, 255, 255, 0.18);
 }
 .analytics-controls .nav-button.active,
 .analytics-controls .nav-button[aria-pressed="true"] {
-  background: rgba(56, 189, 248, 0.28);
-  border-color: rgba(103, 232, 249, 0.75);
-  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.25), 0 0 16px rgba(34, 211, 238, 0.28);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(200, 235, 255, 0.42);
+  box-shadow:
+    0 0 0 1px rgba(140, 210, 240, 0.22),
+    0 0 12px rgba(80, 180, 220, 0.22),
+    inset 0 1px 0 rgba(255, 255, 255, 0.16);
+  animation: none;
 }
 
 @media (max-width: 1100px) {
   .geology-module-row {
-    flex-direction: column;
-    align-items: stretch;
-  }
-  .geology-intro {
-    flex: none;
-    max-width: none;
-  }
-  .geology-intro-sub {
-    max-width: none;
+    flex-direction: row;
+    align-items: center;
   }
   .geology-lithology-row {
     grid-template-columns: repeat(4, minmax(0, 1fr));
@@ -2663,16 +3586,25 @@
 }
 @media (max-width: 720px) {
   .geology-modules {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+  .geology-module-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 44px;
+    min-height: 44px;
+    border-radius: 10px;
   }
   .geology-lithology-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
   .analytics-controls .nav-button-label {
-    display: none;
+    display: none !important;
   }
   .analytics-controls .nav-button {
-    min-width: 36px;
-    padding: 0 8px;
+    min-width: 40px;
+    width: 40px;
+    height: 40px;
+    padding: 0;
   }
 }
