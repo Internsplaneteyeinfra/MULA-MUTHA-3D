@@ -260,7 +260,8 @@ export function chainageForwardPose(stations, {
   return tan;
 }
 
-/** Full-corridor overview: oblique 35–50° so building walls read as 3D (not nadir GIS map). */
+/** Full-corridor overview: north-up oblique so KML matches the 2D map
+ * (west / chainage 0 on the left, east / downstream on the right). */
 export function fullRiverOverviewPose(stations, bounds, k, outP, outL, outUp, opts = {}) {
   const spanX = Math.max(80, bounds.spanX || 0);
   const spanZ = Math.max(80, bounds.spanZ || 0);
@@ -282,11 +283,11 @@ export function fullRiverOverviewPose(stations, bounds, k, outP, outL, outUp, op
   const camHeight = horizontalDist * Math.tan(pitch) + heightBoost;
   const minHeight = opts.fullExtent ? 650 : 420;
 
-  // South-west oblique — west left, east right; walls + roofs visible
+  // Due south of corridor center — screen left = west (0+000), right = east.
+  // Do not add westBias: that skews the KML into a diagonal vs the reference map.
   const southBias = horizontalDist * 0.92;
-  const westBias = fitSpanX * 0.08;
   outP.set(
-    bounds.cx - westBias,
+    bounds.cx,
     lookY + Math.max(camHeight, minHeight),
     bounds.cz - southBias,
   );

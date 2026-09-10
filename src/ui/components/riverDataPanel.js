@@ -20,13 +20,13 @@ export function mountRiverDataPanel(root, dataset) {
       <button type="button" class="river-data-row" id="depth-survey-btn" data-profile="depth" aria-expanded="false" title="Depth profile">
         <span class="river-data-row-icon" aria-hidden="true">${lucideHtml(Droplets, { size: 15 })}</span>
         <span class="river-data-row-label">Depth</span>
-        <span class="river-data-row-value" id="river-data-depth">—</span>
+        <span class="river-data-row-value" id="river-data-depth" style="font-size:22px;font-weight:700;line-height:1.05;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">—</span>
         <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
       </button>
       <button type="button" class="river-data-row" id="width-profile-btn" data-profile="width" aria-expanded="false" title="Width profile">
         <span class="river-data-row-icon" aria-hidden="true">${lucideHtml(Ruler, { size: 15 })}</span>
         <span class="river-data-row-label">Width</span>
-        <span class="river-data-row-value" id="river-data-width">—</span>
+        <span class="river-data-row-value" id="river-data-width" style="font-size:22px;font-weight:700;line-height:1.05;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">—</span>
         <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
       </button>
     </div>

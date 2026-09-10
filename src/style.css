@@ -383,14 +383,21 @@ html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; backg
 }
 
 .depth-legend {
-  position: relative;
-  left: auto; right: auto; bottom: auto; padding: 8px 9px; width: auto;
-  font-size: 10px; color: var(--muted); z-index: 20;
-  background: rgba(8, 22, 31, 0.52) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  border-radius: 12px;
-  backdrop-filter: blur(12px) !important;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18) !important;
+  position: fixed;
+  right: 0;
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 58px));
+  left: auto;
+  padding: 10px 12px 10px 10px;
+  width: auto;
+  font-size: 10px;
+  color: var(--muted);
+  z-index: 18;
+  background: rgba(8, 22, 31, 0.38) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-right: none !important;
+  border-radius: 12px 0 0 12px;
+  backdrop-filter: blur(10px) !important;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14) !important;
 }
 .depth-legend strong {
   display: block; font-size: 10px; letter-spacing: 0.14em;

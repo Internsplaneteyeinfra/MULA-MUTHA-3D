@@ -616,7 +616,7 @@ export function mountUI(root, {
 
   const depthLegend = document.createElement("aside");
   depthLegend.id = "depth-legend";
-  depthLegend.className = "depth-legend depth-legend--vertical depth-legend--stack";
+  depthLegend.className = "depth-legend depth-legend--vertical depth-legend--corner";
   depthLegend.setAttribute("aria-label", "Water depth legend");
   depthLegend.innerHTML = `
     <strong>WATER DEPTH</strong>
@@ -632,15 +632,7 @@ export function mountUI(root, {
       </div>
     </div>
   `;
-  const floodBtnEl = root.querySelector("#flood-btn");
-  const viewModes = root.querySelector(".gis-view-modes");
-  if (floodBtnEl?.parentElement) {
-    floodBtnEl.insertAdjacentElement("afterend", depthLegend);
-  } else if (viewModes) {
-    viewModes.appendChild(depthLegend);
-  } else {
-    root.appendChild(depthLegend);
-  }
+  root.appendChild(depthLegend);
 
   const scrub = root.querySelector("#scrub");
   const sceneLabel = root.querySelector("#scene-label");

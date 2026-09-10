@@ -360,6 +360,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const chainTipWorld = new THREE.Vector3();
   const chainTipNdc = new THREE.Vector3();
 
+  /** Show CHAINAGE card only while the cursor is near a marker — never permanently pinned. */
   function showChainageTipAt(clientX, clientY, p) {
     if (!p) return;
     state.chainageTipActive = true;
@@ -370,23 +371,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     });
   }
 
-  /** Keep the floating CHAINAGE card pinned next to the selected marker (River Side structure). */
+  function hideChainageTip() {
+    if (!state.chainageTipActive) return;
+    state.chainageTipActive = false;
+    tooltip.hide();
+  }
+
+  /** @deprecated kept as no-op so older call sites stay safe */
   function pinSelectedChainageTip() {
-    if (state.cinematicActive || !state.showChainage) return;
-    // Bank-erosion class card owns the tooltip until dismissed.
-    // Bank-erosion / lithology tips own the floating card; joining-streams uses left panel.
-    if (state.bankErosionTipActive || state.lithologyTipActive) return;
-    const selM = state.selectedChainageMeters;
-    if (selM == null) return;
-    const sel = interpolateChainage(dataset.chainage, selM);
-    if (!sel || sel.x == null) return;
-    chainTipWorld.set(sel.x, SURFACE_Y + 8, sel.z);
-    chainTipNdc.copy(chainTipWorld).project(cam.camera);
-    if (chainTipNdc.z > 1) return;
-    const rect = canvas.getBoundingClientRect();
-    const sx = rect.left + (chainTipNdc.x * 0.5 + 0.5) * rect.width + 18;
-    const sy = rect.top + (-chainTipNdc.y * 0.5 + 0.5) * rect.height - 10;
-    showChainageTipAt(sx, sy, sel);
+    /* intentionally empty — tip is hover-only */
   }
 
   /** Keep Spectral Lithology click card pinned to the geographic pick marker. */
@@ -460,7 +453,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     if (!p || p.x == null) return;
     const dragging = !!e.detail?.dragging;
     cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
-    if (!dragging) setTimeout(() => pinSelectedChainageTip(), 120);
   });
 
   canvas.addEventListener("pointermove", (e) => {
@@ -468,20 +460,28 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     chainHoverRaf = requestAnimationFrame(() => {
       chainHoverRaf = 0;
       if (state.cinematicActive || !state.showChainage) {
-        state.chainageTipActive = false;
+        hideChainageTip();
         return;
       }
-      // Prefer pinned tip on selection; pause while river width measure is up
-      if (state.riverMeasureActive) {
-        state.chainageTipActive = false;
+      if (
+        state.riverMeasureActive ||
+        state.bankErosionTipActive ||
+        state.lithologyTipActive ||
+        state.joiningStreamsTipActive
+      ) {
         return;
       }
-      if (state.selectedChainageMeters != null) {
-        pinSelectedChainageTip();
-        return;
+      const hit = resolveChainageUnderCursor(e, 70);
+      if (hit) {
+        showChainageTipAt(e.clientX + 14, e.clientY - 12, hit);
+      } else {
+        hideChainageTip();
       }
-      state.chainageTipActive = false;
     });
+  });
+
+  canvas.addEventListener("pointerleave", () => {
+    hideChainageTip();
   });
 
   const cinematic = createCinematicController({
@@ -674,9 +674,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           detail: { meters: p.meters, notes: false, focus: false },
         }),
       );
-      // Pin tip after the fly settles so it doesn't fight the animation.
-      const tipDelay = wasMap2d ? 3400 : 2600;
-      setTimeout(() => pinSelectedChainageTip(), tipDelay);
     },
     /**
      * River click measure: pull camera back for readable width/depth labels,
@@ -1083,7 +1080,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (chainThrottle.ready(dt)) {
         chainage.update(cam.camera);
         if (state.lithologyTipActive) pinLithologyPickTip();
-        else if (!state.riverMeasureActive) pinSelectedChainageTip();
       }
       riverWidthMeasure.update?.(cam.camera);
       cinematic.update(dt);

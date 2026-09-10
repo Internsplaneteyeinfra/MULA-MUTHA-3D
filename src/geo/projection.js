@@ -26,10 +26,11 @@ export const utmToLonLat = (e, n) => {
 
 /**
  * Local scene frame: one origin for ALL layers.
- * Three.js: Y = up, X = east, Z = north (EPSG:32643 easting/northing, unmirrored).
+ * Three.js: Y = up, X/Z = plan.
  *
- * Chainage 0+000 is west (~73.855°E); chainage increases downstream to the east (~73.993°E).
- * Do not mirror X — that reverses geographic east/west while leaving CRS numbers looking fine.
+ * flipX mirrors easting so the corridor reads right→left on screen
+ * (chainage 0 / upstream on the right; downstream on the left), matching
+ * the product reference framing. Lon/lat data is unchanged.
  *
  * @param {Array<{easting:number,northing:number}>} points
  * @param {{ originLonLat?: { lon:number, lat:number } }} [opts]
@@ -52,8 +53,8 @@ export function createLocalFrame(points, opts = {}) {
     n0 /= Math.max(1, points.length);
   }
 
-  /** Scene +X = east, +Z = north (standard ENU in XZ). */
-  const flipX = false;
+  /** Mirror X so overview reads right→left (user-requested KML framing). */
+  const flipX = true;
 
   function toLocal(easting, northing) {
     const x = easting - e0;

@@ -215,13 +215,14 @@ export function createRiverWidthMeasure(dataset) {
     if (!lastHit || !group.visible) return;
     const { px, pz, yP, ux, uz, bankLen } = lastHit;
 
-    let lift = 5;
-    let s = 7;
+    // Match selected mid-river chainage label world size (see chainageMarkers ~18×5).
+    let lift = 6;
+    let s = 18;
     if (camera) {
       const d = camera.position.distanceTo(new THREE.Vector3(px, yP, pz));
-      // Compact screen size — readable, not scene-filling.
-      s = THREE.MathUtils.clamp(d * 0.01, 4.5, 9);
-      lift = THREE.MathUtils.clamp(d * 0.006, 3, 9);
+      // Stay near chainage label size across zoom; slight distance scaling only.
+      s = THREE.MathUtils.clamp(d * 0.028, 14, 22);
+      lift = THREE.MathUtils.clamp(d * 0.008, 4, 12);
     }
 
     const leftBias = Math.min(bankLen * 0.18, 20);
@@ -236,9 +237,10 @@ export function createRiverWidthMeasure(dataset) {
     );
     widthLabel.position.set(px, yP + lift + 0.8, pz);
 
-    depthLabel.scale.set(s * 1.15, s * 0.78, 1);
-    const wScale = THREE.MathUtils.clamp(bankLen * 0.05, s * 1.8, s * 2.6);
-    widthLabel.scale.set(wScale, s * 0.36, 1);
+    // Depth card aspect ≈ chainage label; width strip stays readable across channel.
+    depthLabel.scale.set(s * 1.05, s * 0.55, 1);
+    const wScale = THREE.MathUtils.clamp(bankLen * 0.09, s * 2.2, s * 3.4);
+    widthLabel.scale.set(wScale, s * 0.32, 1);
   }
 
   function update(camera) {
@@ -268,8 +270,8 @@ function makeTick(mat) {
 
 function makeDepthLabel() {
   const canvas = document.createElement("canvas");
-  canvas.width = 420;
-  canvas.height = 220;
+  canvas.width = 480;
+  canvas.height = 240;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({
@@ -287,8 +289,8 @@ function makeDepthLabel() {
 
 function makeWidthLabel() {
   const canvas = document.createElement("canvas");
-  canvas.width = 1400;
-  canvas.height = 120;
+  canvas.width = 1600;
+  canvas.height = 140;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   const mat = new THREE.SpriteMaterial({
@@ -317,7 +319,7 @@ function strokeFill(ctx, text, x, y, strokeW) {
   ctx.fillText(text, x, y);
 }
 
-/** Small "depth" (≈12px look) + large value matching chainage style. */
+/** Value size matched to mid-river chainage label (700 34px look). */
 function paintDepthLabel(spr, depthM) {
   const canvas = spr.userData.canvas;
   if (!canvas) return;
@@ -328,14 +330,13 @@ function paintDepthLabel(spr, depthM) {
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
 
-  // Small caption (~12 look).
-  ctx.font = "600 20px Inter, system-ui, sans-serif";
-  strokeFill(ctx, "depth", w / 2, h * 0.28, 5);
+  ctx.font = "600 22px Inter, system-ui, sans-serif";
+  strokeFill(ctx, "depth", w / 2, h * 0.26, 5);
 
-  // Compact value — still outlined white.
   const value = `${Number(depthM).toFixed(2)} m`;
-  ctx.font = "700 42px Inter, system-ui, sans-serif";
-  strokeFill(ctx, value, w / 2, h * 0.66, 9);
+  // Same weight/family as chainageMarkers paintChainageLabel
+  ctx.font = "700 64px Inter, system-ui, sans-serif";
+  strokeFill(ctx, value, w / 2, h * 0.64, 10);
 
   if (spr.material.map) spr.material.map.needsUpdate = true;
 }
@@ -349,7 +350,8 @@ function paintWidthLabel(spr, text) {
   ctx.clearRect(0, 0, w, h);
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.font = "700 32px Inter, system-ui, sans-serif";
-  strokeFill(ctx, String(text || "—"), w / 2, h / 2, 8);
+  // Same visual weight as center chainage (4+000)
+  ctx.font = "700 56px Inter, system-ui, sans-serif";
+  strokeFill(ctx, String(text || "—"), w / 2, h / 2, 10);
   if (spr.material.map) spr.material.map.needsUpdate = true;
 }

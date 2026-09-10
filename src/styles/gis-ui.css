@@ -734,30 +734,33 @@
   background: rgba(30, 90, 80, 0.55) !important;
 }
 
-/* —— Depth legend — under Flood in right toolbar —— */
+/* —— Depth legend — flush to bottom-right map corner —— */
 .gis-ui .depth-legend,
 .gis-view-modes .depth-legend,
-.depth-legend--stack {
-  position: relative;
+.depth-legend--stack,
+.depth-legend--corner {
+  position: fixed;
   left: auto;
-  right: auto;
-  bottom: auto;
+  right: 0;
+  bottom: max(12px, env(safe-area-inset-bottom));
   top: auto;
-  z-index: 12;
+  z-index: 18;
   width: auto;
   min-width: 0;
-  margin-top: 4px;
-  padding: 8px 9px;
-  background: rgba(8, 22, 31, 0.52) !important;
-  border: 1px solid rgba(255, 255, 255, 0.22) !important;
-  border-radius: 12px;
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.18) !important;
-  backdrop-filter: blur(12px) !important;
-  -webkit-backdrop-filter: blur(12px) !important;
+  margin: 0;
+  padding: 10px 12px 10px 10px;
+  background: rgba(8, 22, 31, 0.38) !important;
+  border: 1px solid rgba(255, 255, 255, 0.16) !important;
+  border-right: none !important;
+  border-radius: 12px 0 0 12px;
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.14) !important;
+  backdrop-filter: blur(10px) !important;
+  -webkit-backdrop-filter: blur(10px) !important;
   pointer-events: none;
 }
 .gis-ui .depth-legend[hidden],
-.depth-legend--stack[hidden] {
+.depth-legend--stack[hidden],
+.depth-legend--corner[hidden] {
   display: none !important;
 }
 .gis-ui .depth-legend strong {
@@ -778,6 +781,13 @@
   box-shadow: 0 0 8px rgba(0, 0, 0, 0.25);
   min-height: 110px;
   width: 10px;
+}
+
+/* Keep clear of bottom chainage ruler */
+@media (min-width: 901px) {
+  .gis-ui .depth-legend--corner {
+    bottom: max(72px, calc(env(safe-area-inset-bottom) + 58px));
+  }
 }
 
 /* —— Timeline (follow mode, hidden by default) —— */
@@ -2080,9 +2090,9 @@
   align-items: center;
   gap: 8px;
   width: 100%;
-  height: 40px;
-  min-height: 38px;
-  max-height: 42px;
+  height: 48px;
+  min-height: 46px;
+  max-height: 52px;
   padding: 0 10px;
   border-radius: 10px;
   border: 1px solid rgba(220, 235, 215, 0.20);
@@ -2127,8 +2137,13 @@
   color: rgba(235, 242, 228, 0.82);
 }
 .river-data-row-value {
-  font: 700 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+  font-size: 22px;
+  font-weight: 700;
+  line-height: 1;
+  letter-spacing: 0.2px;
   color: rgba(250, 252, 246, 0.98);
+  text-shadow: 0 1px 6px rgba(0, 0, 0, 0.2);
 }
 .river-data-row-action {
   display: grid;
@@ -2435,7 +2450,7 @@
   color: rgba(235, 242, 228, 0.82);
 }
 #ui-root.gis-ui .river-data-row-value {
-  font-size: 12px;
+  font-size: 22px;
   font-weight: 700;
   color: rgba(250, 252, 246, 0.98);
 }
@@ -2504,10 +2519,32 @@
 #ui-root.gis-ui .layers-panel .lp-flood-data__title { font-size: 11px; }
 #ui-root.gis-ui .layers-panel .lp-action { font-size: 12px; }
 
+/* Depth / Width values — just under station chainage (~24px) */
+#ui-root.gis-ui .river-data-panel .river-data-row .river-data-row-value,
+#ui-root.gis-ui #river-data-depth,
+#ui-root.gis-ui #river-data-width {
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace !important;
+  font-size: 22px !important;
+  font-weight: 700 !important;
+  line-height: 1.05 !important;
+  letter-spacing: 0.02em !important;
+  color: rgba(250, 252, 246, 0.98) !important;
+}
+#ui-root.gis-ui .river-data-panel .river-data-row {
+  height: 50px !important;
+  min-height: 48px !important;
+  max-height: 56px !important;
+}
+
 @media (max-width: 640px) {
   #ui-root.gis-ui .gis-brand strong { font-size: 14px; }
   #ui-root.gis-ui .gis-brand p { font-size: 11px; }
   #ui-root.gis-ui .river-data-station { font-size: 22px; }
+  #ui-root.gis-ui .river-data-panel .river-data-row .river-data-row-value,
+  #ui-root.gis-ui #river-data-depth,
+  #ui-root.gis-ui #river-data-width {
+    font-size: 20px !important;
+  }
   .chainage-ruler-anno span { display: none; }
 }
 
@@ -2605,10 +2642,10 @@
   -webkit-backdrop-filter: blur(10px) !important;
 }
 .gis-ui .depth-legend {
-  position: relative;
-  bottom: auto;
+  position: fixed;
+  right: 0;
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 58px));
   left: auto;
-  right: auto;
 }
 
 @media (max-height: 820px) {
@@ -3198,6 +3235,16 @@
   color: rgba(180, 230, 255, 0.9);
   margin-bottom: 8px;
   text-transform: none;
+}
+.joining-streams-panel__card {
+  margin-top: 4px;
+  padding: 10px 11px;
+  border-radius: 10px;
+  background: rgba(8, 28, 40, 0.42);
+  border: 1px solid rgba(120, 200, 230, 0.28);
+}
+.joining-streams-panel__card[hidden] {
+  display: none !important;
 }
 .js-kv {
   display: grid;
