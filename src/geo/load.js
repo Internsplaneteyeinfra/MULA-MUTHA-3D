@@ -409,7 +409,7 @@ function loadDrainageNetworkFromRaw(text) {
       return true;
     });
     const out = filtered.map((f) => ({
-      name: f.name,
+      name: String(f.name || f.nameEn || f.intName || "").trim(),
       waterway: f.waterway,
       osmId: f.osmId,
       osmType: f.osmType,
@@ -434,11 +434,13 @@ function loadDrainageNetworkFromRaw(text) {
     console.info("Drainage KML loaded (bundled)", {
       total: raw.length,
       nullahs: out.length,
+      named: out.filter((d) => d.name).length,
       skippedMainRiver: raw.length - out.length,
       sample: out[0]
         ? {
             name: out[0].name,
             waterway: out[0].waterway,
+            osmId: out[0].osmId,
             pts: out[0].vertices.length,
             xz: out[0].vertices[0],
           }

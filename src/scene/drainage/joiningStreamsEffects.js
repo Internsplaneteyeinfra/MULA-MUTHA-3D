@@ -13,7 +13,7 @@ import { SURFACE_Y } from "../river.js";
  * Does not invent drainage coordinates or attributes.
  */
 
-const FLOW_SPEED_MPS = 4.2;
+const FLOW_SPEED_MPS = 2.4;
 const ARROW_SPACING_M = 42;
 const MAX_ARROWS_PER = 28;
 const MAX_TOTAL_ARROWS = 420;
@@ -27,19 +27,20 @@ export function createJoiningStreamsEffects(nallaFlowGroup, opts = {}) {
   const uiRoot = opts.uiRoot || document.getElementById("ui-root");
   const getCamera = opts.getCamera;
 
-  const arrowGeo = new THREE.ConeGeometry(0.55, 1.8, 5);
+  const arrowGeo = new THREE.ConeGeometry(0.62, 2.0, 6);
   arrowGeo.rotateX(Math.PI / 2);
   const arrowMat = new THREE.MeshBasicMaterial({
     color: 0xb8ecff,
     transparent: true,
-    opacity: 0.88,
+    opacity: 0.95,
+    depthTest: false,
     depthWrite: false,
     toneMapped: false,
   });
   const arrowMesh = new THREE.InstancedMesh(arrowGeo, arrowMat, MAX_TOTAL_ARROWS);
   arrowMesh.name = "joiningStreamArrows";
   arrowMesh.frustumCulled = false;
-  arrowMesh.renderOrder = 8;
+  arrowMesh.renderOrder = 28;
   arrowMesh.count = 0;
   group.add(arrowMesh);
 
@@ -53,19 +54,33 @@ export function createJoiningStreamsEffects(nallaFlowGroup, opts = {}) {
 
   /** @type {null | object} */
   let selected = null;
+  /** @type {null | object} */
+  let hovered = null;
   const dummy = new THREE.Object3D();
   const _up = new THREE.Vector3(0, 1, 0);
   const arrowSlots = buildArrowSlots(records);
+
+  function recordsMatch(a, b) {
+    if (!a || !b) return false;
+    if (a === b) return true;
+    if (a.id != null && b.id != null && String(a.id) === String(b.id)) return true;
+    if (a.meta && b.meta && a.meta === b.meta) return true;
+    if (a.meta?.osmId && b.meta?.osmId && String(a.meta.osmId) === String(b.meta.osmId)) return true;
+    if (a.navIndex != null && b.navIndex != null && a.navIndex === b.navIndex) return true;
+    return false;
+  }
 
   function setActive(on) {
     group.visible = !!on;
     labels.setVisible(!!on);
     if (!on) {
       selected = null;
+      hovered = null;
       arrowMesh.count = 0;
       mist.setSelected(null);
       pipeEdges.setSelected(null);
       labels.setSelected(null);
+      pipeEdges.setHovered?.(null);
     }
   }
 
@@ -74,21 +89,28 @@ export function createJoiningStreamsEffects(nallaFlowGroup, opts = {}) {
     mist.setSelected(selected?.id ?? null);
     pipeEdges.setSelected(selected?.id ?? null);
     labels.setSelected(selected?.id ?? null);
-    // Brighten selected nalla water mesh if present
     const meshes = nallaFlowGroup?.children || [];
     for (const m of meshes) {
       const r = m.userData?.record;
       if (!r || !m.isMesh) continue;
-      const isSel = selected && (r.id === selected.id || r.meta === selected.meta);
-      m.material = m.material; // shared mat — use opacity via userData scale
-      m.scale.setScalar(isSel ? 1.12 : selected ? 0.92 : 1);
-      m.renderOrder = isSel ? 5 : 3;
+      const isSel = recordsMatch(selected, r);
+      const isHov = recordsMatch(hovered, r);
+      // NEVER scale meshes — TubeGeometry is in world metres; scale shifts XZ off-map
+      m.scale.set(1, 1, 1);
+      m.renderOrder = isSel ? 6 : isHov ? 5 : 3;
     }
+  }
+
+  function setHovered(rec) {
+    hovered = rec || null;
+    pipeEdges.setHovered?.(hovered?.id ?? null);
+    setSelected(selected);
   }
 
   function update(dt, camera) {
     if (!group.visible || !state.joiningStreamsMode) {
       labels.setVisible(false);
+      arrowMesh.count = 0;
       return;
     }
     labels.setVisible(true);
@@ -98,20 +120,24 @@ export function createJoiningStreamsEffects(nallaFlowGroup, opts = {}) {
     let written = 0;
     for (const slot of arrowSlots) {
       const L = slot.length;
-      if (L < 8) continue;
-      const n = Math.min(MAX_ARROWS_PER, Math.max(2, Math.floor(L / ARROW_SPACING_M)));
-      const isSel = selected && slot.rec.id === selected.id;
-      const dim = selected && !isSel;
+      if (L < 6) continue;
+      const isSel = recordsMatch(selected, slot.rec);
+      const isHov = recordsMatch(hovered, slot.rec);
+      // Always draw arrows; emphasize selected channel
+      const spacing = isSel ? 28 : isHov ? 36 : ARROW_SPACING_M;
+      const n = Math.min(MAX_ARROWS_PER, Math.max(isSel ? 5 : 2, Math.floor(L / spacing)));
+      const dim = selected && !isSel && !isHov;
       for (let i = 0; i < n && written < MAX_TOTAL_ARROWS; i++) {
-        const phase = (i / n + (t * FLOW_SPEED_MPS) / L) % 1;
-        const u = phase;
+        const phase = (i / n + (t * FLOW_SPEED_MPS) / Math.max(L, 1)) % 1;
+        const u = THREE.MathUtils.clamp(phase, 0.02, 0.98);
         const p = slot.curve.getPointAt(u);
         const tan = slot.curve.getTangentAt(u).normalize();
         dummy.position.copy(p);
-        dummy.position.y += isSel ? 0.55 : 0.35;
+        const pipeR = slot.rec.channelRadius || 2;
+        dummy.position.y += pipeR + (isSel ? 1.6 : 1.25);
         dummy.up.copy(_up);
         dummy.lookAt(p.x + tan.x, p.y + tan.y, p.z + tan.z);
-        const s = dim ? 0.72 : isSel ? 1.15 : 1;
+        const s = dim ? 0.55 : isSel ? 1.35 : isHov ? 1.1 : 0.9;
         dummy.scale.setScalar(s);
         dummy.updateMatrix();
         arrowMesh.setMatrixAt(written, dummy.matrix);
@@ -120,16 +146,18 @@ export function createJoiningStreamsEffects(nallaFlowGroup, opts = {}) {
     }
     arrowMesh.count = written;
     arrowMesh.instanceMatrix.needsUpdate = true;
-    arrowMat.opacity = selected ? 0.78 : 0.88;
+    arrowMat.opacity = selected ? 0.98 : 0.88;
+    arrowMat.color.setHex(selected ? 0xd7f7ff : 0xb8ecff);
 
     mist.update(dt, t, selected?.id ?? null, cam);
-    pipeEdges.update(selected?.id ?? null);
+    pipeEdges.update(selected?.id ?? null, hovered?.id ?? null);
     if (cam) labels.update(cam);
   }
 
   group.userData = {
     setActive,
     setSelected,
+    setHovered,
     update,
     getSelected: () => selected,
     dispose() {
@@ -163,46 +191,62 @@ function buildPipeEdges(records) {
   const defaultMat = new THREE.MeshBasicMaterial({
     color: 0x0a2540,
     transparent: true,
-    opacity: 0.42,
+    opacity: 0.28,
     depthWrite: false,
+    depthTest: true,
     side: THREE.BackSide,
     toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
   const cyanMat = new THREE.MeshBasicMaterial({
     color: 0x4ec8ff,
     transparent: true,
-    opacity: 0.22,
+    opacity: 0.12,
     depthWrite: false,
+    depthTest: true,
     side: THREE.BackSide,
     toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
   const selMat = new THREE.MeshBasicMaterial({
     color: 0x1a6a9a,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.4,
     depthWrite: false,
+    depthTest: true,
     side: THREE.BackSide,
     toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
   const selCyan = new THREE.MeshBasicMaterial({
     color: 0x9ae8ff,
     transparent: true,
-    opacity: 0.38,
+    opacity: 0.24,
     depthWrite: false,
+    depthTest: true,
     side: THREE.BackSide,
     toneMapped: false,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
 
   const entries = [];
   for (const rec of records) {
     if (!rec.curve) continue;
-    const r = Math.max(2.4, (rec.curveLength || 100) * 0.004 + 3.2);
-    const tubular = Math.max(8, Math.min(220, Math.floor((rec.curveLength || 40) / 6)));
+    const r = rec.channelRadius || Math.min(2.6, Math.max(1.2, (rec.curveLength || 100) * 0.002 + 1.5));
+    const tubular = Math.max(12, Math.min(280, Math.floor((rec.curveLength || 40) / 4)));
     let outer;
     let rim;
     try {
-      outer = new THREE.Mesh(new THREE.TubeGeometry(rec.curve, tubular, r * 1.35, 8, false), defaultMat);
-      rim = new THREE.Mesh(new THREE.TubeGeometry(rec.curve, tubular, r * 1.48, 8, false), cyanMat);
+      outer = new THREE.Mesh(new THREE.TubeGeometry(rec.curve, tubular, r * 1.1, 7, false), defaultMat);
+      rim = new THREE.Mesh(new THREE.TubeGeometry(rec.curve, tubular, r * 1.18, 7, false), cyanMat);
     } catch {
       continue;
     }
@@ -217,20 +261,39 @@ function buildPipeEdges(records) {
   }
 
   function setSelected(id) {
+    applyPipeState(id, hoveredId);
+  }
+
+  let hoveredId = null;
+  function setHovered(id) {
+    hoveredId = id;
+    applyPipeState(selectedId, hoveredId);
+  }
+
+  let selectedId = null;
+  function applyPipeState(selId, hovId) {
+    selectedId = selId;
+    hoveredId = hovId;
     for (const e of entries) {
-      const on = id && e.rec.id === id;
-      const dim = id && !on;
+      const on = selId && e.rec.id === selId;
+      const hov = hovId && e.rec.id === hovId && !on;
+      const dim = selId && !on;
       e.outer.material = on ? selMat : defaultMat;
-      e.rim.material = on ? selCyan : cyanMat;
-      e.outer.material.opacity = dim ? 0.22 : on ? 0.55 : 0.42;
-      e.rim.material.opacity = dim ? 0.1 : on ? 0.38 : 0.22;
+      e.rim.material = on || hov ? selCyan : cyanMat;
+      e.outer.material.opacity = dim ? 0.06 : on ? 0.55 : hov ? 0.38 : 0.22;
+      e.rim.material.opacity = dim ? 0.03 : on ? 0.42 : hov ? 0.24 : 0.12;
+      e.outer.visible = !selId || on || hov;
+      e.rim.visible = !selId || on || hov;
+      e.outer.scale.setScalar(on ? 1.08 : hov ? 1.03 : 1);
+      e.rim.scale.setScalar(on ? 1.08 : hov ? 1.03 : 1);
     }
   }
 
   return {
     root,
     setSelected,
-    update: setSelected,
+    setHovered,
+    update: (selId, hovId) => applyPipeState(selId, hovId ?? hoveredId),
     dispose() {
       for (const e of entries) {
         e.outer.geometry.dispose();
@@ -248,20 +311,19 @@ function buildConfluenceMist(records) {
   const root = new THREE.Group();
   root.name = "joiningConfluenceMist";
 
-  // Outlet = drainage end closest to river, placed on river surface at confluence
+  // Outlet mist only at bank/confluence — keep compact so it doesn't float as "clouds"
   const outlets = [];
   for (const rec of records) {
     if (!rec.connectsToRiver || !rec.connection) continue;
     const ordered = rec.orderedPts?.length ? rec.orderedPts : rec.pts;
     if (!ordered?.length) continue;
     const end = ordered[ordered.length - 1];
-    const river = rec.connection.riverPoint || end;
-    const nalla = rec.connection.nallaPoint || end;
-    // Blend toward the river corridor so mist sits on the main stem, not mid-bank
-    const x = river.x * 0.55 + nalla.x * 0.25 + end.x * 0.2;
-    const z = river.z * 0.55 + nalla.z * 0.25 + end.z * 0.2;
-    const y = SURFACE_Y + 1.35;
-    outlets.push({ rec, x, y, z, end, river });
+    const bank = rec.connection.bankPoint;
+    const curveEnd = rec.curve?.getPointAt?.(1);
+    const x = bank?.x ?? curveEnd?.x ?? end.x;
+    const z = bank?.z ?? curveEnd?.z ?? end.z;
+    const y = (curveEnd?.y != null ? curveEnd.y : SURFACE_Y) + 0.35;
+    outlets.push({ rec, x, y, z });
   }
 
   if (!outlets.length) {
@@ -270,7 +332,7 @@ function buildConfluenceMist(records) {
 
   const spriteTex = makeMistSpriteTexture();
 
-  /** @type {{ group: THREE.Group, rec: object, particles: object[], rings: THREE.Mesh[], haze: THREE.Mesh, baseScale: number }[]} */
+  /** @type {{ group: THREE.Group, rec: object, particles: object[], rings: THREE.Mesh[], haze: THREE.Mesh }[]} */
   const sites = [];
 
   for (const o of outlets) {
@@ -278,15 +340,15 @@ function buildConfluenceMist(records) {
     site.name = `confluence_${o.rec.id}`;
     site.position.set(o.x, o.y, o.z);
     site.userData.recId = o.rec.id;
+    site.visible = false;
 
-    // Soft horizontal haze disc on river surface
     const haze = new THREE.Mesh(
-      new THREE.CircleGeometry(9, 28),
+      new THREE.CircleGeometry(4.5, 24),
       new THREE.MeshBasicMaterial({
         color: 0xb8e8ff,
         map: spriteTex,
         transparent: true,
-        opacity: 0.38,
+        opacity: 0.28,
         depthWrite: false,
         depthTest: true,
         side: THREE.DoubleSide,
@@ -295,19 +357,18 @@ function buildConfluenceMist(records) {
       }),
     );
     haze.rotation.x = -Math.PI / 2;
-    haze.position.y = -0.35;
+    haze.position.y = 0.05;
     haze.renderOrder = 10;
     site.add(haze);
 
-    // Expanding ripple rings
     const rings = [];
-    for (let r = 0; r < 3; r++) {
+    for (let r = 0; r < 2; r++) {
       const ring = new THREE.Mesh(
-        new THREE.RingGeometry(0.8, 1.35, 36),
+        new THREE.RingGeometry(0.5, 0.9, 28),
         new THREE.MeshBasicMaterial({
           color: 0xd2f2ff,
           transparent: true,
-          opacity: 0.32,
+          opacity: 0.28,
           depthWrite: false,
           side: THREE.DoubleSide,
           blending: THREE.AdditiveBlending,
@@ -315,141 +376,79 @@ function buildConfluenceMist(records) {
         }),
       );
       ring.rotation.x = -Math.PI / 2;
-      ring.position.y = -0.2;
+      ring.position.y = 0.08;
       ring.renderOrder = 11;
-      ring.userData.phase = r / 3;
+      ring.userData.phase = r / 2;
       site.add(ring);
       rings.push(ring);
     }
 
-    // Vertical mist sprites (water vapor entering river)
     const particles = [];
-    const COUNT = 22;
+    const COUNT = 10;
     for (let i = 0; i < COUNT; i++) {
       const mat = new THREE.SpriteMaterial({
         map: spriteTex,
         color: 0xd8f4ff,
         transparent: true,
-        opacity: 0.34,
+        opacity: 0.22,
         depthWrite: false,
         blending: THREE.AdditiveBlending,
         toneMapped: false,
       });
       const spr = new THREE.Sprite(mat);
       const ang = Math.random() * Math.PI * 2;
-      const rad = 1.2 + Math.random() * 5.5;
-      spr.position.set(Math.cos(ang) * rad * 0.4, Math.random() * 1.2, Math.sin(ang) * rad * 0.4);
-      const s = 3.2 + Math.random() * 4.5;
+      const rad = 0.4 + Math.random() * 2.2;
+      spr.position.set(Math.cos(ang) * rad * 0.35, 0.15 + Math.random() * 0.6, Math.sin(ang) * rad * 0.35);
+      const s = 1.2 + Math.random() * 1.6;
       spr.scale.set(s, s, 1);
       spr.renderOrder = 12;
       site.add(spr);
       particles.push({
         spr,
         phase: Math.random(),
-        lift: 1.8 + Math.random() * 3.5,
+        lift: 0.6 + Math.random() * 1.2,
         rad,
         ang,
         baseScale: s,
       });
     }
 
-    // Tiny foam dots
-    const foamGeo = new THREE.BufferGeometry();
-    const foamPos = new Float32Array(18 * 3);
-    for (let i = 0; i < 18; i++) {
-      const a = Math.random() * Math.PI * 2;
-      const rr = Math.random() * 6;
-      foamPos[i * 3] = Math.cos(a) * rr;
-      foamPos[i * 3 + 1] = 0.15 + Math.random() * 0.8;
-      foamPos[i * 3 + 2] = Math.sin(a) * rr;
-    }
-    foamGeo.setAttribute("position", new THREE.BufferAttribute(foamPos, 3));
-    const foam = new THREE.Points(
-      foamGeo,
-      new THREE.PointsMaterial({
-        color: 0xffffff,
-        size: 2.2,
-        transparent: true,
-        opacity: 0.4,
-        depthWrite: false,
-        sizeAttenuation: true,
-        blending: THREE.AdditiveBlending,
-        toneMapped: false,
-      }),
-    );
-    foam.renderOrder = 13;
-    foam.frustumCulled = false;
-    site.add(foam);
-
     root.add(site);
-    sites.push({
-      group: site,
-      rec: o.rec,
-      particles,
-      rings,
-      haze,
-      foam,
-      foamPos,
-      baseScale: 1,
-    });
+    sites.push({ group: site, rec: o.rec, particles, rings, haze });
   }
 
   let selectedId = null;
-  const _world = new THREE.Vector3();
 
   function setSelected(id) {
     selectedId = id;
   }
 
-  function update(_dt, t, selId, camera) {
+  function update(_dt, t, selId) {
     selectedId = selId ?? selectedId;
     for (const site of sites) {
-      const on = selectedId && site.rec.id === selectedId;
-      const dim = selectedId && !on;
+      const on = selectedId && String(site.rec.id) === String(selectedId);
+      site.group.visible = !!on;
+      if (!on) continue;
 
-      // Distance-based scale so mist stays readable from overview
-      let distScale = 1;
-      if (camera) {
-        site.group.getWorldPosition(_world);
-        const d = camera.position.distanceTo(_world);
-        distScale = THREE.MathUtils.clamp(d / 420, 0.85, 2.6);
-      }
-      const focus = on ? 1.35 : dim ? 0.55 : 1;
-      site.group.scale.setScalar(distScale * focus);
-
-      site.haze.material.opacity = dim ? 0.12 : on ? 0.5 : 0.38;
-      const pulse = 1 + Math.sin(t * 1.15) * 0.08;
+      site.group.scale.setScalar(1);
+      site.haze.material.opacity = 0.32;
+      const pulse = 1 + Math.sin(t * 1.2) * 0.06;
       site.haze.scale.setScalar(pulse);
 
       for (const ring of site.rings) {
-        const u = (t * 0.22 + ring.userData.phase) % 1;
-        const s = 1.2 + u * 7.5;
-        ring.scale.setScalar(s);
-        ring.material.opacity = (dim ? 0.08 : on ? 0.42 : 0.3) * (1 - u);
-        ring.visible = !dim || on;
+        const u = (t * 0.35 + ring.userData.phase) % 1;
+        const sc = 1.2 + u * 3.5;
+        ring.scale.setScalar(sc);
+        ring.material.opacity = (1 - u) * 0.28;
       }
 
       for (const p of site.particles) {
-        const u = (t * 0.2 + p.phase) % 1;
-        const ang = p.ang + u * 0.8;
-        const spread = p.rad * (0.35 + u * 0.9);
-        p.spr.position.set(Math.cos(ang) * spread * 0.55, u * p.lift, Math.sin(ang) * spread * 0.55);
+        const u = (t * 0.25 + p.phase) % 1;
+        p.spr.position.y = 0.1 + u * p.lift;
         const fade = u < 0.15 ? u / 0.15 : u > 0.7 ? (1 - u) / 0.3 : 1;
-        p.spr.material.opacity = (dim ? 0.12 : on ? 0.48 : 0.36) * fade;
-        const sc = p.baseScale * (0.75 + u * 0.9) * (on ? 1.15 : 1);
+        p.spr.material.opacity = 0.2 * fade;
+        const sc = p.baseScale * (0.85 + u * 0.35);
         p.spr.scale.set(sc, sc, 1);
-      }
-
-      // Subtle foam drift
-      if (site.foamPos) {
-        const arr = site.foam.geometry.attributes.position.array;
-        for (let i = 0; i < arr.length / 3; i++) {
-          const ph = (t * 0.35 + i * 0.17) % 1;
-          arr[i * 3 + 1] = 0.2 + Math.sin(ph * Math.PI * 2) * 0.55 + ph * 0.9;
-        }
-        site.foam.geometry.attributes.position.needsUpdate = true;
-        site.foam.material.opacity = dim ? 0.12 : on ? 0.5 : 0.38;
-        site.foam.material.size = (on ? 2.8 : 2.2) * Math.min(distScale, 1.8);
       }
     }
   }
@@ -460,13 +459,17 @@ function buildConfluenceMist(records) {
     update,
     dispose() {
       spriteTex.dispose();
-      root.traverse((obj) => {
-        if (obj.geometry) obj.geometry.dispose();
-        if (obj.material) {
-          if (Array.isArray(obj.material)) obj.material.forEach((m) => m.dispose());
-          else obj.material.dispose();
+      for (const site of sites) {
+        site.haze.geometry.dispose();
+        site.haze.material.dispose();
+        for (const ring of site.rings) {
+          ring.geometry.dispose();
+          ring.material.dispose();
         }
-      });
+        for (const p of site.particles) {
+          p.spr.material.dispose();
+        }
+      }
     },
   };
 }
@@ -505,7 +508,7 @@ function buildNameLabels(records, uiRoot) {
     el.className = "joining-stream-label";
     el.dataset.recId = rec.id;
     const mid = rec.orderedPts?.[Math.floor((rec.orderedPts.length || 1) * 0.35)] || rec.pts?.[0];
-    const name = String(rec.meta?.name || rec.name).trim();
+    const name = String(rec.meta?.name || rec.meta?.nameEn || rec.meta?.intName || rec.name || "").trim();
     el.innerHTML = `
       <span class="joining-stream-label__text">${escapeHtml(name)}</span>
       <span class="joining-stream-label__leader" aria-hidden="true"></span>

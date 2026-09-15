@@ -1,18 +1,19 @@
 /**
  * Resolve nalla flow direction using:
  * 1) KML/OSM direction attrs (if present)
- * 2) River connection topology (toward confluence)
+ * 2) River bank topology (toward confluence)
  * 3) Terrain elevation along draped path
  *
- * Does not mutate original KML coordinates.
+ * Connection uses distance-to-BANK (not centerline), so wide river
+ * sections are not falsely marked Disconnected.
  */
 
-export const RIVER_CONNECTION_THRESHOLD_M = 95;
+/** Max gap outside the river bank edge to count as connected (metres). */
+export const RIVER_CONNECTION_THRESHOLD_M = 65;
 
 /**
  * @param {{ pts: {x:number,y:number,z:number,lon?:number,lat?:number}[], meta: object, lengthM: number }} path
- * @param {{ x:number, z:number }[]} riverStations corridor stations (local XZ)
- * @returns {object} flow record
+ * @param {{ x:number, z:number, halfWidth?:number, flowX?:number, flowZ?:number, along?:number }[]} riverStations
  */
 export function resolveNallaFlow(path, riverStations) {
   const pts = path.pts;
@@ -27,7 +28,7 @@ export function resolveNallaFlow(path, riverStations) {
   const attrDir = parseAttributeDirection(meta);
   const riverHit = nearestRiverConnection(pts, riverStations, RIVER_CONNECTION_THRESHOLD_M);
 
-  let flowTowardEnd = true; // progress 0→1 along stored pts order
+  let flowTowardEnd = true;
   let confidence = "unknown";
   let reason = "Flow direction unavailable";
 
@@ -36,27 +37,43 @@ export function resolveNallaFlow(path, riverStations) {
     confidence = "attribute";
     reason = "Direction from KML/OSM attributes";
   } else if (riverHit) {
-    // Endpoint closer to river is downstream (nalla → river)
-    const dStart = Math.hypot(start.x - riverHit.nallaPoint.x, start.z - riverHit.nallaPoint.z);
-    const dEnd = Math.hypot(end.x - riverHit.nallaPoint.x, end.z - riverHit.nallaPoint.z);
-    // connection is on path; check which end of path is nearer to river station
     const ds = Math.hypot(start.x - riverHit.riverPoint.x, start.z - riverHit.riverPoint.z);
     const de = Math.hypot(end.x - riverHit.riverPoint.x, end.z - riverHit.riverPoint.z);
-    flowTowardEnd = de <= ds; // end closer to river → flow toward end
+    flowTowardEnd = de <= ds;
     confidence = "topology";
     reason = "Flow toward detected river connection";
   } else {
     const dElev = elevStart - elevEnd;
     if (Math.abs(dElev) >= 0.35) {
-      flowTowardEnd = dElev > 0; // higher → lower
+      flowTowardEnd = dElev > 0;
       confidence = "terrain";
       reason = "Flow direction estimated from terrain";
     } else {
-      // Weak elevation: still prefer downhill if any signal
       flowTowardEnd = elevStart >= elevEnd;
       confidence = "unknown";
       reason = "Flow direction unavailable (flat / ambiguous elevation)";
     }
+  }
+
+  const bankRef = riverHit || nearestBankReference(flowTowardEnd ? end : start, riverStations);
+
+  const distanceToRiverM =
+    bankRef?.distanceToBank != null
+      ? bankRef.distanceToBank
+      : riverHit?.distanceToBank != null
+        ? riverHit.distanceToBank
+        : null;
+
+  const connectsToRiver =
+    !!riverHit ||
+    (distanceToRiverM != null && distanceToRiverM <= RIVER_CONNECTION_THRESHOLD_M);
+
+  // Ensure connection always carries bankPoint when we claim connected
+  let connection = riverHit;
+  if (!connection && connectsToRiver && bankRef) connection = bankRef;
+  if (connection && !connection.bankPoint && bankRef?.bankPoint) {
+    connection.bankPoint = bankRef.bankPoint;
+    connection.alongM = bankRef.alongM ?? connection.alongM;
   }
 
   return {
@@ -70,9 +87,43 @@ export function resolveNallaFlow(path, riverStations) {
     flowTowardEnd,
     flowDirectionConfidence: confidence,
     directionReason: reason,
-    connectsToRiver: !!riverHit,
-    connection: riverHit,
+    connectsToRiver,
+    connection,
+    distanceToRiverM,
+    nearestChainageMeters: connection?.alongM ?? bankRef?.alongM ?? null,
     geographicNote: "Coordinates preserved from drainage KML / local frame",
+  };
+}
+
+function nearestBankReference(point, stations) {
+  if (!point || !stations?.length) return null;
+  const hit = nearestStationXZ(point.x, point.z, stations);
+  const station = stations[hit.index];
+  if (!station) return null;
+  const half = Math.max(8, station.halfWidth || 40);
+  const fx = station.flowX ?? 0;
+  const fz = station.flowZ ?? 1;
+  const lx = -fz;
+  const lz = fx;
+  const lat = Math.abs((point.x - station.x) * lx + (point.z - station.z) * lz);
+  const gap = Math.max(0, lat - half);
+  const side = Math.sign((point.x - station.x) * lx + (point.z - station.z) * lz) || 1;
+  return {
+    nallaPoint: { x: point.x, y: point.y, z: point.z, lon: point.lon, lat: point.lat },
+    riverPoint: { x: station.x, z: station.z, y: station.y },
+    bankPoint: {
+      x: station.x + lx * half * side,
+      z: station.z + lz * half * side,
+      y: point.y,
+      alongM: Number.isFinite(station.along) ? station.along : null,
+      stationIndex: hit.index,
+    },
+    distance: hit.d,
+    distanceToBank: gap,
+    stationIndex: hit.index,
+    alongM: Number.isFinite(station.along) ? station.along : null,
+    pathIndex: -1,
+    confidence: gap < 20 ? "high" : "medium",
   };
 }
 
@@ -85,44 +136,57 @@ function parseAttributeDirection(meta) {
     if (/down|forward|with|outlet|out/.test(s)) return true;
     if (/up|back|reverse|inlet|in/.test(s)) return false;
   }
-  // intermittent alone is not a direction
   return null;
 }
 
+/**
+ * Prefer the path vertex closest to the *bank edge* (lateral gap),
+ * not the corridor centerline — avoids false Disconnected on wide reaches.
+ */
 function nearestRiverConnection(pts, stations, thresholdM) {
   if (!stations?.length || !pts?.length) return null;
   let best = null;
-  let bestD = thresholdM;
-  // Sample path points (not every vertex if very dense)
-  const step = Math.max(1, Math.floor(pts.length / 40));
-  for (let i = 0; i < pts.length; i += step) {
-    const p = pts[i];
+  let bestGap = thresholdM;
+
+  const consider = (p, pathIndex) => {
     const hit = nearestStationXZ(p.x, p.z, stations);
-    if (hit.d < bestD) {
-      bestD = hit.d;
+    const st = stations[hit.index];
+    if (!st) return;
+    const half = Math.max(8, st.halfWidth || 40);
+    const fx = st.flowX ?? 0;
+    const fz = st.flowZ ?? 1;
+    const lx = -fz;
+    const lz = fx;
+    const lat = Math.abs((p.x - st.x) * lx + (p.z - st.z) * lz);
+    const gap = Math.max(0, lat - half);
+    if (gap < bestGap || (gap === bestGap && best && hit.d < best.distance)) {
+      bestGap = gap;
+      const side = Math.sign((p.x - st.x) * lx + (p.z - st.z) * lz) || 1;
       best = {
         nallaPoint: { x: p.x, y: p.y, z: p.z, lon: p.lon, lat: p.lat },
-        riverPoint: { x: hit.x, z: hit.z },
+        riverPoint: { x: st.x, z: st.z, y: st.y },
+        bankPoint: {
+          x: st.x + lx * half * 0.98 * side,
+          z: st.z + lz * half * 0.98 * side,
+          y: p.y,
+          alongM: Number.isFinite(st.along) ? st.along : null,
+          stationIndex: hit.index,
+        },
         distance: hit.d,
-        confidence: hit.d < thresholdM * 0.45 ? "high" : "medium",
-        pathIndex: i,
+        distanceToBank: gap,
+        confidence: gap < thresholdM * 0.35 ? "high" : "medium",
+        pathIndex,
+        stationIndex: hit.index,
+        alongM: Number.isFinite(st.along) ? st.along : null,
       };
     }
-  }
-  // Also check endpoints explicitly
-  for (const p of [pts[0], pts[pts.length - 1]]) {
-    const hit = nearestStationXZ(p.x, p.z, stations);
-    if (hit.d < bestD) {
-      bestD = hit.d;
-      best = {
-        nallaPoint: { x: p.x, y: p.y, z: p.z, lon: p.lon, lat: p.lat },
-        riverPoint: { x: hit.x, z: hit.z },
-        distance: hit.d,
-        confidence: hit.d < thresholdM * 0.45 ? "high" : "medium",
-        pathIndex: p === pts[0] ? 0 : pts.length - 1,
-      };
-    }
-  }
+  };
+
+  const step = Math.max(1, Math.floor(pts.length / 48));
+  for (let i = 0; i < pts.length; i += step) consider(pts[i], i);
+  consider(pts[0], 0);
+  consider(pts[pts.length - 1], pts.length - 1);
+
   return best;
 }
 
@@ -138,7 +202,7 @@ function nearestStationXZ(x, z, stations) {
       bestI = i;
     }
   }
-  for (let i = Math.max(0, bestI - 20); i <= Math.min(stations.length - 1, bestI + 20); i++) {
+  for (let i = Math.max(0, bestI - 24); i <= Math.min(stations.length - 1, bestI + 24); i++) {
     const s = stations[i];
     const d = Math.hypot(s.x - x, s.z - z);
     if (d < bestD) {

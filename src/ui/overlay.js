@@ -12,6 +12,7 @@ import { mountLayersPanel } from "./components/layersPanel.js";
 import { mountSettingsPanel } from "./components/settingsPanel.js";
 import { mountWaterFlowControl } from "./components/waterFlowControl.js";
 import { mountChainageRuler } from "./components/chainageRuler.js";
+import { mountJoiningStreamsNav } from "./components/joiningStreamsNav.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
 import { mountFloodSimulationToolbar } from "./floodSimulationToolbar.js";
 import { mountFloodResultPanel } from "./floodResultPanel.js";
@@ -98,15 +99,17 @@ export function createTooltip(root) {
             ? `<div class="kv"><span class="k">${k}</span><span class="v">${v}</span></div>`
             : "";
         el.innerHTML = `
-          <h3>💧 DRAINAGE CHANNEL</h3>
+          <h3>${info.joiningHover ? "JOINING STREAM" : "💧 DRAINAGE CHANNEL"}</h3>
           <div class="kv"><span class="k">Name</span><span class="v depth">${info.name ?? "Unnamed nullah"}</span></div>
+          ${row("ID", info.displayId)}
           ${row("Type", info.typeLabel || info.waterway)}
+          ${row("Chainage", info.chainageLabel)}
           ${row("Length", info.lengthM != null ? `${Math.round(info.lengthM)} m` : "")}
-          ${row("Flow", info.flowDirection)}
-          ${row("Joins river", info.connectsToRiver == null ? "" : info.connectsToRiver ? "Yes" : "Nearby")}
+          ${row("Flow", info.flowDirection || (info.joiningHover ? "→ River" : null))}
+          ${row("Joins river", info.connectsToRiver == null ? "" : info.connectsToRiver ? "Connected" : "Disconnected")}
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
-          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">Water moving toward Mula–Mutha</em>
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.joiningHover ? "Hover preview · click to select" : "Water moving toward Mula–Mutha"}</em>
         `;
         return;
       }
@@ -582,6 +585,7 @@ export function mountUI(root, {
   nav.setFloodPressed?.(state.showFloodBar);
 
   const chainRuler = mountChainageRuler(root, dataset);
+  mountJoiningStreamsNav(root);
   chainPanel = mountChainagePanel(root, dataset);
 
   function syncSelectedChainage(meters) {

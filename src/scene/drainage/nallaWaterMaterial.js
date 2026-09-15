@@ -8,13 +8,13 @@ export function createNallaWaterMaterial() {
   return new THREE.ShaderMaterial({
     transparent: true,
     depthWrite: false,
-    // Respect building / terrain depth so channels go under structures
+    // Draw above terrain; geometry is already lifted above ground
     depthTest: true,
     side: THREE.DoubleSide,
     toneMapped: false,
     polygonOffset: true,
-    polygonOffsetFactor: 1,
-    polygonOffsetUnits: 1,
+    polygonOffsetFactor: -4,
+    polygonOffsetUnits: -4,
     uniforms: {
       uTime: { value: 0 },
       uFlowSpeed: { value: 0.65 },
@@ -110,10 +110,10 @@ export function createNallaWaterMaterial() {
         vec3 deepA = vec3(0.10, 0.34, 0.58);
         vec3 midA = vec3(0.22, 0.55, 0.78);
         vec3 cyanA = vec3(0.55, 0.90, 1.0);
-        // Joining Streams: dark navy pipe + cyan edge
-        vec3 deepB = vec3(0.04, 0.12, 0.28);
-        vec3 midB = vec3(0.08, 0.28, 0.48);
-        vec3 cyanB = vec3(0.35, 0.78, 0.98);
+        // Joining Streams: navy body + clearer cyan edge for path accuracy
+        vec3 deepB = vec3(0.05, 0.16, 0.34);
+        vec3 midB = vec3(0.12, 0.38, 0.62);
+        vec3 cyanB = vec3(0.45, 0.88, 1.0);
         vec3 deep = mix(deepA, deepB, uJoiningStyle);
         vec3 mid = mix(midA, midB, uJoiningStyle);
         vec3 cyan = mix(cyanA, cyanB, uJoiningStyle);

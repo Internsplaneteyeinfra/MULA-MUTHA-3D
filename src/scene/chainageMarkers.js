@@ -286,7 +286,12 @@ export function createChainageLayer(dataset) {
 
     const camY = camera.position.y;
     const closeView = camY < 650 || state.cameraMode === "local";
-    const camLift = THREE.MathUtils.clamp(camY * (closeView ? 0.014 : 0.01), closeView ? 8 : 0, 40);
+    const joining = !!state.joiningStreamsMode;
+    const camLift = THREE.MathUtils.clamp(
+      camY * (closeView ? 0.01 : 0.01),
+      closeView ? (joining ? 4 : 6) : 0,
+      joining ? 18 : 40,
+    );
 
     // Only the currently selected chainage label is shown in the 3D scene
     for (const spr of labelSprites) {
@@ -297,19 +302,23 @@ export function createChainageLayer(dataset) {
 
       spr.position.set(
         p.x,
-        SURFACE_Y + spr.userData.baseLift + camLift + 6,
+        SURFACE_Y + spr.userData.baseLift + camLift + (joining ? 2 : 6),
         p.z - (closeView ? 4 : 8),
       );
       const d = camera.position.distanceTo(spr.position);
       let s;
-      if (closeView) {
-        s = THREE.MathUtils.clamp(d * 0.034, 14, 40);
+      if (joining) {
+        // Keep station text compact while inspecting nullahs
+        s = THREE.MathUtils.clamp(d * 0.012, 6, 14);
+      } else if (closeView) {
+        s = THREE.MathUtils.clamp(d * 0.022, 10, 22);
       } else {
         const boost = markerBoostForCam(camY);
         s = THREE.MathUtils.clamp(d * 0.014 * boost, 8, 30);
       }
       const twoLine = mode === "both" ? 1.65 : 0.9;
-      spr.scale.set(s * (closeView ? 3.0 : 2.7), s * twoLine, 1);
+      const sx = joining ? 1.6 : closeView ? 2.2 : 2.7;
+      spr.scale.set(s * sx, s * twoLine, 1);
     }
   }
 

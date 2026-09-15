@@ -333,20 +333,19 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       clearStickySurvey();
     }
 
-    // Selected chainage tip owns hover — clicks still fall through to river measure.
-    if (state.chainageTipActive && !fromClick) return;
+    // Selected chainage tip owns hover — except Joining Streams drainage hover/click.
+    if (state.chainageTipActive && !fromClick && !state.joiningStreamsMode) return;
 
-    // Joining Streams — CLICK only for drainage ID (no hover tip).
-    // Do NOT freeze camera / chainage / other scene interaction.
+    // Joining Streams — hover = tooltip only; click = select. Never freeze camera.
     if (state.joiningStreamsMode && state.showDrainage && !state.cinematicActive) {
-      if (fromClick) {
-        const { wx, wz } = pickWorldXZ();
-        if (wx != null) {
-          const drainageGroup = getDrainageGroup?.();
-          const nullah = pickNullahAt(drainageGroup, wx, wz, 36);
-          if (nullah) {
-            const m = nullah.meta || {};
-            const flowRec = getNallaFlow?.()?.userData?.getRecordByPickMeta?.(m) || null;
+      const { wx, wz } = pickWorldXZ();
+      if (wx != null) {
+        const drainageGroup = getDrainageGroup?.();
+        const nullah = pickNullahAt(drainageGroup, wx, wz, 36);
+        if (nullah) {
+          const m = nullah.meta || {};
+          const flowRec = getNallaFlow?.()?.userData?.getRecordByPickMeta?.(m) || null;
+          if (fromClick) {
             const rec = flowRec || {
               meta: m,
               name: m.name,
@@ -357,22 +356,44 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             };
             state.joiningStreamsTipActive = true;
             riverWidthMeasure?.hide?.();
+            window.__MM_SCENE__?.hoverJoiningStream?.(null);
             window.__MM_SCENE__?.selectJoiningStream?.(rec);
             state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
             return;
           }
-        }
-        // Missed drainage — clear selection but fall through so chainage/river keep working
-        if (state.joiningStreamsTipActive) {
-          state.joiningStreamsTipActive = false;
-          window.__MM_SCENE__?.clearJoiningStreamSelection?.();
-        }
-      } else {
-        // Hover: never open drainage info; keep normal scene hover/camera free
-        if (!state.joiningStreamsTipActive) {
-          // skip nullah hover tips only
+          // Hover preview — do not permanently select
+          window.__MM_SCENE__?.hoverJoiningStream?.(flowRec);
+          let lon = nullah.hit.lon ?? flowRec?.outletLon;
+          let lat = nullah.hit.lat ?? flowRec?.outletLat;
+          if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
+            const ll = dataset.frame.toLonLat(nullah.hit.x, nullah.hit.z);
+            lon = ll.lon;
+            lat = ll.lat;
+          }
+          tooltip.show(e.clientX, e.clientY, {
+            nullahHover: true,
+            joiningHover: true,
+            name: flowRec?.displayName || m.name || "Unnamed nullah",
+            displayId: flowRec?.displayId || m.osmId || "",
+            waterway: m.waterway,
+            typeLabel: waterwayLabel(m.waterway),
+            chainageLabel: flowRec?.nearestChainageLabel || "",
+            lengthM: nullah.lengthM,
+            lon,
+            lat,
+            flowDirection: "→ River",
+            connectsToRiver: flowRec?.connectsToRiver,
+          });
+          state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
+          return;
         }
       }
+      // Missed drainage — clear hover only; keep selection locked
+      window.__MM_SCENE__?.hoverJoiningStream?.(null);
+      if (!fromClick) {
+        // fall through for other hover tips only when not over a nullah
+      }
+      // Empty click: do not clear / re-pick drainage; allow river/chainage handlers below
     } else if (state.joiningStreamsTipActive && !state.joiningStreamsMode) {
       state.joiningStreamsTipActive = false;
       window.__MM_SCENE__?.clearJoiningStreamSelection?.();
@@ -666,7 +687,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
 function waterwayLabel(ww) {
   switch (String(ww || "").toLowerCase()) {
     case "drain":
-      return "Drain / Nullah";
+      return "Minor Drainage";
     case "stream":
       return "Stream / Nullah";
     case "canal":
@@ -674,7 +695,7 @@ function waterwayLabel(ww) {
     case "ditch":
       return "Ditch";
     default:
-      return "Small channel";
+      return "Minor Drainage";
   }
 }
 

@@ -117,7 +117,6 @@ export const GEOLOGY_MODULES = [
  * moduleId = existing activateModule() target.
  */
 const GEOLOGY_TOOLBAR = [
-  { moduleId: "vehicle", tip: "Terrain", icon: Mountain, color: "#F5A623" },
   { moduleId: "spectral_lithology", tip: "Spectral Lithology", icon: Activity, color: "#38BDF8" },
   { moduleId: "bank_erosion", tip: "Bank Erosion", icon: Droplets, color: "#22D3EE" },
   { moduleId: "bank_erosion", tip: "Erosion", icon: Pickaxe, color: "#F08070", key: "erosion-pick" },
@@ -168,7 +167,7 @@ export function mountGeologyWorkspace(root) {
             title="${m.tip}"
             aria-pressed="false"
             style="--geo-accent:${m.color}">
-            <span class="geology-module-icon" style="color:${m.color}" aria-hidden="true">${lucideHtml(m.icon, { size: 22, strokeWidth: 1.75, className: "geo-mod-svg" })}</span>
+            <span class="geology-module-icon" style="color:${m.color}" aria-hidden="true">${lucideHtml(m.icon, { size: 28, strokeWidth: 1.75, className: "geo-mod-svg" })}</span>
           </button>`,
         ).join("")}
       </div>
@@ -217,13 +216,17 @@ export function mountGeologyWorkspace(root) {
       <section class="geology-panel geology-panel--joining" data-geo-panel="joining_streams" hidden>
         <aside class="joining-streams-panel geo-field-note" aria-label="Joining streams">
           <header class="geo-field-note__head">
-            <strong>Joining streams</strong>
-            <small>Drainage into Mula–Mutha</small>
+            <strong>JOINING STREAMS</strong>
+            <small>Drainage → river</small>
           </header>
-          <p class="geo-field-note__hint">Click a channel on the map for its name and type.</p>
-          <div class="joining-streams-panel__card" id="joining-stream-info" hidden>
-            <div class="joining-streams-panel__card-title">Selected channel</div>
-            <div class="joining-streams-panel__kv" id="joining-stream-kv"></div>
+          <div class="joining-streams-panel__title" id="joining-stream-title">Nearest drainage</div>
+          <div class="joining-streams-panel__kv" id="joining-stream-kv">
+            <div class="js-kv"><span class="js-k">Status</span><span class="js-v">Select a channel</span></div>
+          </div>
+          <div class="joining-streams-panel__nav" id="joining-stream-panel-nav" hidden>
+            <button type="button" class="joining-streams-panel__nav-btn" id="js-panel-prev" aria-label="Previous drainage">‹</button>
+            <span class="joining-streams-panel__nav-count" id="js-panel-count">0 / 0</span>
+            <button type="button" class="joining-streams-panel__nav-btn" id="js-panel-next" aria-label="Next drainage">›</button>
           </div>
         </aside>
       </section>
@@ -279,52 +282,106 @@ export function mountGeologyWorkspace(root) {
     if (river) leftStack.insertBefore(panel, river.nextSibling);
     else leftStack.appendChild(panel);
   }
-  // Stack: River Data → analysis panels
+  // Stack: River Data → analysis panels (all start hidden; open only via toolbar)
   dockPanel(erosionPanel);
   dockPanel(lithologyPanel);
   dockPanel(joiningPanel);
   dockPanel(mainStemPanel);
   dockPanel(bathymetryPanel);
+  for (const panel of [erosionPanel, lithologyPanel, joiningPanel, mainStemPanel, bathymetryPanel]) {
+    if (!panel) continue;
+    panel.hidden = true;
+    panel.classList.remove("is-visible", "is-leaving");
+  }
 
-  const joiningInfo = wrap.querySelector("#joining-stream-info") || joiningPanel?.querySelector("#joining-stream-info");
   const joiningKv = wrap.querySelector("#joining-stream-kv") || joiningPanel?.querySelector("#joining-stream-kv");
+  const joiningTitle = joiningPanel?.querySelector("#joining-stream-title") || document.getElementById("joining-stream-title");
+  const joiningPanelNav = joiningPanel?.querySelector("#joining-stream-panel-nav") || document.getElementById("joining-stream-panel-nav");
+  const joiningPanelCount = joiningPanel?.querySelector("#js-panel-count") || document.getElementById("js-panel-count");
 
   function waterwayTypeLabel(ww) {
     const s = String(ww || "").toLowerCase();
-    if (s === "drain") return "Drain / Nullah";
+    if (s === "drain") return "Minor Drainage";
     if (s === "stream") return "Stream / Nullah";
     if (s === "canal") return "Canal";
     if (s === "ditch") return "Ditch";
-    return ww ? String(ww) : "";
+    return ww ? String(ww) : "Minor Drainage";
   }
 
   function showJoiningCard(rec) {
-    if (!joiningInfo || !joiningKv || !rec) return;
+    if (!joiningKv || !rec) return;
     const m = rec.meta || {};
-    const name = String(m.name || rec.name || "").trim();
-    const rows = [];
-    const add = (k, v) => {
-      if (v == null || String(v).trim() === "") return;
-      rows.push(`<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${v}</span></div>`);
-    };
-    add("Name", name && !/^unnamed/i.test(name) ? name : "Unnamed channel");
-    add("Type", waterwayTypeLabel(m.waterway));
-    add("Length", rec.lengthM != null ? `${Math.round(rec.lengthM)} m` : "");
-    add("Width", m.width ? `${m.width} m` : "");
-    add("Tunnel", m.tunnel || "");
-    add("Bridge", m.bridge === "yes" ? "Yes" : m.bridge || "");
-    add("Intermittent", m.intermittent === "yes" ? "Yes" : m.intermittent || "");
-    add("Joins river", rec.connectsToRiver ? "Yes" : "");
-    add("Flow", rec.directionReason || "");
-    add("OSM id", m.osmId || "");
-    joiningKv.innerHTML = rows.join("");
-    joiningInfo.hidden = false;
+    const name =
+      rec.displayName ||
+      (() => {
+        const n = String(m.name || m.nameEn || m.intName || rec.name || "").trim();
+        const id = rec.displayId || rec.id || "";
+        return n && !/^unnamed/i.test(n) ? `${n} (${id})` : `Unnamed channel (${id})`;
+      })();
+    if (joiningTitle) joiningTitle.textContent = name;
+
+    const dist =
+      rec.distanceToRiverM != null
+        ? `${Math.round(Number(rec.distanceToRiverM) * 10) / 10} m`
+        : rec.connection?.distanceToBank != null
+          ? `${Math.round(Number(rec.connection.distanceToBank) * 10) / 10} m`
+          : rec.connection?.distance != null
+            ? `${Math.round(Number(rec.connection.distance) * 10) / 10} m`
+            : "—";
+
+    const lon =
+      rec.outletLon != null && Number.isFinite(Number(rec.outletLon))
+        ? Number(rec.outletLon).toFixed(6)
+        : "—";
+    const lat =
+      rec.outletLat != null && Number.isFinite(Number(rec.outletLat))
+        ? Number(rec.outletLat).toFixed(6)
+        : "—";
+
+    const rows = [
+      ["Type", waterwayTypeLabel(m.waterway)],
+      ["Chainage", rec.nearestChainageLabel || "—"],
+      ["Distance", dist],
+      ["Flow", "→ River"],
+      ["Status", rec.connectsToRiver ? "Connected" : "Disconnected"],
+      ["Lon / Lat", lon !== "—" ? `${lon}, ${lat}` : "—"],
+    ];
+    if (m.osmId) rows.push(["OSM", String(m.osmId)]);
+    if (m.nameMr) rows.push(["Name (MR)", String(m.nameMr)]);
+
+    joiningKv.innerHTML = rows
+      .map(
+        ([k, v]) =>
+          `<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${v}</span></div>`,
+      )
+      .join("");
+
+    const total = window.__MM_SCENE__?.getJoiningStreamCount?.() ?? 0;
+    const idx = (rec.navIndex ?? 0) + 1;
+    if (joiningPanelNav) joiningPanelNav.hidden = total < 1;
+    if (joiningPanelCount) joiningPanelCount.textContent = total ? `${idx} / ${total}` : "0 / 0";
   }
 
   function clearJoiningCard() {
-    if (joiningInfo) joiningInfo.hidden = true;
-    if (joiningKv) joiningKv.innerHTML = "";
+    if (joiningTitle) joiningTitle.textContent = "Nearest drainage";
+    if (joiningKv) {
+      joiningKv.innerHTML =
+        `<div class="js-kv"><span class="js-k">Status</span><span class="js-v">Select a channel</span></div>`;
+    }
+    if (joiningPanelNav) joiningPanelNav.hidden = true;
+    if (joiningPanelCount) joiningPanelCount.textContent = "0 / 0";
   }
+
+  joiningPanel?.querySelector("#js-panel-prev")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.__MM_SCENE__?.stepJoiningStream?.(-1);
+  });
+  joiningPanel?.querySelector("#js-panel-next")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    window.__MM_SCENE__?.stepJoiningStream?.(1);
+  });
 
   window.__MM_JOINING_CARD__ = {
     show: showJoiningCard,
@@ -333,20 +390,28 @@ export function mountGeologyWorkspace(root) {
 
   function geologyPanels() {
     const list = [...wrap.querySelectorAll(".geology-panel")];
-    for (const panel of [lithologyPanel, erosionPanel, joiningPanel]) {
+    for (const panel of [lithologyPanel, erosionPanel, joiningPanel, mainStemPanel, bathymetryPanel]) {
       if (panel && !list.includes(panel)) list.push(panel);
     }
+    // Docked panels live under #left-ui-stack — still hide them with the rest.
+    document.querySelectorAll("#left-ui-stack > .geology-panel").forEach((panel) => {
+      if (!list.includes(panel)) list.push(panel);
+    });
     return list;
   }
 
   let activeModule = null;
+  let activeModuleKey = null;
   let transitionTimer = 0;
   let activateGen = 0;
 
-  function setModuleActive(id) {
+  function setModuleActive(id, key = null) {
     activeModule = id;
+    activeModuleKey = key;
     wrap.querySelectorAll(".geology-module-btn").forEach((btn) => {
-      const on = id != null && btn.dataset.geoModule === id;
+      const matchId = id != null && btn.dataset.geoModule === id;
+      const matchKey = key != null ? btn.dataset.geoKey === key : true;
+      const on = matchId && matchKey;
       btn.classList.toggle("is-active", on);
       btn.setAttribute("aria-pressed", on ? "true" : "false");
     });
@@ -413,15 +478,16 @@ export function mountGeologyWorkspace(root) {
     activateGen += 1;
     clearModuleLayers();
     hideAllPanels();
-    setModuleActive(null);
+    setModuleActive(null, null);
   }
 
   async function activateModule(id, opts = {}) {
     const mod = GEOLOGY_MODULES.find((m) => m.id === id);
     if (!mod) return;
 
+    const key = opts.key ?? null;
     const allowToggle = opts.toggle !== false;
-    if (allowToggle && activeModule === id) {
+    if (allowToggle && activeModule === id && (key == null || activeModuleKey === key)) {
       deactivateModule();
       return;
     }
@@ -458,7 +524,7 @@ export function mountGeologyWorkspace(root) {
       root.classList.remove("bathymetry-mode");
       window.__MM_SCENE__?.setBathymetry?.(false);
     }
-    setModuleActive(id);
+    setModuleActive(id, key);
     showPanel(id);
 
     if (id === "joining_streams") {
@@ -484,11 +550,15 @@ export function mountGeologyWorkspace(root) {
         if (result && result.available === false) {
           state.mainStemMode = false;
           root.classList.remove("main-stem-mode");
+          hideAllPanels();
+          setModuleActive(null, null);
           console.warn("[geology] Main stem layer unavailable", result);
         }
       } catch (err) {
         state.mainStemMode = false;
         root.classList.remove("main-stem-mode");
+        hideAllPanels();
+        setModuleActive(null, null);
         console.warn("[geology] Main stem:", err);
       }
       return;
@@ -555,6 +625,8 @@ export function mountGeologyWorkspace(root) {
         if (result && result.available === false) {
           state.bathymetryMode = false;
           root.classList.remove("bathymetry-mode");
+          hideAllPanels();
+          setModuleActive(null, null);
           console.warn("[geology] Bathymetry layer unavailable", result);
         } else {
           console.info("[geology] Bathymetry on", result?.stats || null);
@@ -562,6 +634,8 @@ export function mountGeologyWorkspace(root) {
       } catch (err) {
         state.bathymetryMode = false;
         root.classList.remove("bathymetry-mode");
+        hideAllPanels();
+        setModuleActive(null, null);
         console.warn("[geology] Bathymetry:", err);
       }
       return;
@@ -570,16 +644,18 @@ export function mountGeologyWorkspace(root) {
 
   wrap.querySelectorAll("[data-geo-module]").forEach((btn) => {
     btn.addEventListener("click", () => {
-      void activateModule(btn.dataset.geoModule);
+      void activateModule(btn.dataset.geoModule, { key: btn.dataset.geoKey || null });
     });
   });
 
   return {
     el: wrap,
-    open(moduleId = "vehicle") {
+    open(moduleId = null) {
       wrap.hidden = false;
       root.classList.add("geology-open");
-      void activateModule(moduleId, { toggle: false });
+      // Toolbar only — Main Stem / Bathymetry (and other) panels stay off until clicked.
+      if (moduleId) void activateModule(moduleId, { toggle: false });
+      else deactivateModule();
     },
     close() {
       wrap.hidden = true;

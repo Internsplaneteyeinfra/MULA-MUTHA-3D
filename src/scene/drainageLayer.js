@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { terrainHeightAt } from "./terrain.js";
+import { lonLatToLocal } from "../geo/geoReference.js";
 
 /**
  * Continuous dark-blue nullah channels (stitched KML) + culvert/bridge markers
@@ -23,8 +24,8 @@ const BRIDGE = {
 };
 
 const MAIN_RIVER_NAME = /^(mula|mutha|mula[\s-]?mutha)$/i;
-const JOIN_DIST_M = 45;
-const DENSIFY_M = 10;
+const JOIN_DIST_M = 28;
+const DENSIFY_M = 5;
 
 export function isNullahFeature(f) {
   const ww = String(f.waterway || "").toLowerCase();
@@ -51,55 +52,61 @@ export function createDrainageLayer(dataset) {
   }
 
   // 1) Stitch broken OSM ways into continuous channels (keep metadata for hover)
+  // Merge key = display name + waterway so drain/canal "Muredha Nullah" stay separate.
   const rawPaths = features
-    .map((f) => ({
-      name: String(f.name || "").trim().toLowerCase(),
-      displayName: String(f.name || "").trim(),
-      waterway: f.waterway,
-      meta: {
-        name: String(f.name || "").trim() || "Unnamed nullah",
-        waterway: f.waterway || "stream",
-        osmId: f.osmId || "",
-        osmType: f.osmType || "",
-        nameEn: f.nameEn || "",
-        nameMr: f.nameMr || "",
-        nameHi: f.nameHi || "",
-        nameGu: f.nameGu || "",
-        width: f.width || "",
-        intermittent: f.intermittent || "",
-        tunnel: f.tunnel || "",
-        bridge: f.bridge || "",
-        boat: f.boat || "",
-        city: f.city || "",
-        intName: f.intName || "",
-        wikidata: f.wikidata || "",
-        layer: f.layer || "",
-      },
-      pts: (f.vertices || [])
-        .filter((v) => Number.isFinite(v?.x) && Number.isFinite(v?.z))
-        .map((v) => ({ x: v.x, z: v.z, lon: v.lon, lat: v.lat })),
-    }))
+    .map((f) => {
+      const displayName = String(f.name || f.nameEn || f.intName || "").trim();
+      return {
+        nameKey: displayName ? `${displayName.toLowerCase()}::${String(f.waterway || "stream").toLowerCase()}` : "",
+        displayName,
+        waterway: f.waterway,
+        meta: {
+          name: displayName || "Unnamed nullah",
+          waterway: f.waterway || "stream",
+          osmId: f.osmId || "",
+          osmType: f.osmType || "",
+          nameEn: f.nameEn || "",
+          nameMr: f.nameMr || "",
+          nameHi: f.nameHi || "",
+          nameGu: f.nameGu || "",
+          width: f.width || "",
+          intermittent: f.intermittent || "",
+          tunnel: f.tunnel || "",
+          bridge: f.bridge || "",
+          boat: f.boat || "",
+          city: f.city || "",
+          intName: f.intName || "",
+          wikidata: f.wikidata || "",
+          layer: f.layer || "",
+        },
+        pts: (f.vertices || [])
+          .filter((v) => Number.isFinite(v?.x) && Number.isFinite(v?.z))
+          .map((v) => ({ x: v.x, z: v.z, lon: v.lon, lat: v.lat })),
+      };
+    })
     .filter((p) => p.pts.length >= 2);
 
   const named = new Map();
   const unnamed = [];
   for (const p of rawPaths) {
-    if (p.name) {
-      if (!named.has(p.name)) named.set(p.name, []);
-      named.get(p.name).push(p);
+    if (p.nameKey) {
+      if (!named.has(p.nameKey)) named.set(p.nameKey, []);
+      named.get(p.nameKey).push(p);
     } else unnamed.push(p);
   }
 
   /** @type {{ pts: {x:number,z:number,lon?:number,lat?:number}[], meta: object }[]} */
   const chains2d = [];
   for (const list of named.values()) {
+    // Only stitch ways that actually touch — preserve KML planimetry otherwise
     const merged = mergePaths(list.map((p) => p.pts), JOIN_DIST_M);
-    const meta = list[0].meta;
-    for (const pts of merged) chains2d.push({ pts, meta });
+    // Prefer meta from longest segment (richest geometry)
+    const bestMeta = [...list].sort((a, b) => b.pts.length - a.pts.length)[0]?.meta || list[0].meta;
+    for (const pts of merged) chains2d.push({ pts, meta: { ...bestMeta } });
   }
   for (const p of unnamed) {
     const merged = mergePaths([p.pts], JOIN_DIST_M);
-    for (const pts of merged) chains2d.push({ pts, meta: p.meta });
+    for (const pts of merged) chains2d.push({ pts, meta: { ...p.meta } });
   }
 
   // 2) Densify → clip at river banks (no mid-channel stubs) → drape
@@ -151,14 +158,14 @@ export function createDrainageLayer(dataset) {
   const flowPositions = [];
 
   for (const chain of chains3d) {
-    // Open-ground points already sit on surface; tiny lift only for tube radius
+    // Extra lift so thick bank/water tubes clear the terrain mesh
     const curvePts = chain.map((p) => {
-      const lift = (p.under || 0) > 0.35 ? 0.08 : 0.35;
+      const lift = (p.under || 0) > 0.35 ? CHANNEL.waterRadius * 0.35 : CHANNEL.waterRadius + 0.4;
       return new THREE.Vector3(p.x, p.y + lift, p.z);
     });
     if (curvePts.length < 2) continue;
 
-    const curve = new THREE.CatmullRomCurve3(curvePts, false, "catmullrom", 0.15);
+    const curve = new THREE.CatmullRomCurve3(curvePts, false, "centripetal", 0.2);
     const tubular = Math.max(8, Math.min(400, Math.floor(curve.getLength() / 4)));
 
     bankMeshes.push(makeTube(curve, tubular, CHANNEL.bankRadius, CHANNEL.bank, 0.38, 2));
@@ -167,12 +174,12 @@ export function createDrainageLayer(dataset) {
       makeTube(
         new THREE.CatmullRomCurve3(
           chain.map((p) => {
-            const lift = (p.under || 0) > 0.35 ? 0.35 : 0.85;
+            const lift = (p.under || 0) > 0.35 ? 0.9 : CHANNEL.waterRadius + 1.0;
             return new THREE.Vector3(p.x, p.y + lift, p.z);
           }),
           false,
-          "catmullrom",
-          0.15,
+          "centripetal",
+          0.2,
         ),
         tubular,
         CHANNEL.highlightRadius,
@@ -364,15 +371,26 @@ function densifyPath(pts, step) {
     const n = Math.max(1, Math.ceil(len / step));
     for (let k = 0; k < n; k++) {
       const t = k / n;
-      const p = {
+      let lon;
+      let lat;
+      if (Number.isFinite(a.lon) && Number.isFinite(b.lon) && Number.isFinite(a.lat) && Number.isFinite(b.lat)) {
+        lon = a.lon + (b.lon - a.lon) * t;
+        lat = a.lat + (b.lat - a.lat) * t;
+        // Re-project from KML WGS84 so densified vertices match geoReference exactly
+        try {
+          const loc = lonLatToLocal(lon, lat);
+          out.push({ x: loc.x, z: loc.z, lon, lat });
+          continue;
+        } catch {
+          /* fall through to XZ lerp */
+        }
+      }
+      out.push({
         x: a.x + (b.x - a.x) * t,
         z: a.z + (b.z - a.z) * t,
-      };
-      if (Number.isFinite(a.lon) && Number.isFinite(b.lon)) {
-        p.lon = a.lon + (b.lon - a.lon) * t;
-        p.lat = a.lat + (b.lat - a.lat) * t;
-      }
-      out.push(p);
+        lon,
+        lat,
+      });
     }
   }
   out.push({ ...pts[pts.length - 1] });
@@ -480,12 +498,10 @@ function bankEdgePoint(a, b) {
 function channelY(x, z, stations, buildings = []) {
   const ground = terrainHeightAt(x, z, stations);
   const under = underBuildingAmount(x, z, buildings);
-  // Under buildings → deep culvert (hidden by building mass)
-  if (under > 0.55) return ground - 5.8;
-  if (under > 0.2) return ground - THREE.MathUtils.lerp(0.35, 3.6, under);
-  // Open ground (no buildings): sit ON the surface as a clear open channel
-  // Slight lift avoids z-fighting with terrain while looking grounded
-  return ground + 0.65;
+  // Keep channels on/above terrain so they stay visible (not buried)
+  if (under > 0.55) return ground + 0.55;
+  if (under > 0.2) return ground + THREE.MathUtils.lerp(2.4, 0.9, under);
+  return ground + 2.6;
 }
 
 /** 0 = open ground, 1 = inside building footprint (with soft edge). */

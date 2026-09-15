@@ -20,6 +20,7 @@ import { createCoordinateGrid, mountCoordinateLabels } from "./coordinateGrid.js
 import { createRiverBankOverlay } from "./riverBanks.js";
 import { createDrainageLayer } from "./drainageLayer.js";
 import { createNallaFlowSystem } from "./drainage/nallaFlowSystem.js";
+import { createJoiningStreamsController } from "./drainage/joiningStreamsController.js";
 import { createDepthZonesLayer } from "./depthZonesLayer.js";
 import { createFloodLayer } from "./floodLayer.js";
 import { createApiFloodLayer } from "./apiFloodLayer.js";
@@ -224,6 +225,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   const cam = createCameraSystem(canvas, dataset);
   const getCamera = () => cam.camera;
+  const joiningCtrl = createJoiningStreamsController({ dataset, nallaFlow, cam });
   const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, getCamera, canvas);
   const riverWidthMeasure = createRiverWidthMeasure(dataset);
   scene.add(riverWidthMeasure.group);
@@ -446,9 +448,27 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       labelsEl.checked = false;
       labelsEl.dispatchEvent(new Event("change", { bubbles: true }));
     }
-    if (e.detail?.focus === false) return;
     const m = e.detail?.meters;
+    const src = e.detail?.source || "";
+    // Sources where Joining Streams already frames the nalla confluence
+    const joiningOwnsCamera =
+      src === "click" ||
+      src === "nav" ||
+      src === "activate" ||
+      src === "view" ||
+      src === "refocus" ||
+      src === "joining-streams";
+
+    // User scrubbed/clicked the chainage ruler → update nearest nalla card only
+    if (m != null && state.joiningStreamsMode && !joiningOwnsCamera) {
+      joiningCtrl.onChainageSelect(m, e.detail || {});
+    }
+
+    if (e.detail?.focus === false) return;
     if (m == null) return;
+    // Nalla click / prev-next / activate already flew the camera
+    if (joiningOwnsCamera) return;
+
     const p = interpolateChainage(dataset.chainage, m);
     if (!p || p.x == null) return;
     const dragging = !!e.detail?.dragging;
@@ -821,16 +841,42 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const active = !!on;
       state.joiningStreamsMode = active;
       if (!active) {
-        state.joiningStreamsTipActive = false;
-        nallaFlow.userData?.setSelected?.(null);
-        window.__MM_JOINING_CARD__?.clear?.();
+        joiningCtrl.deactivate();
       }
-      // Never disable OrbitControls / canvas pointer events — layer only.
       if (cam?.controls) cam.controls.enabled = true;
       nallaFlow.userData?.setJoiningStreamsMode?.(active);
+      // Hide static duplicate bank tubes while Joining Streams is active
+      const banks = drainageLayer.userData?.staticBanks;
+      if (banks) banks.visible = !active;
       window.__MM_SCENE__.setDrainageFlow(active);
       document.getElementById("ui-root")?.classList.toggle("joining-streams-mode", active);
-      return { ok: true, active };
+      if (active) {
+        joiningCtrl.activate();
+      } else if (banks) {
+        banks.visible = true;
+      }
+      return { ok: true, active, count: joiningCtrl.getRecords().length };
+    },
+    stepJoiningStream(delta) {
+      if (!state.joiningStreamsMode) return null;
+      if (!joiningCtrl.isActive()) joiningCtrl.activate();
+      const d = Number(delta);
+      if (!Number.isFinite(d) || d === 0) return joiningCtrl.getSelected();
+      return joiningCtrl.step(d);
+    },
+    /** Re-pick nearest drainage to current camera / chainage and fly to it. */
+    focusNearestJoiningStream() {
+      if (!state.joiningStreamsMode) return null;
+      return joiningCtrl.selectNearestToView({ source: "refocus" });
+    },
+    getJoiningStreamCount() {
+      return joiningCtrl.getRecords().length;
+    },
+    getJoiningStreamSelected() {
+      return joiningCtrl.getSelected();
+    },
+    hoverJoiningStream(recOrNull) {
+      nallaFlow.userData?.setHovered?.(recOrNull || null);
     },
     /** Geology → Main Stem: Mula–Mutha centerline from main stream.kml */
     setMainStem(on) {
@@ -881,19 +927,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     selectJoiningStream(rec) {
       if (!rec) {
-        state.joiningStreamsTipActive = false;
-        nallaFlow.userData?.setSelected?.(null);
-        window.__MM_JOINING_CARD__?.clear?.();
+        joiningCtrl.select(null);
         return;
       }
-      state.joiningStreamsTipActive = true;
-      nallaFlow.userData?.setSelected?.(rec);
-      window.__MM_JOINING_CARD__?.show?.(rec);
+      joiningCtrl.select(rec, {
+        syncChainage: true,
+        focusCamera: true,
+        source: "click",
+      });
     },
     clearJoiningStreamSelection() {
-      state.joiningStreamsTipActive = false;
-      nallaFlow.userData?.setSelected?.(null);
-      window.__MM_JOINING_CARD__?.clear?.();
+      // Keep last selection on empty terrain click — do not randomly re-pick.
+      // Explicit clear only when leaving Joining Streams mode.
+      if (!state.joiningStreamsMode) joiningCtrl.select(null);
     },
     startGlassyTour() {
       state.showDepthZones = true;
