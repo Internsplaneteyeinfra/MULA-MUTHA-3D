@@ -11,6 +11,8 @@ import {
 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { mountGeologyWorkspace } from "./geologyWorkspace.js";
+import { mountWaterQualityHud } from "./waterQualityHud.js";
+import { mountLandUseHud } from "./landUseHud.js";
 import {
   FORECAST_HORIZONS,
   forecastProfile,
@@ -29,15 +31,15 @@ const HYDROLOGY_CATEGORIES = [
 
 /** Icon-only transparent toolbar — 9 independent buttons, same destinations. */
 const NAV_ITEMS = [
-  { icon: Mountain, tip: "Vehicle", type: "vehicle", tone: "tone-mountain", badge: null },
-  { icon: TrendingUp, tip: "Hydrograph", type: "hydrograph", tone: "tone-graph", badge: null },
-  { icon: Droplets, tip: "Hydrology", type: "hydrology", tone: "tone-droplet", badge: null },
-  { icon: Pickaxe, tip: "Geology", type: "geology", tone: "tone-drill", badge: null },
-  { icon: Sprout, tip: "Environment", type: "simulations", tone: "tone-plant", badge: null },
-  { icon: MapPinPlus, tip: "Monitoring", type: "monitoring", tone: "tone-pin", badge: null },
-  { icon: Sun, tip: "Environmental Conditions", type: "environment", tone: "tone-sun", badge: null },
+  { icon: Mountain, tip: "Geology", type: "vehicle", tone: "tone-mountain", badge: null },
+ // { icon: TrendingUp, tip: "Hydrograph", type: "hydrograph", tone: "tone-graph", badge: null },
+  { icon: Droplets, tip: "Water Quality", type: "Water Quality", tone: "tone-droplet", badge: null },
+  { icon: Pickaxe, tip: "Pollution", type: "Pollution", tone: "tone-drill", badge: null },
+  { icon: Sprout, tip: "Land Use", type: "Land Use", tone: "tone-plant", badge: null },
+  { icon: MapPinPlus, tip: "Biodiversity", type: "Biodiversity", tone: "tone-pin", badge: null },
+  { icon: Sun, tip: "Climate impact", type: "Climate impact", tone: "tone-sun", badge: null },
   { icon: Waves, tip: "Flood / Water", type: "flood", tone: "tone-waves", badge: null },
-  { icon: SunMedium, tip: "Weather", type: "weather", tone: "tone-brightness", badge: "1" },
+  { icon: SunMedium, tip: "AQI", type: "AQI", tone: "tone-brightness", badge: "1" },
 ];
 
 /**
@@ -61,6 +63,18 @@ export function mountAnalyticsControls(root, dataset) {
   root.appendChild(el);
 
   const geology = mountGeologyWorkspace(root);
+
+  const waterQualityHud = mountWaterQualityHud(root, {
+    async onSelect(opt) {
+      await activateWaterQualityMetric(opt);
+    },
+  });
+
+  const landUseHud = mountLandUseHud(root, {
+    async onSelect(opt) {
+      await activateLandUseLayer(opt);
+    },
+  });
 
   const modal = document.createElement("div");
   modal.className = "river-analysis-modal-backdrop";
@@ -107,8 +121,18 @@ export function mountAnalyticsControls(root, dataset) {
     modal.hidden = true;
   }
 
+  function closeWaterQualityHud() {
+    if (waterQualityHud.isOpen()) waterQualityHud.hide();
+  }
+
+  function closeLandUseHud() {
+    if (landUseHud.isOpen()) landUseHud.hide();
+  }
+
   function closeAll() {
     closeModal();
+    closeWaterQualityHud();
+    closeLandUseHud();
     geology.close();
     setActive(null);
   }
@@ -116,6 +140,86 @@ export function mountAnalyticsControls(root, dataset) {
   function clearHydroLegend() {
     hydroLegend.hidden = true;
     hydroLegend.innerHTML = "";
+  }
+
+  async function activateWaterQualityMetric(opt) {
+    const tryIds = [opt.layerId, opt.fallbackLayerId].filter(Boolean);
+    let last = null;
+    for (const id of tryIds) {
+      try {
+        const result = await window.__MM_SCENE__?.showHydrologyLayer?.(id);
+        last = result;
+        if (!result) continue;
+        activeHydroId = id;
+        if (result.available) {
+          waterQualityHud.setStatus("");
+          renderHydroLegend(result);
+          return;
+        }
+      } catch (err) {
+        last = { available: false, message: err?.message || String(err) };
+      }
+    }
+    clearHydroLegend();
+    const msg =
+      last?.message ||
+      last?.reason ||
+      "No Water Quality dataset is connected for this metric.";
+    waterQualityHud.setStatus(
+      `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(msg)}</span>`,
+      { unavailable: true },
+    );
+  }
+
+  async function activateLandUseLayer(opt) {
+    const tryIds = [opt.layerId, opt.fallbackLayerId].filter(Boolean);
+    let last = null;
+    for (const id of tryIds) {
+      try {
+        const result =
+          (await window.__MM_SCENE__?.showLandUseLayer?.(id)) ||
+          (await window.__MM_SCENE__?.showHydrologyLayer?.(id));
+        last = result;
+        if (!result) continue;
+        activeHydroId = id;
+        if (result.available) {
+          landUseHud.setStatus("");
+          renderHydroLegend(result);
+          return;
+        }
+      } catch (err) {
+        last = { available: false, message: err?.message || String(err), reason: err?.message };
+      }
+    }
+    clearHydroLegend();
+    const msg =
+      last?.message ||
+      last?.reason ||
+      "No Land Use dataset is connected for this layer.";
+    landUseHud.setStatus(
+      `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(msg)}</span>`,
+      { unavailable: true },
+    );
+  }
+
+  function openWaterQualityHud() {
+    geology.close();
+    closeModal();
+    closeLandUseHud();
+    clearHydroLegend();
+    window.__MM_SCENE__?.hideHydrology?.();
+    setActive("hydrology");
+    waterQualityHud.show();
+  }
+
+  function openLandUseHud() {
+    geology.close();
+    closeModal();
+    closeWaterQualityHud();
+    clearHydroLegend();
+    window.__MM_SCENE__?.hideHydrology?.();
+    setActive("Land Use");
+    landUseHud.show();
   }
 
   function renderHydroLegend(result) {
@@ -130,16 +234,45 @@ export function mountAnalyticsControls(root, dataset) {
         <img src="${escapeHtml(leg.url)}" alt="Geology legend" class="hydro-legend-hud-img"/>
         <button type="button" class="hydro-legend-clear" id="hydro-clear-layer">Clear layer</button>`;
     } else if (leg.type === "classes") {
+      const yearRow =
+        Array.isArray(leg.years) && leg.years.length
+          ? `<div class="hydro-legend-years" role="group" aria-label="Year">` +
+            leg.years
+              .map((y) => {
+                const on = Number(y) === Number(leg.activeYear);
+                return `<button type="button" class="hydro-year-btn${on ? " is-active" : ""}" data-lulc-year="${y}" aria-pressed="${on ? "true" : "false"}">${y}</button>`;
+              })
+              .join("") +
+            `</div>`
+          : "";
+      const periodRow =
+        Array.isArray(leg.periods) && leg.periods.length
+          ? `<div class="hydro-legend-years" role="group" aria-label="Period">` +
+            leg.periods
+              .map((p) => {
+                const id = typeof p === "object" ? p.id : p;
+                const label = typeof p === "object" ? p.label || p.id : p;
+                const on = String(id) === String(leg.activePeriod);
+                return `<button type="button" class="hydro-year-btn${on ? " is-active" : ""}" data-silt-period="${escapeHtml(id)}" aria-pressed="${on ? "true" : "false"}">${escapeHtml(label)}</button>`;
+              })
+              .join("") +
+            `</div>`
+          : "";
       const rows = (leg.classes || [])
         .map(
           (c) =>
-            `<div class="hydro-legend-hud-row"><span class="hydro-swatch" style="background:${c.color}"></span>` +
-            `<span>${escapeHtml(c.label)}${c.range ? ` <small>(${escapeHtml(c.range)})</small>` : ""}</span></div>`,
+            `<div class="hydro-legend-hud-row">` +
+            `<span class="hydro-swatch hydro-swatch--dot" style="background:${escapeHtml(c.color || "#888")}"></span>` +
+            `<span class="hydro-legend-hud-label">${escapeHtml(c.label)}</span>` +
+            `${c.range ? `<span class="hydro-legend-hud-range">${escapeHtml(c.range)}</span>` : ""}` +
+            `</div>`,
         )
         .join("");
       hydroLegend.innerHTML = `
-        <div class="hydro-legend-hud-title">${escapeHtml(leg.title || "SALINITY")}</div>
-        ${rows}
+        <div class="hydro-legend-hud-title">${escapeHtml(leg.title || "LAYER")}</div>
+        ${leg.subtitle ? `<div class="hydro-legend-hud-sub">${escapeHtml(leg.subtitle)}</div>` : ""}
+        ${yearRow}${periodRow}
+        <div class="hydro-legend-hud-classes">${rows}</div>
         <button type="button" class="hydro-legend-clear" id="hydro-clear-layer">Clear layer</button>`;
     } else {
       clearHydroLegend();
@@ -152,16 +285,71 @@ export function mountAnalyticsControls(root, dataset) {
       clearHydroLegend();
       if (activeType === "hydrology" && !modal.hidden) openHydrology();
     });
+    hydroLegend.querySelectorAll("[data-lulc-year]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const year = Number(btn.dataset.lulcYear);
+        if (!Number.isFinite(year)) return;
+        try {
+          const result = await window.__MM_SCENE__?.setLulcYear?.(year);
+          if (result?.available) {
+            activeHydroId = "landuse_lulc";
+            landUseHud.setStatus("");
+            renderHydroLegend(result);
+          } else if (result) {
+            landUseHud.setStatus(
+              `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(result.message || result.reason || "Year unavailable")}</span>`,
+              { unavailable: true },
+            );
+          }
+        } catch (err) {
+          landUseHud.setStatus(
+            `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(err?.message || String(err))}</span>`,
+            { unavailable: true },
+          );
+        }
+      });
+    });
+    hydroLegend.querySelectorAll("[data-silt-period]").forEach((btn) => {
+      btn.addEventListener("click", async (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const period = btn.dataset.siltPeriod;
+        if (!period) return;
+        try {
+          const result = await window.__MM_SCENE__?.setSiltClassificationPeriod?.(period);
+          if (result?.available) {
+            activeHydroId = "silt_classification";
+            landUseHud.setStatus("");
+            renderHydroLegend(result);
+          } else if (result) {
+            landUseHud.setStatus(
+              `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(result.message || result.reason || "Period unavailable")}</span>`,
+              { unavailable: true },
+            );
+          }
+        } catch (err) {
+          landUseHud.setStatus(
+            `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(err?.message || String(err))}</span>`,
+            { unavailable: true },
+          );
+        }
+      });
+    });
   }
 
   function isGeologyNav(type) {
     return type === "geology" || type === "vehicle";
   }
 
-  function openGeologyWorkspace(moduleId = "vehicle") {
+  function openGeologyWorkspace(moduleId = null) {
     closeModal();
+    closeWaterQualityHud();
+    closeLandUseHud();
     clearHydroLegend();
-    setActive(moduleId === "vehicle" ? "vehicle" : "geology");
+    // Keep top Geology icon unselected — selection lives in the geology toolbar only.
+    setActive(null);
     geology.open(moduleId);
   }
 
@@ -177,6 +365,16 @@ export function mountAnalyticsControls(root, dataset) {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (waterQualityHud.isOpen()) {
+      closeWaterQualityHud();
+      setActive(null);
+      return;
+    }
+    if (landUseHud.isOpen()) {
+      closeLandUseHud();
+      setActive(null);
+      return;
+    }
     if (!modal.hidden) {
       closeModal();
       if (!isGeologyNav(activeType)) setActive(null);
@@ -202,6 +400,8 @@ export function mountAnalyticsControls(root, dataset) {
     if (type === "environment") {
       geology.close();
       closeModal();
+      closeWaterQualityHud();
+      closeLandUseHud();
       clearHydroLegend();
       setActive("environment");
       document.querySelector("#settings-btn")?.click();
@@ -215,20 +415,19 @@ export function mountAnalyticsControls(root, dataset) {
       return;
     }
 
-    // Mountain / Vehicle → open Geology workspace with Vehicle selected
+    // Mountain / Vehicle → open Geology workspace (no pre-selected module)
     if (type === "vehicle") {
-      openGeologyWorkspace("vehicle");
+      openGeologyWorkspace(null);
       return;
     }
 
-    // Pickaxe / Geology → toggle Geology workspace
+    // Pickaxe / Geology → toggle Geology workspace (never leave nav icon “selected”)
     if (type === "geology") {
-      if (geology.isOpen() && (activeType === "geology" || activeType === "vehicle")) {
+      if (geology.isOpen()) {
         closeAll();
         return;
       }
-      openGeologyWorkspace("vehicle");
-      setActive("geology");
+      openGeologyWorkspace(null);
       return;
     }
 
@@ -240,15 +439,31 @@ export function mountAnalyticsControls(root, dataset) {
       return;
     }
 
+    // Water Quality (droplet): floating icon HUD only — never open the analytics modal.
+    if (type === "hydrology" || type === "Water Quality") {
+      if (waterQualityHud.isOpen()) {
+        closeAll();
+        return;
+      }
+      openWaterQualityHud();
+      return;
+    }
+
+    // Land Use (sprout): floating icon-only submenu — never open analytics modal.
+    if (type === "Land Use") {
+      if (landUseHud.isOpen()) {
+        closeAll();
+        return;
+      }
+      openLandUseHud();
+      return;
+    }
+
+    closeWaterQualityHud();
+    closeLandUseHud();
     geology.close();
     setActive(type);
     modal.hidden = false;
-
-    if (type === "hydrology") {
-      modal.querySelector("#analytics-title").textContent = "HYDROLOGY";
-      await openHydrology();
-      return;
-    }
 
     if (type === "forecast") {
       modal.querySelector("#analytics-title").textContent = "FORECAST";
@@ -298,6 +513,21 @@ export function mountAnalyticsControls(root, dataset) {
     body.querySelectorAll("[data-hydro]").forEach((btn) => {
       btn.addEventListener("click", async () => {
         const id = btn.dataset.hydro;
+
+        // Water Quality → floating icon HUD (no panel / no card)
+        if (id === "water_quality") {
+          openWaterQualityHud();
+          return;
+        }
+
+        // Land Use → floating icon HUD
+        if (id === "landuse") {
+          openLandUseHud();
+          return;
+        }
+
+        closeWaterQualityHud();
+        closeLandUseHud();
         const status = body.querySelector("#hydro-status");
         status.hidden = false;
         status.textContent = "Loading…";

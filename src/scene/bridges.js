@@ -379,11 +379,15 @@ export function updateBridgeLabels(group, camera) {
 
 function makeBridgeLabel(text) {
   const canvas = document.createElement("canvas");
-  canvas.width = 1024;
-  canvas.height = 160;
+  // Half resolution — sprite scale keeps on-screen size identical
+  canvas.width = 512;
+  canvas.height = 80;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
-  tex.anisotropy = 8;
+  tex.anisotropy = 2;
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
   const sprMat = new THREE.SpriteMaterial({
     map: tex,
     transparent: true,
@@ -394,7 +398,7 @@ function makeBridgeLabel(text) {
   const spr = new THREE.Sprite(sprMat);
   spr.userData.canvas = canvas;
   spr.renderOrder = 30;
-  spr.frustumCulled = false;
+  spr.frustumCulled = true;
   spr.scale.set(48, 48, 1);
   paintBridgeLabel(spr, text || "B", false);
   return spr;

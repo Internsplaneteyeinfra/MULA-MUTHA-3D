@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { loadGltf } from "./utils/gltfLoader.js";
 
 const MODEL_URL = "/assets/butterfly.glb";
 
@@ -57,14 +57,13 @@ export function createLoadingScene(canvas) {
   const nextTangent = new THREE.Vector3();
   const desiredQuaternion = new THREE.Quaternion();
   const forward = new THREE.Vector3(0, 0, 1);
-  const loader = new GLTFLoader();
   let mixer = null;
   let modelReady = false;
   let disposed = false;
   let progress = 0;
   let last = performance.now();
 
-  loader.load(MODEL_URL, (gltf) => {
+  loadGltf(MODEL_URL).then((gltf) => {
     if (disposed) return;
     const model = gltf.scene;
     const bounds = new THREE.Box3().setFromObject(model);
@@ -86,7 +85,7 @@ export function createLoadingScene(canvas) {
     if (clip) mixer.clipAction(clip).play();
     modelReady = true;
     butterflyRoot.visible = true;
-  }, undefined, (error) => console.warn("Loading butterfly asset:", error));
+  }).catch((error) => console.warn("Loading butterfly asset:", error));
 
   function resize() {
     const width = canvas.clientWidth || window.innerWidth;

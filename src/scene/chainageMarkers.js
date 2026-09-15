@@ -412,10 +412,13 @@ export function metersToStation(meters) {
 
 function makeChainageLabelSprite(text) {
   const canvas = document.createElement("canvas");
-  canvas.width = 320;
-  canvas.height = 80;
+  canvas.width = 256;
+  canvas.height = 64;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
+  tex.generateMipmaps = false;
+  tex.minFilter = THREE.LinearFilter;
+  tex.magFilter = THREE.LinearFilter;
   const mat = new THREE.SpriteMaterial({
     map: tex,
     transparent: true,
@@ -425,7 +428,7 @@ function makeChainageLabelSprite(text) {
   const spr = new THREE.Sprite(mat);
   spr.userData.canvas = canvas;
   spr.renderOrder = 29;
-  spr.frustumCulled = false;
+  spr.frustumCulled = true;
   spr.scale.set(18, 5, 1);
   paintChainageLabel(spr, text);
   return spr;

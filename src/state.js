@@ -137,6 +137,8 @@ export const state = {
   lithologyTipActive: false,
   /** True while Geology → Joining Streams drainage mode is active. */
   joiningStreamsMode: false,
+  /** True while Joining Streams updates chainage without river camera fly */
+  joiningStreamsNavigation: false,
   /** True while a joining-stream click selection owns the info card. */
   joiningStreamsTipActive: false,
   /** True while Geology → Main Stem centerline is visible. */

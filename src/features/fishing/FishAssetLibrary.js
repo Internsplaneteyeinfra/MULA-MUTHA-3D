@@ -1,5 +1,5 @@
 import * as THREE from "three";
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { loadGltf as loadGltfAsset } from "../../utils/gltfLoader.js";
 import { createRiverFish } from "./FishMesh.js";
 
 /**
@@ -63,7 +63,6 @@ export const FISH_CATEGORIES = [
 ];
 
 const texLoader = new THREE.TextureLoader();
-const gltfLoader = new GLTFLoader();
 
 export async function loadFishAssetLibrary() {
   const textures = {};
@@ -86,7 +85,7 @@ export async function loadFishAssetLibrary() {
 
   async function loadGltf(url) {
     if (gltfCache[url]) return gltfCache[url];
-    const gltf = await gltfLoader.loadAsync(url);
+    const gltf = await loadGltfAsset(url);
     const root = gltf.scene;
     root.updateMatrixWorld(true);
     const box = new THREE.Box3().setFromObject(root);

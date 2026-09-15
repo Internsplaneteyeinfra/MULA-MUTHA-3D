@@ -345,47 +345,47 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         if (nullah) {
           const m = nullah.meta || {};
           const flowRec = getNallaFlow?.()?.userData?.getRecordByPickMeta?.(m) || null;
-          if (fromClick) {
-            const rec = flowRec || {
-              meta: m,
-              name: m.name,
+          // Only Mula–Mutha-connected drainages participate
+          if (flowRec?.connectsToRiver) {
+            if (fromClick) {
+              state.joiningStreamsTipActive = true;
+              riverWidthMeasure?.hide?.();
+              window.__MM_SCENE__?.hoverJoiningStream?.(null);
+              window.__MM_SCENE__?.selectJoiningStream?.(flowRec);
+              state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
+              return;
+            }
+            window.__MM_SCENE__?.hoverJoiningStream?.(flowRec);
+            let lon = nullah.hit.lon ?? flowRec?.outletLon;
+            let lat = nullah.hit.lat ?? flowRec?.outletLat;
+            if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
+              const ll = dataset.frame.toLonLat(nullah.hit.x, nullah.hit.z);
+              lon = ll.lon;
+              lat = ll.lat;
+            }
+            tooltip.show(e.clientX, e.clientY, {
+              nullahHover: true,
+              joiningHover: true,
+              name: (() => {
+                const n = String(flowRec?.displayName || m.name || m.nameEn || m.intName || "").trim();
+                return n && !/^unnamed\b/i.test(n) ? n : "";
+              })(),
+              displayId: m.osmId || "",
+              waterway: m.waterway,
+              typeLabel: waterwayLabel(m.waterway),
+              chainageLabel: flowRec?.nearestChainageLabel || "",
               lengthM: nullah.lengthM,
-              connectsToRiver: false,
-              directionReason: "",
-              id: m.osmId || m.name || "nalla",
-            };
-            state.joiningStreamsTipActive = true;
-            riverWidthMeasure?.hide?.();
-            window.__MM_SCENE__?.hoverJoiningStream?.(null);
-            window.__MM_SCENE__?.selectJoiningStream?.(rec);
+              lon,
+              lat,
+              flowDirection: "→ River",
+              connectsToRiver: true,
+            });
             state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
             return;
           }
-          // Hover preview — do not permanently select
-          window.__MM_SCENE__?.hoverJoiningStream?.(flowRec);
-          let lon = nullah.hit.lon ?? flowRec?.outletLon;
-          let lat = nullah.hit.lat ?? flowRec?.outletLat;
-          if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
-            const ll = dataset.frame.toLonLat(nullah.hit.x, nullah.hit.z);
-            lon = ll.lon;
-            lat = ll.lat;
-          }
-          tooltip.show(e.clientX, e.clientY, {
-            nullahHover: true,
-            joiningHover: true,
-            name: flowRec?.displayName || m.name || "Unnamed nullah",
-            displayId: flowRec?.displayId || m.osmId || "",
-            waterway: m.waterway,
-            typeLabel: waterwayLabel(m.waterway),
-            chainageLabel: flowRec?.nearestChainageLabel || "",
-            lengthM: nullah.lengthM,
-            lon,
-            lat,
-            flowDirection: "→ River",
-            connectsToRiver: flowRec?.connectsToRiver,
-          });
-          state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
-          return;
+          // Disconnected channel under cursor — ignore in Joining Streams
+          window.__MM_SCENE__?.hoverJoiningStream?.(null);
+          if (!fromClick) return;
         }
       }
       // Missed drainage — clear hover only; keep selection locked
@@ -432,7 +432,10 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
           const flowRec = getNallaFlow?.()?.userData?.getRecordByPickMeta?.(m);
           tooltip.show(e.clientX, e.clientY, {
             nullahHover: true,
-            name: m.name || "Unnamed nullah",
+            name: (() => {
+              const n = String(flowRec?.displayName || m.name || m.nameEn || m.intName || "").trim();
+              return n && !/^unnamed\b/i.test(n) ? n : "";
+            })(),
             waterway: m.waterway,
             typeLabel,
             osmId: m.osmId,
@@ -465,12 +468,27 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       }
       if (wx != null) {
         const hydro = getHydrologyGroup?.();
-        if (hydro?.visible && hydro.userData?.getActiveId?.() === "salinity") {
+        const hydroId = hydro?.visible ? hydro.userData?.getActiveId?.() : null;
+        if (
+          hydroId === "salinity" ||
+          hydroId === "water_quality_tss" ||
+          hydroId === "water_quality_ndwi" ||
+          hydroId === "water_quality_ndci" ||
+          hydroId === "water_quality_wst"
+        ) {
           const feat = hydro.userData.pickAt?.(wx, wz);
           if (feat) {
+            const layerTitles = {
+              water_quality_tss: "Turbidity / TSS",
+              water_quality_ndwi: "NDWI — Water Detection",
+              water_quality_ndci: "NDCI — Chlorophyll",
+              water_quality_wst: "WST — Temperature",
+              salinity: "SALINITY",
+            };
             tooltip.show(e.clientX, e.clientY, {
-              hydrologySalinity: true,
-              name: feat.name || feat.class_label || "Salinity",
+              hydrologySalinity: hydroId === "salinity",
+              hydrologyWaterQuality: hydroId !== "salinity",
+              name: feat.name || feat.class_label || hydroId,
               class_label: feat.class_label,
               class: feat.class,
               range: feat.range,
@@ -480,8 +498,10 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               localZ: feat.z,
               lon: feat.vertices?.[0]?.lon,
               lat: feat.vertices?.[0]?.lat,
+              layer: hydroId,
+              layerTitle: layerTitles[hydroId] || hydroId,
             });
-            state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label };
+            state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label, layer: hydroId };
             return;
           }
         }

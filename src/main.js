@@ -73,12 +73,14 @@ async function boot() {
       onCoreReady() {
         if (sceneReady) return;
         sceneReady = true;
+        progress(1, "Ready");
         loading.classList.add("hidden");
         loadingScene.setVisible(false);
       },
     });
 
     if (!sceneReady) {
+      progress(1, "Ready");
       loading.classList.add("hidden");
       loadingScene.setVisible(false);
     }
@@ -113,10 +115,14 @@ async function boot() {
     }
     requestAnimationFrame(loop);
   } catch (err) {
-    console.error(err);
-    loadMsg.textContent = `Error: ${err.message}`;
-    loadBar.style.width = "100%";
-    loadBar.style.background = "#c45";
+    console.error("[boot] failed — full stack:", err);
+    if (err?.stack) console.error(err.stack);
+    loadMsg.textContent = `Error: ${err?.message || err}`;
+    targetProgress = 100;
+    if (loadBar) {
+      loadBar.style.width = "100%";
+      loadBar.style.background = "#c45";
+    }
   }
 }
 

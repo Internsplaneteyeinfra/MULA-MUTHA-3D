@@ -39,6 +39,8 @@ export function mountJoiningStreamsNav(root) {
     e.stopPropagation();
     window.__MM_SCENE__?.stepJoiningStream?.(1);
   });
+  el.querySelector("#js-nav-prev")?.addEventListener("pointerdown", (e) => e.stopPropagation());
+  el.querySelector("#js-nav-next")?.addEventListener("pointerdown", (e) => e.stopPropagation());
 
   function setVisible(on) {
     const show = !!on && !!state.joiningStreamsMode;
@@ -53,9 +55,17 @@ export function mountJoiningStreamsNav(root) {
       if (metaEl) metaEl.textContent = total ? `0 / ${total}` : "0 / 0";
       return;
     }
-    const idx = (rec.navIndex ?? 0) + 1;
-    if (nameEl) nameEl.textContent = rec.displayName || rec.name || rec.displayId || "—";
-    if (metaEl) metaEl.textContent = `${idx} / ${total}`;
+    const idx = rec.navigationNumber ?? (rec.navIndex ?? 0) + 1;
+    const totalNav = rec.navigationCount || total;
+    // Source name only — never fall back to D-ID / Unnamed …
+    const raw = String(rec.displayName || rec.meta?.name || rec.meta?.nameEn || rec.name || "").trim();
+    const name = raw && !/^unnamed\b/i.test(raw) ? raw : "";
+    if (nameEl) {
+      nameEl.textContent = name;
+      nameEl.hidden = !name;
+      nameEl.style.display = name ? "" : "none";
+    }
+    if (metaEl) metaEl.textContent = `${idx} / ${totalNav}`;
   }
 
   window.__MM_JOINING_NAV__ = { update, setVisible, el };

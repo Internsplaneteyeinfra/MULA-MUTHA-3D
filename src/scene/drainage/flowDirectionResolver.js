@@ -1,15 +1,20 @@
 /**
  * Resolve nalla flow direction using:
  * 1) KML/OSM direction attrs (if present)
- * 2) River bank topology (toward confluence)
+ * 2) River bank topology at the OUTLET tip (toward confluence)
  * 3) Terrain elevation along draped path
  *
- * Connection uses distance-to-BANK (not centerline), so wide river
- * sections are not falsely marked Disconnected.
+ * Joining Streams connection is OUTLET-based (not mid-path proximity):
+ * a drainage counts as connected only when its downstream tip meets the
+ * Mula–Mutha bank corridor within a tight gap — not merely when it runs
+ * parallel or nearby somewhere along its length.
  */
 
-/** Max gap outside the river bank edge to count as connected (metres). */
-export const RIVER_CONNECTION_THRESHOLD_M = 65;
+/** Max outlet→bank gap (m) to count as Mula–Mutha-connected for Joining Streams. */
+export const RIVER_CONNECTION_THRESHOLD_M = 35;
+
+/** Looser tip probe (m) used only to hint flow direction toward the river. */
+const RIVER_FLOW_PROBE_M = 140;
 
 /**
  * @param {{ pts: {x:number,y:number,z:number,lon?:number,lat?:number}[], meta: object, lengthM: number }} path
@@ -26,7 +31,9 @@ export function resolveNallaFlow(path, riverStations) {
   const elevEnd = end.y;
 
   const attrDir = parseAttributeDirection(meta);
-  const riverHit = nearestRiverConnection(pts, riverStations, RIVER_CONNECTION_THRESHOLD_M);
+  // Tip-only probe (both ends) — never mid-path — for flow-direction hint
+  const startProbe = bankGapAtPoint(start, riverStations);
+  const endProbe = bankGapAtPoint(end, riverStations);
 
   let flowTowardEnd = true;
   let confidence = "unknown";
@@ -36,12 +43,15 @@ export function resolveNallaFlow(path, riverStations) {
     flowTowardEnd = attrDir;
     confidence = "attribute";
     reason = "Direction from KML/OSM attributes";
-  } else if (riverHit) {
-    const ds = Math.hypot(start.x - riverHit.riverPoint.x, start.z - riverHit.riverPoint.z);
-    const de = Math.hypot(end.x - riverHit.riverPoint.x, end.z - riverHit.riverPoint.z);
-    flowTowardEnd = de <= ds;
+  } else if (
+    startProbe &&
+    endProbe &&
+    (startProbe.distanceToBank < RIVER_FLOW_PROBE_M || endProbe.distanceToBank < RIVER_FLOW_PROBE_M)
+  ) {
+    // Outlet is the tip closer to the bank edge
+    flowTowardEnd = endProbe.distanceToBank <= startProbe.distanceToBank;
     confidence = "topology";
-    reason = "Flow toward detected river connection";
+    reason = "Flow toward nearer river-bank tip";
   } else {
     const dElev = elevStart - elevEnd;
     if (Math.abs(dElev) >= 0.35) {
@@ -55,30 +65,18 @@ export function resolveNallaFlow(path, riverStations) {
     }
   }
 
-  const bankRef = riverHit || nearestBankReference(flowTowardEnd ? end : start, riverStations);
-
-  const distanceToRiverM =
-    bankRef?.distanceToBank != null
-      ? bankRef.distanceToBank
-      : riverHit?.distanceToBank != null
-        ? riverHit.distanceToBank
-        : null;
-
-  const connectsToRiver =
-    !!riverHit ||
-    (distanceToRiverM != null && distanceToRiverM <= RIVER_CONNECTION_THRESHOLD_M);
-
-  // Ensure connection always carries bankPoint when we claim connected
-  let connection = riverHit;
-  if (!connection && connectsToRiver && bankRef) connection = bankRef;
-  if (connection && !connection.bankPoint && bankRef?.bankPoint) {
-    connection.bankPoint = bankRef.bankPoint;
-    connection.alongM = bankRef.alongM ?? connection.alongM;
-  }
+  // Authoritative connection: OUTLET tip segment must meet the bank
+  const outletHit = outletRiverConnection(pts, flowTowardEnd, riverStations, RIVER_CONNECTION_THRESHOLD_M);
+  const connectsToRiver = !!outletHit;
+  const connection = connectsToRiver ? outletHit : null;
+  const distanceToRiverM = connectsToRiver
+    ? outletHit.distanceToBank
+    : (flowTowardEnd ? endProbe : startProbe)?.distanceToBank ?? null;
 
   return {
     id: String(id),
-    name: meta.name || "Unnamed nullah",
+    // Preserve source name only; empty string when OSM/KML has no valid name
+    name: String(meta.name || meta.nameEn || meta.intName || "").trim(),
     meta,
     pts,
     lengthM: path.lengthM || pathLength(pts),
@@ -90,12 +88,26 @@ export function resolveNallaFlow(path, riverStations) {
     connectsToRiver,
     connection,
     distanceToRiverM,
-    nearestChainageMeters: connection?.alongM ?? bankRef?.alongM ?? null,
+    nearestChainageMeters: connection?.alongM ?? null,
     geographicNote: "Coordinates preserved from drainage KML / local frame",
   };
 }
 
-function nearestBankReference(point, stations) {
+/** True when record is eligible for Joining Streams navigation. */
+export function isRiverConnectedDrainage(rec) {
+  if (!rec) return false;
+  if (rec.connectsToRiver !== true) return false;
+  if (!rec.connection?.bankPoint && !rec.connection?.riverPoint) return false;
+  const gap = rec.distanceToRiverM ?? rec.connection?.distanceToBank;
+  if (Number.isFinite(gap) && gap > RIVER_CONNECTION_THRESHOLD_M * 1.35) return false;
+  return true;
+}
+
+/**
+ * Evaluate bank-edge gap at a single local XZ point.
+ * distanceToBank = 0 means on/inside the bank half-width.
+ */
+function bankGapAtPoint(point, stations) {
   if (!point || !stations?.length) return null;
   const hit = nearestStationXZ(point.x, point.z, stations);
   const station = stations[hit.index];
@@ -112,8 +124,8 @@ function nearestBankReference(point, stations) {
     nallaPoint: { x: point.x, y: point.y, z: point.z, lon: point.lon, lat: point.lat },
     riverPoint: { x: station.x, z: station.z, y: station.y },
     bankPoint: {
-      x: station.x + lx * half * side,
-      z: station.z + lz * half * side,
+      x: station.x + lx * half * 0.72 * side,
+      z: station.z + lz * half * 0.72 * side,
       y: point.y,
       alongM: Number.isFinite(station.along) ? station.along : null,
       stationIndex: hit.index,
@@ -123,8 +135,40 @@ function nearestBankReference(point, stations) {
     stationIndex: hit.index,
     alongM: Number.isFinite(station.along) ? station.along : null,
     pathIndex: -1,
-    confidence: gap < 20 ? "high" : "medium",
+    confidence: gap < 12 ? "high" : gap < 22 ? "medium" : "low",
   };
+}
+
+/**
+ * Connection only if the OUTLET tip (last ~12% of path toward river) meets the bank.
+ * Mid-path / parallel channels that never reach the river are rejected.
+ */
+function outletRiverConnection(pts, flowTowardEnd, stations, thresholdM) {
+  if (!stations?.length || !pts?.length) return null;
+  const tipCount = Math.max(1, Math.min(10, Math.ceil(pts.length * 0.12)));
+  let best = null;
+  let bestGap = thresholdM;
+
+  const consider = (p, pathIndex) => {
+    const hit = bankGapAtPoint(p, stations);
+    if (!hit) return;
+    if (hit.distanceToBank < bestGap || (hit.distanceToBank === bestGap && best && hit.distance < best.distance)) {
+      bestGap = hit.distanceToBank;
+      best = {
+        ...hit,
+        pathIndex,
+        confidence: hit.distanceToBank < thresholdM * 0.4 ? "high" : "medium",
+      };
+    }
+  };
+
+  if (flowTowardEnd) {
+    for (let i = pts.length - tipCount; i < pts.length; i++) consider(pts[i], i);
+  } else {
+    for (let i = 0; i < tipCount; i++) consider(pts[i], i);
+  }
+
+  return best;
 }
 
 function parseAttributeDirection(meta) {
@@ -137,57 +181,6 @@ function parseAttributeDirection(meta) {
     if (/up|back|reverse|inlet|in/.test(s)) return false;
   }
   return null;
-}
-
-/**
- * Prefer the path vertex closest to the *bank edge* (lateral gap),
- * not the corridor centerline — avoids false Disconnected on wide reaches.
- */
-function nearestRiverConnection(pts, stations, thresholdM) {
-  if (!stations?.length || !pts?.length) return null;
-  let best = null;
-  let bestGap = thresholdM;
-
-  const consider = (p, pathIndex) => {
-    const hit = nearestStationXZ(p.x, p.z, stations);
-    const st = stations[hit.index];
-    if (!st) return;
-    const half = Math.max(8, st.halfWidth || 40);
-    const fx = st.flowX ?? 0;
-    const fz = st.flowZ ?? 1;
-    const lx = -fz;
-    const lz = fx;
-    const lat = Math.abs((p.x - st.x) * lx + (p.z - st.z) * lz);
-    const gap = Math.max(0, lat - half);
-    if (gap < bestGap || (gap === bestGap && best && hit.d < best.distance)) {
-      bestGap = gap;
-      const side = Math.sign((p.x - st.x) * lx + (p.z - st.z) * lz) || 1;
-      best = {
-        nallaPoint: { x: p.x, y: p.y, z: p.z, lon: p.lon, lat: p.lat },
-        riverPoint: { x: st.x, z: st.z, y: st.y },
-        bankPoint: {
-          x: st.x + lx * half * 0.98 * side,
-          z: st.z + lz * half * 0.98 * side,
-          y: p.y,
-          alongM: Number.isFinite(st.along) ? st.along : null,
-          stationIndex: hit.index,
-        },
-        distance: hit.d,
-        distanceToBank: gap,
-        confidence: gap < thresholdM * 0.35 ? "high" : "medium",
-        pathIndex,
-        stationIndex: hit.index,
-        alongM: Number.isFinite(st.along) ? st.along : null,
-      };
-    }
-  };
-
-  const step = Math.max(1, Math.floor(pts.length / 48));
-  for (let i = 0; i < pts.length; i += step) consider(pts[i], i);
-  consider(pts[0], 0);
-  consider(pts[pts.length - 1], pts.length - 1);
-
-  return best;
 }
 
 function nearestStationXZ(x, z, stations) {

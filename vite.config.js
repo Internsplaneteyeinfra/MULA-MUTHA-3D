@@ -16,8 +16,18 @@ export default defineConfig({
     },
     watch: {
       // Do not ignore public/data entirely — new overlays must be served.
-      // Ignore only huge rasters that thrash the watcher.
-      ignored: ["**/public/data/**/*.tif", "**/public/data/**/*.csv"],
+      // Ignore huge / locked data files that thrash or crash the Windows watcher.
+      ignored: [
+        "**/public/data/**/*.tif",
+        "**/public/data/**/*.csv",
+        "**/public/data/**/*.kml",
+        "**/public/data/**/*.kmz",
+        "**/public/data/**/*.geojson",
+        "**/public/data/hydrology/lulc/**",
+        "**/public/data/hydrology/silt/**",
+        "**/tmp_*/**",
+        "**/*.zip",
+      ],
     },
   },
   build: {

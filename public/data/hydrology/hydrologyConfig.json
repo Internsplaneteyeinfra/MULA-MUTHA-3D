@@ -1,5 +1,5 @@
-{
-  "version": 3,
+  {
+    "version": 9,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -58,17 +58,93 @@
       "id": "water_quality",
       "name": "WATER QUALITY",
       "available": false,
-      "reason": "No Water Quality dataset is connected to the RiverEye Hydrology layer.",
-      "unavailableLabel": "DATA UNAVAILABLE"
+      "reason": "Open Water Quality and choose TSS, NDWI, NDCI, Salinity, or WST.",
+      "unavailableLabel": "CHOOSE A WATER QUALITY METRIC"
+    },
+    {
+      "id": "water_quality_tss",
+      "name": "Turbidity / TSS",
+      "available": true,
+      "type": "kmlPolygons",
+      "crs": "EPSG:4326",
+      "data": "/data/hydrology/water_quality/TSS.kml",
+      "source": "TSS.kml",
+      "opacity": 0.72,
+      "liftM": 0.4,
+      "legendTitle": "Turbidity / TSS",
+      "legendSubtitle": "July 2026 classified overlay",
+      "classes": [
+        { "id": "class_1", "kmlClass": "Class 1", "label": "Low TSS", "color": "#1E90FF", "range": "≤0.62" },
+        { "id": "class_2", "kmlClass": "Class 2", "label": "Medium", "color": "#E8B923", "range": "0.62–1.17" },
+        { "id": "class_3", "kmlClass": "Class 3", "label": "High", "color": "#E53935", "range": ">1.17" }
+      ],
+      "renderType": "terrainDrapedPolygonsMergedByClass"
+    },
+    {
+      "id": "water_quality_ndwi",
+      "name": "NDWI — Water Detection",
+      "available": true,
+      "type": "kmlPolygons",
+      "crs": "EPSG:4326",
+      "data": "/data/hydrology/water_quality/NDWI.kml",
+      "source": "NDWI.kml",
+      "opacity": 0.72,
+      "liftM": 0.4,
+      "legendTitle": "NDWI — Water Detection",
+      "legendSubtitle": "July 2026 classified overlay",
+      "classes": [
+        { "id": "class_1", "kmlClass": "Class 1", "label": "Non-water", "color": "#8B5A2B", "range": "≤0" },
+        { "id": "class_2", "kmlClass": "Class 2", "label": "Water", "color": "#0D47A1", "range": ">0" }
+      ],
+      "renderType": "terrainDrapedPolygonsMergedByClass"
+    },
+    {
+      "id": "water_quality_ndci",
+      "name": "NDCI — Chlorophyll",
+      "available": true,
+      "type": "kmlPolygons",
+      "crs": "EPSG:4326",
+      "data": "/data/hydrology/water_quality/NDCI.kml",
+      "source": "NDCI.kml",
+      "opacity": 0.72,
+      "liftM": 0.4,
+      "legendTitle": "NDCI — Chlorophyll",
+      "legendSubtitle": "July 2026 classified overlay",
+      "classes": [
+        { "id": "class_1", "kmlClass": "Class 1", "label": "Low chlorophyll", "color": "#B8E0C8", "range": "<0" },
+        { "id": "class_2", "kmlClass": "Class 2", "label": "High chlorophyll", "color": "#1B5E20", "range": "≥0" }
+      ],
+      "renderType": "terrainDrapedPolygonsMergedByClass"
+    },
+    {
+      "id": "water_quality_wst",
+      "name": "WST — Temperature",
+      "available": true,
+      "type": "kmlPolygons",
+      "crs": "EPSG:4326",
+      "data": "/data/hydrology/water_quality/WST.kml",
+      "source": "WST.kml",
+      "opacity": 0.72,
+      "liftM": 0.4,
+      "legendTitle": "WST — Temperature",
+      "legendSubtitle": "Salinity thermal proxy",
+      "classes": [
+        { "id": "class_1", "kmlClass": "Class 1", "label": "Very low", "color": "#0D47A1", "range": "<27°C" },
+        { "id": "class_2", "kmlClass": "Class 2", "label": "Low", "color": "#64B5F6", "range": "27–30°C" },
+        { "id": "class_3", "kmlClass": "Class 3", "label": "Moderate", "color": "#FDD835", "range": "30–33°C" },
+        { "id": "class_4", "kmlClass": "Class 4", "label": "High", "color": "#E53935", "range": "33–36°C" },
+        { "id": "class_5", "kmlClass": "Class 5", "label": "Very high", "color": "#8B0000", "range": "≥36°C" }
+      ],
+      "renderType": "terrainDrapedPolygonsMergedByClass"
     },
     {
       "id": "salinity",
       "name": "SALINITY",
       "available": true,
-      "type": "polygon",
+      "type": "kmlPolygons",
       "crs": "EPSG:4326",
-      "data": "/data/hydrology/salinity.geojson",
-      "source": "111efbd6d8d0406d9f50a2506cd30388.kml",
+      "data": "/data/hydrology/water_quality/salinity.kml",
+      "source": "salinity.kml",
       "opacity": 0.65,
       "liftM": 0.35,
       "bounds": {
@@ -97,8 +173,130 @@
       "id": "landuse",
       "name": "LAND USE",
       "available": false,
-      "reason": "Mula-Mutha land-use dataset not available. Existing source is Mumbai/Mithi extent.",
-      "unavailableLabel": "DATA UNAVAILABLE — MULA-MUTHA DATASET REQUIRED"
+      "reason": "Open Land Use and choose LULC (or another land-use layer).",
+      "unavailableLabel": "CHOOSE A LAND USE LAYER"
+    },
+    {
+      "id": "landuse_lulc",
+      "name": "LULC",
+      "available": true,
+      "type": "lulcYears",
+      "crs": "EPSG:4326",
+      "defaultYear": 2026,
+      "opacity": 0.82,
+      "liftM": 0.45,
+      "gridSegments": 112,
+      "legendTitle": "LULC",
+      "legendSubtitle": "Mula–Mutha land cover",
+      "legendClasses": [
+        { "label": "Forest", "color": "#006400" },
+        { "label": "Crop Land", "color": "#E6A23C" },
+        { "label": "Barren Land", "color": "#A9A9A9" },
+        { "label": "Water Bodies", "color": "#2196F3" },
+        { "label": "Settlements", "color": "#C62828" }
+      ],
+      "classes": [
+        { "id": "class_0", "kmlClass": "Class 0", "label": "Forest", "color": "#006400" },
+        { "id": "class_1", "kmlClass": "Class 1", "label": "Crop Land", "color": "#E6A23C" },
+        { "id": "class_2", "kmlClass": "Class 2", "label": "Barren Land", "color": "#A9A9A9" },
+        { "id": "class_3", "kmlClass": "Class 3", "label": "Water Bodies", "color": "#2196F3" },
+        { "id": "class_4", "kmlClass": "Class 4", "label": "Settlements", "color": "#C62828" }
+      ],
+      "years": [
+        {
+          "year": 2021,
+          "type": "groundOverlay",
+          "overlay": "/data/hydrology/lulc/2021/overlay.png",
+          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+        },
+        {
+          "year": 2022,
+          "type": "groundOverlay",
+          "overlay": "/data/hydrology/lulc/2022/overlay.png",
+          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+        },
+        {
+          "year": 2023,
+          "type": "groundOverlay",
+          "overlay": "/data/hydrology/lulc/2023/overlay.png",
+          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+        },
+        {
+          "year": 2024,
+          "type": "groundOverlay",
+          "overlay": "/data/hydrology/lulc/2024/overlay.png",
+          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+        },
+        {
+          "year": 2025,
+          "type": "groundOverlay",
+          "overlay": "/data/hydrology/lulc/2025/overlay.png",
+          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+        },
+        {
+          "year": 2026,
+          "type": "kmlPolygons",
+          "data": "/data/hydrology/lulc/2026/lulc_2026.kml",
+          "classes": [
+            { "id": "class_0", "kmlClass": "Class 0", "label": "Water Bodies", "color": "#2196F3" },
+            { "id": "class_1", "kmlClass": "Class 1", "label": "Settlements", "color": "#C62828" },
+            { "id": "class_2", "kmlClass": "Class 2", "label": "Forest", "color": "#006400" },
+            { "id": "class_3", "kmlClass": "Class 3", "label": "Crop Land", "color": "#E6A23C" },
+            { "id": "class_4", "kmlClass": "Class 4", "label": "Barren Land", "color": "#A9A9A9" }
+          ]
+        }
+      ],
+      "renderType": "lulcYearOverlays"
+    },
+    {
+      "id": "silt_classification",
+      "name": "SILT CLASSIFICATION",
+      "available": true,
+      "type": "siltClassificationPeriods",
+      "crs": "EPSG:4326",
+      "defaultPeriod": "2026-07",
+      "opacity": 0.88,
+      "liftM": 1.2,
+      "gridSegments": 128,
+      "legendTitle": "Silt Classification",
+      "legendSubtitle": "Discrete silt classes",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "classes": [
+        { "id": "low", "label": "Low", "color": "#2ECC71" },
+        { "id": "moderate", "label": "Moderate", "color": "#A8E010" },
+        { "id": "high", "label": "High", "color": "#F39C12" },
+        { "id": "very_high", "label": "Very High", "color": "#E74C3C" }
+      ],
+      "periods": [
+        { "id": "2026-01", "label": "Jan", "year": 2026, "month": 1, "overlay": "/data/hydrology/silt/classification/2026-01/overlay.png", "legend": "/data/hydrology/silt/classification/2026-01/legend.png" },
+        { "id": "2026-02", "label": "Feb", "year": 2026, "month": 2, "overlay": "/data/hydrology/silt/classification/2026-02/overlay.png", "legend": "/data/hydrology/silt/classification/2026-02/legend.png" },
+        { "id": "2026-03", "label": "Mar", "year": 2026, "month": 3, "overlay": "/data/hydrology/silt/classification/2026-03/overlay.png", "legend": "/data/hydrology/silt/classification/2026-03/legend.png" },
+        { "id": "2026-04", "label": "Apr", "year": 2026, "month": 4, "overlay": "/data/hydrology/silt/classification/2026-04/overlay.png", "legend": "/data/hydrology/silt/classification/2026-04/legend.png" },
+        { "id": "2026-05", "label": "May", "year": 2026, "month": 5, "overlay": "/data/hydrology/silt/classification/2026-05/overlay.png", "legend": "/data/hydrology/silt/classification/2026-05/legend.png" },
+        { "id": "2026-06", "label": "Jun", "year": 2026, "month": 6, "overlay": "/data/hydrology/silt/classification/2026-06/overlay.png", "legend": "/data/hydrology/silt/classification/2026-06/legend.png" },
+        { "id": "2026-07", "label": "Jul", "year": 2026, "month": 7, "overlay": "/data/hydrology/silt/classification/2026-07/overlay.png", "legend": "/data/hydrology/silt/classification/2026-07/legend.png" }
+      ],
+      "renderType": "terrainDrapedSiltClassification"
+    },
+    {
+      "id": "silt_volume_surface",
+      "name": "SILT VOLUME SURFACE",
+      "available": false,
+      "reason": "No Mula-Mutha Silt Volume Surface dataset is connected to RiverEye.",
+      "unavailableLabel": "DATA UNAVAILABLE"
+    },
+    {
+      "id": "vegetation_extent",
+      "name": "VEGETATION EXTENT",
+      "available": true,
+      "type": "vegetationApi",
+      "reason": "Uses JalNetra vegetation-type analysis for the Mula–Mutha AOI when ready.",
+      "renderType": "vegetationApiInstances"
     },
     {
       "id": "aqi",

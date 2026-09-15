@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>Mula-Mutha LULC 2025</name>
+    <description><![CDATA[0 - Forest: #006400<br/>1 - Crop Land: #E6A23C<br/>2 - Barren Land: #A9A9A9<br/>3 - Water Bodies: #2196F3<br/>4 - Settlements: #C62828]]></description>
+    <GroundOverlay>
+      <name>Mula-Mutha LULC 2025</name>
+      <color>ffffffff</color>
+      <Icon>
+        <href>MulaMutha_LULC_2025.png</href>
+        <viewBoundScale>0.75</viewBoundScale>
+      </Icon>
+      <LatLonBox>
+        <north>18.56235850242967</north>
+        <south>18.509203857291638</south>
+        <east>73.9963853971848</east>
+        <west>73.84988078051396</west>
+        <rotation>0</rotation>
+      </LatLonBox>
+    </GroundOverlay>
+  </Document>
+</kml>

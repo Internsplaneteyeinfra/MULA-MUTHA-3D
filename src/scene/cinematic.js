@@ -85,7 +85,8 @@ export function createCameraSystem(canvas, dataset) {
 
   const controls = new OrbitControls(perspCamera, canvas);
   controls.enableDamping = true;
-  controls.dampingFactor = 0.12;
+  // Softer damping = smoother, less twitchy orbit (inspection-friendly)
+  controls.dampingFactor = 0.08;
   controls.maxPolarAngle = Math.PI * 0.495;
   controls.minDistance = 12;
   controls.maxDistance = diag * 3.2;
@@ -93,9 +94,12 @@ export function createCameraSystem(canvas, dataset) {
   controls.maxZoom = 12;
   controls.enablePan = true;
   controls.screenSpacePanning = true;
-  controls.rotateSpeed = 0.55;
-  controls.zoomSpeed = 1.0;
-  controls.panSpeed = 0.7;
+  // Slower mouse / wheel so users can study drainage & terrain without overshoot
+  const ORBIT_SPEED = { rotate: 0.28, zoom: 0.48, pan: 0.38 };
+  const JOINING_ORBIT_SPEED = { rotate: 0.2, zoom: 0.38, pan: 0.28 };
+  controls.rotateSpeed = ORBIT_SPEED.rotate;
+  controls.zoomSpeed = ORBIT_SPEED.zoom;
+  controls.panSpeed = ORBIT_SPEED.pan;
   controls.enabled = true;
 
   const tmpP = new THREE.Vector3();
@@ -646,8 +650,100 @@ export function createCameraSystem(canvas, dataset) {
     orthoCamera.updateProjectionMatrix();
   }
 
+  /**
+   * Smooth drainage fly-to (Joining Streams). Cancels river/chainage transitions.
+   * Driven from update() via camera.userData.joiningStreamsFlight.
+   */
+  function startDrainageFlight(toP, toL, opts = {}) {
+    if (state.cinematicActive) return;
+    state.playing = false;
+    state.visualMode = "landscape";
+    state.cameraMode = "orbit";
+    // Cancel competing river/chainage/local flies
+    localTransition = null;
+    zoomTransition = null;
+    orientTransition = null;
+
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.enableRotate = true;
+    controls.enablePan = true;
+    controls.enabled = false;
+
+    if (!toP || !toL) return;
+
+    if (isMap2D()) {
+      // 2D: pan only to drainage target
+      const height = Math.max(activeCamera.position.y, mapLookY + 400);
+      tmpP.set(toL.x, height, toL.z);
+      tmpL.set(toL.x, mapLookY, toL.z);
+      localTransition = {
+        fromP: activeCamera.position.clone(),
+        fromL: controls.target.clone(),
+        fromUp: activeCamera.up.clone().normalize(),
+        toP: tmpP.clone(),
+        toL: tmpL.clone(),
+        toUp: activeCamera.up.clone().normalize(),
+        t: 0,
+        dur: (opts.durMs ?? 900) / 1000,
+        releaseMode: "aerial",
+      };
+      return;
+    }
+
+    if (activeCamera.isPerspectiveCamera && Number.isFinite(opts.fov)) {
+      activeCamera.fov = opts.fov;
+      activeCamera.updateProjectionMatrix();
+    }
+
+    tmpP.set(toP.x, toP.y, toP.z);
+    tmpL.set(toL.x, toL.y, toL.z);
+
+    activeCamera.userData.joiningStreamsFlight = {
+      active: true,
+      startPosition: activeCamera.position.clone(),
+      startTarget: controls.target.clone(),
+      endPosition: tmpP.clone(),
+      endTarget: tmpL.clone(),
+      progress: 0,
+      duration: opts.durMs ?? 900,
+    };
+  }
+
   function update(dt) {
     const camera = activeCamera;
+
+    // Precision orbit while inspecting Joining Streams drainages
+    const joining = !!state.joiningStreamsMode;
+    const spd = joining ? JOINING_ORBIT_SPEED : ORBIT_SPEED;
+    controls.rotateSpeed = spd.rotate;
+    controls.zoomSpeed = spd.zoom;
+    controls.panSpeed = spd.pan;
+
+    // Joining Streams drainage flight — highest priority over river chainage flies
+    const flight = camera.userData?.joiningStreamsFlight;
+    if (flight?.active) {
+      flight.progress += dt * 1000;
+      const tNorm = Math.min(1, flight.progress / Math.max(1, flight.duration));
+      const eased = 1 - Math.pow(1 - tNorm, 3);
+      camera.position.lerpVectors(flight.startPosition, flight.endPosition, eased);
+      controls.target.lerpVectors(flight.startTarget, flight.endTarget, eased);
+      camera.up.set(0, 1, 0);
+      camera.lookAt(controls.target);
+      controls.enabled = false;
+      if (tNorm >= 1) {
+        camera.position.copy(flight.endPosition);
+        controls.target.copy(flight.endTarget);
+        camera.lookAt(controls.target);
+        flight.active = false;
+        camera.userData.joiningStreamsFlight = null;
+        state.cameraMode = "orbit";
+        state.playing = false;
+        controls.enabled = true;
+        controls.update();
+      }
+      return;
+    }
 
     if (zoomTransition) {
       zoomTransition.t += dt;
@@ -828,6 +924,8 @@ export function createCameraSystem(canvas, dataset) {
    */
   function focusOnXZ(x, z, opts = {}) {
     if (state.cinematicActive) return;
+    // Joining Streams owns the camera — never fly to main-river chainage
+    if (state.joiningStreamsMode || state.joiningStreamsNavigation) return;
     state.playing = false;
     state.visualMode = "landscape";
     controls.enabled = true;
@@ -930,6 +1028,74 @@ export function createCameraSystem(canvas, dataset) {
     };
   }
 
+  /**
+   * Fly camera to an explicit pose (Joining Streams / drainage focus).
+   * Does NOT re-aim along the main river chainage.
+   */
+  function focusPose(opts = {}) {
+    if (state.cinematicActive) return;
+    state.playing = false;
+    state.visualMode = "landscape";
+    state.cameraMode = "orbit";
+    controls.enabled = true;
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    controls.enableRotate = true;
+    controls.enablePan = true;
+
+    const toP = opts.toP || opts.position;
+    const toL = opts.toL || opts.target;
+    if (!toP || !toL) return;
+
+    tmpP.set(toP.x, toP.y, toP.z);
+    tmpL.set(toL.x, toL.y, toL.z);
+
+    if (isMap2D()) {
+      const height = Math.max(activeCamera.position.y, mapLookY + 400);
+      tmpP.set(tmpL.x, height, tmpL.z);
+      const keepUp = activeCamera.up.clone();
+      keepUp.y = 0;
+      if (keepUp.lengthSq() < 1e-8) keepUp.copy(map2dUpAt(nearestStationU(stations, tmpL.x, tmpL.z)));
+      else keepUp.normalize();
+      const keepZoom = orthoCamera.zoom;
+      zoomTransition = null;
+      localTransition = {
+        fromP: activeCamera.position.clone(),
+        fromL: controls.target.clone(),
+        fromUp: activeCamera.up.clone().normalize(),
+        toP: tmpP.clone(),
+        toL: tmpL.clone(),
+        toUp: keepUp,
+        fromZoom: keepZoom,
+        toZoom: keepZoom,
+        t: 0,
+        dur: opts.dur ?? 0.85,
+        releaseMode: "aerial",
+      };
+      return;
+    }
+
+    if (activeCamera.isPerspectiveCamera && Number.isFinite(opts.fov)) {
+      activeCamera.fov = opts.fov;
+      activeCamera.updateProjectionMatrix();
+    }
+
+    controls.enabled = false;
+    localTransition = {
+      fromP: activeCamera.position.clone(),
+      fromL: controls.target.clone(),
+      fromUp: activeCamera.up.clone().normalize(),
+      toP: tmpP.clone(),
+      toL: tmpL.clone(),
+      toUp: new THREE.Vector3(0, 1, 0),
+      t: 0,
+      dur: opts.dur ?? 0.95,
+      ease: opts.ease || "outCubic",
+      releaseMode: "orbit",
+      transitLift: opts.transitLift ?? 0,
+    };
+  }
+
   return {
     get camera() {
       return activeCamera;
@@ -938,6 +1104,8 @@ export function createCameraSystem(canvas, dataset) {
     controls,
     applyMode,
     focusOnXZ,
+    focusPose,
+    startDrainageFlight,
     update,
     resize,
     ensurePerspective: (opts) => exitMap2D(opts),

@@ -100,7 +100,7 @@ export function createTooltip(root) {
             : "";
         el.innerHTML = `
           <h3>${info.joiningHover ? "JOINING STREAM" : "💧 DRAINAGE CHANNEL"}</h3>
-          <div class="kv"><span class="k">Name</span><span class="v depth">${info.name ?? "Unnamed nullah"}</span></div>
+          ${row("Name", info.name && !/^unnamed\b/i.test(String(info.name)) ? info.name : null)}
           ${row("ID", info.displayId)}
           ${row("Type", info.typeLabel || info.waterway)}
           ${row("Chainage", info.chainageLabel)}
@@ -113,19 +113,26 @@ export function createTooltip(root) {
         `;
         return;
       }
-      if (info.hydrologySalinity) {
-        const desc = info.description
-          ? String(info.description).replace(/<br\s*\/?>/gi, " · ").replace(/<[^>]+>/g, "")
+      if (info.hydrologySalinity || info.hydrologyWaterQuality) {
+        const title = info.hydrologySalinity
+          ? "SALINITY"
+          : info.layerTitle ||
+            ({
+              water_quality_tss: "Turbidity / TSS",
+              water_quality_ndwi: "NDWI — Water Detection",
+              water_quality_ndci: "NDCI — Chlorophyll",
+              water_quality_wst: "WST — Temperature",
+            }[info.layer] || "WATER QUALITY");
+        const swatch = info.color
+          ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${info.color};border:1px solid rgba(255,255,255,.35);margin-right:6px;vertical-align:middle"></span>`
           : "";
         el.innerHTML = `
-          <h3>SALINITY</h3>
-          <div class="kv"><span class="k">Class</span><span class="v">${info.class_label || info.class || "—"}</span></div>
+          <h3>${title}</h3>
+          <div class="kv"><span class="k">Class</span><span class="v">${swatch}${info.class_label || info.class || "—"}</span></div>
           ${info.range ? `<div class="kv"><span class="k">Range</span><span class="v">${info.range}</span></div>` : ""}
-          ${info.name ? `<div class="kv"><span class="k">Name</span><span class="v">${info.name}</span></div>` : ""}
-          ${desc ? `<div class="kv"><span class="k">Description</span><span class="v">${desc}</span></div>` : ""}
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
-          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">NDSI model · terrain-draped</em>
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.hydrologySalinity ? "NDSI model · terrain-draped" : "Classified overlay · hover class"}</em>
         `;
         return;
       }

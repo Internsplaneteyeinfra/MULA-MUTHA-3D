@@ -101,7 +101,8 @@ function profileFor(tier) {
   }
   return {
     tier: "high",
-    pixelRatioMax: 1.5,
+    // Cap DPR — full 2×/3× retina framebuffers dominate GPU memory with little visible gain
+    pixelRatioMax: 1.25,
     antialias: true,
     shadows: true,
     shadowMapSize: 1024,

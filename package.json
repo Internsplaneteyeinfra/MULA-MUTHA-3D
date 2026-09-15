@@ -15,6 +15,7 @@
     "ci": "npm run build && npm run smoke",
     "generate:buildings": "node scripts/generateBuildingAssets.mjs",
     "convert:trees": "node scripts/convertTreeAssets.mjs",
+    "optimize:glbs": "node scripts/optimizeGlbs.mjs",
     "fetch:osm": "python scripts/fetchOsmMapApi.py",
     "fetch:osm:east-buildings": "python scripts/fetchEastBuildings.py",
     "fetch:osm:trees": "python scripts/fetchOsmTrees.py",

@@ -1,0 +1,116 @@
+{
+  "periods": [
+    {
+      "id": "2026-01",
+      "label": "Jan 2026",
+      "year": 2026,
+      "month": 1,
+      "name": "Silt Classification - January 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "Jan_2026_Silt_Classification.kmz"
+    },
+    {
+      "id": "2026-02",
+      "label": "Feb 2026",
+      "year": 2026,
+      "month": 2,
+      "name": "Silt Classification - February 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "Feb_2026_Silt_Classification.kmz"
+    },
+    {
+      "id": "2026-03",
+      "label": "Mar 2026",
+      "year": 2026,
+      "month": 3,
+      "name": "Silt Classification - March 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "Mar_2026_Silt_Classification.kmz"
+    },
+    {
+      "id": "2026-04",
+      "label": "Apr 2026",
+      "year": 2026,
+      "month": 4,
+      "name": "Silt Classification - April 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "Apr_2026_Silt_Classification.kmz"
+    },
+    {
+      "id": "2026-05",
+      "label": "May 2026",
+      "year": 2026,
+      "month": 5,
+      "name": "Silt Classification - May 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "May_2026_Silt_Classification.kmz"
+    },
+    {
+      "id": "2026-06",
+      "label": "Jun 2026",
+      "year": 2026,
+      "month": 6,
+      "name": "Silt Classification - June 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "Jun_2026_Silt_Classification.kmz"
+    },
+    {
+      "id": "2026-07",
+      "label": "Jul 2026",
+      "year": 2026,
+      "month": 7,
+      "name": "Silt Classification - July 2026",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "hasGround": true,
+      "placemarks": 0,
+      "source": "Jul_2026_Silt_Classification__1_.kmz"
+    }
+  ]
+}

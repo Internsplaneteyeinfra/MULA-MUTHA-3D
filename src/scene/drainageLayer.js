@@ -61,7 +61,8 @@ export function createDrainageLayer(dataset) {
         displayName,
         waterway: f.waterway,
         meta: {
-          name: displayName || "Unnamed nullah",
+          // Empty when OSM/KML has no name — never invent "Unnamed …"
+          name: displayName,
           waterway: f.waterway || "stream",
           osmId: f.osmId || "",
           osmType: f.osmType || "",
@@ -152,10 +153,19 @@ export function createDrainageLayer(dataset) {
   }
 
   // 3) Smooth continuous tubes (no box corner breaks)
+  // Only static banks — water/highlight fill was always hidden (duplicate of nallaFlow)
   const bankMeshes = [];
-  const waterMeshes = [];
-  const highlightMeshes = [];
   const flowPositions = [];
+  const bankMat = new THREE.MeshBasicMaterial({
+    color: CHANNEL.bank,
+    transparent: true,
+    opacity: 0.38,
+    depthTest: true,
+    depthWrite: false,
+    polygonOffset: true,
+    polygonOffsetFactor: 1,
+    polygonOffsetUnits: 1,
+  });
 
   for (const chain of chains3d) {
     // Extra lift so thick bank/water tubes clear the terrain mesh
@@ -166,28 +176,11 @@ export function createDrainageLayer(dataset) {
     if (curvePts.length < 2) continue;
 
     const curve = new THREE.CatmullRomCurve3(curvePts, false, "centripetal", 0.2);
-    const tubular = Math.max(8, Math.min(400, Math.floor(curve.getLength() / 4)));
+    // Cap segments — smooth enough at overview distance, far less GPU memory
+    const tubular = Math.max(8, Math.min(160, Math.floor(curve.getLength() / 6)));
 
-    bankMeshes.push(makeTube(curve, tubular, CHANNEL.bankRadius, CHANNEL.bank, 0.38, 2));
-    waterMeshes.push(makeTube(curve, tubular, CHANNEL.waterRadius, CHANNEL.water, 0.55, 3));
-    highlightMeshes.push(
-      makeTube(
-        new THREE.CatmullRomCurve3(
-          chain.map((p) => {
-            const lift = (p.under || 0) > 0.35 ? 0.9 : CHANNEL.waterRadius + 1.0;
-            return new THREE.Vector3(p.x, p.y + lift, p.z);
-          }),
-          false,
-          "centripetal",
-          0.2,
-        ),
-        tubular,
-        CHANNEL.highlightRadius,
-        CHANNEL.highlight,
-        0.4,
-        4,
-      ),
-    );
+    const bank = makeTube(curve, tubular, CHANNEL.bankRadius, bankMat, 2);
+    if (bank) bankMeshes.push(bank);
 
     for (let i = 0; i < chain.length - 1; i++) {
       const a = chain[i];
@@ -198,19 +191,18 @@ export function createDrainageLayer(dataset) {
     }
   }
 
-  // Thin banks + fill grouped so animated water can become primary without rebuild
+  // Thin banks only — static water/highlight fill removed (always hidden duplicate of nallaFlow)
   const staticBanks = new THREE.Group();
   staticBanks.name = "nullahStaticBanks";
   for (const m of bankMeshes) if (m) staticBanks.add(m);
   const staticFill = new THREE.Group();
   staticFill.name = "nullahStaticFill";
-  for (const m of [...waterMeshes, ...highlightMeshes]) if (m) staticFill.add(m);
+  staticFill.visible = false;
   group.add(staticBanks);
   group.add(staticFill);
-  // Static dark fill is kept cached but hidden — animated nalla water is the primary surface
-  staticFill.visible = false;
   group.userData.staticBanks = staticBanks;
   group.userData.staticFill = staticFill;
+  group.userData._sharedBankMat = bankMat;
 
   if (flowPositions.length >= 6) {
     const geo = new THREE.BufferGeometry();
@@ -254,7 +246,6 @@ export function createDrainageLayer(dataset) {
   group.userData.pickables = pickables;
 
   group.visible = false;
-  console.info("Nullah continuous channels READY", group.userData.stats);
   return group;
 }
 
@@ -304,22 +295,24 @@ function closestPointOnSegXZ(px, pz, a, b) {
   return { x, z, t, d: Math.hypot(px - x, pz - z) };
 }
 
-function makeTube(curve, tubular, radius, color, opacity, renderOrder) {
+function makeTube(curve, tubular, radius, materialOrColor, renderOrder, opacity = 0.4) {
   try {
-    const geo = new THREE.TubeGeometry(curve, tubular, radius, 8, false);
-    const mat = new THREE.MeshBasicMaterial({
-      color,
-      transparent: true,
-      opacity,
-      depthTest: true,
-      depthWrite: false,
-      // Prefer building occlusion when depths are close
-      polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-    });
+    const geo = new THREE.TubeGeometry(curve, tubular, radius, 6, false);
+    const mat =
+      materialOrColor?.isMaterial
+        ? materialOrColor
+        : new THREE.MeshBasicMaterial({
+            color: materialOrColor,
+            transparent: true,
+            opacity,
+            depthTest: true,
+            depthWrite: false,
+            polygonOffset: true,
+            polygonOffsetFactor: 1,
+            polygonOffsetUnits: 1,
+          });
     const mesh = new THREE.Mesh(geo, mat);
-    mesh.frustumCulled = false;
+    mesh.frustumCulled = true;
     mesh.renderOrder = renderOrder;
     return mesh;
   } catch {
@@ -402,17 +395,16 @@ function dist2(a, b) {
 }
 
 /**
- * Drop mid-channel stubs: keep nullah geometry only outside / on the river bank.
- * When a segment crosses the bank, snap an endpoint onto the edge.
- * Paths that cross the river are split into separate land-side runs.
+ * Drop mid-channel stubs: keep nullah geometry to the water edge (slightly inside
+ * halfWidth) so mouths meet the visible river surface instead of stopping on the bank strip.
  */
 function clipPathToRiverBanks(pts, stations) {
   if (!stations?.length || pts.length < 2) return pts.length >= 2 ? [pts] : [];
 
   const samples = pts.map((p) => {
     const r = riverLatHalf(p.x, p.z, stations);
-    // Slightly inside half so tube mouths sit on the visible bank, not mid-channel
-    const bank = Math.max(8, (r.half || 40) * 0.98);
+    // Sit mouths over water (~78% of half) — closes green gap before river
+    const bank = Math.max(8, (r.half || 40) * 0.78);
     return { p, lat: r.lat, half: bank, inside: r.lat < bank };
   });
 

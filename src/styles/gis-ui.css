@@ -2425,6 +2425,7 @@
 #ui-root.gis-ui .weather-copy strong { font-size: 13px; }
 #ui-root.gis-ui .weather-copy span { font-size: 14px; }
 #ui-root.gis-ui .weather-copy b { font-size: 18px; }
+#ui-root.gis-ui .weather-date { font-size: 11px; }
 #ui-root.gis-ui .weather-time { font-size: 14px; }
 #ui-root.gis-ui .map-ctrl-label { font-size: 14px; }
 #ui-root.gis-ui .view-toggle-title { font-size: 12px; }
@@ -2499,6 +2500,7 @@
 #ui-root.gis-ui .weather-copy strong { font-size: 11px; }
 #ui-root.gis-ui .weather-copy span { font-size: 12px; }
 #ui-root.gis-ui .weather-copy b { font-size: 16px; }
+#ui-root.gis-ui .weather-date { font-size: 10px; }
 #ui-root.gis-ui .weather-time { font-size: 12px; }
 #ui-root.gis-ui .map-ctrl-label { font-size: 12px; }
 #ui-root.gis-ui .view-toggle-title { font-size: 10px; }
@@ -2602,7 +2604,28 @@
 .weather-copy span { display: flex; align-items: baseline; gap: 7px; font-size: 10px; color: rgba(178, 211, 220, .72); }
 .weather-copy b { color: #e9f8fb; font-size: 13px; font-weight: 600; }
 .weather-copy i { font-style: normal; }
-.weather-time { padding-left: 9px; border-left: 1px solid rgba(193, 225, 234, .16); color: #a7dfea; font: 500 11px/1 var(--font-mono); }
+.weather-time-block {
+  display: grid;
+  align-content: center;
+  gap: 3px;
+  padding-left: 9px;
+  border-left: 1px solid rgba(193, 225, 234, 0.16);
+  text-align: right;
+}
+.weather-date {
+  display: block;
+  color: rgba(200, 232, 240, 0.88);
+  font: 600 10px/1.15 var(--font-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+.weather-time {
+  display: block;
+  padding-left: 0;
+  border-left: none;
+  color: #a7dfea;
+  font: 500 11px/1 var(--font-mono, ui-monospace, monospace);
+}
 
 .gis-tools-stack {
   top: clamp(104px, 13vh, 132px);
@@ -2664,11 +2687,207 @@
   .gis-brand { left: 10px; top: 10px; max-width: calc(100vw - 92px); padding: 8px 9px; }
   .gis-brand p, .gis-brand small { margin-left: 0; }
   .weather-widget { top: 10px; right: 10px; width: 42px; min-width: 42px; height: 42px; padding: 0; grid-template-columns: 1fr; border-radius: 10px; }
-  .weather-copy, .weather-time { display: none; }
+  .weather-copy, .weather-time-block { display: none; }
   .gis-tools-stack { top: 64px; right: 10px !important; width: 58px; }
   .view-toggle { width: 58px; }
   .gis-ui .depth-legend .depth-bar { min-height: 80px; }
   .gis-ui .chainage-ruler { bottom: 6px; width: calc(100vw - 12px); }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Land Use — floating icon-only HUD (NO panel / card / glass)
+   Four icons only; labels via hover tooltip. No title.
+   Positioned under the Land Use (sprout) top-nav icon.
+   ═══════════════════════════════════════════════════════════ */
+.lu-hud {
+  position: fixed;
+  left: 50%;
+  top: calc(max(14px, env(safe-area-inset-top)) + 62px);
+  transform: translateX(-50%) translateY(-6px);
+  z-index: 22;
+  width: auto;
+  max-width: min(420px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+.lu-hud[hidden] {
+  display: none !important;
+}
+.lu-hud.is-open {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.lu-hud > * {
+  pointer-events: auto;
+}
+
+.lu-hud__row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 2.6vw, 32px);
+  padding: 0;
+  margin: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+
+.lu-hud__item {
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 28px;
+  min-width: 26px;
+  padding: 0;
+  margin: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0;
+  cursor: pointer;
+  color: inherit;
+  transition: transform 170ms ease-out, filter 170ms ease-out;
+}
+.lu-hud__item:hover {
+  transform: scale(1.06);
+  background: transparent !important;
+}
+.lu-hud__item:focus-visible {
+  outline: none;
+}
+.lu-hud__item:focus-visible .lu-hud__icon {
+  filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
+}
+
+/* Hover tooltip — compact GIS HUD chip (labels NEVER permanent) */
+.lu-hud__item::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-3px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.82);
+  border: 1px solid rgba(210, 230, 240, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f4fafc;
+  font: 600 12px/1.2 var(--font-ui);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  z-index: 3;
+}
+.lu-hud__item:hover::after,
+.lu-hud__item:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+
+.lu-hud__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+  transition: filter 170ms ease-out, transform 170ms ease-out;
+}
+.lu-hud__svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+
+.lu-hud__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+
+.lu-hud__item.lu-tone-lulc { color: #9ec4e8; }
+.lu-hud__item.lu-tone-silt { color: #d4b483; }
+.lu-hud__item.lu-tone-volume { color: #c9a06a; }
+.lu-hud__item.lu-tone-veg { color: #8fd98a; }
+
+.lu-hud__item.is-active .lu-hud__icon {
+  filter: drop-shadow(0 0 10px rgba(140, 220, 160, 0.55));
+  transform: scale(1.08);
+}
+.lu-hud__item.is-active .lu-hud__dot {
+  opacity: 0.9;
+}
+
+.lu-hud__item:hover .lu-hud__icon {
+  filter: drop-shadow(0 0 8px rgba(160, 230, 180, 0.4));
+}
+
+.lu-hud__status {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  max-width: min(360px, calc(100vw - 40px));
+  border-radius: 8px;
+  background: rgba(10, 16, 22, 0.78);
+  border: 1px solid rgba(210, 230, 240, 0.18);
+  color: rgba(230, 240, 245, 0.92);
+  font: 500 12px/1.35 var(--font-ui);
+  text-align: center;
+}
+.lu-hud__status[hidden] {
+  display: none !important;
+}
+.lu-hud__status strong {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+.lu-hud__status.is-unavail strong {
+  color: #f0b070;
+}
+.lu-hud__status span {
+  display: block;
+  opacity: 0.88;
+  font-size: 11px;
+}
+
+@media (max-width: 720px) {
+  .lu-hud {
+    max-width: calc(100vw - 20px);
+  }
+  .lu-hud__row {
+    gap: 14px;
+  }
+  .lu-hud__item {
+    width: 26px;
+  }
+  .lu-hud__icon,
+  .lu-hud__svg {
+    width: 24px;
+    height: 24px;
+  }
 }
 
 /* ═══════════════════════════════════════════════════════════
@@ -2950,12 +3169,59 @@
   box-shadow: 0 10px 28px rgba(0,0,0,.28);
 }
 .hydro-legend-hud-title {
-  font: 700 11px/1 var(--font-ui);
-  letter-spacing: 0.08em; margin-bottom: 8px; color: #9fe6f5;
+  font: 700 13px/1.2 var(--font-ui);
+  letter-spacing: 0.02em; margin-bottom: 2px; color: rgba(230, 245, 250, 0.95);
+}
+.hydro-legend-hud-sub {
+  font-size: 10px;
+  color: rgba(180, 205, 215, 0.72);
+  margin: 0 0 8px;
 }
 .hydro-legend-hud-img { display: block; width: 100%; height: auto; border-radius: 6px; }
-.hydro-legend-hud-row { display: flex; align-items: center; gap: 8px; font-size: 11px; margin: 4px 0; color: rgba(220,240,245,.86); }
+.hydro-legend-hud-classes { display: flex; flex-direction: column; gap: 2px; }
+.hydro-legend-hud-row {
+  display: grid;
+  grid-template-columns: 14px 1fr auto;
+  align-items: center;
+  gap: 8px;
+  font-size: 11px;
+  margin: 3px 0;
+  color: rgba(220,240,245,.9);
+}
+.hydro-legend-hud-label { min-width: 0; }
+.hydro-legend-hud-range {
+  font-size: 10px;
+  color: rgba(180, 205, 215, 0.78);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
 .hydro-swatch { width: 14px; height: 10px; border-radius: 2px; border: 1px solid rgba(255,255,255,.25); flex-shrink: 0; }
+.hydro-swatch--dot {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+}
+.hydro-legend-years {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin: 0 0 8px;
+}
+.hydro-year-btn {
+  border: 1px solid rgba(120, 200, 220, 0.28);
+  background: rgba(20, 60, 78, 0.45);
+  color: rgba(210, 235, 245, 0.88);
+  border-radius: 6px;
+  padding: 3px 7px;
+  font: 600 10px/1.2 var(--font-ui);
+  cursor: pointer;
+}
+.hydro-year-btn:hover { background: rgba(34, 110, 130, 0.55); }
+.hydro-year-btn.is-active {
+  background: rgba(40, 150, 175, 0.55);
+  border-color: rgba(150, 230, 245, 0.55);
+  color: #e8fbff;
+}
 .hydro-legend-clear {
   margin-top: 8px; width: 100%; border-radius: 7px; border: 1px solid rgba(120, 200, 220, 0.35);
   background: rgba(28, 101, 123, 0.35); color: #dff8ff; padding: 7px 10px;
@@ -3732,7 +3998,7 @@
   display: none;
 }
 
-/* Named drainage labels (existing names only) */
+/* Drainage labels — world-anchored (selected always visible) */
 .joining-stream-labels {
   position: fixed;
   inset: 0;
@@ -3751,31 +4017,46 @@
   pointer-events: none !important;
 }
 .joining-stream-label__text {
-  padding: 6px 10px;
-  border-radius: 12px;
-  background: rgba(8, 35, 50, 0.70);
-  border: 1px solid rgba(100, 210, 255, 0.55);
+  padding: 7px 12px;
+  border-radius: 10px;
+  background: rgba(6, 22, 40, 0.82);
+  border: 1px solid rgba(70, 140, 200, 0.55);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
-  color: #fff;
-  font: 650 11px/1.2 var(--font-ui);
+  color: #f2f7ff;
+  font: 650 12px/1.25 var(--font-ui);
   white-space: nowrap;
-  max-width: min(200px, 42vw);
+  max-width: min(240px, 48vw);
   overflow: hidden;
   text-overflow: ellipsis;
-  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.22);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  letter-spacing: 0.01em;
 }
 .joining-stream-label__leader {
-  width: 1px;
-  height: 12px;
-  background: rgba(180, 230, 255, 0.75);
+  width: 1.5px;
+  height: 16px;
+  background: linear-gradient(to bottom, rgba(160, 200, 240, 0.85), rgba(80, 140, 200, 0.15));
 }
 .joining-stream-label.is-dim {
-  opacity: 0.35;
+  opacity: 0.28;
+}
+.joining-stream-label.is-selected {
+  z-index: 2;
 }
 .joining-stream-label.is-selected .joining-stream-label__text {
-  border-color: rgba(160, 230, 255, 0.9);
-  box-shadow: 0 8px 22px rgba(40, 140, 200, 0.28);
+  border-color: rgba(120, 190, 255, 0.95);
+  background: rgba(8, 32, 58, 0.92);
+  box-shadow: 0 10px 28px rgba(20, 90, 160, 0.35);
+  font-size: 13px;
+}
+.joining-stream-label--confluence .joining-stream-label__text {
+  font-size: 10px;
+  padding: 4px 8px;
+  border-radius: 8px;
+  background: rgba(10, 40, 55, 0.75);
+  border-color: rgba(160, 220, 255, 0.45);
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
 }
 
 #ui-root.gis-ui.joining-streams-mode .depth-legend,

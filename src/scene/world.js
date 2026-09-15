@@ -6,6 +6,7 @@ import { createRiver, applyExaggeration, applyRiverLook, SURFACE_Y } from "./riv
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
 import { createVegetationApiLayer } from "./vegetationApiLayer.js";
+import { prefetchTreeAssets } from "./treeRegistry.js";
 import { fetchVegetationForAoi } from "../services/vegetationService.js";
 import { mountVegetationStatus } from "../ui/components/vegetationStatus.js";
 import { createBridges, updateBridgeLabels, updateBridgePiers } from "./bridges.js";
@@ -30,7 +31,7 @@ import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInf
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
 import { createCinematicController } from "../animation/cinematicController.js";
 import { computeActiveSceneBounds, computeSceneBounds } from "../geo/sceneBounds.js";
-import { createQualityProfile, createThrottle } from "../perf/quality.js";
+import { createQualityProfile, createThrottle, isLowMemoryDevice } from "../perf/quality.js";
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
@@ -42,7 +43,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const renderer = new THREE.WebGLRenderer({
     canvas,
     antialias: q.antialias,
-    powerPreference: "high-performance",
+    // Prefer default on low-memory machines to avoid VRAM-hungry high-perf contexts
+    powerPreference: isLowMemoryDevice() ? "default" : "high-performance",
     // preserveDrawingBuffer costs a full GPU copy every frame — only for screenshots
     preserveDrawingBuffer: q.preserveDrawingBuffer,
   });
@@ -146,6 +148,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     uiRoot: document.getElementById("ui-root"),
   });
   drainageLayer.add(nallaFlow);
+
+  if (!nallaFlow?.userData || !Array.isArray(nallaFlow.userData.records)) {
+    throw new Error(
+      "Joining Streams: createNallaFlowSystem did not return a valid system with records",
+    );
+  }
+  console.info("[joining-streams] nallaFlowSystem ready", {
+    nallas: nallaFlow.userData.stats?.nallas ?? nallaFlow.userData.records.length,
+    connected: nallaFlow.userData.stats?.connected,
+  });
   const mainStemLayer = createMainStemLayer(dataset, mainStemKmlRaw);
   const depthZonesLayer = createDepthZonesLayer(dataset);
   const rawSurveyPoints = createRawSurveyPointLayer(dataset);
@@ -225,7 +237,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   const cam = createCameraSystem(canvas, dataset);
   const getCamera = () => cam.camera;
-  const joiningCtrl = createJoiningStreamsController({ dataset, nallaFlow, cam });
+  // Bind real camera into nalla focusRecord / joining effects
+  nallaFlow.userData?.setCameraSystem?.(cam);
+  if (nallaFlow.userData?.effects?.userData) {
+    nallaFlow.userData._getCamera = getCamera;
+  }
+  const joiningCtrl = createJoiningStreamsController({
+    dataset,
+    nallaFlow,
+    system: nallaFlow,
+    cam,
+  });
+  // Re-bind after controller wrap so system flight still has camera
+  nallaFlow.userData?.setCameraSystem?.(cam);
+  console.info("[joining-streams] controller ready", {
+    records: joiningCtrl.getRecords().length,
+  });
   const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, getCamera, canvas);
   const riverWidthMeasure = createRiverWidthMeasure(dataset);
   scene.add(riverWidthMeasure.group);
@@ -266,6 +293,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const vegStatus = mountVegetationStatus(uiRoot);
 
   // Buildings/roads (~12MB GeoJSON) load AFTER first paint so the spinner is not stuck
+  // Trees are meshopt-compressed GLBs — prefetch early, load after buildings so city appears first
+  prefetchTreeAssets();
   const loadUrbanLayers = async () => {
     try {
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
@@ -285,14 +314,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
       }
       const lowTier = quality.get().tier === "low";
-      const [gUrban, gTrees] = await Promise.all([
-        createUrban(dataset),
-        lowTier ? Promise.resolve(new THREE.Group()) : createVegetation(dataset),
-      ]);
+      const gUrban = await createUrban(dataset);
       urbanResult = gUrban;
       urbanGroup.add(gUrban);
-      treesResult = gTrees;
-      treesGroup.add(gTrees);
+
+      if (!lowTier) {
+        // Trees after buildings — compressed GLBs (~0.6MB total) should be fast
+        createVegetation(dataset)
+          .then((gTrees) => {
+            treesResult = gTrees;
+            treesGroup.add(gTrees);
+          })
+          .catch((err) => console.warn("Vegetation GLB load:", err?.message || err));
+      }
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
     }
@@ -320,6 +354,23 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         return;
       }
       const layer = await createVegetationApiLayer(dataset, data);
+      // Preserve API legend/category colors for Land Use → Vegetation Extent HUD
+      layer.userData.vegetationLegend = {
+        type: "classes",
+        title: "VEGETATION EXTENT",
+        classes: (data.legend || data.categories || [])
+          .filter((c) => c?.label || c?.name)
+          .map((c) => ({
+            label: c.label || c.name,
+            color: c.color,
+            range: c.range || null,
+          })),
+      };
+      layer.userData.vegetationMeta = {
+        total_vegetation_area_ha: data.total_vegetation_area_ha,
+        vegetation_cover_percent: data.vegetation_cover_percent,
+        end_date: data.end_date,
+      };
       vegApiResult = layer;
       vegApiGroup.clear();
       vegApiGroup.add(layer);
@@ -457,17 +508,24 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       src === "activate" ||
       src === "view" ||
       src === "refocus" ||
-      src === "joining-streams";
+      src === "joining-streams" ||
+      src === "next-drainage" ||
+      src === "previous-drainage" ||
+      src === "focus" ||
+      src === "overview" ||
+      src === "select-drainage";
 
-    // User scrubbed/clicked the chainage ruler → update nearest nalla card only
-    if (m != null && state.joiningStreamsMode && !joiningOwnsCamera) {
-      joiningCtrl.onChainageSelect(m, e.detail || {});
+    // While Joining Streams is active: chainage only syncs nearest drainage —
+    // NEVER fly the camera along the Mula–Mutha centerline.
+    if (state.joiningStreamsMode || state.joiningStreamsNavigation || e.detail?.joiningStreamsNavigation) {
+      if (state.joiningStreamsMode && m != null && !joiningOwnsCamera) {
+        joiningCtrl.onChainageSelect(m, e.detail || {});
+      }
+      return;
     }
 
     if (e.detail?.focus === false) return;
     if (m == null) return;
-    // Nalla click / prev-next / activate already flew the camera
-    if (joiningOwnsCamera) return;
 
     const p = interpolateChainage(dataset.chainage, m);
     if (!p || p.x == null) return;
@@ -616,6 +674,76 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
       lithologyPick.visible = false;
       lithologyPickInfo = null;
+    },
+    async setLulcYear(year) {
+      return hydrologyLayer.userData?.setLulcYear?.(year);
+    },
+    getLulcYear() {
+      return hydrologyLayer.userData?.getLulcYear?.() ?? null;
+    },
+    async setSiltClassificationPeriod(periodId) {
+      return hydrologyLayer.userData?.setSiltClassificationPeriod?.(periodId);
+    },
+    getSiltClassificationPeriod() {
+      return hydrologyLayer.userData?.getSiltClassificationPeriod?.() ?? null;
+    },
+    /**
+     * Land Use thematic layers (mutually exclusive with other hydrology overlays).
+     * vegetation_extent → JalNetra Mula–Mutha vegetation API (when ready).
+     * landuse_lulc → Mula–Mutha LULC overlays (2021–2026).
+     */
+    async showLandUseLayer(id) {
+      hydrologyLayer.userData?.hideAll?.();
+      state.hydrologyHidesWater = false;
+      state.hydrologyHidesFlood = false;
+      state.bankErosionMode = false;
+      state.lithologyMode = false;
+      document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
+
+      if (id === "vegetation_extent") {
+        if (
+          state.vegetationStatus === "ready" &&
+          vegApiResult &&
+          !vegApiResult.userData?.empty &&
+          (vegApiResult.userData?.instanceCount > 0 || vegApiResult.children?.length)
+        ) {
+          vegApiGroup.visible = true;
+          vegApiResult.visible = true;
+          const legend =
+            vegApiResult.userData?.vegetationLegend || {
+              type: "classes",
+              title: "VEGETATION EXTENT",
+              classes: [
+                { label: "Trees", color: "#2d6a4f" },
+                { label: "Shrub / Scrub", color: "#52b788" },
+                { label: "Grass / Herbaceous", color: "#95d5b2" },
+                { label: "Mixed / Diverse", color: "#74c69d" },
+              ],
+            };
+          return {
+            ok: true,
+            id,
+            available: true,
+            legend,
+            stats: vegApiResult.userData?.vegetationMeta || null,
+          };
+        }
+        const reason =
+          state.vegetationMessage ||
+          (state.vegetationStatus === "loading"
+            ? "JalNetra vegetation analysis is still running for this AOI."
+            : "No verified Mula–Mutha vegetation extent is available yet.");
+        return {
+          ok: true,
+          id,
+          available: false,
+          message: "DATA UNAVAILABLE",
+          reason,
+          legend: null,
+        };
+      }
+
+      return this.showHydrologyLayer(id);
     },
     setLithologyPick(info) {
       if (!info || info.x == null || info.z == null) {
@@ -851,7 +979,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       window.__MM_SCENE__.setDrainageFlow(active);
       document.getElementById("ui-root")?.classList.toggle("joining-streams-mode", active);
       if (active) {
-        joiningCtrl.activate();
+        if (typeof joiningCtrl.setEnabled === "function") joiningCtrl.setEnabled(true);
+        else joiningCtrl.activate();
       } else if (banks) {
         banks.visible = true;
       }
@@ -859,10 +988,18 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     stepJoiningStream(delta) {
       if (!state.joiningStreamsMode) return null;
-      if (!joiningCtrl.isActive()) joiningCtrl.activate();
+      if (!joiningCtrl.isActive()) {
+        if (typeof joiningCtrl.setEnabled === "function") joiningCtrl.setEnabled(true);
+        else joiningCtrl.activate();
+      }
       const d = Number(delta);
-      if (!Number.isFinite(d) || d === 0) return joiningCtrl.getSelected();
-      return joiningCtrl.step(d);
+      if (!Number.isFinite(d) || d === 0) {
+        return joiningCtrl.getSelectedDrainage?.() ?? joiningCtrl.getSelected();
+      }
+      // River-ordered drainage navigation (NOT main-river chainage)
+      return d > 0
+        ? joiningCtrl.nextDrainage?.() ?? joiningCtrl.goToNextDrainage?.() ?? joiningCtrl.step(d)
+        : joiningCtrl.previousDrainage?.() ?? joiningCtrl.goToPreviousDrainage?.() ?? joiningCtrl.step(d);
     },
     /** Re-pick nearest drainage to current camera / chainage and fly to it. */
     focusNearestJoiningStream() {
@@ -930,9 +1067,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         joiningCtrl.select(null);
         return;
       }
-      joiningCtrl.select(rec, {
+      // Same camera path as Forward/Backward
+      if (typeof joiningCtrl.focusRecord === "function") {
+        return joiningCtrl.focusRecord(rec, { source: "click" });
+      }
+      return joiningCtrl.select(rec, {
         syncChainage: true,
         focusCamera: true,
+        cameraMode: "drainage-focus",
         source: "click",
       });
     },

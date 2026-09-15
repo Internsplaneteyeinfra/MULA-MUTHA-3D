@@ -311,14 +311,20 @@ export function mountGeologyWorkspace(root) {
   function showJoiningCard(rec) {
     if (!joiningKv || !rec) return;
     const m = rec.meta || {};
-    const name =
-      rec.displayName ||
-      (() => {
-        const n = String(m.name || m.nameEn || m.intName || rec.name || "").trim();
-        const id = rec.displayId || rec.id || "";
-        return n && !/^unnamed/i.test(n) ? `${n} (${id})` : `Unnamed channel (${id})`;
-      })();
-    if (joiningTitle) joiningTitle.textContent = name;
+    // Source name only — never invent "Unnamed …" or show D-IDs as a name
+    const rawCandidates = [m.name, m.nameEn, m.intName, rec.displayName, rec.name];
+    let name = "";
+    for (const c of rawCandidates) {
+      const s = String(c || "").trim();
+      if (!s || /^unnamed\b/i.test(s)) continue;
+      name = s;
+      break;
+    }
+    if (joiningTitle) {
+      joiningTitle.textContent = name;
+      joiningTitle.hidden = !name;
+      joiningTitle.style.display = name ? "" : "none";
+    }
 
     const dist =
       rec.distanceToRiverM != null
@@ -340,7 +346,7 @@ export function mountGeologyWorkspace(root) {
 
     const rows = [
       ["Type", waterwayTypeLabel(m.waterway)],
-      ["Chainage", rec.nearestChainageLabel || "—"],
+      ["Nearest Chainage", rec.riverChainageLabel || rec.nearestChainageLabel || "—"],
       ["Distance", dist],
       ["Flow", "→ River"],
       ["Status", rec.connectsToRiver ? "Connected" : "Disconnected"],
@@ -357,13 +363,17 @@ export function mountGeologyWorkspace(root) {
       .join("");
 
     const total = window.__MM_SCENE__?.getJoiningStreamCount?.() ?? 0;
-    const idx = (rec.navIndex ?? 0) + 1;
+    const idx = rec.navigationNumber ?? (rec.navIndex ?? 0) + 1;
     if (joiningPanelNav) joiningPanelNav.hidden = total < 1;
     if (joiningPanelCount) joiningPanelCount.textContent = total ? `${idx} / ${total}` : "0 / 0";
   }
 
   function clearJoiningCard() {
-    if (joiningTitle) joiningTitle.textContent = "Nearest drainage";
+    if (joiningTitle) {
+      joiningTitle.textContent = "";
+      joiningTitle.hidden = true;
+      joiningTitle.style.display = "none";
+    }
     if (joiningKv) {
       joiningKv.innerHTML =
         `<div class="js-kv"><span class="js-k">Status</span><span class="js-v">Select a channel</span></div>`;

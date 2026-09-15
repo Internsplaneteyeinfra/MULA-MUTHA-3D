@@ -211,3 +211,75 @@ function parseCoords(raw) {
     })
     .filter(Boolean);
 }
+
+/** KML PolyStyle color is aabbggrr → CSS #RRGGBB */
+export function kmlColorToHex(aabbgrr) {
+  const s = String(aabbgrr || "").trim();
+  if (!/^[0-9a-fA-F]{8}$/.test(s)) return null;
+  return `#${s.slice(6, 8)}${s.slice(4, 6)}${s.slice(2, 4)}`.toUpperCase();
+}
+
+function classLabelFromPlacemarkName(name) {
+  const n = String(name || "").trim();
+  const salinity = n.match(
+    /^(Very Low Salinity|Low Salinity|Moderate Salinity|High Salinity|Very High Salinity)/i,
+  );
+  if (salinity) return salinity[1];
+  const cls = n.match(/^(Class\s*\d+)/i);
+  if (cls) return cls[1].replace(/\s+/g, " ");
+  return n.replace(/\s*\([^)]*\)\s*$/, "").trim() || "Unknown";
+}
+
+/**
+ * Classed thematic polygons (TSS / NDWI / NDCI / WST / salinity).
+ * Placemark name → class label; PolyStyle color from styleUrl.
+ */
+export function parseClassedPolygonKml(text) {
+  const styles = new Map();
+  for (const m of text.matchAll(/<Style\s+id="([^"]+)"[\s\S]*?<\/Style>/gi)) {
+    const colorM = m[0].match(
+      /<PolyStyle[\s\S]*?<color>\s*([0-9A-Fa-f]{8})\s*<\/color>/i,
+    );
+    if (colorM) styles.set(m[1], kmlColorToHex(colorM[1]));
+  }
+
+  const features = [];
+  const placemarks = [...text.matchAll(/<Placemark[\s\S]*?<\/Placemark>/gi)];
+  for (let i = 0; i < placemarks.length; i++) {
+    const content = placemarks[i][0];
+    const nameM = content.match(/<name>\s*([^<]*)\s*<\/name>/i);
+    const name = nameM?.[1]?.trim() || "";
+    const descM = content.match(/<description>\s*([\s\S]*?)\s*<\/description>/i);
+    const description = (descM?.[1] || "")
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+    const styleM = content.match(/<styleUrl>\s*#?([^<\s]+)\s*<\/styleUrl>/i);
+    const styleId = styleM?.[1]?.trim() || "";
+    const outer = content.match(
+      /<outerBoundaryIs>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/i,
+    );
+    if (!outer) continue;
+    const coordinates = parseCoords(outer[1]);
+    if (coordinates.length < 4) continue;
+
+    const class_label = classLabelFromPlacemarkName(name);
+    let range = null;
+    const rangeM = description.match(/Range:\s*([^\n<]+)/i);
+    if (rangeM) range = rangeM[1].trim();
+
+    features.push({
+      id: i,
+      name,
+      description,
+      styleId,
+      class_label,
+      class: class_label,
+      range,
+      color: styles.get(styleId) || null,
+      coordinates,
+    });
+  }
+  return features;
+}

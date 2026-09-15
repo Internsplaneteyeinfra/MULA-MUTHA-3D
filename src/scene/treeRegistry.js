@@ -1,9 +1,8 @@
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { loadGltf, prefetchGlbUrls } from "../utils/gltfLoader.js";
 import * as THREE from "three";
 import { mergeMeshesForInstancing } from "../urban/geometryMerge.js";
 import { standTreeUpright } from "./treeOrient.js";
 
-const gltfLoader = new GLTFLoader();
 const cache = new Map();
 
 export const TREE_MANIFEST = [
@@ -13,6 +12,11 @@ export const TREE_MANIFEST = [
   { id: "birch", url: "/assets/trees/birch.glb", nativeW: 5, nativeD: 5, nativeH: 8.5, tags: ["birch", "betula"] },
   { id: "grass", url: "/assets/trees/grass.glb", nativeW: 1.2, nativeD: 1.2, nativeH: 1.4, tags: ["grass", "shrub", "plant"] },
 ];
+
+/** Kick off browser prefetch for tree GLBs (meshopt-compressed). */
+export function prefetchTreeAssets() {
+  prefetchGlbUrls(TREE_MANIFEST.map((t) => t.url));
+}
 
 export function classifyTreeAsset(props = {}, kind = "osm", rng = () => 0.5) {
   const text = [
@@ -51,7 +55,7 @@ export async function loadTreePrototype(id) {
 
   const promise = (async () => {
     try {
-      const gltf = await gltfLoader.loadAsync(entry.url);
+      const gltf = await loadGltf(entry.url);
       standTreeUpright(gltf.scene);
       const merged = mergeMeshesForInstancing(gltf.scene);
       const material = merged.material?.clone?.() || new THREE.MeshStandardMaterial({ color: "#ffffff", roughness: 0.9 });

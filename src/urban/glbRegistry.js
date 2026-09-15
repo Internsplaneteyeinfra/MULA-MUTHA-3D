@@ -1,10 +1,9 @@
-import { GLTFLoader } from "three/examples/jsm/loaders/GLTFLoader.js";
+import { loadGltf } from "../utils/gltfLoader.js";
 import { createProceduralPrototype } from "./buildingPrototypes.js";
 import { getBuildingMaterial, styleClassFromClassification } from "./buildingMaterials.js";
 import { mergeMeshesForInstancing } from "./geometryMerge.js";
 
 const cache = new Map();
-const gltfLoader = new GLTFLoader();
 
 export const BUILDING_MANIFEST = [
   { id: "residential/house_01", url: "/assets/buildings/residential/house_01.glb", nativeW: 10, nativeD: 8, nativeH: 7, style: "house" },
@@ -35,7 +34,7 @@ export async function loadBuildingPrototype(id, styleClass) {
   const promise = (async () => {
     const material = getBuildingMaterial(style);
     try {
-      const gltf = await gltfLoader.loadAsync(entry.url);
+      const gltf = await loadGltf(entry.url);
       const merged = mergeMeshesForInstancing(gltf.scene);
       return {
         id,

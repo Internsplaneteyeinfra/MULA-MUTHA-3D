@@ -1,0 +1,44 @@
+{
+  "year": 2024,
+  "name": "Mula-Mutha LULC 2024",
+  "bounds": {
+    "north": 18.56235850242967,
+    "south": 18.509203857291638,
+    "east": 73.9963853971848,
+    "west": 73.84988078051396
+  },
+  "classes": [
+    {
+      "id": "class_0",
+      "label": "Forest",
+      "color": "#006400",
+      "code": 0
+    },
+    {
+      "id": "class_1",
+      "label": "Crop Land",
+      "color": "#E6A23C",
+      "code": 1
+    },
+    {
+      "id": "class_2",
+      "label": "Barren Land",
+      "color": "#A9A9A9",
+      "code": 2
+    },
+    {
+      "id": "class_3",
+      "label": "Water Bodies",
+      "color": "#2196F3",
+      "code": 3
+    },
+    {
+      "id": "class_4",
+      "label": "Settlements",
+      "color": "#C62828",
+      "code": 4
+    }
+  ],
+  "overlay": "/data/hydrology/lulc/2024/overlay.png",
+  "source": "MulaMutha_LULC_2024.kmz"
+}
