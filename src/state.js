@@ -141,12 +141,26 @@ export const state = {
   joiningStreamsNavigation: false,
   /** True while a joining-stream click selection owns the info card. */
   joiningStreamsTipActive: false,
+  /** True while Pollution garbage selection owns camera (block chainage fly). */
+  garbageSelectionActive: false,
   /** True while Geology → Main Stem centerline is visible. */
   mainStemMode: false,
   /** True while Geology → Bathymetry depth-zone overlay is active. */
   bathymetryMode: false,
-  /** True while click width/depth measure overlay is visible on the river. */
+  /** True while Land Use focus chrome is active (LULC / silt / veg). */
+  landUseFocusMode: false,
+  /** Active map-focus kind: null | 'landuse' | 'geology' | 'pollution'. */
+  mapFocusKind: null,
+  /** Selected LULC/silt/geo/pollution class label for focused inspection (null = all). */
+  landUseSelectedClass: null,
+  /** True while width/depth measure overlay is visible on the river. */
   riverMeasureActive: false,
+  /** River Data → Depth toggles 3D depth label at selected chainage. */
+  riverMeasureDepthOn: false,
+  /** River Data → Width toggles 3D bank-to-bank width at selected chainage. */
+  riverMeasureWidthOn: false,
+  /** River Data → Measure: two-point distance mode (independent of depth/width). */
+  distanceMeasureActive: false,
   cinematicActive: false,
   cinematicPaused: false,
   cinematicProgress: 0,

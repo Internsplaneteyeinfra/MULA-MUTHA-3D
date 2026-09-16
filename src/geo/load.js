@@ -41,7 +41,7 @@ export const DEPTH_OVERLAY_BOX = {
 export async function loadJourneyDataset({
   csvUrl,
   riverCoordsUrl = "/data/Mula_MuthaAOI_3_full_coordinates.csv",
-  chainageKmlUrl = "/data/Mula_Mutha_Chainage_Analysis.kml",
+  chainageKmlUrl = "/data/Mula_Mutha_Chainage_10m.kml",
   kmlUrl,
   kmlFallbacks = [],
   bridgesUrl = "/data/bridges.geojson",
@@ -53,28 +53,37 @@ export async function loadJourneyDataset({
   onProgress?.(0.06, "Fetching Excel water-depth grid…");
   const depth = await loadDepthCsv(csvUrl, onProgress);
 
-  onProgress?.(0.48, "Loading Chainage Analysis KML (authoritative)…");
+  onProgress?.(0.48, "Loading 10 m chainage KML (authoritative)…");
   let ringGeo;
   let usedRiverSource;
   let centerlineGeo = null;
   let chainageGeo = [];
+  let chainageIntervalM = 10;
 
-  // PRIORITY 1: Chainage Analysis KML — polygon + centerline + chainage points
+  // PRIORITY 1: 10 m chainage KML — polygon + centerline + exact lon/lat stations
   try {
-    const { text, url } = await fetchKmlText(chainageKmlUrl, []);
+    const { text, url } = await fetchKmlText(chainageKmlUrl, [
+      "/data/Mula_Mutha_Chainage_Analysis.kml",
+    ]);
     const parsed = parseChainageAnalysisKml(text);
     if (!parsed.polygon?.length) throw new Error("Chainage KML missing river polygon");
     ringGeo = parsed.polygon;
     centerlineGeo = parsed.centerline;
     chainageGeo = parsed.chainage || [];
+    chainageIntervalM = parsed.intervalM || 10;
     usedRiverSource = url;
-    console.info("Chainage Analysis KML", {
+    console.info("Chainage KML", {
       url,
+      sourceName: parsed.sourceName,
+      intervalM: chainageIntervalM,
       polygonVerts: ringGeo.length,
       centerlineVerts: centerlineGeo?.length ?? 0,
       chainagePoints: chainageGeo.length,
       first: chainageGeo[0]?.label,
       last: chainageGeo[chainageGeo.length - 1]?.label,
+      sample: chainageGeo[0]
+        ? { lon: chainageGeo[0].lon, lat: chainageGeo[0].lat, label: chainageGeo[0].label }
+        : null,
     });
   } catch (chainErr) {
     console.warn("Chainage KML unavailable, falling back:", chainErr.message);
@@ -324,6 +333,7 @@ export async function loadJourneyDataset({
     ringGeo,
     centerlineLocal,
     chainage,
+    chainageIntervalM,
     corridor,
     bathymetry,
     bridges,

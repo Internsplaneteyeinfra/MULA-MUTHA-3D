@@ -1,5 +1,5 @@
 /** Cache static assets for fast repeat visits. */
-const CACHE = "mula-mutha-v6";
+const CACHE = "mula-mutha-v8";
 const PRECACHE = ["/", "/index.html"];
 
 self.addEventListener("install", (e) => {
@@ -20,10 +20,13 @@ self.addEventListener("fetch", (e) => {
   const url = new URL(e.request.url);
   if (e.request.method !== "GET") return;
 
-  // Never cache hydrology config / bank-erosion raster — must stay fresh
+  // Never cache hydrology config / bank-erosion / pollution KML —
+  // stale SPA HTML was previously cached for missing public paths.
   if (
     url.pathname.includes("/hydrology/hydrologyConfig.json") ||
-    url.pathname.includes("/hydrology/bank_erosion/")
+    url.pathname.includes("/hydrology/bank_erosion/") ||
+    url.pathname.includes("/hydrology/pollution/") ||
+    url.pathname.includes("/hydrology/silt/")
   ) {
     e.respondWith(fetch(e.request, { cache: "no-store" }));
     return;
@@ -65,10 +68,21 @@ self.addEventListener("fetch", (e) => {
   e.respondWith(
     caches.open(CACHE).then(async (cache) => {
       const hit = await cache.match(e.request);
-      if (hit) return hit;
+      // Never reuse a cached HTML shell for data URLs
+      if (hit) {
+        const ct = hit.headers.get("content-type") || "";
+        if (ct.includes("text/html")) {
+          cache.delete(e.request);
+        } else {
+          return hit;
+        }
+      }
       try {
         const res = await fetch(e.request);
-        if (res.ok) cache.put(e.request, res.clone());
+        const ct = res.headers.get("content-type") || "";
+        if (res.ok && !ct.includes("text/html")) {
+          cache.put(e.request, res.clone());
+        }
         return res;
       } catch {
         return hit || Response.error();

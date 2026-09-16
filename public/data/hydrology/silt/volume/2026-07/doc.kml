@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Silt Volume Surface - July 2026</name>
+  <description>Silt volume surface raster. Colour scale fixed 0-94.31, shared across all monthly files for direct comparison. Earth-tone (YlOrBr) palette.</description>
+  <ScreenOverlay>
+    <name>Legend</name>
+    <Icon><href>files/legend.png</href></Icon>
+    <overlayXY x="0" y="1" xunits="fraction" yunits="fraction"/>
+    <screenXY x="0.01" y="0.99" xunits="fraction" yunits="fraction"/>
+    <rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+    <size x="0" y="0" xunits="fraction" yunits="fraction"/>
+  </ScreenOverlay>
+  <GroundOverlay>
+    <name>Silt Volume Surface - July 2026</name>
+    <description>Silt volume surface raster. Colour scale fixed 0-94.31, shared across all monthly files for direct comparison. Earth-tone (YlOrBr) palette.</description>
+    <Icon>
+      <href>files/overlay.png</href>
+      <viewBoundScale>0.75</viewBoundScale>
+    </Icon>
+    <LatLonBox>
+      <north>18.547336008158936</north>
+      <south>18.520745875748997</south>
+      <east>73.99351130069769</east>
+      <west>73.85490125235805</west>
+      <rotation>0</rotation>
+    </LatLonBox>
+  </GroundOverlay>
+</Document>
+</kml>

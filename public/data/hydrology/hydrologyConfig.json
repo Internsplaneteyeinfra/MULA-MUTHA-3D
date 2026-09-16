@@ -1,5 +1,5 @@
   {
-    "version": 9,
+    "version": 13,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -45,13 +45,13 @@
       "liftM": 1.6,
       "renderType": "terrainDrapedTexture",
       "legendTitle": "Bank erosion hotspots",
-      "legendSubtitle": "2016–2026 classified overlay.",
+      "legendSubtitle": "2016–2026 smoothed classification.",
       "legendClasses": [
-        { "id": "none", "label": "No erosion", "color": "#7CFF2A", "pct": "83.1%" },
-        { "id": "low", "label": "Low erosion", "color": "#FFE600", "pct": "15.5%" },
-        { "id": "moderate", "label": "Moderate erosion", "color": "#FF8C00", "pct": "1.4%" },
-        { "id": "high", "label": "High erosion", "color": "#FF3737", "pct": "0%" },
-        { "id": "very_high", "label": "Very high erosion", "color": "#A0001E", "pct": "0%" }
+        { "id": "none", "label": "No erosion", "color": "#90EE90", "pct": "83.1%" },
+        { "id": "low", "label": "Low erosion", "color": "#FFFF00", "pct": "15.5%" },
+        { "id": "moderate", "label": "Moderate erosion", "color": "#FFA500", "pct": "1.4%" },
+        { "id": "high", "label": "High erosion", "color": "#FF0000", "pct": "0%" },
+        { "id": "very_high", "label": "Very high erosion", "color": "#8B0000", "pct": "0%" }
       ]
     },
     {
@@ -165,9 +165,17 @@
     {
       "id": "pollution",
       "name": "POLLUTION",
-      "available": false,
-      "reason": "No Pollution dataset is connected to the RiverEye Hydrology layer.",
-      "unavailableLabel": "DATA UNAVAILABLE"
+      "available": true,
+      "type": "garbagePoints",
+      "crs": "EPSG:4326",
+      "data": "/data/hydrology/pollution/garbage-locations.kml",
+      "source": "mula-mutha-garbage-locations.kml",
+      "legendTitle": "Pollution",
+      "legendSubtitle": "Detected garbage locations",
+      "classes": [
+        { "id": "garbage", "label": "Detected garbage", "color": "#E89A1C" }
+      ],
+      "renderType": "animatedGarbagePins"
     },
     {
       "id": "landuse",
@@ -255,8 +263,8 @@
       "type": "siltClassificationPeriods",
       "crs": "EPSG:4326",
       "defaultPeriod": "2026-07",
-      "opacity": 0.88,
-      "liftM": 1.2,
+      "opacity": 1,
+      "liftM": 1.4,
       "gridSegments": 128,
       "legendTitle": "Silt Classification",
       "legendSubtitle": "Discrete silt classes",
@@ -286,9 +294,38 @@
     {
       "id": "silt_volume_surface",
       "name": "SILT VOLUME SURFACE",
-      "available": false,
-      "reason": "No Mula-Mutha Silt Volume Surface dataset is connected to RiverEye.",
-      "unavailableLabel": "DATA UNAVAILABLE"
+      "available": true,
+      "type": "siltVolumePeriods",
+      "crs": "EPSG:4326",
+      "defaultPeriod": "2026-07",
+      "opacity": 1,
+      "liftM": 1.5,
+      "gridSegments": 128,
+      "legendTitle": "Silt Volume Surface",
+      "legendSubtitle": "Fixed scale 0–94.31 · YlOrBr",
+      "bounds": {
+        "north": 18.547336008158936,
+        "south": 18.520745875748997,
+        "east": 73.99351130069769,
+        "west": 73.85490125235805
+      },
+      "classes": [
+        { "id": "v0", "label": "0", "color": "#FFFFD4", "range": "low" },
+        { "id": "v25", "label": "~24", "color": "#FED98E" },
+        { "id": "v50", "label": "~47", "color": "#FE9929" },
+        { "id": "v75", "label": "~71", "color": "#D95F0E" },
+        { "id": "v100", "label": "94.3", "color": "#993404", "range": "high" }
+      ],
+      "periods": [
+        { "id": "2026-01", "label": "Jan", "year": 2026, "month": 1, "overlay": "/data/hydrology/silt/volume/2026-01/overlay.png", "legend": "/data/hydrology/silt/volume/2026-01/legend.png" },
+        { "id": "2026-02", "label": "Feb", "year": 2026, "month": 2, "overlay": "/data/hydrology/silt/volume/2026-02/overlay.png", "legend": "/data/hydrology/silt/volume/2026-02/legend.png" },
+        { "id": "2026-03", "label": "Mar", "year": 2026, "month": 3, "overlay": "/data/hydrology/silt/volume/2026-03/overlay.png", "legend": "/data/hydrology/silt/volume/2026-03/legend.png" },
+        { "id": "2026-04", "label": "Apr", "year": 2026, "month": 4, "overlay": "/data/hydrology/silt/volume/2026-04/overlay.png", "legend": "/data/hydrology/silt/volume/2026-04/legend.png" },
+        { "id": "2026-05", "label": "May", "year": 2026, "month": 5, "overlay": "/data/hydrology/silt/volume/2026-05/overlay.png", "legend": "/data/hydrology/silt/volume/2026-05/legend.png" },
+        { "id": "2026-06", "label": "Jun", "year": 2026, "month": 6, "overlay": "/data/hydrology/silt/volume/2026-06/overlay.png", "legend": "/data/hydrology/silt/volume/2026-06/legend.png" },
+        { "id": "2026-07", "label": "Jul", "year": 2026, "month": 7, "overlay": "/data/hydrology/silt/volume/2026-07/overlay.png", "legend": "/data/hydrology/silt/volume/2026-07/legend.png" }
+      ],
+      "renderType": "terrainDrapedSiltVolume"
     },
     {
       "id": "vegetation_extent",

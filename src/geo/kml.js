@@ -26,19 +26,22 @@ export function parseKmlGeometry(text) {
 }
 
 /**
- * Parse Chainage Analysis KML:
- * - River Boundary polygon
- * - River Centerline LineString
- * - Chainage Points named N+MMM (every 100 m)
+ * Parse Chainage Analysis / 10 m chainage KML:
+ * - River boundary polygon
+ * - River centerline LineString
+ * - Chainage points named N+MMM (10 m or 100 m interval)
+ *
+ * Prefer ExtendedData longitude/latitude/chainage_label/chainage_m when present
+ * so stations match the authoritative KML field format exactly.
  */
 export function parseChainageAnalysisKml(text) {
   const geom = parseKmlGeometry(text);
   const polygon = geom.polygons[0] || null;
 
-  // Explicitly extract "River Centerline" LineString (ignore LinearRings from polygon)
+  // Explicitly extract River centerline LineString (ignore LinearRings from polygon)
   let centerline = null;
   const clBlock = text.match(
-    /<name>\s*River Centerline\s*<\/name>[\s\S]*?<LineString[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/i,
+    /<name>\s*River\s+Centerline\s*<\/name>[\s\S]*?<LineString[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/i,
   );
   if (clBlock) {
     const pts = parseCoords(clBlock[1]);
@@ -68,32 +71,94 @@ export function parseChainageAnalysisKml(text) {
   const chainage = [];
   const placemarks = [...text.matchAll(/<Placemark[\s\S]*?<\/Placemark>/gi)];
   for (const block of placemarks) {
-    const nameM = block[0].match(/<name>\s*(\d+)\+(\d+)\s*<\/name>/i);
-    if (!nameM) continue;
-    const km = Number(nameM[1]);
-    const m = Number(nameM[2]);
-    const meters = km * 1000 + m;
-    const pointM = block[0].match(/<Point>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/i);
-    if (!pointM) continue;
-    const pts = parseCoords(pointM[1]);
-    if (!pts.length) continue;
-    const label = `${km}+${String(m).padStart(3, "0")}`;
+    const content = block[0];
+    const nameM = content.match(/<name>\s*(\d+)\+(\d+)\s*<\/name>/i);
+    const labelExt = kmlDataValue(content, "chainage_label");
+    const labelFromExt = labelExt?.match(/^(\d+)\+(\d+)$/);
+    if (!nameM && !labelFromExt) continue;
+
+    const km = Number(labelFromExt?.[1] ?? nameM[1]);
+    const rem = Number(labelFromExt?.[2] ?? nameM[2]);
+    const metersExt = Number(kmlDataValue(content, "chainage_m"));
+    const meters = Number.isFinite(metersExt)
+      ? Math.round(metersExt)
+      : km * 1000 + rem;
+    const label =
+      (labelExt && /^\d+\+\d+$/.test(labelExt.trim())
+        ? labelExt.trim()
+        : null) || `${km}+${String(rem).padStart(3, "0")}`;
+
+    const lonExt = Number(kmlDataValue(content, "longitude"));
+    const latExt = Number(kmlDataValue(content, "latitude"));
+    let lon = Number.isFinite(lonExt) ? lonExt : null;
+    let lat = Number.isFinite(latExt) ? latExt : null;
+    if (lon == null || lat == null) {
+      const pointM = content.match(/<Point>[\s\S]*?<coordinates>([\s\S]*?)<\/coordinates>/i);
+      if (!pointM) continue;
+      const pts = parseCoords(pointM[1]);
+      if (!pts.length) continue;
+      lon = pts[0].lon;
+      lat = pts[0].lat;
+    }
+
+    const pinNo = Number(kmlDataValue(content, "pin_no"));
     chainage.push({
       label,
       meters,
-      major: m === 0 || label === "16+400",
-      lon: pts[0].lon,
-      lat: pts[0].lat,
+      major: Math.round(meters) % 1000 === 0,
+      pinNo: Number.isFinite(pinNo) ? pinNo : undefined,
+      lon,
+      lat,
     });
   }
   chainage.sort((a, b) => a.meters - b.meters);
+  if (chainage.length) {
+    chainage[0].major = true;
+    chainage[chainage.length - 1].major = true;
+  }
+
+  const intervalM = detectChainageIntervalM(chainage);
+  const sourceName =
+    intervalM === 10
+      ? "Mula-Mutha River — 10 m chainage"
+      : "Mula Mutha River – Chainage Analysis";
 
   return {
     polygon,
     centerline,
     chainage,
-    sourceName: "Mula Mutha River – Chainage Analysis",
+    intervalM,
+    sourceName,
   };
+}
+
+function kmlDataValue(content, name) {
+  const re = new RegExp(
+    `<Data\\s+name="${name}"[^>]*>\\s*<value>\\s*([^<]+?)\\s*</value>`,
+    "i",
+  );
+  const m = content.match(re);
+  return m?.[1]?.trim() ?? null;
+}
+
+/** Modal spacing between consecutive stations (typically 10 or 100). */
+function detectChainageIntervalM(chainage) {
+  if (!chainage || chainage.length < 3) return 100;
+  const counts = new Map();
+  for (let i = 1; i < Math.min(chainage.length, 80); i++) {
+    const d = Math.round(Math.abs(chainage[i].meters - chainage[i - 1].meters));
+    if (d <= 0) continue;
+    counts.set(d, (counts.get(d) || 0) + 1);
+  }
+  let best = 100;
+  let bestN = 0;
+  for (const [d, n] of counts) {
+    if (n > bestN) {
+      best = d;
+      bestN = n;
+    }
+  }
+  return best;
 }
 
 /**
@@ -279,6 +344,44 @@ export function parseClassedPolygonKml(text) {
       range,
       color: styles.get(styleId) || null,
       coordinates,
+    });
+  }
+  return features;
+}
+
+/**
+ * Parse KML Point placemarks (garbage / site locations).
+ * @returns {{ id:number, name:string, description:string, lon:number, lat:number }[]}
+ */
+export function parsePointPlacemarksKml(text) {
+  const features = [];
+  const placemarks = [...text.matchAll(/<Placemark[\s\S]*?<\/Placemark>/gi)];
+  for (let i = 0; i < placemarks.length; i++) {
+    const content = placemarks[i][0];
+    const pointM = content.match(
+      /<(?:\w+:)?Point\b[\s\S]*?<(?:\w+:)?coordinates>\s*([^<]+)\s*<\/(?:\w+:)?coordinates>/i,
+    );
+    if (!pointM) continue;
+    const coords = parseCoords(pointM[1]);
+    if (!coords.length) continue;
+    const { lon, lat } = coords[0];
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) continue;
+
+    const nameM = content.match(/<name>\s*([^<]*)\s*<\/name>/i);
+    const name = nameM?.[1]?.trim() || "";
+    const descM = content.match(/<description>\s*([\s\S]*?)\s*<\/description>/i);
+    const description = (descM?.[1] || "")
+      .replace(/<!\[CDATA\[([\s\S]*?)\]\]>/g, "$1")
+      .replace(/<br\s*\/?>/gi, "\n")
+      .replace(/<[^>]+>/g, "")
+      .trim();
+
+    features.push({
+      id: i + 1,
+      name: name || null,
+      description: description || null,
+      lon,
+      lat,
     });
   }
   return features;

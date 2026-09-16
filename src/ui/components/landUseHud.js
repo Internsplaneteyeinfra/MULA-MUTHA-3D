@@ -1,5 +1,6 @@
 import { Building2, Layers, Mountain, Trees } from "lucide";
 import { lucideHtml } from "../icons.js";
+import { state } from "../../state.js";
 
 /**
  * Land Use floating HUD — icon-only, no panel/card/title/labels.
@@ -106,15 +107,27 @@ export function mountLandUseHud(root, hooks = {}) {
   }
 
   function positionUnderLandUseIcon() {
+    // When a LULC/silt/veg layer is active, lift the 4 icons to the top bar slot
+    if (state.landUseFocusMode || root.classList.contains("land-use-focus")) {
+      wrap.classList.add("lu-hud--top");
+      wrap.style.left = "50%";
+      wrap.style.top = `calc(max(14px, env(safe-area-inset-top)) + 12px)`;
+      wrap.style.transform = "translateX(-50%)";
+      return;
+    }
+    wrap.classList.remove("lu-hud--top");
+    wrap.style.transform = "";
     const btn = document.querySelector('.analytics-controls [data-analytics="Land Use"]');
-    if (!btn) {
+    if (!btn || btn.offsetParent === null) {
       wrap.style.left = "50%";
       wrap.style.top = "calc(max(14px, env(safe-area-inset-top)) + 62px)";
+      wrap.style.transform = "translateX(-50%)";
       return;
     }
     const r = btn.getBoundingClientRect();
     wrap.style.left = `${Math.round(r.left + r.width / 2)}px`;
     wrap.style.top = `${Math.round(r.bottom + 12)}px`;
+    wrap.style.transform = "translateX(-50%)";
   }
 
   wrap.querySelectorAll("[data-lu]").forEach((btn) => {
@@ -134,11 +147,17 @@ export function mountLandUseHud(root, hooks = {}) {
           { unavailable: true },
         );
       }
+      // Sub-component selected → lift icons to top (focus chrome may already be on)
+      positionUnderLandUseIcon();
     });
     btn.addEventListener("pointerdown", (e) => e.stopPropagation());
   });
 
   function onResize() {
+    if (open) positionUnderLandUseIcon();
+  }
+
+  function onFocusChange() {
     if (open) positionUnderLandUseIcon();
   }
 
@@ -150,16 +169,18 @@ export function mountLandUseHud(root, hooks = {}) {
     wrap.classList.add("is-open");
     root.classList.add("land-use-open");
     window.addEventListener("resize", onResize);
+    document.addEventListener("land-use-focus-change", onFocusChange);
   }
 
   function hide() {
     open = false;
-    wrap.classList.remove("is-open");
+    wrap.classList.remove("is-open", "lu-hud--top");
     root.classList.remove("land-use-open");
     activeId = null;
     setActiveOption(null);
     setStatus("");
     window.removeEventListener("resize", onResize);
+    document.removeEventListener("land-use-focus-change", onFocusChange);
     window.setTimeout(() => {
       if (!open) wrap.hidden = true;
     }, 220);

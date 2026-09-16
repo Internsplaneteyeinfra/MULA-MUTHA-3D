@@ -9,6 +9,7 @@ import {
 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
+import { mountFocusThemeHud } from "../mapFocus.js";
 
 /** Reference lithology classes — exact percentages; colors match geology overlay raster. */
 export const LITHOLOGY_CLASSES = [
@@ -125,13 +126,13 @@ const GEOLOGY_TOOLBAR = [
   { moduleId: "bathymetry", tip: "Bathymetry", icon: Waves, color: "#7DD3FC" },
 ];
 
-/** Exact class scale from bank erosion hotspot product (2016–2026). */
+/** Exact class scale from bank erosion hotspot product (2016–2026, smoothed). */
 export const BANK_EROSION_CLASSES = [
-  { id: "none", label: "No erosion", color: "#7CFF2A", pct: "83.1%" },
-  { id: "low", label: "Low erosion", color: "#FFE600", pct: "15.5%" },
-  { id: "moderate", label: "Moderate erosion", color: "#FF8C00", pct: "1.4%" },
-  { id: "high", label: "High erosion", color: "#FF3737", pct: "0%" },
-  { id: "very_high", label: "Very high erosion", color: "#A0001E", pct: "0%" },
+  { id: "none", label: "No erosion", color: "#90EE90", pct: "83.1%" },
+  { id: "low", label: "Low erosion", color: "#FFFF00", pct: "15.5%" },
+  { id: "moderate", label: "Moderate erosion", color: "#FFA500", pct: "1.4%" },
+  { id: "high", label: "High erosion", color: "#FF0000", pct: "0%" },
+  { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%" },
 ];
 
 /** Exact Jul 2026 depth-class ramp (shallow → deep). */
@@ -146,6 +147,7 @@ export const BATHYMETRY_CLASSES = [
 /**
  * Geology workspace — fixed header + module row;
  * Spectral Lithology / Bank Erosion legends dock in the left UI stack.
+ * Active modules enter map-focus chrome (top chips + Back), same as Land Use.
  */
 export function mountGeologyWorkspace(root) {
   const wrap = document.createElement("div");
@@ -153,6 +155,16 @@ export function mountGeologyWorkspace(root) {
   wrap.id = "geology-workspace";
   wrap.hidden = true;
   wrap.setAttribute("aria-label", "Geology workspace");
+
+  const focusTheme = mountFocusThemeHud(root, {
+    onBack() {
+      // Focus chrome already closed — clear active module layers, keep toolbar open
+      activateGen += 1;
+      clearModuleLayers();
+      hideAllPanels();
+      setModuleActive(null, null);
+    },
+  });
 
   wrap.innerHTML = `
     <section class="geology-module-row" aria-label="Geology tools">
@@ -484,14 +496,26 @@ export function mountGeologyWorkspace(root) {
     window.__MM_JOINING_CARD__?.clear?.();
   }
 
+  function enterGeologyFocus(moduleId) {
+    let classes = [];
+    if (moduleId === "spectral_lithology") classes = LITHOLOGY_CLASSES;
+    else if (moduleId === "bank_erosion") classes = BANK_EROSION_CLASSES;
+    else if (moduleId === "bathymetry") {
+      classes = BATHYMETRY_CLASSES.map((c, i) => ({ ...c, key: String(i + 1) }));
+    }
+    focusTheme.showClasses(classes, "geology");
+  }
+
   function deactivateModule() {
     activateGen += 1;
     clearModuleLayers();
     hideAllPanels();
     setModuleActive(null, null);
+    focusTheme.hide();
   }
 
   async function activateModule(id, opts = {}) {
+    document.dispatchEvent(new CustomEvent("river-measure-clear"));
     const mod = GEOLOGY_MODULES.find((m) => m.id === id);
     if (!mod) return;
 
@@ -543,10 +567,12 @@ export function mountGeologyWorkspace(root) {
         root.classList.add("joining-streams-mode");
         window.__MM_SCENE__?.setJoiningStreams?.(true);
         if (gen !== activateGen) return;
+        enterGeologyFocus(id);
       } catch (err) {
         state.joiningStreamsMode = false;
         root.classList.remove("joining-streams-mode");
         console.warn("[geology] Joining streams:", err);
+        deactivateModule();
       }
       return;
     }
@@ -562,13 +588,17 @@ export function mountGeologyWorkspace(root) {
           root.classList.remove("main-stem-mode");
           hideAllPanels();
           setModuleActive(null, null);
+          focusTheme.hide();
           console.warn("[geology] Main stem layer unavailable", result);
+        } else {
+          enterGeologyFocus(id);
         }
       } catch (err) {
         state.mainStemMode = false;
         root.classList.remove("main-stem-mode");
         hideAllPanels();
         setModuleActive(null, null);
+        focusTheme.hide();
         console.warn("[geology] Main stem:", err);
       }
       return;
@@ -583,11 +613,15 @@ export function mountGeologyWorkspace(root) {
         if (result && result.available === false) {
           state.lithologyMode = false;
           root.classList.remove("lithology-mode");
+          focusTheme.hide();
           console.warn("[geology] Spectral lithology layer:", result.message);
+        } else {
+          enterGeologyFocus(id);
         }
       } catch (err) {
         state.lithologyMode = false;
         root.classList.remove("lithology-mode");
+        focusTheme.hide();
         console.warn("[geology] Spectral lithology:", err);
       }
       return;
@@ -607,12 +641,14 @@ export function mountGeologyWorkspace(root) {
         if (result?.available && result?.ok !== false && !result?.superseded) {
           state.bankErosionMode = true;
           root.classList.add("bank-erosion-mode");
+          enterGeologyFocus(id);
         } else {
           state.hydrologyHidesWater = false;
           state.hydrologyHidesFlood = false;
           state.bankErosionMode = false;
           state.bankErosionTipActive = false;
           root.classList.remove("bank-erosion-mode");
+          focusTheme.hide();
           console.warn("[geology] Bank erosion layer:", result);
         }
       } catch (err) {
@@ -621,6 +657,7 @@ export function mountGeologyWorkspace(root) {
         state.bankErosionMode = false;
         state.bankErosionTipActive = false;
         root.classList.remove("bank-erosion-mode");
+        focusTheme.hide();
         console.warn("[geology] Bank erosion:", err);
       }
       return;
@@ -637,15 +674,18 @@ export function mountGeologyWorkspace(root) {
           root.classList.remove("bathymetry-mode");
           hideAllPanels();
           setModuleActive(null, null);
+          focusTheme.hide();
           console.warn("[geology] Bathymetry layer unavailable", result);
         } else {
           console.info("[geology] Bathymetry on", result?.stats || null);
+          enterGeologyFocus(id);
         }
       } catch (err) {
         state.bathymetryMode = false;
         root.classList.remove("bathymetry-mode");
         hideAllPanels();
         setModuleActive(null, null);
+        focusTheme.hide();
         console.warn("[geology] Bathymetry:", err);
       }
       return;

@@ -127,10 +127,31 @@ export function createRiverWidthMeasure(dataset) {
     ]);
   }
 
+  function applyParts({ showDepth = true, showWidth = true }) {
+    depthLabel.visible = !!showDepth;
+    widthLabel.visible = !!showWidth;
+    const widthOn = !!showWidth;
+    crossLine.visible = widthOn;
+    crossLine2.visible = widthOn;
+    leftTick.visible = widthOn;
+    rightTick.visible = widthOn;
+    centerTick.visible = widthOn;
+    leftArrow.visible = widthOn;
+    rightArrow.visible = widthOn;
+  }
+
   /**
    * @param {{ x: number, z: number, depth: number }} hit
+   * @param {{ showDepth?: boolean, showWidth?: boolean, persist?: boolean }} opts
    */
-  function showAt(hit) {
+  function showAt(hit, opts = {}) {
+    const showDepth = opts.showDepth !== false;
+    const showWidth = opts.showWidth !== false;
+    const persist = !!opts.persist;
+    if (!showDepth && !showWidth) {
+      hide();
+      return null;
+    }
     const stations = dataset.corridor?.stations;
     if (!stations?.length) {
       hide();
@@ -198,15 +219,21 @@ export function createRiverWidthMeasure(dataset) {
       station: st,
     };
 
+    applyParts({ showDepth, showWidth });
     layoutLabels();
 
     group.visible = true;
     state.riverMeasureActive = true;
-    if (hideTimer) window.clearTimeout(hideTimer);
-    hideTimer = window.setTimeout(() => {
+    if (hideTimer) {
+      window.clearTimeout(hideTimer);
       hideTimer = 0;
-      hide();
-    }, HOLD_MS);
+    }
+    if (!persist) {
+      hideTimer = window.setTimeout(() => {
+        hideTimer = 0;
+        hide();
+      }, HOLD_MS);
+    }
 
     return lastHit;
   }

@@ -1,0 +1,236 @@
+import { state } from "../state.js";
+
+/**
+ * Shared map-focus chrome helpers (Land Use / Geology / Pollution).
+ * Hides brand/weather/analytics/tools; keeps chainage + river data + theme chips.
+ */
+
+const KIND_CLASS = {
+  landuse: "land-use-focus",
+  geology: "geology-focus",
+  pollution: "pollution-focus",
+  bodcod: "bod-cod-focus",
+};
+
+export function enterMapFocus(root, kind) {
+  const prev = state.mapFocusKind;
+  if (prev && prev !== kind) {
+    root.classList.remove(KIND_CLASS[prev]);
+  }
+  state.mapFocusKind = kind;
+  state.landUseFocusMode = kind === "landuse";
+  root.classList.add("map-focus");
+  if (KIND_CLASS[kind]) root.classList.add(KIND_CLASS[kind]);
+  // Clear peer focus kinds
+  for (const [k, cls] of Object.entries(KIND_CLASS)) {
+    if (k !== kind) root.classList.remove(cls);
+  }
+  document.dispatchEvent(new CustomEvent("river-measure-clear"));
+  document.dispatchEvent(
+    new CustomEvent("map-focus-change", { detail: { on: true, kind } }),
+  );
+  // Keep legacy event for Land Use HUD reposition listeners
+  if (kind === "landuse") {
+    document.dispatchEvent(
+      new CustomEvent("land-use-focus-change", { detail: { on: true } }),
+    );
+  }
+}
+
+export function exitMapFocus(root, kind = null) {
+  const cur = state.mapFocusKind;
+  if (kind && cur && kind !== cur) return;
+  state.mapFocusKind = null;
+  state.landUseFocusMode = false;
+  state.landUseSelectedClass = null;
+  root.classList.remove("map-focus", "land-use-focus", "geology-focus", "pollution-focus", "bod-cod-focus");
+  document.dispatchEvent(
+    new CustomEvent("map-focus-change", { detail: { on: false, kind: cur } }),
+  );
+  document.dispatchEvent(
+    new CustomEvent("land-use-focus-change", { detail: { on: false } }),
+  );
+}
+
+/**
+ * Top class letter chips + Back button (shared by Geology / Pollution / optional LU).
+ */
+export function mountFocusThemeHud(root, hooks = {}) {
+  const backEl = document.createElement("button");
+  backEl.type = "button";
+  backEl.className = "lu-theme-back map-chrome focus-theme-back";
+  backEl.hidden = true;
+  backEl.setAttribute("aria-label", "Back");
+  backEl.innerHTML = `<span class="lu-theme-back-arrow" aria-hidden="true">←</span><span>Back</span>`;
+  root.appendChild(backEl);
+
+  const classesEl = document.createElement("div");
+  classesEl.className = "lu-theme-classes map-chrome focus-theme-classes";
+  classesEl.hidden = true;
+  classesEl.setAttribute("role", "list");
+  classesEl.setAttribute("aria-label", "Layer classes");
+  root.appendChild(classesEl);
+
+  const extraEl = document.createElement("div");
+  extraEl.className = "focus-theme-extra map-chrome";
+  extraEl.hidden = true;
+  root.appendChild(extraEl);
+
+  let kind = null;
+  let selectedLabel = null;
+
+  function syncSelection() {
+    classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
+      const on = selectedLabel && btn.dataset.label === selectedLabel;
+      btn.classList.toggle("is-selected", !!on);
+      btn.setAttribute("aria-pressed", on ? "true" : "false");
+    });
+    classesEl.classList.toggle("has-selection", !!selectedLabel);
+    state.landUseSelectedClass = selectedLabel;
+  }
+
+  function letterKey(label, explicit) {
+    if (explicit) return String(explicit).slice(0, 2).toUpperCase();
+    const s = String(label || "").trim();
+    if (/^density\s+low/i.test(s)) return "L";
+    if (/^density\s+med/i.test(s)) return "M";
+    if (/^density\s+high/i.test(s)) return "H";
+    if (/garbage/i.test(s)) return "G";
+    if (/no erosion/i.test(s)) return "N";
+    if (/low erosion/i.test(s)) return "L";
+    if (/moderate/i.test(s)) return "M";
+    if (/very high/i.test(s)) return "V";
+    if (/high erosion/i.test(s)) return "H";
+    if (/basaltic/i.test(s)) return "B";
+    if (/weathered/i.test(s)) return "R";
+    if (/alluvial/i.test(s)) return "A";
+    if (/ferruginous/i.test(s)) return "F";
+    if (/clay/i.test(s)) return "C";
+    if (/silica/i.test(s)) return "S";
+    if (/mixed/i.test(s)) return "X";
+    if (/^water$/i.test(s)) return "W";
+    if (/^\d/.test(s)) {
+      const m = s.match(/(\d+\.\d+)/);
+      return m ? m[1].slice(-1) : (s.charAt(0) || "?").toUpperCase();
+    }
+    return (s.charAt(0) || "?").toUpperCase();
+  }
+
+  function showClasses(classes, focusKind, { extraHtml = "" } = {}) {
+    kind = focusKind;
+    selectedLabel = null;
+    state.landUseSelectedClass = null;
+    enterMapFocus(root, focusKind);
+    backEl.hidden = false;
+
+    const list = Array.isArray(classes) ? classes : [];
+    if (!list.length) {
+      classesEl.hidden = true;
+      classesEl.innerHTML = "";
+      root.classList.remove("lu-theme-classes-open");
+    } else {
+      classesEl.innerHTML = list
+        .map((c) => {
+          const label = c.label || c.id || "—";
+          const key = letterKey(label, c.key);
+          const color = c.color || "#888";
+          const pct = c.pct || c.range || "";
+          return `
+          <button type="button" class="lu-theme-class" role="listitem"
+            data-label="${escapeAttr(label)}"
+            style="--lu-class-color:${escapeAttr(color)}"
+            title="${escapeAttr(label)}${pct ? ` · ${pct}` : ""}"
+            aria-label="${escapeAttr(label)}"
+            aria-pressed="false">
+            <span class="lu-theme-class-letter">${escapeHtml(key)}</span>
+            <span class="lu-theme-class-name">${escapeHtml(label)}</span>
+          </button>`;
+        })
+        .join("");
+      classesEl.hidden = false;
+      root.classList.add("lu-theme-classes-open");
+      classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const label = btn.dataset.label;
+          selectedLabel = selectedLabel === label ? null : label;
+          document.dispatchEvent(new CustomEvent("river-measure-clear"));
+          syncSelection();
+          hooks.onClassSelect?.(selectedLabel);
+        });
+      });
+    }
+
+    if (extraHtml) {
+      extraEl.innerHTML = extraHtml;
+      extraEl.hidden = false;
+      hooks.bindExtra?.(extraEl);
+    } else {
+      extraEl.hidden = true;
+      extraEl.innerHTML = "";
+    }
+  }
+
+  function handleBack() {
+    document.dispatchEvent(new CustomEvent("river-measure-clear"));
+    if (selectedLabel) {
+      selectedLabel = null;
+      syncSelection();
+      hooks.onClassSelect?.(null);
+      return;
+    }
+    const k = kind;
+    hide();
+    hooks.onBack?.(k);
+  }
+
+  backEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    handleBack();
+  });
+
+  function hide() {
+    const k = kind;
+    // Idle instance: never clear peer focus / shared root classes
+    if (!k) {
+      classesEl.hidden = true;
+      classesEl.innerHTML = "";
+      extraEl.hidden = true;
+      extraEl.innerHTML = "";
+      backEl.hidden = true;
+      return;
+    }
+    kind = null;
+    selectedLabel = null;
+    state.landUseSelectedClass = null;
+    classesEl.hidden = true;
+    classesEl.innerHTML = "";
+    extraEl.hidden = true;
+    extraEl.innerHTML = "";
+    backEl.hidden = true;
+    root.classList.remove("lu-theme-classes-open");
+    exitMapFocus(root, k);
+  }
+
+  return {
+    showClasses,
+    hide,
+    backEl,
+    classesEl,
+    isVisible: () => !backEl.hidden,
+  };
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function escapeAttr(value) {
+  return escapeHtml(value).replace(/'/g, "&#39;");
+}

@@ -7,7 +7,6 @@ import { state } from "../state.js";
 
 /** Flat markers sit just above water surface. */
 const MARKER_Y = SURFACE_Y + 0.55;
-const LABEL_BASE_LIFT = 14;
 const LINE_Y = SURFACE_Y + 1.15;
 
 /**
@@ -178,24 +177,11 @@ export function createChainageLayer(dataset) {
   selectRing.frustumCulled = false;
   group.add(selectRing);
 
+  // Screen HUD owns the selected-station step control; no 3D sprite label.
   const labelGroup = new THREE.Group();
   labelGroup.name = "chainageLabels";
-  const labelSprites = [];
-  for (const p of points) {
-    const isMajor = majors.includes(p);
-    const spr = makeChainageLabelSprite(formatChainageText(p, "station"));
-    spr.position.set(p.x, SURFACE_Y + LABEL_BASE_LIFT + (isMajor ? 2 : 0), p.z);
-    spr.userData.point = p;
-    spr.userData.isMajor = isMajor;
-    spr.userData.mode = "station";
-    spr.userData.baseLift = LABEL_BASE_LIFT + (isMajor ? 2 : 0);
-    spr.visible = false;
-    labelGroup.add(spr);
-    labelSprites.push(spr);
-  }
+  labelGroup.visible = false;
   group.add(labelGroup);
-
-  let lastLabelMode = null;
 
   function syncSelection() {
     const sel = state.selectedChainageMeters;
@@ -266,60 +252,8 @@ export function createChainageLayer(dataset) {
     return THREE.MathUtils.clamp(0.85 + camY / 1600, 1.25, 1.95);
   }
 
-  function syncLabels(camera) {
-    const sel = state.selectedChainageMeters;
-    const mode =
-      state.chainageLabelMode === "meters"
-        ? "meters"
-        : state.chainageLabelMode === "both"
-          ? "both"
-          : "station";
-    if (mode !== lastLabelMode) {
-      lastLabelMode = mode;
-      for (const spr of labelSprites) {
-        spr.userData.mode = mode;
-        paintChainageLabel(spr, formatChainageText(spr.userData.point, mode));
-      }
-    }
-    labelGroup.visible = true;
-    if (!camera) return;
-
-    const camY = camera.position.y;
-    const closeView = camY < 650 || state.cameraMode === "local";
-    const joining = !!state.joiningStreamsMode;
-    const camLift = THREE.MathUtils.clamp(
-      camY * (closeView ? 0.01 : 0.01),
-      closeView ? (joining ? 4 : 6) : 0,
-      joining ? 18 : 40,
-    );
-
-    // Only the currently selected chainage label is shown in the 3D scene
-    for (const spr of labelSprites) {
-      const p = spr.userData.point;
-      const isSel = sel != null && p.meters === sel;
-      spr.visible = isSel;
-      if (!isSel) continue;
-
-      spr.position.set(
-        p.x,
-        SURFACE_Y + spr.userData.baseLift + camLift + (joining ? 2 : 6),
-        p.z - (closeView ? 4 : 8),
-      );
-      const d = camera.position.distanceTo(spr.position);
-      let s;
-      if (joining) {
-        // Keep station text compact while inspecting nullahs
-        s = THREE.MathUtils.clamp(d * 0.012, 6, 14);
-      } else if (closeView) {
-        s = THREE.MathUtils.clamp(d * 0.022, 10, 22);
-      } else {
-        const boost = markerBoostForCam(camY);
-        s = THREE.MathUtils.clamp(d * 0.014 * boost, 8, 30);
-      }
-      const twoLine = mode === "both" ? 1.65 : 0.9;
-      const sx = joining ? 1.6 : closeView ? 2.2 : 2.7;
-      spr.scale.set(s * sx, s * twoLine, 1);
-    }
+  function syncLabels(_camera) {
+    labelGroup.visible = false;
   }
 
   function update(camera) {
@@ -408,49 +342,6 @@ export function metersToStation(meters) {
   const km = Math.floor(m / 1000);
   const rem = m % 1000;
   return `${km}+${String(rem).padStart(3, "0")}`;
-}
-
-function makeChainageLabelSprite(text) {
-  const canvas = document.createElement("canvas");
-  canvas.width = 256;
-  canvas.height = 64;
-  const tex = new THREE.CanvasTexture(canvas);
-  tex.colorSpace = THREE.SRGBColorSpace;
-  tex.generateMipmaps = false;
-  tex.minFilter = THREE.LinearFilter;
-  tex.magFilter = THREE.LinearFilter;
-  const mat = new THREE.SpriteMaterial({
-    map: tex,
-    transparent: true,
-    depthTest: false,
-    depthWrite: false,
-  });
-  const spr = new THREE.Sprite(mat);
-  spr.userData.canvas = canvas;
-  spr.renderOrder = 29;
-  spr.frustumCulled = true;
-  spr.scale.set(18, 5, 1);
-  paintChainageLabel(spr, text);
-  return spr;
-}
-
-function paintChainageLabel(spr, text) {
-  const canvas = spr.userData.canvas;
-  if (!canvas) return;
-  const ctx = canvas.getContext("2d");
-  const w = canvas.width;
-  const h = canvas.height;
-  ctx.clearRect(0, 0, w, h);
-  const label = String(text || "—");
-  ctx.font = "700 34px Inter, system-ui, sans-serif";
-  ctx.textAlign = "center";
-  ctx.textBaseline = "middle";
-  ctx.lineWidth = 6;
-  ctx.strokeStyle = "rgba(0, 0, 0, 0.78)";
-  ctx.strokeText(label, w / 2, h / 2);
-  ctx.fillStyle = "#ffffff";
-  ctx.fillText(label, w / 2, h / 2);
-  if (spr.material.map) spr.material.map.needsUpdate = true;
 }
 
 /** Nearest chainage label to a local XZ point. */

@@ -673,7 +673,7 @@ export function createCameraSystem(canvas, dataset) {
     if (!toP || !toL) return;
 
     if (isMap2D()) {
-      // 2D: pan only to drainage target
+      // 2D: pan only to drainage / garbage target
       const height = Math.max(activeCamera.position.y, mapLookY + 400);
       tmpP.set(toL.x, height, toL.z);
       tmpL.set(toL.x, mapLookY, toL.z);
@@ -708,6 +708,11 @@ export function createCameraSystem(canvas, dataset) {
       progress: 0,
       duration: opts.durMs ?? 900,
     };
+  }
+
+  /** Same smooth flight path as drainage — used for garbage focus (not chainage). */
+  function startGarbageFlight(toP, toL, opts = {}) {
+    startDrainageFlight(toP, toL, opts);
   }
 
   function update(dt) {
@@ -926,6 +931,8 @@ export function createCameraSystem(canvas, dataset) {
     if (state.cinematicActive) return;
     // Joining Streams owns the camera — never fly to main-river chainage
     if (state.joiningStreamsMode || state.joiningStreamsNavigation) return;
+    // Pollution garbage selection owns camera — do not chainage-steal
+    if (state.garbageSelectionActive) return;
     state.playing = false;
     state.visualMode = "landscape";
     controls.enabled = true;
@@ -1106,6 +1113,7 @@ export function createCameraSystem(canvas, dataset) {
     focusOnXZ,
     focusPose,
     startDrainageFlight,
+    startGarbageFlight,
     update,
     resize,
     ensurePerspective: (opts) => exitMap2D(opts),

@@ -13,6 +13,10 @@ import { lucideHtml } from "../icons.js";
 import { mountGeologyWorkspace } from "./geologyWorkspace.js";
 import { mountWaterQualityHud } from "./waterQualityHud.js";
 import { mountLandUseHud } from "./landUseHud.js";
+import { mountLandUseThemeHud } from "./landUseThemeHud.js";
+import { mountFocusThemeHud } from "../mapFocus.js";
+import { mountPollutionKeyPoints } from "./pollutionKeyPoints.js";
+import { mountBodCodHud } from "./bodCodHud.js";
 import {
   FORECAST_HORIZONS,
   forecastProfile,
@@ -76,6 +80,108 @@ export function mountAnalyticsControls(root, dataset) {
     },
   });
 
+  const landUseTheme = mountLandUseThemeHud(root, {
+    async onYearChange(year) {
+      try {
+        const result = await window.__MM_SCENE__?.setLulcYear?.(year);
+        if (result?.available) {
+          activeHydroId = "landuse_lulc";
+          landUseHud.setStatus("");
+          renderHydroLegend(result);
+        } else if (result) {
+          landUseHud.setStatus(
+            `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(result.message || result.reason || "Year unavailable")}</span>`,
+            { unavailable: true },
+          );
+        }
+      } catch (err) {
+        landUseHud.setStatus(
+          `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(err?.message || String(err))}</span>`,
+          { unavailable: true },
+        );
+      }
+    },
+    async onPeriodChange(periodId) {
+      const layerId = activeHydroId === "silt_volume_surface" ? "silt_volume_surface" : "silt_classification";
+      try {
+        const result =
+          layerId === "silt_volume_surface"
+            ? await window.__MM_SCENE__?.setSiltVolumePeriod?.(periodId)
+            : await window.__MM_SCENE__?.setSiltClassificationPeriod?.(periodId);
+        if (result?.available) {
+          activeHydroId = layerId;
+          landUseHud.setStatus("");
+          renderHydroLegend(result);
+        } else if (result) {
+          landUseHud.setStatus(
+            `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(result.message || result.reason || "Period unavailable")}</span>`,
+            { unavailable: true },
+          );
+        }
+      } catch (err) {
+        landUseHud.setStatus(
+          `<strong>DATA UNAVAILABLE</strong><span>${escapeHtml(err?.message || String(err))}</span>`,
+          { unavailable: true },
+        );
+      }
+    },
+    onClear() {
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      clearHydroLegend();
+    },
+    onBack() {
+      // Leave focus chrome; clear map layer so user can pick LULC / silt again
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      hydroLegend.hidden = true;
+      hydroLegend.innerHTML = "";
+      landUseHud.setStatus("");
+      if (!landUseHud.isOpen()) landUseHud.show();
+      setActive("Land Use");
+    },
+  });
+
+  const pollutionTheme = mountFocusThemeHud(root, {
+    onBack() {
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      hydroLegend.hidden = true;
+      hydroLegend.innerHTML = "";
+      pollutionKeys.hide();
+      setActive(null);
+    },
+    onClassSelect(label) {
+      window.__MM_SCENE__?.setGarbageClassFilter?.(label);
+      if (label && /density/i.test(label)) {
+        window.__MM_SCENE__?.setGarbageDensityVisible?.(true);
+      }
+      window.__MM_SCENE__?.setGarbageLabelsVisible?.(true);
+      pollutionKeys.refresh();
+    },
+    bindExtra(extraEl) {
+      const densBtn = extraEl.querySelector("#focus-garbage-density");
+      if (!densBtn) return;
+      densBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const on = densBtn.getAttribute("aria-pressed") !== "true";
+        window.__MM_SCENE__?.setGarbageDensityVisible?.(on);
+        densBtn.classList.toggle("is-active", on);
+        densBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    },
+  });
+
+  const pollutionKeys = mountPollutionKeyPoints(root);
+
+  const bodCodHud = mountBodCodHud(root, {
+    onBack() {
+      setActive("hydrology");
+      if (!waterQualityHud.isOpen()) waterQualityHud.show();
+    },
+  });
+
   const modal = document.createElement("div");
   modal.className = "river-analysis-modal-backdrop";
   modal.hidden = true;
@@ -134,15 +240,73 @@ export function mountAnalyticsControls(root, dataset) {
     closeWaterQualityHud();
     closeLandUseHud();
     geology.close();
+    if (bodCodHud.isVisible()) bodCodHud.hide();
+    clearHydroLegend();
     setActive(null);
   }
 
   function clearHydroLegend() {
     hydroLegend.hidden = true;
     hydroLegend.innerHTML = "";
+    landUseTheme.hide();
+    pollutionTheme.hide();
+    pollutionKeys.hide();
+  }
+
+  function isLandUseThemeLegend(leg) {
+    if (!leg || leg.type !== "classes") return false;
+    if (Array.isArray(leg.years) && leg.years.length) return true;
+    if (Array.isArray(leg.periods) && leg.periods.length) return true;
+    const id = String(leg.layerId || "");
+    return (
+      id === "landuse_lulc" ||
+      id.startsWith("silt_") ||
+      id === "vegetation_extent" ||
+      /lulc|land\s*use|silt|vegetation/i.test(String(leg.title || ""))
+    );
+  }
+
+  function isPollutionThemeLegend(leg) {
+    if (!leg || leg.type !== "classes") return false;
+    const id = String(leg.layerId || "");
+    return id === "pollution" || !!leg.garbageDensityToggle || /pollution/i.test(String(leg.title || ""));
+  }
+
+  function showPollutionTheme(leg) {
+    hydroLegend.hidden = true;
+    hydroLegend.innerHTML = "";
+    landUseTheme.hide();
+    const densityOn = !!leg.densityOn;
+    pollutionTheme.showClasses(leg.classes || [], "pollution", {
+      extraHtml: leg.garbageDensityToggle
+        ? `<button type="button" class="focus-density-btn${densityOn ? " is-active" : ""}" id="focus-garbage-density" aria-pressed="${densityOn ? "true" : "false"}">Garbage Density</button>`
+        : "",
+    });
+    window.__MM_SCENE__?.setGarbageLabelsVisible?.(true);
+    window.__MM_SCENE__?.setGarbageClassFilter?.(null);
+    pollutionKeys.show();
   }
 
   async function activateWaterQualityMetric(opt) {
+    // BOD–COD → JalNetra twin ribbon + focused HUD
+    if (opt?.id === "bod_cod") {
+      geology.close();
+      closeLandUseHud();
+      hydroLegend.hidden = true;
+      hydroLegend.innerHTML = "";
+      landUseTheme.hide();
+      pollutionTheme.hide();
+      pollutionKeys.hide();
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = "bod_cod";
+      waterQualityHud.setStatus("");
+      waterQualityHud.hide();
+      await bodCodHud.show();
+      return;
+    }
+
+    if (bodCodHud.isVisible()) bodCodHud.hide();
+
     const tryIds = [opt.layerId, opt.fallbackLayerId].filter(Boolean);
     let last = null;
     for (const id of tryIds) {
@@ -228,6 +392,25 @@ export function mountAnalyticsControls(root, dataset) {
       return;
     }
     const leg = result.legend;
+
+    // Land Use theme: top F/C/B/S/W chips + bottom year/period stepper
+    if (isLandUseThemeLegend(leg)) {
+      pollutionTheme.hide();
+      hydroLegend.hidden = true;
+      hydroLegend.innerHTML = "";
+      landUseTheme.showFromLegend(leg);
+      return;
+    }
+
+    // Pollution theme: top G/L/M/H chips + density toggle + Back
+    if (isPollutionThemeLegend(leg)) {
+      showPollutionTheme(leg);
+      return;
+    }
+
+    landUseTheme.hide();
+    pollutionTheme.hide();
+
     if (leg.type === "image") {
       hydroLegend.innerHTML = `
         <div class="hydro-legend-hud-title">${escapeHtml(leg.title || "GEOLOGY")}</div>
@@ -268,10 +451,13 @@ export function mountAnalyticsControls(root, dataset) {
             `</div>`,
         )
         .join("");
+      const densityBtn = leg.garbageDensityToggle
+        ? `<button type="button" class="hydro-year-btn${leg.densityOn ? " is-active" : ""}" id="hydro-garbage-density" aria-pressed="${leg.densityOn ? "true" : "false"}">Garbage Density</button>`
+        : "";
       hydroLegend.innerHTML = `
         <div class="hydro-legend-hud-title">${escapeHtml(leg.title || "LAYER")}</div>
         ${leg.subtitle ? `<div class="hydro-legend-hud-sub">${escapeHtml(leg.subtitle)}</div>` : ""}
-        ${yearRow}${periodRow}
+        ${yearRow}${periodRow}${densityBtn ? `<div class="hydro-legend-years">${densityBtn}</div>` : ""}
         <div class="hydro-legend-hud-classes">${rows}</div>
         <button type="button" class="hydro-legend-clear" id="hydro-clear-layer">Clear layer</button>`;
     } else {
@@ -317,10 +503,14 @@ export function mountAnalyticsControls(root, dataset) {
         e.stopPropagation();
         const period = btn.dataset.siltPeriod;
         if (!period) return;
+        const layerId = leg.layerId || "silt_classification";
         try {
-          const result = await window.__MM_SCENE__?.setSiltClassificationPeriod?.(period);
+          const result =
+            layerId === "silt_volume_surface"
+              ? await window.__MM_SCENE__?.setSiltVolumePeriod?.(period)
+              : await window.__MM_SCENE__?.setSiltClassificationPeriod?.(period);
           if (result?.available) {
-            activeHydroId = "silt_classification";
+            activeHydroId = layerId;
             landUseHud.setStatus("");
             renderHydroLegend(result);
           } else if (result) {
@@ -337,6 +527,17 @@ export function mountAnalyticsControls(root, dataset) {
         }
       });
     });
+    const densBtn = hydroLegend.querySelector("#hydro-garbage-density");
+    if (densBtn) {
+      densBtn.addEventListener("click", (e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        const on = densBtn.getAttribute("aria-pressed") !== "true";
+        window.__MM_SCENE__?.setGarbageDensityVisible?.(on);
+        densBtn.classList.toggle("is-active", on);
+        densBtn.setAttribute("aria-pressed", on ? "true" : "false");
+      });
+    }
   }
 
   function isGeologyNav(type) {
@@ -365,6 +566,14 @@ export function mountAnalyticsControls(root, dataset) {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (pollutionTheme.isVisible()) {
+      pollutionTheme.hide();
+      pollutionKeys.hide();
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      setActive(null);
+      return;
+    }
     if (waterQualityHud.isOpen()) {
       closeWaterQualityHud();
       setActive(null);
@@ -386,6 +595,7 @@ export function mountAnalyticsControls(root, dataset) {
   el.addEventListener("click", async (event) => {
     const button = event.target.closest("[data-analytics]");
     if (!button) return;
+    document.dispatchEvent(new CustomEvent("river-measure-clear"));
     const type = button.dataset.analytics;
 
     // Soft extras — reuse existing UI without new routing.
@@ -436,6 +646,27 @@ export function mountAnalyticsControls(root, dataset) {
       window.__MM_SCENE__?.hideHydrology?.();
       clearHydroLegend();
       setActive(null);
+      return;
+    }
+
+    // Pollution → amber garbage pins along the corridor
+    if (type === "Pollution") {
+      closeWaterQualityHud();
+      closeLandUseHud();
+      geology.close();
+      closeModal();
+      setActive("Pollution");
+      (async () => {
+        try {
+          const result = await window.__MM_SCENE__?.showHydrologyLayer?.("pollution");
+          activeHydroId = "pollution";
+          if (result?.available) renderHydroLegend(result);
+          else clearHydroLegend();
+        } catch (err) {
+          clearHydroLegend();
+          console.warn("[pollution]", err);
+        }
+      })();
       return;
     }
 

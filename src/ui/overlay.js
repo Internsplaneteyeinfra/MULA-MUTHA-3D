@@ -13,6 +13,7 @@ import { mountSettingsPanel } from "./components/settingsPanel.js";
 import { mountWaterFlowControl } from "./components/waterFlowControl.js";
 import { mountChainageRuler } from "./components/chainageRuler.js";
 import { mountJoiningStreamsNav } from "./components/joiningStreamsNav.js";
+import { mountChainageStepHud } from "./components/chainageStepHud.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
 import { mountFloodSimulationToolbar } from "./floodSimulationToolbar.js";
 import { mountFloodResultPanel } from "./floodResultPanel.js";
@@ -74,6 +75,27 @@ export function createTooltip(root) {
         `;
         return;
       }
+      if (info.landUseHover) {
+        const color = info.color || "#9fd98a";
+        const label = info.label || info.class_label || "—";
+        const title = info.layerTitle || "LAND USE";
+        const extra = info.pct
+          ? `<span class="be-pct">${info.pct}</span>`
+          : "";
+        el.innerHTML = `
+          <div class="be-card lu-hover-card">
+            <span class="be-swatch" style="background:${color}"></span>
+            <div class="be-body">
+              <div class="be-title">${title}</div>
+              <div class="be-row">
+                <span class="be-label">${label}</span>
+                ${extra}
+              </div>
+            </div>
+          </div>
+        `;
+        return;
+      }
       if (info.chainageHover) {
         el.innerHTML = `
           <h3>CHAINAGE</h3>
@@ -110,6 +132,33 @@ export function createTooltip(root) {
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
           <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.joiningHover ? "Hover preview · click to select" : "Water moving toward Mula–Mutha"}</em>
+        `;
+        return;
+      }
+      if (info.hydrologyPollution) {
+        const esc = (s) =>
+          String(s ?? "")
+            .replace(/&/g, "&amp;")
+            .replace(/</g, "&lt;")
+            .replace(/>/g, "&gt;")
+            .replace(/"/g, "&quot;");
+        const nameRow =
+          info.displayName || info.name
+            ? `<div class="kv"><span class="k">Name</span><span class="v"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E89A1C;border:1px solid rgba(255,255,255,.35);margin-right:6px;vertical-align:middle"></span>${esc(info.displayName || info.name)}</span></div>`
+            : "";
+        const typeRow = info.displayType
+          ? `<div class="kv"><span class="k">Type</span><span class="v">${esc(info.displayType)}</span></div>`
+          : `<div class="kv"><span class="k">Type</span><span class="v">General waste</span></div>`;
+        el.innerHTML = `
+          <h3>GARBAGE LOCATION</h3>
+          ${nameRow}
+          ${typeRow}
+          ${info.lat != null && info.lon != null ? `<div class="kv"><span class="k">Location</span><span class="v">${Number(info.lat).toFixed(6)}° N, ${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
+          ${info.chainageLabel ? `<div class="kv"><span class="k">River Chainage</span><span class="v">${esc(info.chainageLabel)}</span></div>` : ""}
+          ${info.distanceToRiver != null ? `<div class="kv"><span class="k">Distance to River</span><span class="v">${Number(info.distanceToRiver).toFixed(1)} m</span></div>` : ""}
+          ${info.associationStatus ? `<div class="kv"><span class="k">Status</span><span class="v">${esc(info.associationStatus)}</span></div>` : ""}
+          ${info.description ? `<div class="kv"><span class="k">Description</span><span class="v">${esc(info.description)}</span></div>` : ""}
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.garbageSelected ? "Selected · click elsewhere to clear" : "Hover preview · click to select"}</em>
         `;
         return;
       }
@@ -592,6 +641,7 @@ export function mountUI(root, {
   nav.setFloodPressed?.(state.showFloodBar);
 
   const chainRuler = mountChainageRuler(root, dataset);
+  const chainStepHud = mountChainageStepHud(root, dataset);
   mountJoiningStreamsNav(root);
   chainPanel = mountChainagePanel(root, dataset);
 
@@ -604,6 +654,8 @@ export function mountUI(root, {
 
   document.addEventListener("chainage-select", (event) => {
     syncSelectedChainage(event.detail?.meters);
+    chainRuler.update?.();
+    chainStepHud.update?.();
   });
   const initialChainage = state.selectedChainageMeters ?? dataset.chainage?.[0]?.meters;
   if (initialChainage != null) {
@@ -1083,6 +1135,7 @@ export function mountUI(root, {
       if (toolsStack) toolsStack.hidden = true;
       if (pathScrub) pathScrub.hidden = true;
       if (chainPanel?.el) chainPanel.el.hidden = true;
+      if (chainStepHud?.el) chainStepHud.el.hidden = true;
       if (flowBtn) {
         flowBtn.hidden = false;
         const paused = isCinematicPaused?.() || state.cinematicPaused;
@@ -1103,6 +1156,7 @@ export function mountUI(root, {
     }
 
     chainRuler?.update?.();
+    chainStepHud?.update?.();
     syncCamButtons();
     requestAnimationFrame(tickHud);
   }

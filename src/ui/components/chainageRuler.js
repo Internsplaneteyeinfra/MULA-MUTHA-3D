@@ -1,12 +1,10 @@
-import { PenLine, ChevronLeft, ChevronRight } from "lucide";
 import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 import { interpolateChainage } from "../../geo/chainage.js";
-import { lucideHtml } from "../icons.js";
 
 /**
- * Bottom chainage ruler — every kilometre + endpoints, map-first styling.
- * Single source of truth for scrubbing: state.selectedChainageMeters + chainage-select.
+ * Bottom chainage scrubber — kilometre ticks only (no header row).
+ * ±10 m step controls live in the top-center chainage step HUD.
  */
 export function mountChainageRuler(root, dataset) {
   const points = [...(dataset?.chainage || [])].sort(
@@ -17,9 +15,13 @@ export function mountChainageRuler(root, dataset) {
   const majors = pickRulerStations(points);
   const minM = Number(points[0].meters) || 0;
   const maxM = Math.max(Number(points[points.length - 1].meters) || 0, minM + 1);
+  const intervalM =
+    Number(dataset?.chainageIntervalM) > 0
+      ? Math.round(dataset.chainageIntervalM)
+      : Math.max(1, Math.round(Math.abs((points[1]?.meters ?? 10) - (points[0]?.meters ?? 0))) || 10);
 
   const el = document.createElement("div");
-  el.className = "hud chainage-ruler map-chrome";
+  el.className = "hud chainage-ruler map-chrome chainage-ruler--track-only";
   el.id = "chainage-ruler";
   el.setAttribute("aria-label", "Chainage ruler");
 
@@ -42,26 +44,9 @@ export function mountChainageRuler(root, dataset) {
 
   el.innerHTML = `
     <div class="chainage-ruler-row">
-      <div class="chainage-ruler-head">
-        <button type="button" class="chainage-ruler-step" id="chainage-ruler-prev" title="Previous station" aria-label="Previous station">
-          ${lucideHtml(ChevronLeft, { size: 16 })}
-        </button>
-        <div class="chainage-ruler-title">
-          <span>CHAINAGE</span>
-          <span class="chainage-ruler-title-sep" aria-hidden="true">|</span>
-          <strong id="chainage-ruler-selected">${formatRulerLabel(points[0])}</strong>
-        </div>
-        <button type="button" class="chainage-ruler-step" id="chainage-ruler-next" title="Next station" aria-label="Next station">
-          ${lucideHtml(ChevronRight, { size: 16 })}
-        </button>
-        <button type="button" class="chainage-ruler-anno" id="chainage-ruler-anno" title="Annotations" aria-label="Open annotations">
-          ${lucideHtml(PenLine, { size: 13 })}
-          <span>Annotation</span>
-        </button>
-      </div>
       <div class="chainage-ruler-track chainage-slider" role="list">
         <div class="chainage-ruler-line" aria-hidden="true"></div>
-        <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="1" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
+        <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="${intervalM}" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
         ${ticksHtml}
         <div class="chainage-ruler-cursor" id="chainage-ruler-cursor" hidden>
           <span class="chainage-ruler-cursor-label" id="chainage-ruler-cursor-label">0+000</span>
@@ -73,7 +58,6 @@ export function mountChainageRuler(root, dataset) {
   root.appendChild(el);
 
   const range = el.querySelector("#chainage-ruler-input");
-  const selectedTitle = el.querySelector("#chainage-ruler-selected");
   let inputRaf = 0;
   let pendingMeters = null;
   let dragDispatchTimer = 0;
@@ -81,10 +65,13 @@ export function mountChainageRuler(root, dataset) {
 
   function dispatchSelect(meters, { focus = true, dragging = false } = {}) {
     if (!Number.isFinite(meters)) return;
-    state.selectedChainageMeters = meters;
+    const snapped = nearestPoint(meters);
+    const m = Number(snapped?.meters);
+    if (!Number.isFinite(m)) return;
+    state.selectedChainageMeters = m;
     state.showChainage = true;
     document.dispatchEvent(
-      new CustomEvent("chainage-select", { detail: { meters, focus, dragging } }),
+      new CustomEvent("chainage-select", { detail: { meters: m, focus, dragging } }),
     );
   }
 
@@ -101,32 +88,14 @@ export function mountChainageRuler(root, dataset) {
     return best;
   }
 
-  function stepStation(dir) {
-    const sel = state.selectedChainageMeters ?? minM;
-    const idx = points.findIndex((p) => Math.abs((p.meters ?? 0) - sel) < 0.5);
-    let nextIdx;
-    if (idx < 0) {
-      const nearest = nearestPoint(sel);
-      const nIdx = points.indexOf(nearest);
-      nextIdx = Math.min(points.length - 1, Math.max(0, nIdx + dir));
-    } else {
-      nextIdx = Math.min(points.length - 1, Math.max(0, idx + dir));
-    }
-    const target = points[nextIdx];
-    if (!target) return;
-    dispatchSelect(Number(target.meters) || 0);
-  }
-
   range?.addEventListener("input", () => {
-    pendingMeters = Number(range.value);
+    pendingMeters = Number(nearestPoint(Number(range.value))?.meters);
     if (inputRaf) return;
     inputRaf = requestAnimationFrame(() => {
       inputRaf = 0;
       const m = pendingMeters;
       state.selectedChainageMeters = m;
       state.showChainage = true;
-      // Avoid restarting the expensive 3D camera tween every render frame.
-      // The latest value is retained, while camera updates are capped at 20 Hz.
       const now = performance.now();
       const wait = Math.max(0, 50 - (now - lastDragDispatch));
       window.clearTimeout(dragDispatchTimer);
@@ -139,11 +108,13 @@ export function mountChainageRuler(root, dataset) {
     });
   });
 
-  // Final settle when the user releases the slider (not every drag sample)
   const settleCamera = () => {
     window.clearTimeout(dragDispatchTimer);
-    const m = Number(range?.value);
+    const raw = Number(range?.value);
+    if (!Number.isFinite(raw)) return;
+    const m = Number(nearestPoint(raw)?.meters);
     if (!Number.isFinite(m)) return;
+    if (range) range.value = String(m);
     state.selectedChainageMeters = m;
     state.showChainage = true;
     document.dispatchEvent(
@@ -155,20 +126,10 @@ export function mountChainageRuler(root, dataset) {
 
   el.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-meters]");
-    if (!btn || btn.closest(".chainage-ruler-head")) return;
+    if (!btn) return;
     const m = Number(btn.dataset.meters);
     if (!Number.isFinite(m)) return;
     dispatchSelect(m);
-  });
-
-  el.querySelector("#chainage-ruler-prev")?.addEventListener("click", () => stepStation(-1));
-  el.querySelector("#chainage-ruler-next")?.addEventListener("click", () => stepStation(1));
-  el.querySelector("#chainage-ruler-anno")?.addEventListener("click", () => {
-    document.dispatchEvent(
-      new CustomEvent("chainage-panel-open", {
-        detail: { meters: state.selectedChainageMeters ?? minM, notes: false },
-      }),
-    );
   });
 
   const cursor = el.querySelector("#chainage-ruler-cursor");
@@ -181,14 +142,21 @@ export function mountChainageRuler(root, dataset) {
 
     const sel = state.selectedChainageMeters;
     el.querySelectorAll(".chainage-ruler-tick").forEach((t) => {
-      const active = Number(t.dataset.meters) === sel;
-      t.classList.toggle("is-active", active);
-      t.classList.toggle("active", active);
+      const tm = Number(t.dataset.meters);
+      // Cursor can sit between km ticks — light up the nearest major.
+      const active =
+        Number.isFinite(sel) && Number.isFinite(tm) && Math.abs(tm - sel) < 0.5
+          ? true
+          : Number.isFinite(sel) &&
+            Number.isFinite(tm) &&
+            Math.abs(tm - sel) <= 500 &&
+            Math.round(sel / 1000) * 1000 === tm;
+      t.classList.toggle("is-active", !!active);
+      t.classList.toggle("active", !!active);
     });
 
     if (sel == null || !cursor) {
       if (cursor) cursor.hidden = true;
-      if (selectedTitle) selectedTitle.textContent = "—";
       return;
     }
     if (range && Number.isFinite(sel)) range.value = String(Math.min(maxM, Math.max(minM, sel)));
@@ -200,7 +168,6 @@ export function mountChainageRuler(root, dataset) {
     if (cursorLabel) {
       cursorLabel.textContent = `${label} · ${Math.round(sel)} m`;
     }
-    if (selectedTitle) selectedTitle.textContent = label;
   }
 
   function dispose() {
@@ -227,7 +194,6 @@ function pickRulerStations(points) {
   if (first) byM.set(firstM, { ...first, meters: firstM });
   if (last) byM.set(lastM, { ...last, meters: lastM });
 
-  // Ensure full kilometre ladder 0 … floor(last/1000)*1000
   for (let km = 0; km * 1000 <= lastM + 0.5; km++) {
     const m = km * 1000;
     if (!byM.has(m)) byM.set(m, { meters: m, label: metersToStation(m), major: true });

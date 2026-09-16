@@ -15,16 +15,15 @@ export default defineConfig({
       "Cache-Control": "public, max-age=120",
     },
     watch: {
-      // Do not ignore public/data entirely — new overlays must be served.
-      // Ignore huge / locked data files that thrash or crash the Windows watcher.
+      // Do not ignore entire hydrology overlay folders — Vite then fails to serve
+      // newly added PNGs under those paths (SPA HTML fallback → TextureLoader error).
+      // Ignore only huge / locked binary data that thrash the Windows watcher.
       ignored: [
         "**/public/data/**/*.tif",
         "**/public/data/**/*.csv",
-        "**/public/data/**/*.kml",
+        // Do NOT ignore *.kml — Vite then returns SPA HTML for newly added public KMLs
         "**/public/data/**/*.kmz",
         "**/public/data/**/*.geojson",
-        "**/public/data/hydrology/lulc/**",
-        "**/public/data/hydrology/silt/**",
         "**/tmp_*/**",
         "**/*.zip",
       ],

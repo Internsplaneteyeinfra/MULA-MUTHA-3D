@@ -12,13 +12,18 @@ import { parseClassedPolygonKml } from "../geo/kml.js";
 import { overlayBoxToLocalBounds } from "../utils/floodGeometry.js";
 import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
+import { createPollutionGarbageLayer } from "./pollutionGarbageLayer.js";
 /** Bundled asset — Vite always serves this (public/data new files can 404 as HTML). */
 import bankErosionOverlayUrl from "../assets/hydrology/bank_erosion_overlay.png";
 import bankErosionLegendUrl from "../assets/hydrology/bank_erosion_legend.png";
 import { LITHOLOGY_CLASSES } from "../ui/components/geologyWorkspace.js";
+import {
+  createBankErosionMaterial,
+  updateBankErosionMaterial,
+} from "./hydrology/bankErosionMaterial.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
-const CONFIG_VERSION = 9;
+const CONFIG_VERSION = 13;
 
 const POLYGON_LAYER_IDS = new Set([
   "salinity",
@@ -146,7 +151,28 @@ const SILT_CLASS_PERIODS = [
   { id: "2026-07", label: "Jul", year: 2026, month: 7, overlay: "/data/hydrology/silt/classification/2026-07/overlay.png", legend: "/data/hydrology/silt/classification/2026-07/legend.png" },
 ];
 
-/** Hardcoded fallbacks so Bank Erosion works even if an old config is cached. */
+/** Continuous silt volume surface (YlOrBr, fixed 0–94.31 scale). Same LatLonBox as classification. */
+const SILT_VOLUME_BOUNDS = { ...SILT_CLASS_BOUNDS };
+
+const SILT_VOLUME_CLASSES = [
+  { id: "v0", label: "0", color: "#FFFFD4", range: "low" },
+  { id: "v25", label: "~24", color: "#FED98E", range: "" },
+  { id: "v50", label: "~47", color: "#FE9929", range: "" },
+  { id: "v75", label: "~71", color: "#D95F0E", range: "" },
+  { id: "v100", label: "94.3", color: "#993404", range: "high" },
+];
+
+const SILT_VOLUME_PERIODS = [
+  { id: "2026-01", label: "Jan", year: 2026, month: 1, overlay: "/data/hydrology/silt/volume/2026-01/overlay.png", legend: "/data/hydrology/silt/volume/2026-01/legend.png" },
+  { id: "2026-02", label: "Feb", year: 2026, month: 2, overlay: "/data/hydrology/silt/volume/2026-02/overlay.png", legend: "/data/hydrology/silt/volume/2026-02/legend.png" },
+  { id: "2026-03", label: "Mar", year: 2026, month: 3, overlay: "/data/hydrology/silt/volume/2026-03/overlay.png", legend: "/data/hydrology/silt/volume/2026-03/legend.png" },
+  { id: "2026-04", label: "Apr", year: 2026, month: 4, overlay: "/data/hydrology/silt/volume/2026-04/overlay.png", legend: "/data/hydrology/silt/volume/2026-04/legend.png" },
+  { id: "2026-05", label: "May", year: 2026, month: 5, overlay: "/data/hydrology/silt/volume/2026-05/overlay.png", legend: "/data/hydrology/silt/volume/2026-05/legend.png" },
+  { id: "2026-06", label: "Jun", year: 2026, month: 6, overlay: "/data/hydrology/silt/volume/2026-06/overlay.png", legend: "/data/hydrology/silt/volume/2026-06/legend.png" },
+  { id: "2026-07", label: "Jul", year: 2026, month: 7, overlay: "/data/hydrology/silt/volume/2026-07/overlay.png", legend: "/data/hydrology/silt/volume/2026-07/legend.png" },
+];
+
+/** Hardcoded fallbacks so Bank Erosion / Silt work even if an old config is cached. */
 const BUILTIN_LAYER_DEFS = {
   bank_erosion: {
     id: "bank_erosion",
@@ -171,14 +197,48 @@ const BUILTIN_LAYER_DEFS = {
     flipV: true,
     renderType: "terrainDrapedTexture",
     legendTitle: "Bank erosion hotspots",
-    legendSubtitle: "2016–2026 classified overlay.",
+    legendSubtitle: "2016–2026 smoothed classification.",
     legendClasses: [
-      { id: "none", label: "No erosion", color: "#7CFF2A", pct: "83.1%" },
-      { id: "low", label: "Low erosion", color: "#FFE600", pct: "15.5%" },
-      { id: "moderate", label: "Moderate erosion", color: "#FF8C00", pct: "1.4%" },
-      { id: "high", label: "High erosion", color: "#FF3737", pct: "0%" },
-      { id: "very_high", label: "Very high erosion", color: "#A0001E", pct: "0%" },
+      { id: "none", label: "No erosion", color: "#90EE90", pct: "83.1%" },
+      { id: "low", label: "Low erosion", color: "#FFFF00", pct: "15.5%" },
+      { id: "moderate", label: "Moderate erosion", color: "#FFA500", pct: "1.4%" },
+      { id: "high", label: "High erosion", color: "#FF0000", pct: "0%" },
+      { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%" },
     ],
+  },
+  silt_classification: {
+    id: "silt_classification",
+    name: "SILT CLASSIFICATION",
+    available: true,
+    type: "siltClassificationPeriods",
+    crs: "EPSG:4326",
+    defaultPeriod: "2026-07",
+    opacity: 1,
+    liftM: 1.4,
+    gridSegments: 128,
+    legendTitle: "Silt Classification",
+    legendSubtitle: "Discrete silt classes",
+    bounds: SILT_CLASS_BOUNDS,
+    classes: SILT_CLASS_CLASSES,
+    periods: SILT_CLASS_PERIODS,
+    renderType: "terrainDrapedSiltClassification",
+  },
+  silt_volume_surface: {
+    id: "silt_volume_surface",
+    name: "SILT VOLUME SURFACE",
+    available: true,
+    type: "siltVolumePeriods",
+    crs: "EPSG:4326",
+    defaultPeriod: "2026-07",
+    opacity: 1,
+    liftM: 1.5,
+    gridSegments: 128,
+    legendTitle: "Silt Volume Surface",
+    legendSubtitle: "Fixed scale 0–94.31 · YlOrBr",
+    bounds: SILT_VOLUME_BOUNDS,
+    classes: SILT_VOLUME_CLASSES,
+    periods: SILT_VOLUME_PERIODS,
+    renderType: "terrainDrapedSiltVolume",
   },
 };
 
@@ -213,6 +273,7 @@ export function createHydrologyLayer(dataset) {
     bank_erosion: { mesh: null, loaded: false, loading: null, sampler: null },
     landuse_lulc: { mesh: null, loaded: false, loading: null, sampler: null },
     silt_classification: { mesh: null, loaded: false, loading: null, sampler: null },
+    silt_volume_surface: { mesh: null, loaded: false, loading: null, sampler: null },
   };
   /** @deprecated alias — keep older references working during loadGeology */
   const geology = drapedOverlays.geology;
@@ -220,6 +281,10 @@ export function createHydrologyLayer(dataset) {
   let lulcYear = 2026;
   /** Active silt classification period id (YYYY-MM). Default = most recent. */
   let siltClassPeriod = SILT_CLASS_PERIODS[SILT_CLASS_PERIODS.length - 1].id;
+  let siltVolumePeriod = SILT_VOLUME_PERIODS[SILT_VOLUME_PERIODS.length - 1].id;
+  /** Detected garbage pins (pollution layer). */
+  const pollutionGarbage = createPollutionGarbageLayer({ stations });
+  group.add(pollutionGarbage);
   /** Classed polygon layers (salinity + water-quality metrics). */
   const polygonLayers = Object.create(null);
 
@@ -273,6 +338,7 @@ export function createHydrologyLayer(dataset) {
     for (const slot of Object.values(polygonLayers)) {
       if (slot.root) slot.root.visible = false;
     }
+    pollutionGarbage.userData?.setVisible?.(false);
   }
 
   function disposeObject(obj) {
@@ -301,7 +367,7 @@ export function createHydrologyLayer(dataset) {
     const slot = drapedOverlays[id];
     if (!slot) throw new Error(`No draped overlay slot for ${id}`);
 
-    const GEO_UV_VERSION = 13;
+    const GEO_UV_VERSION = 16;
     if (
       slot.loaded &&
       (slot.mesh?.userData?.geoUvVersion !== GEO_UV_VERSION ||
@@ -319,6 +385,12 @@ export function createHydrologyLayer(dataset) {
       }
       if (id === "geology" && !slot.sampler) {
         slot.sampler = await createGeologySampler(def).catch(() => null);
+      }
+      if (
+        (id === "landuse_lulc" || id === "silt_classification" || id === "silt_volume_surface") &&
+        !slot.sampler
+      ) {
+        slot.sampler = await createLandUseSampler(def, id).catch(() => null);
       }
       return;
     }
@@ -347,7 +419,9 @@ export function createHydrologyLayer(dataset) {
           gridSegments:
             id === "bank_erosion"
               ? Math.max(112, Number(def.gridSegments) || 144)
-              : id === "landuse_lulc" || id === "silt_classification"
+              : id === "landuse_lulc" ||
+                  id === "silt_classification" ||
+                  id === "silt_volume_surface"
                 ? Math.max(96, Number(def.gridSegments) || 112)
                 : def.gridSegments,
         },
@@ -360,9 +434,14 @@ export function createHydrologyLayer(dataset) {
         lift: id === "bank_erosion" ? Math.max(lift, 1.2) : lift,
         opacity: id === "bank_erosion" ? 1 : opacity,
         version: GEO_UV_VERSION,
+        // Smoothed overlay: linear filter (not nearest) for anti-aliased edges
         nearest:
-          id === "bank_erosion" || id === "landuse_lulc" || id === "silt_classification",
-        highContrast: id === "bank_erosion" || id === "silt_classification",
+          id === "landuse_lulc" ||
+          id === "silt_classification" ||
+          id === "silt_volume_surface",
+        highContrast:
+          id === "bank_erosion" || id === "silt_classification" || id === "silt_volume_surface",
+        animateBankErosion: id === "bank_erosion",
       });
 
       group.add(mesh);
@@ -381,6 +460,14 @@ export function createHydrologyLayer(dataset) {
           slot.sampler = await createGeologySampler(def);
         } catch (err) {
           console.warn("[geology] click sampler unavailable", err);
+          slot.sampler = null;
+        }
+      }
+      if (id === "landuse_lulc" || id === "silt_classification" || id === "silt_volume_surface") {
+        try {
+          slot.sampler = await createLandUseSampler(def, id);
+        } catch (err) {
+          console.warn(`[${id}] hover sampler unavailable`, err);
           slot.sampler = null;
         }
       }
@@ -636,6 +723,7 @@ export function createHydrologyLayer(dataset) {
         opacity: Number(def.opacity) || 0.82,
         liftM: Number(def.liftM) || 0.45,
         gridSegments: Number(def.gridSegments) || 112,
+        legendClasses: def.legendClasses?.length ? def.legendClasses : LULC_LEGEND,
       };
       await loadDrapedOverlay(drapedDef);
       if (expectedSeq != null && showSeq !== expectedSeq) {
@@ -784,6 +872,7 @@ export function createHydrologyLayer(dataset) {
       opacity: Number(def.opacity) || 0.88,
       liftM: Number(def.liftM) || 1.2,
       gridSegments: Number(def.gridSegments) || 128,
+      legendClasses: def.classes || def.legendClasses || [],
     };
     await loadDrapedOverlay(drapedDef);
     if (expectedSeq != null && showSeq !== expectedSeq) {
@@ -842,6 +931,125 @@ export function createHydrologyLayer(dataset) {
     pendingShowId = "silt_classification";
     const seq = ++showSeq;
     return showSiltClassificationLayer(def, seq, { keepSelection: true });
+  }
+
+  function getSiltVolumePeriods(def) {
+    const fromDef = Array.isArray(def?.periods) && def.periods.length ? def.periods : null;
+    return fromDef || SILT_VOLUME_PERIODS;
+  }
+
+  function resolveSiltVolumePeriodEntry(def, periodId) {
+    const periods = getSiltVolumePeriods(def);
+    const id = String(periodId || "");
+    return periods.find((p) => String(p.id) === id) || periods[periods.length - 1] || null;
+  }
+
+  function buildSiltVolumeLegend(def, period) {
+    const classes = (def.classes?.length ? def.classes : SILT_VOLUME_CLASSES).map((c) => ({
+      label: c.label,
+      color: c.color,
+      range: c.range,
+    }));
+    const periods = getSiltVolumePeriods(def);
+    return {
+      type: "classes",
+      title: def.legendTitle || def.name || "Silt Volume Surface",
+      subtitle: `${period.label || period.id} ${period.year || ""} · ${def.legendSubtitle || "0–94.31 scale"}`.replace(/\s+/g, " ").trim(),
+      classes,
+      periods: periods.map((p) => ({
+        id: p.id,
+        label: p.label || p.id,
+      })),
+      activePeriod: period.id,
+      layerId: "silt_volume_surface",
+      imageUrl: period.legend || null,
+    };
+  }
+
+  async function showSiltVolumeLayer(def, expectedSeq = null, opts = {}) {
+    const periods = getSiltVolumePeriods(def);
+    if (!periods.length) {
+      return {
+        ok: false,
+        id: "silt_volume_surface",
+        available: false,
+        message: "No silt volume periods configured",
+      };
+    }
+    if (!opts.keepSelection) {
+      siltVolumePeriod = periods[periods.length - 1].id;
+    }
+    const period = resolveSiltVolumePeriodEntry(def, siltVolumePeriod) || periods[periods.length - 1];
+    siltVolumePeriod = period.id;
+
+    const drapedDef = {
+      ...def,
+      id: "silt_volume_surface",
+      type: "groundOverlay",
+      overlay: period.overlay,
+      bounds: period.bounds || def.bounds || SILT_VOLUME_BOUNDS,
+      opacity: Number(def.opacity) || 1,
+      liftM: Number(def.liftM) || 1.5,
+      gridSegments: Number(def.gridSegments) || 128,
+      legendClasses: def.classes || def.legendClasses || [],
+    };
+    await loadDrapedOverlay(drapedDef);
+    if (expectedSeq != null && showSeq !== expectedSeq) {
+      return { ok: true, id: "silt_volume_surface", available: false, superseded: true };
+    }
+    if (pendingShowId !== "silt_volume_surface") {
+      return { ok: true, id: "silt_volume_surface", available: false, superseded: true };
+    }
+    clearActiveMeshes();
+    const slot = drapedOverlays.silt_volume_surface;
+    if (slot?.mesh) {
+      slot.mesh.visible = true;
+      if (slot.mesh.material) {
+        slot.mesh.material.opacity = Math.min(1, Number(drapedDef.opacity) || 1);
+        slot.mesh.material.needsUpdate = true;
+      }
+    }
+    activeId = "silt_volume_surface";
+    group.visible = !!slot?.mesh;
+    return {
+      ok: !!slot?.mesh,
+      id: "silt_volume_surface",
+      available: !!slot?.mesh,
+      message: slot?.mesh ? undefined : "Failed to build silt volume overlay",
+      legend: buildSiltVolumeLegend(def, period),
+      stats: {
+        period: period.id,
+        type: "groundOverlay",
+        hasMesh: !!slot?.mesh,
+        bounds: drapedDef.bounds,
+      },
+    };
+  }
+
+  async function setSiltVolumePeriod(periodId) {
+    await ensureConfig();
+    const def = layerDef("silt_volume_surface");
+    if (!def?.available) {
+      return {
+        ok: false,
+        id: "silt_volume_surface",
+        available: false,
+        message: "Silt volume unavailable",
+      };
+    }
+    const entry = resolveSiltVolumePeriodEntry(def, periodId);
+    if (!entry) {
+      return {
+        ok: false,
+        id: "silt_volume_surface",
+        available: false,
+        message: `No silt volume for ${periodId}`,
+      };
+    }
+    siltVolumePeriod = entry.id;
+    pendingShowId = "silt_volume_surface";
+    const seq = ++showSeq;
+    return showSiltVolumeLayer(def, seq, { keepSelection: true });
   }
 
   /**
@@ -935,6 +1143,64 @@ export function createHydrologyLayer(dataset) {
       return showSiltClassificationLayer(def, pendingShowId === id ? showSeq : -1);
     }
 
+    if (id === "silt_volume_surface" || def.type === "siltVolumePeriods") {
+      return showSiltVolumeLayer(def, pendingShowId === id ? showSeq : -1);
+    }
+
+    if (id === "pollution" || def.type === "garbagePoints") {
+      const dataUrl = def.data || "/data/hydrology/pollution/garbage-locations.kml";
+      try {
+        await pollutionGarbage.userData.load(dataUrl);
+      } catch (err) {
+        console.error("[GarbageSystem] Initialization failed:", err);
+        return {
+          ok: false,
+          id: "pollution",
+          available: false,
+          message: err?.message || "Garbage layer failed to load",
+        };
+      }
+      if (pendingShowId !== id) {
+        return { ok: true, id, available: false, superseded: true };
+      }
+      clearActiveMeshes();
+      pollutionGarbage.userData.setVisible(true);
+      pollutionGarbage.userData.setLabelsEnabled?.(true);
+      pollutionGarbage.userData.setClassFilter?.(null);
+      activeId = "pollution";
+      group.visible = true;
+      const count = pollutionGarbage.userData.getCount?.() || 0;
+      const report = pollutionGarbage.userData.getReport?.() || {};
+      const riverN = (report.riverAssociated || 0) + (report.nearRiver || 0);
+      return {
+        ok: count > 0,
+        id: "pollution",
+        available: count > 0,
+        message: count > 0 ? undefined : "No garbage locations found",
+        legend: {
+          type: "classes",
+          title: def.legendTitle || "Pollution",
+          subtitle:
+            def.legendSubtitle ||
+            `${count} KML sites · ${riverN} river-associated`,
+          classes: [
+            { label: "Garbage location", color: "#E89A1C" },
+            { label: "Density LOW", color: "#F1C40F" },
+            { label: "Density MEDIUM", color: "#E67E22" },
+            { label: "Density HIGH", color: "#C0392B" },
+          ],
+          layerId: "pollution",
+          garbageDensityToggle: true,
+          densityOn: !!pollutionGarbage.userData.getShowDensity?.(),
+        },
+        stats: {
+          sites: count,
+          data: dataUrl,
+          report,
+        },
+      };
+    }
+
     if (POLYGON_LAYER_IDS.has(id) || def.type === "polygon" || def.type === "kmlPolygons") {
       await loadClassedPolygons(def);
       if (pendingShowId !== id) return { ok: false, id, available: false, superseded: true };
@@ -993,13 +1259,23 @@ export function createHydrologyLayer(dataset) {
     return config;
   }
 
-  /** Ray pick salinity / WQ polygons / bank erosion / geology at local XZ. */
+  /** Ray pick salinity / WQ polygons / bank erosion / geology / pollution at local XZ. */
   function pickAt(x, z) {
     if (activeId === "bank_erosion") {
       return sampleBankErosionAt(x, z);
     }
     if (activeId === "geology") {
       return sampleGeologyAt(x, z);
+    }
+    if (
+      activeId === "landuse_lulc" ||
+      activeId === "silt_classification" ||
+      activeId === "silt_volume_surface"
+    ) {
+      return sampleLandUseAt(x, z);
+    }
+    if (activeId === "pollution") {
+      return pollutionGarbage.userData?.pickAt?.(x, z) || null;
     }
     if (!POLYGON_LAYER_IDS.has(activeId)) return null;
     const slot = polygonSlot(activeId);
@@ -1053,6 +1329,38 @@ export function createHydrologyLayer(dataset) {
     };
   }
 
+  /** Sample LULC / silt class under the pointer for hover tooltips. */
+  function sampleLandUseAt(x, z) {
+    const id = activeId;
+    if (
+      id !== "landuse_lulc" &&
+      id !== "silt_classification" &&
+      id !== "silt_volume_surface"
+    ) {
+      return null;
+    }
+    const slot = drapedOverlays[id];
+    const sampler = slot?.sampler;
+    if (!sampler) return null;
+    const ll = localToLonLat(x, z);
+    const hit = sampler.sampleLonLat(ll.lon, ll.lat);
+    if (!hit) return null;
+    return {
+      ...hit,
+      x,
+      z,
+      lon: ll.lon,
+      lat: ll.lat,
+      hydrology: id,
+      layerTitle:
+        id === "landuse_lulc"
+          ? "LULC"
+          : id === "silt_volume_surface"
+            ? "SILT VOLUME"
+            : "SILT CLASS",
+    };
+  }
+
   function dispose() {
     hideAll();
     for (const slot of Object.values(drapedOverlays)) {
@@ -1075,6 +1383,27 @@ export function createHydrologyLayer(dataset) {
         slot.loading = null;
       }
     }
+    pollutionGarbage.userData?.dispose?.();
+    group.remove(pollutionGarbage);
+  }
+
+  let erosionAnimTime = 0;
+
+  function update(dt) {
+    if (activeId === "pollution") {
+      pollutionGarbage.userData?.update?.(dt, group.userData._camera || null);
+    }
+    if (activeId === "bank_erosion") {
+      erosionAnimTime += dt;
+      const mesh = drapedOverlays.bank_erosion?.mesh;
+      if (mesh?.userData?.animateBankErosion) {
+        updateBankErosionMaterial(mesh.material, erosionAnimTime);
+      }
+    }
+  }
+
+  function setCamera(camera) {
+    group.userData._camera = camera || null;
   }
 
   /** Validate active layer geographic footprint (lon/lat of corners / samples). */
@@ -1136,13 +1465,19 @@ export function createHydrologyLayer(dataset) {
     pickAt,
     sampleBankErosionAt,
     sampleGeologyAt,
+    sampleLandUseAt,
     setLulcYear,
     getLulcYear: () => lulcYear,
     setSiltClassificationPeriod,
     getSiltClassificationPeriod: () => siltClassPeriod,
+    setSiltVolumePeriod,
+    getSiltVolumePeriod: () => siltVolumePeriod,
+    update,
+    setCamera,
     dispose,
     validateExtent,
     layerDef: (id) => layerDef(id),
+    getPollutionLayer: () => pollutionGarbage,
   };
 
   return group;
@@ -1243,6 +1578,30 @@ async function createBankErosionSampler(def) {
 }
 
 /**
+ * LULC / silt draped overlay sampler — same UV as buildDrapedGridMesh (flipV).
+ */
+async function createLandUseSampler(def, id) {
+  const classes =
+    (Array.isArray(def.legendClasses) && def.legendClasses.length
+      ? def.legendClasses
+      : null) ||
+    (Array.isArray(def.classes) && def.classes.length ? def.classes : null) ||
+    (id === "landuse_lulc" ? LULC_LEGEND : []);
+  if (!classes.length || !def.overlay || !def.bounds) {
+    throw new Error(`${id} sampler missing classes/overlay/bounds`);
+  }
+  return createBankErosionSampler({
+    ...def,
+    legendClasses: classes.map((c, i) => ({
+      id: c.id || `class_${i}`,
+      label: c.label,
+      color: c.color,
+      pct: c.pct || c.range || null,
+    })),
+  });
+}
+
+/**
  * Geology / Spectral Lithology overlay sampler — matches LITHOLOGY_CLASSES colors.
  * UV matches buildDrapedGridMesh with flipV (north = image top).
  */
@@ -1340,6 +1699,7 @@ async function buildDrapedGridMesh({
   version,
   nearest = false,
   highContrast = false,
+  animateBankErosion = false,
 }) {
   const segs = Math.max(32, Math.min(160, Number(def.gridSegments) || 96));
   const lonSpan = east - west;
@@ -1361,7 +1721,6 @@ async function buildDrapedGridMesh({
       positions[vi * 3] = p.x;
       positions[vi * 3 + 1] = y;
       positions[vi * 3 + 2] = p.z;
-      // tu=0 → west, tv=0 → north; with flipY=false, v=1 is image top (=north)
       let u = tu;
       let v = 1 - tv;
       if (flipU) u = 1 - u;
@@ -1389,26 +1748,31 @@ async function buildDrapedGridMesh({
   draped.computeVertexNormals();
 
   const texture = await loadBoostedOverlayTexture(`${def.overlay}?v=${version}`, nearest);
-  const mat = new THREE.MeshBasicMaterial({
-    map: texture,
-    transparent: true,
-    opacity: Math.min(1, Math.max(highContrast ? 1 : 0.85, opacity)),
-    alphaTest: highContrast ? 0.08 : 0.02,
-    depthWrite: false,
-    depthTest: false,
-    side: THREE.DoubleSide,
-    toneMapped: false,
-  });
+  const mat = animateBankErosion
+    ? createBankErosionMaterial(texture, {
+        opacity: Math.min(1, Math.max(0.85, opacity)),
+      })
+    : new THREE.MeshBasicMaterial({
+        map: texture,
+        transparent: true,
+        opacity: Math.min(1, Math.max(highContrast ? 1 : 0.85, opacity)),
+        alphaTest: highContrast ? 0.08 : 0.02,
+        depthWrite: false,
+        depthTest: false,
+        side: THREE.DoubleSide,
+        toneMapped: false,
+      });
   const mesh = new THREE.Mesh(draped, mat);
   mesh.name = `hydrology_${id}`;
-  mesh.renderOrder = highContrast ? 48 : 18;
-  mesh.frustumCulled = !highContrast;
+  mesh.renderOrder = highContrast || animateBankErosion ? 48 : 18;
+  mesh.frustumCulled = !(highContrast || animateBankErosion);
   mesh.visible = false;
   mesh.userData.hydrology = id;
   mesh.userData.geoUvVersion = version;
   mesh.userData.overlayUrl = def.overlay;
   mesh.userData.boundsLonLat = { west, east, north, south };
   mesh.userData.boundsLocal = bounds;
+  mesh.userData.animateBankErosion = !!animateBankErosion;
   return mesh;
 }
 

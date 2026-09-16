@@ -7,8 +7,8 @@ const NOTES_KEY = "mm_chainage_notes_v1";
 
 /**
  * Compact premium chainage panel: chevron nav + annotation.
+ * Station readout uses `10m ← 7+000 → 10m` for ±interval stepping.
  * Notes editor opens only after the user clicks Annotation.
- * Logic (prev/next/select/notes) unchanged — UI presentation only.
  */
 export function mountChainagePanel(root, dataset) {
   const el = document.createElement("aside");
@@ -16,6 +16,7 @@ export function mountChainagePanel(root, dataset) {
   el.id = "chainage-panel";
   el.hidden = true;
   el.setAttribute("aria-label", "Chainage");
+  const intervalM = Number(dataset?.chainageIntervalM) > 0 ? Math.round(dataset.chainageIntervalM) : 10;
 
   el.innerHTML = `
     <header class="chainage-panel-header">
@@ -29,11 +30,11 @@ export function mountChainagePanel(root, dataset) {
     </header>
     <div class="chainage-panel-body">
       <div class="chainage-panel-nav" role="group" aria-label="Chainage navigation">
-        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-prev" title="Previous station" aria-label="Previous station">
+        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-prev" title="Previous ${intervalM} m" aria-label="Previous ${intervalM} m station">
           ${lucideHtml(ChevronLeft, { size: 22, className: "ch-icon" })}
         </button>
         <span class="chainage-panel-station" id="ch-panel-station">—</span>
-        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-next" title="Next station" aria-label="Next station">
+        <button type="button" class="chainage-panel-nav-btn" id="ch-panel-next" title="Next ${intervalM} m" aria-label="Next ${intervalM} m station">
           ${lucideHtml(ChevronRight, { size: 22, className: "ch-icon" })}
         </button>
       </div>
@@ -104,7 +105,8 @@ export function mountChainagePanel(root, dataset) {
     const prev = idx > 0 ? points[idx - 1] : null;
     const next = idx >= 0 && idx < points.length - 1 ? points[idx + 1] : null;
 
-    stationEl.textContent = p.label || metersToStation(p.meters);
+    const station = p.label || metersToStation(p.meters);
+    stationEl.textContent = station;
 
     el.querySelector("#ch-panel-prev").disabled = !prev;
     el.querySelector("#ch-panel-next").disabled = !next;

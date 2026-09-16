@@ -23,6 +23,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   const getNallaFlow = opts.getNallaFlow;
   const getRawSurveyLayer = opts.getRawSurveyLayer;
   const riverWidthMeasure = opts.riverWidthMeasure;
+  const distanceMeasure = opts.distanceMeasure;
   const SURVEY_PICK_R2 = 14 * 14;
   /** After click, keep the compact card visible for ~5 seconds. */
   let stickySurveyPoint = null;
@@ -93,6 +94,34 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     if (wx == null) return { hydro, feat: null, wx: null, wz: null };
     const feat = hydro.userData.pickAt?.(wx, wz) || null;
     return { hydro, feat, wx, wz };
+  }
+
+  function pickLandUseAtPointer() {
+    const hydro = getHydrologyGroup?.();
+    const id = hydro?.visible ? hydro.userData?.getActiveId?.() : null;
+    if (
+      id !== "landuse_lulc" &&
+      id !== "silt_classification" &&
+      id !== "silt_volume_surface"
+    ) {
+      return { hydro: null, feat: null, wx: null, wz: null, id: null };
+    }
+    const { wx, wz } = pickWorldXZ();
+    if (wx == null) return { hydro, feat: null, wx: null, wz: null, id };
+    let feat = hydro.userData.pickAt?.(wx, wz) || null;
+    if (feat && state.landUseSelectedClass) {
+      const label = String(feat.label || feat.class_label || "");
+      if (!label.toLowerCase().includes(String(state.landUseSelectedClass).toLowerCase()) &&
+          String(state.landUseSelectedClass).toLowerCase() !== label.toLowerCase()) {
+        // Allow fuzzy: selected "Cropland" vs "Crop Land"
+        const sel = String(state.landUseSelectedClass).toLowerCase();
+        const ok =
+          label.toLowerCase().includes(sel.slice(0, 4)) ||
+          sel.includes(label.toLowerCase().slice(0, 4));
+        if (!ok) feat = null;
+      }
+    }
+    return { hydro, feat, wx, wz, id };
   }
 
   function ndc(e) {
@@ -191,6 +220,41 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       return;
     }
 
+    // Two-point distance measure — own clicks; never move camera / chainage.
+    if (state.distanceMeasureActive || distanceMeasure?.isActive?.()) {
+      if (!fromClick) return;
+      const hit = raycaster.intersectObjects(targets, false)[0];
+      let x = null;
+      let z = null;
+      let y = null;
+      if (hit) {
+        x = hit.point.x;
+        z = hit.point.z;
+        y = hit.point.y + 0.6;
+      } else {
+        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SURFACE_Y);
+        const pt = new THREE.Vector3();
+        if (raycaster.ray.intersectPlane(plane, pt)) {
+          x = pt.x;
+          z = pt.z;
+          y = Math.max(
+            terrainHeightAt(pt.x, pt.z, dataset.corridor?.stations || []),
+            SURFACE_Y,
+          ) + 1.2;
+        }
+      }
+      if (x != null && z != null) {
+        const add =
+          distanceMeasure?.addPoint ||
+          ((xx, zz, yy) => window.__MM_SCENE__?.addDistanceMeasurePoint?.(xx, zz, yy));
+        add(x, z, y);
+      }
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      e.stopImmediatePropagation?.();
+      return;
+    }
+
     // Spectral Lithology — CLICK only (no hover identification).
     if (state.lithologyMode || getHydrologyGroup?.()?.userData?.getActiveId?.() === "geology") {
       if (fromClick) {
@@ -242,6 +306,42 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     } else if (state.lithologyTipActive) {
       state.lithologyTipActive = false;
       window.__MM_SCENE__?.clearLithologyPick?.();
+    }
+
+    // Land Use / LULC / silt — hover class under pointer
+    {
+      const luId = getHydrologyGroup?.()?.userData?.getActiveId?.();
+      if (
+        luId === "landuse_lulc" ||
+        luId === "silt_classification" ||
+        luId === "silt_volume_surface"
+      ) {
+        const { feat } = pickLandUseAtPointer();
+        if (feat) {
+          tooltip.show(e.clientX, e.clientY, {
+            landUseHover: true,
+            label: feat.label || feat.class_label,
+            class_label: feat.class_label || feat.label,
+            color: feat.color,
+            pct: feat.pct || feat.range || null,
+            layerTitle: feat.layerTitle || "LAND USE",
+            lon: feat.lon,
+            lat: feat.lat,
+          });
+          state.hover = { x: feat.x, z: feat.z, layer: luId, class: feat.label };
+          if (fromClick) {
+            document.dispatchEvent(
+              new CustomEvent("river-measure-clear"),
+            );
+          }
+          return;
+        }
+        if (!fromClick) {
+          tooltip.hide();
+          state.hover = null;
+          return;
+        }
+      }
     }
 
     // Bank erosion owns map tooltip while its layer is on (before chainage tip).
@@ -474,7 +574,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
           hydroId === "water_quality_tss" ||
           hydroId === "water_quality_ndwi" ||
           hydroId === "water_quality_ndci" ||
-          hydroId === "water_quality_wst"
+          hydroId === "water_quality_wst" ||
+          hydroId === "pollution"
         ) {
           const feat = hydro.userData.pickAt?.(wx, wz);
           if (feat) {
@@ -484,25 +585,69 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               water_quality_ndci: "NDCI — Chlorophyll",
               water_quality_wst: "WST — Temperature",
               salinity: "SALINITY",
+              pollution: "POLLUTION",
             };
+
+            if (hydroId === "pollution" && fromClick) {
+              const layer = hydro.userData.getPollutionLayer?.();
+              const selected = layer?.userData?.select?.(feat.id, { focusCamera: true });
+              if (selected) {
+                state.garbageSelectionActive = true;
+                tooltip.show(e.clientX, e.clientY, {
+                  hydrologyPollution: true,
+                  garbageSelected: true,
+                  displayName: selected.name || null,
+                  displayType: selected.category || null,
+                  name: selected.name || null,
+                  description: selected.description || null,
+                  associationStatus: selected.associationStatus,
+                  distanceToRiver: selected.distanceToRiver,
+                  chainageLabel:
+                    selected.riverChainageMeters != null
+                      ? `${Math.floor(selected.riverChainageMeters / 1000)}+${String(Math.round(selected.riverChainageMeters % 1000)).padStart(3, "0")}`
+                      : null,
+                  color: "#E89A1C",
+                  lon: selected.lon,
+                  lat: selected.lat,
+                  localX: selected.x,
+                  localZ: selected.z,
+                  layer: "pollution",
+                  layerTitle: "POLLUTION",
+                });
+                state.hover = { x: selected.x, z: selected.z, layer: "pollution" };
+                return;
+              }
+            }
+
             tooltip.show(e.clientX, e.clientY, {
               hydrologySalinity: hydroId === "salinity",
-              hydrologyWaterQuality: hydroId !== "salinity",
+              hydrologyWaterQuality:
+                hydroId !== "salinity" && hydroId !== "pollution",
+              hydrologyPollution: hydroId === "pollution",
+              garbageSelected: false,
+              displayName: feat.name || null,
+              displayType: feat.category || null,
               name: feat.name || feat.class_label || hydroId,
               class_label: feat.class_label,
               class: feat.class,
               range: feat.range,
               description: feat.description,
-              color: feat.color,
+              associationStatus: feat.associationStatus,
+              distanceToRiver: feat.distanceToRiver,
+              chainageLabel: feat.chainageLabel,
+              color: feat.color || (hydroId === "pollution" ? "#E89A1C" : null),
               localX: feat.x,
               localZ: feat.z,
-              lon: feat.vertices?.[0]?.lon,
-              lat: feat.vertices?.[0]?.lat,
+              lon: feat.lon ?? feat.vertices?.[0]?.lon,
+              lat: feat.lat ?? feat.vertices?.[0]?.lat,
               layer: hydroId,
               layerTitle: layerTitles[hydroId] || hydroId,
             });
             state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label, layer: hydroId };
             return;
+          }
+          if (hydroId === "pollution" && fromClick) {
+            window.__MM_SCENE__?.clearGarbageSelection?.();
           }
         }
 
@@ -622,20 +767,6 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       chainage: ch?.label,
     };
 
-    let measure = null;
-    if (fromClick && isRiver) {
-      measure = riverWidthMeasure?.showAt?.({ x, z, depth }) || null;
-      if (measure) {
-        state.hover.leftWidthM = measure.leftM;
-        state.hover.rightWidthM = measure.rightM;
-        state.hover.widthM = measure.widthM;
-        // Prefer measure tooltip over pinned chainage card while active.
-        state.chainageTipActive = false;
-        // Zoom out a bit, keep camera locked on current chainage corridor.
-        window.__MM_SCENE__?.frameRiverMeasure?.(x, z, ch?.meters);
-      }
-    }
-
     if (!state.inspectMode && isRiver) {
       tooltip.show(e.clientX, e.clientY, {
         compact: true,
@@ -651,10 +782,6 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         flowSpeed,
         chainage: ch?.meters != null ? `${(ch.meters / 1000).toFixed(2)} km` : ch?.label,
         chainageM: ch?.meters,
-        leftWidthM: measure?.leftM,
-        rightWidthM: measure?.rightM,
-        widthM: measure?.widthM,
-        riverMeasure: !!measure,
       });
       return;
     }

@@ -1,34 +1,72 @@
-import { Droplets, Ruler, ChevronRight, X } from "lucide";
+import { ChevronRight, X } from "lucide";
 import { lucideHtml } from "../icons.js";
+import { state } from "../../state.js";
 import { interpolateChainage } from "../../geo/chainage.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 import { nearestStationU, stationAt } from "../../scene/riverCamera.js";
 
 /**
  * Compact River Data HUD.
- * Default: station + Depth/Width rows only.
- * Depth / Width open an attached profile popup (overlay — no layout reflow).
+ * 🫧 identity · Depth / Width profiles · real two-point Measure.
+ * Fresh load = OPEN (no localStorage). Collapse → compact 🫧 button only.
  */
 export function mountRiverDataPanel(root, dataset) {
   const el = document.createElement("aside");
   el.className = "hud river-data-panel";
   el.id = "river-data-panel";
   el.innerHTML = `
-    <div class="river-data-heading"><span>RIVER DATA</span></div>
-    <div class="river-data-station" id="river-data-station">—</div>
-    <div class="river-data-rows" role="group" aria-label="River measurements">
-      <button type="button" class="river-data-row" id="depth-survey-btn" data-profile="depth" aria-expanded="false" title="Depth profile">
-        <span class="river-data-row-icon" aria-hidden="true">${lucideHtml(Droplets, { size: 15 })}</span>
-        <span class="river-data-row-label">Depth</span>
-        <span class="river-data-row-value" id="river-data-depth" style="font-size:22px;font-weight:700;line-height:1.05;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">—</span>
-        <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
-      </button>
-      <button type="button" class="river-data-row" id="width-profile-btn" data-profile="width" aria-expanded="false" title="Width profile">
-        <span class="river-data-row-icon" aria-hidden="true">${lucideHtml(Ruler, { size: 15 })}</span>
-        <span class="river-data-row-label">Width</span>
-        <span class="river-data-row-value" id="river-data-width" style="font-size:22px;font-weight:700;line-height:1.05;font-family:ui-monospace,SFMono-Regular,Consolas,monospace">—</span>
-        <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
-      </button>
+    <button type="button" class="river-data-fab" id="river-data-fab" hidden aria-label="Open River Data" title="River Data">
+      <span class="river-data-emoji" aria-hidden="true">🫧</span>
+    </button>
+    <div class="river-data-shell" id="river-data-shell">
+      <header class="river-data-head">
+        <div class="river-data-head-main">
+          <span class="river-data-emoji river-data-head-icon" aria-hidden="true">🫧</span>
+          <div class="river-data-head-text">
+            <span class="river-data-heading">River Data</span>
+            <span class="river-data-station" id="river-data-station">—</span>
+          </div>
+        </div>
+        <button type="button" class="river-data-close" id="river-data-collapse" aria-label="Close River Data" title="Close">
+          ${lucideHtml(X, { size: 14, className: "river-data-close-icon" })}
+        </button>
+      </header>
+      <div class="river-data-body" id="river-data-body">
+        <div class="river-data-rows" role="group" aria-label="River measurements">
+          <button type="button" class="river-data-row" id="depth-survey-btn" data-profile="depth" aria-expanded="false" title="Depth profile">
+            <span class="river-data-row-icon" aria-hidden="true">🌊</span>
+            <span class="river-data-row-label">Depth</span>
+            <span class="river-data-row-value" id="river-data-depth">—</span>
+            <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
+          </button>
+          <button type="button" class="river-data-row" id="width-profile-btn" data-profile="width" aria-expanded="false" title="Width profile">
+            <span class="river-data-row-icon" aria-hidden="true">↔️</span>
+            <span class="river-data-row-label">Width</span>
+            <span class="river-data-row-value" id="river-data-width">—</span>
+            <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
+          </button>
+          <button type="button" class="river-data-row" id="distance-measure-btn" data-measure="distance" aria-expanded="false" title="Measure distance">
+            <span class="river-data-row-icon" aria-hidden="true">📏</span>
+            <span class="river-data-row-label">Measure</span>
+            <span class="river-data-row-value river-data-row-value--empty" aria-hidden="true"></span>
+            <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
+          </button>
+        </div>
+      </div>
+    </div>
+    <div class="river-measure-panel" id="river-measure-panel" hidden aria-hidden="true">
+      <header class="river-measure-head">
+        <div class="river-measure-head-main">
+          <span class="river-data-emoji" aria-hidden="true">📏</span>
+          <strong>Measure Distance</strong>
+        </div>
+        <button type="button" class="river-data-close" id="river-measure-exit" aria-label="Exit measure">
+          ${lucideHtml(X, { size: 14, className: "river-data-close-icon" })}
+        </button>
+      </header>
+      <div class="river-measure-body" id="river-measure-body">
+        <p class="river-measure-hint" id="river-measure-hint">Click first point</p>
+      </div>
     </div>
     <div class="river-profile-popup" id="river-profile-popup" hidden aria-hidden="true">
       <div class="river-profile-popup-inner" role="dialog" aria-modal="false" aria-labelledby="river-profile-title">
@@ -55,8 +93,15 @@ export function mountRiverDataPanel(root, dataset) {
   `;
   root.appendChild(el);
 
+  const fabEl = el.querySelector("#river-data-fab");
+  const shellEl = el.querySelector("#river-data-shell");
+  const collapseBtn = el.querySelector("#river-data-collapse");
   const depthBtn = el.querySelector("#depth-survey-btn");
   const widthBtn = el.querySelector("#width-profile-btn");
+  const measureBtn = el.querySelector("#distance-measure-btn");
+  const measurePanel = el.querySelector("#river-measure-panel");
+  const measureBody = el.querySelector("#river-measure-body");
+  const measureExit = el.querySelector("#river-measure-exit");
   const popup = el.querySelector("#river-profile-popup");
   const titleEl = el.querySelector("#river-profile-title");
   const stationEl = el.querySelector("#river-profile-station");
@@ -70,12 +115,54 @@ export function mountRiverDataPanel(root, dataset) {
   let openKind = null;
   let closingTimer = 0;
   let profileRaf = 0;
+  /** Fresh load always open — never read localStorage. */
+  let collapsed = false;
+  let measureOpen = false;
 
-  function setRowActive(kind) {
-    depthBtn.classList.toggle("is-active", kind === "depth");
-    widthBtn.classList.toggle("is-active", kind === "width");
-    depthBtn.setAttribute("aria-expanded", kind === "depth" ? "true" : "false");
-    widthBtn.setAttribute("aria-expanded", kind === "width" ? "true" : "false");
+  function setCollapsed(on) {
+    collapsed = !!on;
+    el.classList.toggle("is-collapsed", collapsed);
+    if (fabEl) fabEl.hidden = !collapsed;
+    if (shellEl) {
+      shellEl.hidden = collapsed;
+      shellEl.setAttribute("aria-hidden", collapsed ? "true" : "false");
+    }
+    if (collapsed) {
+      closePopup({ immediate: true });
+      if (measureOpen) exitMeasure();
+    }
+  }
+
+  function syncFocusCollapse() {
+    // In map focus, collapse so the map is clear — user can reopen via 🫧.
+    if (state.mapFocusKind || state.landUseFocusMode) setCollapsed(true);
+    else if (!measureOpen) setCollapsed(false);
+  }
+
+  collapseBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCollapsed(true);
+  });
+  fabEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setCollapsed(false);
+  });
+
+  document.addEventListener("map-focus-change", syncFocusCollapse);
+  document.addEventListener("land-use-focus-change", syncFocusCollapse);
+  // Default OPEN on mount (unless already in map-focus).
+  syncFocusCollapse();
+  if (!state.mapFocusKind && !state.landUseFocusMode) setCollapsed(false);
+
+  function syncMeasureRowActive() {
+    depthBtn.classList.toggle("is-active", !!state.riverMeasureDepthOn);
+    widthBtn.classList.toggle("is-active", !!state.riverMeasureWidthOn);
+    depthBtn.setAttribute("aria-expanded", state.riverMeasureDepthOn ? "true" : "false");
+    widthBtn.setAttribute("aria-expanded", state.riverMeasureWidthOn ? "true" : "false");
+    measureBtn.classList.toggle("is-active", !!measureOpen || !!state.distanceMeasureActive);
+    measureBtn.setAttribute("aria-expanded", measureOpen ? "true" : "false");
   }
 
   function buildSeries(kind) {
@@ -110,13 +197,12 @@ export function mountRiverDataPanel(root, dataset) {
 
   function openPopup(kind) {
     if (!current) return;
+    if (measureOpen) exitMeasure();
     window.clearTimeout(closingTimer);
     openKind = kind;
-    setRowActive(kind);
     renderPopupContent(kind);
     popup.hidden = false;
     popup.setAttribute("aria-hidden", "false");
-    // Force reflow so enter transition runs
     void popup.offsetWidth;
     popup.classList.add("is-open");
   }
@@ -124,7 +210,7 @@ export function mountRiverDataPanel(root, dataset) {
   function closePopup({ immediate = false } = {}) {
     if (!openKind && popup.hidden) return;
     openKind = null;
-    setRowActive(null);
+    syncMeasureRowActive();
     popup.classList.remove("is-open");
     popup.setAttribute("aria-hidden", "true");
     if (immediate) {
@@ -137,17 +223,110 @@ export function mountRiverDataPanel(root, dataset) {
     }, 260);
   }
 
-  function toggleProfile(kind) {
-    if (openKind === kind) {
-      closePopup();
-      return;
-    }
-    openPopup(kind);
+  function toggleRiverMeasure(kind) {
+    if (!current) return;
+    window.__MM_SCENE__?.toggleRiverMeasureKind?.(kind);
+    syncMeasureRowActive();
   }
 
-  depthBtn.addEventListener("click", () => toggleProfile("depth"));
-  widthBtn.addEventListener("click", () => toggleProfile("width"));
+  depthBtn.addEventListener("click", (e) => {
+    if (e.target.closest(".river-data-row-action")) {
+      e.stopPropagation();
+      openPopup("depth");
+      return;
+    }
+    toggleRiverMeasure("depth");
+  });
+  widthBtn.addEventListener("click", (e) => {
+    if (e.target.closest(".river-data-row-action")) {
+      e.stopPropagation();
+      openPopup("width");
+      return;
+    }
+    toggleRiverMeasure("width");
+  });
   closeBtn.addEventListener("click", () => closePopup());
+
+  /* ─── Two-point distance measure UI ─── */
+  function renderMeasureUi(snap) {
+    const s = snap || window.__MM_SCENE__?.getDistanceMeasureSnapshot?.() || {
+      phase: "a",
+      distanceText: "—",
+      pointA: null,
+      pointB: null,
+    };
+    if (s.phase === "done" && s.pointA && s.pointB) {
+      const a = formatCoord(s.pointA);
+      const b = formatCoord(s.pointB);
+      measureBody.innerHTML = `
+        <div class="river-measure-result">
+          <span class="river-measure-kicker">Distance</span>
+          <strong class="river-measure-dist" id="river-measure-dist">${escapeHtml(s.distanceText || "—")}</strong>
+        </div>
+        ${a ? `<p class="river-measure-coord"><span>A</span> ${escapeHtml(a)}</p>` : ""}
+        ${b ? `<p class="river-measure-coord"><span>B</span> ${escapeHtml(b)}</p>` : ""}
+        <button type="button" class="river-measure-clear" id="river-measure-clear">Clear</button>
+      `;
+      measureBody.querySelector("#river-measure-clear")?.addEventListener("click", (ev) => {
+        ev.preventDefault();
+        ev.stopPropagation();
+        window.__MM_SCENE__?.clearDistanceMeasure?.();
+      });
+    } else {
+      const hint = s.phase === "b" ? "Click second point" : "Click first point";
+      measureBody.innerHTML = `<p class="river-measure-hint" id="river-measure-hint">${hint}</p>`;
+    }
+  }
+
+  function enterMeasure() {
+    closePopup({ immediate: true });
+    measureOpen = true;
+    setCollapsed(false);
+    shellEl.hidden = true;
+    measurePanel.hidden = false;
+    measurePanel.setAttribute("aria-hidden", "false");
+    void measurePanel.offsetWidth;
+    measurePanel.classList.add("is-open");
+    window.__MM_SCENE__?.setDistanceMeasureActive?.(true);
+    renderMeasureUi({ phase: "a" });
+    syncMeasureRowActive();
+    el.classList.add("is-measuring");
+  }
+
+  function exitMeasure() {
+    measureOpen = false;
+    measurePanel.classList.remove("is-open");
+    measurePanel.setAttribute("aria-hidden", "true");
+    measurePanel.hidden = true;
+    window.__MM_SCENE__?.setDistanceMeasureActive?.(false);
+    if (!collapsed) shellEl.hidden = false;
+    syncMeasureRowActive();
+    el.classList.remove("is-measuring");
+  }
+
+  measureBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (measureOpen) exitMeasure();
+    else enterMeasure();
+  });
+  measureExit.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    exitMeasure();
+  });
+
+  function onDistanceChange(e) {
+    if (!measureOpen) return;
+    renderMeasureUi(e.detail);
+  }
+  document.addEventListener("distance-measure-change", onDistanceChange);
+
+  document.addEventListener("river-measure-ui-sync", syncMeasureRowActive);
+  document.addEventListener("river-measure-clear", () => {
+    syncMeasureRowActive();
+    closePopup({ immediate: true });
+  });
 
   function update(meters) {
     const p = typeof meters === "object" ? meters : interpolateChainage(dataset.chainage, meters);
@@ -173,11 +352,12 @@ export function mountRiverDataPanel(root, dataset) {
     const label = p.label || profilePoint?.chainage_m || metersToStation(p.meters);
     const depthText = Number.isFinite(depth) ? `${depth.toFixed(2)} m` : "—";
     const widthText = Number.isFinite(width) ? `${width.toFixed(1)} m` : "—";
-    const qualityText = depthPoint?.flagged || depthPoint?.nearest_survey_m > 60
-      ? "LOW CONFIDENCE"
-      : depthPoint?.nearest_survey_m < 1
-        ? "SURVEY DATA"
-        : "INTERPOLATED";
+    const qualityText =
+      depthPoint?.flagged || depthPoint?.nearest_survey_m > 60
+        ? "LOW CONFIDENCE"
+        : depthPoint?.nearest_survey_m < 1
+          ? "SURVEY DATA"
+          : "INTERPOLATED";
     const nearestSurveyText = Number.isFinite(depthPoint?.nearest_survey_m)
       ? `${depthPoint.nearest_survey_m.toFixed(1)} m`
       : "—";
@@ -198,7 +378,6 @@ export function mountRiverDataPanel(root, dataset) {
       u,
     };
 
-    // Defer chart rebuild so chainage-select handlers stay responsive.
     if (openKind && popup.classList.contains("is-open")) {
       stationEl.textContent = `${label || "—"} selected`;
       valueEl.textContent = openKind === "depth" ? depthText : widthText;
@@ -212,7 +391,30 @@ export function mountRiverDataPanel(root, dataset) {
     return current;
   }
 
-  return { el, update, closeProfile: () => closePopup({ immediate: true }) };
+  return {
+    el,
+    update,
+    closeProfile: () => closePopup({ immediate: true }),
+    dispose() {
+      document.removeEventListener("distance-measure-change", onDistanceChange);
+      document.removeEventListener("map-focus-change", syncFocusCollapse);
+      document.removeEventListener("land-use-focus-change", syncFocusCollapse);
+      if (measureOpen) exitMeasure();
+    },
+  };
+}
+
+function formatCoord(pt) {
+  if (!pt || !Number.isFinite(pt.lat) || !Number.isFinite(pt.lon)) return "";
+  return `${pt.lat.toFixed(6)}, ${pt.lon.toFixed(6)}`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
 }
 
 function nearestByMeters(points, meters) {
@@ -248,17 +450,6 @@ function sampleProfile(points, valueKey, maxPoints) {
   ) {
     out.push({ meters: lastMeters, value: lastValue });
   }
-  return out;
-}
-
-function downsampleSeries(points, maxPoints) {
-  const valid = points.filter((p) => Number.isFinite(p.meters) && Number.isFinite(p.value));
-  if (valid.length <= maxPoints) return valid;
-  const step = Math.ceil(valid.length / maxPoints);
-  const out = [];
-  for (let i = 0; i < valid.length; i += step) out.push(valid[i]);
-  const last = valid[valid.length - 1];
-  if (out[out.length - 1] !== last) out.push(last);
   return out;
 }
 
@@ -325,11 +516,13 @@ function profileSvg(series, selectedMeters, selectedValue, color) {
   return `<svg class="river-profile-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="Profile chart">
     <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="rgba(120,200,220,0.25)" stroke-width="1"/>
     <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="rgba(120,200,220,0.25)" stroke-width="1"/>
-    ${yTicks.map((v) => {
-      const y = toY(v);
-      return `<text x="${padL - 4}" y="${y + 3}" text-anchor="end" class="river-profile-tick">${v.toFixed(1)}</text>
+    ${yTicks
+      .map((v) => {
+        const y = toY(v);
+        return `<text x="${padL - 4}" y="${y + 3}" text-anchor="end" class="river-profile-tick">${v.toFixed(1)}</text>
       <line x1="${padL}" y1="${y}" x2="${padL + plotW}" y2="${y}" stroke="rgba(120,200,220,0.08)" stroke-width="1"/>`;
-    }).join("")}
+      })
+      .join("")}
     <polyline points="${poly}" fill="none" stroke="${color}" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
     <line x1="${selX}" y1="${padT}" x2="${selX}" y2="${padT + plotH}" stroke="rgba(125,211,252,0.55)" stroke-width="1.5" stroke-dasharray="3 3"/>
     <circle cx="${selX}" cy="${selY}" r="4.5" fill="${color}" stroke="#eaf8fb" stroke-width="1.5"/>

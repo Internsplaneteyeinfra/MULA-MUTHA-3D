@@ -63,37 +63,47 @@ export function mountNavigationControls(root, {
   const settingsBtn = modes.querySelector("#settings-btn");
   const floodBtn = modes.querySelector("#flood-btn");
 
+  const clearRiverMeasure = () => {
+    document.dispatchEvent(new CustomEvent("river-measure-clear"));
+  };
+
   overviewBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
+    clearRiverMeasure();
     onOverview?.();
     syncActive();
   });
   view2dBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
+    clearRiverMeasure();
     onRiverSide?.();
     syncActive();
   });
   view3dBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
-    // 3D → mid-chainage eye-level corridor (not wide Overview)
+    clearRiverMeasure();
     if (on3D) on3D();
     else onOverview?.();
     syncActive();
   });
   layersBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
+    clearRiverMeasure();
     onLayersToggle?.();
   });
   drainageBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
+    clearRiverMeasure();
     onDrainageToggle?.();
   });
   settingsBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
+    clearRiverMeasure();
     onSettingsToggle?.();
   });
   floodBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
+    clearRiverMeasure();
     onFloodToggle?.();
   });
 

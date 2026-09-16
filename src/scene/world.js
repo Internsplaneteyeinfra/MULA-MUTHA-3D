@@ -13,6 +13,7 @@ import { createBridges, updateBridgeLabels, updateBridgePiers } from "./bridges.
 import { createCameraSystem } from "./cinematic.js";
 import { attachInspect } from "./inspect.js";
 import { createRiverWidthMeasure } from "./riverWidthMeasure.js";
+import { createDistanceMeasure } from "./distanceMeasure.js";
 import { createFlowParticles } from "./flowParticles.js";
 import { createWaterEffects } from "./waterEffects.js";
 import { createChainageLayer, nearestChainage } from "./chainageMarkers.js";
@@ -26,6 +27,7 @@ import { createDepthZonesLayer } from "./depthZonesLayer.js";
 import { createFloodLayer } from "./floodLayer.js";
 import { createApiFloodLayer } from "./apiFloodLayer.js";
 import { createHydrologyLayer } from "./hydrologyLayer.js";
+import { createBodCodLayer } from "./bodCodLayer.js";
 import { createMainStemLayer } from "./mainStemLayer.js";
 import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
@@ -34,6 +36,7 @@ import { computeActiveSceneBounds, computeSceneBounds } from "../geo/sceneBounds
 import { createQualityProfile, createThrottle, isLowMemoryDevice } from "../perf/quality.js";
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
+import { nearestStationU } from "./riverCamera.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
 
 export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
@@ -166,6 +169,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const apiFloodLayer = createApiFloodLayer(dataset);
   /** Hydrology thematic overlays (Geology + Salinity). */
   const hydrologyLayer = createHydrologyLayer(dataset);
+  const bodCodLayer = createBodCodLayer(dataset);
   /** @deprecated alias — prefer apiFloodLayer */
   const floodSimLayer = apiFloodLayer;
   fillPierUniforms(river.material, dataset);
@@ -203,6 +207,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(floodLayer);
   scene.add(apiFloodLayer);
   scene.add(hydrologyLayer);
+  scene.add(bodCodLayer);
 
   // Spectral Lithology click marker (white point + ring)
   const lithologyPick = new THREE.Group();
@@ -256,6 +261,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const coordLabels = mountCoordinateLabels(uiRoot, coordinateGrid, getCamera, canvas);
   const riverWidthMeasure = createRiverWidthMeasure(dataset);
   scene.add(riverWidthMeasure.group);
+  const distanceMeasure = createDistanceMeasure(dataset);
+  scene.add(distanceMeasure.group);
 
   attachInspect(canvas, getCamera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip, {
     getDrainageGroup: () => drainageLayer,
@@ -264,6 +271,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     getHydrologyGroup: () => hydrologyLayer,
     getRawSurveyLayer: () => rawSurveyPoints,
     riverWidthMeasure,
+    distanceMeasure,
   });
 
   // Progressive load: core scene visible first (river + terrain + water)
@@ -481,6 +489,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   canvas.addEventListener("click", (e) => {
     if (state.cinematicActive || !state.showChainage) return;
+    if (state.distanceMeasureActive) return;
     const hit = resolveChainageUnderCursor(e, 110);
     if (hit) {
       document.dispatchEvent(
@@ -623,6 +632,53 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     coordThrottle.setHz(q.coordLabelHz);
   }
 
+  function depthAtLocalXZ(x, z) {
+    const stations = dataset.corridor?.stations || [];
+    const depths = dataset.bathymetry?.depths;
+    if (!stations.length || !depths?.length) return null;
+    const cols = (dataset.bathymetry?.across || 40) + 1;
+    const u = nearestStationU(stations, x, z);
+    const row = Math.min(stations.length - 1, Math.max(0, Math.round(u * Math.max(0, stations.length - 1))));
+    const centerIndex = row * cols + Math.floor((cols - 1) / 2);
+    const d = depths[centerIndex];
+    return Number.isFinite(d) ? d : null;
+  }
+
+  function refreshRiverStationMeasure(metersHint) {
+    if (!state.riverMeasureDepthOn && !state.riverMeasureWidthOn) {
+      riverWidthMeasure.hide();
+      return;
+    }
+    const m = metersHint ?? state.selectedChainageMeters;
+    const p = interpolateChainage(dataset.chainage, m);
+    if (!p || p.x == null) {
+      riverWidthMeasure.hide();
+      return;
+    }
+    const depth = depthAtLocalXZ(p.x, p.z);
+    riverWidthMeasure.showAt(
+      { x: p.x, z: p.z, depth: depth ?? 0 },
+      {
+        showDepth: state.riverMeasureDepthOn,
+        showWidth: state.riverMeasureWidthOn,
+        persist: true,
+      },
+    );
+  }
+
+  function clearRiverStationMeasure() {
+    state.riverMeasureDepthOn = false;
+    state.riverMeasureWidthOn = false;
+    riverWidthMeasure.hide();
+    document.dispatchEvent(new CustomEvent("river-measure-ui-sync"));
+  }
+
+  document.addEventListener("river-measure-clear", clearRiverStationMeasure);
+  document.addEventListener("chainage-select", (e) => {
+    if (!state.riverMeasureDepthOn && !state.riverMeasureWidthOn) return;
+    refreshRiverStationMeasure(e.detail?.meters);
+  });
+
   window.__MM_SCENE__ = {
     scene,
     dataset,
@@ -638,17 +694,25 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     floodSimLayer,
     hydrologyLayer,
     async showHydrologyLayer(id) {
+      bodCodLayer.userData?.setVisible?.(false);
+      bodCodLayer.visible = false;
       const result = await hydrologyLayer.userData?.showLayer?.(id);
+      if (result?.available && !result?.superseded) {
+        hydrologyLayer.visible = true;
+      }
       // Bank erosion ribbon sits on the river corridor — keep water/flood hidden
       // every frame via state flags (update() otherwise restores them).
       const showErosion =
         id === "bank_erosion" && result?.available && result?.ok !== false && !result?.superseded;
       const showLithology =
         id === "geology" && result?.available && result?.ok !== false && !result?.superseded;
+      const showPollution =
+        id === "pollution" && result?.available && result?.ok !== false && !result?.superseded;
       state.hydrologyHidesWater = !!showErosion;
       state.hydrologyHidesFlood = !!showErosion;
       state.bankErosionMode = !!showErosion;
       state.lithologyMode = !!showLithology;
+      if (!showPollution) state.garbageSelectionActive = false;
       const ui = document.getElementById("ui-root");
       ui?.classList.toggle("bank-erosion-mode", !!showErosion);
       ui?.classList.toggle("lithology-mode", !!showLithology);
@@ -661,6 +725,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (showErosion) {
         console.info("[bank_erosion] overlay on", result?.stats || null);
       }
+      if (id === "pollution" && result?.available) {
+        console.info("[pollution] pins on", result?.stats || null);
+      }
       return result;
     },
     hideHydrology() {
@@ -671,9 +738,78 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.bankErosionTipActive = false;
       state.lithologyMode = false;
       state.lithologyTipActive = false;
+      state.garbageSelectionActive = false;
       document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
       lithologyPick.visible = false;
       lithologyPickInfo = null;
+    },
+    isMap2D() {
+      return isMap2DMode();
+    },
+    startGarbageFlight(toP, toL, opts = {}) {
+      return cam.startGarbageFlight?.(toP, toL, opts);
+    },
+    startDrainageFlight(toP, toL, opts = {}) {
+      return cam.startDrainageFlight?.(toP, toL, opts);
+    },
+    selectGarbage(id, opts = {}) {
+      const hydro = hydrologyLayer.userData;
+      const rec = hydro?.getPollutionLayer?.()?.userData?.select?.(id, opts);
+      if (rec) state.garbageSelectionActive = true;
+      return rec;
+    },
+    clearGarbageSelection() {
+      state.garbageSelectionActive = false;
+      hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.clearSelection?.();
+    },
+    setGarbageDensityVisible(v) {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.setShowDensity?.(v);
+    },
+    showBodCod(data) {
+      hydrologyLayer.userData?.hideAll?.();
+      bodCodLayer.userData?.setData?.(data);
+      bodCodLayer.userData?.setVisible?.(true);
+      bodCodLayer.visible = true;
+      const n = data?.reaches?.length || 0;
+      return { available: n > 0, ok: n > 0, message: n ? undefined : "No BOD/COD reaches" };
+    },
+    applyBodCodSnapshot(snaps) {
+      bodCodLayer.userData?.applySnapshot?.(snaps);
+    },
+    hideBodCod() {
+      bodCodLayer.userData?.setVisible?.(false);
+      bodCodLayer.visible = false;
+    },
+    focusBodCodReach(reachId, opts = {}) {
+      const hit = bodCodLayer.userData?.focusReach?.(reachId, opts);
+      // Camera is owned by chainage-select (eye-level river view). Do not aerial-jump here.
+      return hit;
+    },
+    findBodCodReachAtMeters(meters) {
+      return bodCodLayer.userData?.findReachIndexAtMeters?.(meters) ?? -1;
+    },
+    setGarbageLabelsVisible(v) {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.setLabelsEnabled?.(v);
+    },
+    setGarbageClassFilter(label) {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.setClassFilter?.(label);
+    },
+    getPollutionSides() {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.getSides?.() || [];
+    },
+    focusPollutionSide(sideId, opts = {}) {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.focusSide?.(sideId, opts);
+    },
+    clearPollutionSideFilter() {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.clearSideFilter?.();
+    },
+    getGarbageKeyPoints(opts) {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.getKeyPoints?.(opts) || [];
+    },
+    focusGarbageSite(id) {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.select?.(id, {
+        focusCamera: true,
+      });
     },
     async setLulcYear(year) {
       return hydrologyLayer.userData?.setLulcYear?.(year);
@@ -687,13 +823,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     getSiltClassificationPeriod() {
       return hydrologyLayer.userData?.getSiltClassificationPeriod?.() ?? null;
     },
+    async setSiltVolumePeriod(periodId) {
+      return hydrologyLayer.userData?.setSiltVolumePeriod?.(periodId);
+    },
+    getSiltVolumePeriod() {
+      return hydrologyLayer.userData?.getSiltVolumePeriod?.() ?? null;
+    },
     /**
      * Land Use thematic layers (mutually exclusive with other hydrology overlays).
      * vegetation_extent → JalNetra Mula–Mutha vegetation API (when ready).
      * landuse_lulc → Mula–Mutha LULC overlays (2021–2026).
+     * silt_classification / silt_volume_surface → monthly silt rasters (2026).
      */
     async showLandUseLayer(id) {
-      hydrologyLayer.userData?.hideAll?.();
       state.hydrologyHidesWater = false;
       state.hydrologyHidesFlood = false;
       state.bankErosionMode = false;
@@ -701,6 +843,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
 
       if (id === "vegetation_extent") {
+        // Only clear hydrology for vegetation (non-hydrology path).
+        // For LULC / silt, showHydrologyLayer already clears prior overlays —
+        // calling hideAll() first races pendingShowId and can mark loads superseded.
+        hydrologyLayer.userData?.hideAll?.();
         if (
           state.vegetationStatus === "ready" &&
           vegApiResult &&
@@ -842,7 +988,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const p = interpolateChainage(chain, m);
       if (!p || p.x == null) return;
       state.selectedChainageMeters = p.meters;
-      // Zoomed-out corridor pose — still chainage-locked, not free overview.
       cam.focusOnXZ?.(p.x, p.z, {
         cameraHeight: 26,
         cameraDistance: 92,
@@ -853,6 +998,45 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         dur: 0.55,
         ease: "outCubic",
       });
+    },
+    toggleRiverMeasureKind(kind) {
+      if (kind === "depth") state.riverMeasureDepthOn = !state.riverMeasureDepthOn;
+      else if (kind === "width") state.riverMeasureWidthOn = !state.riverMeasureWidthOn;
+      if (!state.riverMeasureDepthOn && !state.riverMeasureWidthOn) {
+        riverWidthMeasure.hide();
+      } else {
+        refreshRiverStationMeasure();
+        const p = interpolateChainage(dataset.chainage, state.selectedChainageMeters);
+        if (p?.x != null) window.__MM_SCENE__?.frameRiverMeasure?.(p.x, p.z, p.meters);
+      }
+      document.dispatchEvent(new CustomEvent("river-measure-ui-sync"));
+      return {
+        depthOn: state.riverMeasureDepthOn,
+        widthOn: state.riverMeasureWidthOn,
+      };
+    },
+    clearRiverStationMeasure,
+    refreshRiverStationMeasure,
+    setDistanceMeasureActive(on) {
+      // Leaving depth/width 3D overlays so they don't compete with free pick.
+      if (on) {
+        state.riverMeasureDepthOn = false;
+        state.riverMeasureWidthOn = false;
+        riverWidthMeasure.hide();
+        document.dispatchEvent(new CustomEvent("river-measure-ui-sync"));
+      }
+      distanceMeasure.setActive(!!on);
+      return distanceMeasure.getSnapshot();
+    },
+    clearDistanceMeasure() {
+      distanceMeasure.clearPoints();
+      return distanceMeasure.getSnapshot();
+    },
+    addDistanceMeasurePoint(x, z, y) {
+      return distanceMeasure.addPoint(x, z, y);
+    },
+    getDistanceMeasureSnapshot() {
+      return distanceMeasure.getSnapshot();
     },
     setRawSurveyPointsVisible(_visible) {
       state.showRawSurveyPoints = false;
@@ -968,6 +1152,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     setJoiningStreams(on) {
       const active = !!on;
       state.joiningStreamsMode = active;
+      if (active) {
+        state.garbageSelectionActive = false;
+        window.__MM_SCENE__?.clearGarbageSelection?.();
+      }
       if (!active) {
         joiningCtrl.deactivate();
       }
@@ -1205,6 +1393,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       // Keep hydrology draped overlays on when a layer is active
       if (hydrologyLayer.userData?.getActiveId?.()) {
         hydrologyLayer.visible = true;
+        hydrologyLayer.userData?.setCamera?.(cam.camera);
+        hydrologyLayer.userData?.update?.(dt);
+      }
+      if (bodCodLayer.visible) {
+        bodCodLayer.userData?.update?.(dt);
       }
       terrain.mesh.visible = true;
       if (terrain.surround) terrain.surround.visible = true;
@@ -1270,6 +1463,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         if (state.lithologyTipActive) pinLithologyPickTip();
       }
       riverWidthMeasure.update?.(cam.camera);
+      distanceMeasure.update?.(cam.camera);
       cinematic.update(dt);
       if (fishing) fishing.update(dt, cam.camera);
       if (!cinematic.isActive()) cam.update(dt);
