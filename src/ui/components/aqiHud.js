@@ -1,8 +1,8 @@
 /**
- * AQI HUD — same chrome pattern as Climate Impact:
- * top metric chips · floating glass card · bottom date sheet.
+ * AQI HUD — Climate-style chrome, refreshes with chainage lat/lon.
  */
 import { enterMapFocus, exitMapFocus } from "../mapFocus.js";
+import { metersToStation } from "../../scene/chainageMarkers.js";
 import {
   AQI_CATEGORIES,
   AQI_FALLBACK_LL,
@@ -19,7 +19,7 @@ import {
 
 /**
  * @param {HTMLElement} root
- * @param {{ getPoint?: () => { lat?:number, lon?:number, label?:string } | null }} [hooks]
+ * @param {{ getPoint?: () => { lat?:number, lon?:number, label?:string, station?:string, meters?:number } | null }} [hooks]
  */
 export function mountAqiHud(root, hooks = {}) {
   const backEl = document.createElement("button");
@@ -56,12 +56,15 @@ export function mountAqiHud(root, hooks = {}) {
   let open = false;
   let loadSerial = 0;
   let pollTimer = null;
+  let chainageTimer = null;
+  let corridorSerial = 0;
   let point = { ...AQI_FALLBACK_LL, label: "Mula–Mutha" };
   let live = null;
   let hourly = null;
   let day = todayYmd();
   let metric = "aqi";
   let busy = false;
+  let lastFetchKey = "";
 
   function isOpen() {
     return open;
@@ -72,9 +75,19 @@ export function mountAqiHud(root, hooks = {}) {
     const lat = Number(p?.lat);
     const lon = Number(p?.lon);
     if (Number.isFinite(lat) && Number.isFinite(lon)) {
-      return { lat, lon, label: p?.label || "Selected area" };
+      return {
+        lat,
+        lon,
+        label: p?.label || "Selected chainage",
+        station: p?.station || null,
+        meters: Number.isFinite(Number(p?.meters)) ? Number(p.meters) : null,
+      };
     }
-    return { ...AQI_FALLBACK_LL, label: "Mula–Mutha" };
+    return { ...AQI_FALLBACK_LL, label: "Mula–Mutha", station: null, meters: null };
+  }
+
+  function pointKey(p) {
+    return `${Number(p.lat).toFixed(4)},${Number(p.lon).toFixed(4)}`;
   }
 
   function hushPeers() {
@@ -98,6 +111,7 @@ export function mountAqiHud(root, hooks = {}) {
     panelEl.innerHTML = `<p class="aqi-panel-status">Loading live AQI…</p>`;
     renderMetricChips();
     renderDateSheet();
+    startRiverColors();
     await refreshAll({ bustCache: true });
     startPoll();
   }
@@ -105,6 +119,12 @@ export function mountAqiHud(root, hooks = {}) {
   function hide() {
     open = false;
     stopPoll();
+    corridorSerial += 1;
+    if (chainageTimer) {
+      window.clearTimeout(chainageTimer);
+      chainageTimer = null;
+    }
+    window.__MM_SCENE__?.hideAqiRiver?.();
     classesEl.hidden = true;
     classesEl.innerHTML = "";
     panelEl.hidden = true;
@@ -116,6 +136,87 @@ export function mountAqiHud(root, hooks = {}) {
     exitMapFocus(root, "aqi");
     live = null;
     hourly = null;
+    lastFetchKey = "";
+  }
+
+  function startRiverColors() {
+    const scene = window.__MM_SCENE__;
+    if (!scene?.showAqiRiver) return;
+    scene.showAqiRiver({ metric, stepM: 280 });
+    scene.setAqiRiverFocus?.(point.meters);
+    void loadCorridorColors();
+  }
+
+  /** Sample AQI along the river and paint category colors onto the ribbon. */
+  async function loadCorridorColors() {
+    const scene = window.__MM_SCENE__;
+    if (!scene?.getAqiRiverSamples || !open) return;
+    const serial = ++corridorSerial;
+    const samples = scene.getAqiRiverSamples() || [];
+    if (!samples.length) return;
+
+    const today = todayYmd();
+    const dateOpt = day && day !== today ? { date: day } : {};
+    const concurrency = 4;
+    let cursor = 0;
+
+    async function worker() {
+      while (cursor < samples.length) {
+        if (!open || serial !== corridorSerial) return;
+        const i = cursor;
+        cursor += 1;
+        const s = samples[i];
+        const lat = Number(s.lat);
+        const lon = Number(s.lon);
+        if (!Number.isFinite(lat) || !Number.isFinite(lon)) continue;
+        try {
+          const reading = await fetchLiveAqi(lat, lon, dateOpt);
+          if (!open || serial !== corridorSerial) return;
+          scene.setAqiRiverReading?.(s.meters, reading);
+        } catch (err) {
+          console.warn("[aqi-river]", s.meters, err?.message || err);
+        }
+      }
+    }
+
+    await Promise.all(
+      Array.from({ length: Math.min(concurrency, samples.length) }, () => worker()),
+    );
+  }
+
+  /** Called when chainage steps — re-fetch AQI for that lat/lon. */
+  function onChainageChange() {
+    if (!open) return;
+    point = resolvePoint();
+    window.__MM_SCENE__?.setAqiRiverFocus?.(point.meters);
+    renderPanelLocationOnly();
+    const status = panelEl.querySelector(".aqi-panel-status");
+    if (!status && live) {
+      const loc = panelEl.querySelector(".aqi-loc");
+      if (loc) {
+        loc.insertAdjacentHTML(
+          "afterend",
+          `<p class="aqi-panel-status aqi-panel-updating">Updating for ${escapeHtml(
+            point.station || "chainage",
+          )}…</p>`,
+        );
+      }
+    } else if (status) {
+      status.textContent = `Updating for ${point.station || "chainage"}…`;
+      status.classList.remove("is-error");
+    }
+    if (chainageTimer) window.clearTimeout(chainageTimer);
+    chainageTimer = window.setTimeout(() => {
+      if (!open) return;
+      const key = pointKey(point);
+      if (key === lastFetchKey && live) {
+        panelEl.querySelector(".aqi-panel-updating")?.remove();
+        renderMetricChips();
+        renderPanel();
+        return;
+      }
+      void refreshAll({ bustCache: true });
+    }, 220);
   }
 
   function startPoll() {
@@ -135,6 +236,9 @@ export function mountAqiHud(root, hooks = {}) {
 
   async function refreshAll(opts = {}) {
     const serial = ++loadSerial;
+    point = resolvePoint();
+    const key = pointKey(point);
+    panelEl.classList.add("is-loading");
     try {
       const [liveData, hourlyData] = await Promise.all([
         fetchLiveAqi(point.lat, point.lon, opts),
@@ -143,6 +247,7 @@ export function mountAqiHud(root, hooks = {}) {
       if (serial !== loadSerial || !open) return;
       live = liveData;
       hourly = hourlyData;
+      lastFetchKey = key;
       renderMetricChips();
       renderPanel();
       renderDateSheet();
@@ -150,16 +255,21 @@ export function mountAqiHud(root, hooks = {}) {
       if (serial !== loadSerial || !open) return;
       console.warn("[aqi]", err?.message || err);
       panelEl.innerHTML = `
+        ${locationBlockHtml()}
         <p class="aqi-panel-status is-error">${escapeHtml(err?.message || "AQI unavailable")}</p>
         <button type="button" class="aqi-retry" id="aqi-retry">Retry</button>`;
       panelEl.querySelector("#aqi-retry")?.addEventListener("click", () => void refreshAll({ bustCache: true }));
+    } finally {
+      panelEl.classList.remove("is-loading");
     }
   }
 
   async function refreshLive(opts = {}) {
     try {
+      point = resolvePoint();
       live = await fetchLiveAqi(point.lat, point.lon, opts);
       if (!open) return;
+      lastFetchKey = pointKey(point);
       renderMetricChips();
       renderPanel();
     } catch (err) {
@@ -168,25 +278,16 @@ export function mountAqiHud(root, hooks = {}) {
   }
 
   function renderMetricChips() {
-    const cat = live?.category || aqiCategory(live?.aqi);
     classesEl.innerHTML = AQI_TREND_METRICS.map((m) => {
       const on = m.id === metric;
       const value =
-        m.id === "aqi"
-          ? live?.aqi
-          : m.id === "pm2_5"
-            ? live?.pm2_5
-            : live?.pm10;
-      const tip =
-        m.id === "aqi" && cat?.label
-          ? `${m.label} · ${cat.label}`
-          : m.label;
+        m.id === "aqi" ? live?.aqi : m.id === "pm2_5" ? live?.pm2_5 : live?.pm10;
       return `
       <button type="button" class="lu-theme-class${on ? " is-selected" : ""}"
         role="listitem"
         data-metric="${m.id}"
         style="--lu-class-color:${escapeAttr(m.color)}"
-        title="${escapeAttr(tip)}"
+        title="${escapeAttr(m.label)}"
         aria-label="${escapeAttr(m.label)}"
         aria-pressed="${on ? "true" : "false"}">
         <span class="lu-theme-class-letter"></span>
@@ -195,21 +296,47 @@ export function mountAqiHud(root, hooks = {}) {
       </button>`;
     }).join("");
     classesEl.hidden = false;
-
     classesEl.querySelectorAll("[data-metric]").forEach((btn) => {
       btn.addEventListener("click", (e) => {
         e.preventDefault();
         e.stopPropagation();
         metric = btn.dataset.metric || "aqi";
+        window.__MM_SCENE__?.setAqiRiverMetric?.(metric);
         renderMetricChips();
         renderPanel();
       });
     });
   }
 
+  function locationBlockHtml() {
+    const station =
+      point.station ||
+      (Number.isFinite(point.meters) ? metersToStation(point.meters) : "—");
+    const lat = Number.isFinite(point.lat) ? point.lat.toFixed(5) : "—";
+    const lon = Number.isFinite(point.lon) ? point.lon.toFixed(5) : "—";
+    return `
+      <div class="aqi-loc">
+        <div class="aqi-loc-station">${escapeHtml(station)}</div>
+        <div class="aqi-loc-ll">
+          <span><em>Lat</em> ${escapeHtml(lat)}°</span>
+          <span><em>Lon</em> ${escapeHtml(lon)}°</span>
+        </div>
+      </div>`;
+  }
+
+  function renderPanelLocationOnly() {
+    const el = panelEl.querySelector(".aqi-loc");
+    if (!el) {
+      if (live) renderPanel();
+      else panelEl.innerHTML = `${locationBlockHtml()}<p class="aqi-panel-status">Updating…</p>`;
+      return;
+    }
+    el.outerHTML = locationBlockHtml();
+  }
+
   function renderPanel() {
     if (!live) {
-      panelEl.innerHTML = `<p class="aqi-panel-status">No live reading</p>`;
+      panelEl.innerHTML = `${locationBlockHtml()}<p class="aqi-panel-status">No live reading</p>`;
       return;
     }
     const cat = live.category || aqiCategory(live.aqi);
@@ -249,10 +376,12 @@ export function mountAqiHud(root, hooks = {}) {
       <header class="aqi-panel-head">
         <div>
           <strong>Air quality</strong>
-          <small>Live · ${escapeHtml(point.label || "AOI")}</small>
+          <small>Live at chainage</small>
         </div>
         <div class="aqi-panel-stamp">${escapeHtml(formatStamp(live.last_updated || live.date))}</div>
       </header>
+
+      ${locationBlockHtml()}
 
       <div class="aqi-panel-hero">
         <div class="aqi-ring" style="--aqi-color:${escapeAttr(cat.color)};--aqi-pct:${gaugePct.toFixed(1)}%">
@@ -315,22 +444,15 @@ export function mountAqiHud(root, hooks = {}) {
     const today = todayYmd();
     const nextDisabled = next > today;
     yearEl.innerHTML = `
-      <button type="button" class="lu-theme-year-side" id="aqi-day-prev"
-        data-day="${escapeAttr(prev)}" aria-label="Previous day">
-        <span class="lu-theme-year-arrow" aria-hidden="true">←</span>
-        <span class="lu-theme-year-side-val">${escapeHtml(shortDay(prev))}</span>
-      </button>
-      <div class="lu-theme-year-center">
-        <span class="lu-theme-year-eyebrow">Date</span>
+      <button type="button" class="lu-theme-year-side aqi-day-nav" id="aqi-day-prev"
+        data-day="${escapeAttr(prev)}" aria-label="Previous day">←</button>
+      <div class="lu-theme-year-center aqi-day-center">
         <strong class="lu-theme-year-current">${escapeHtml(day === today ? "Today" : shortDay(day))}</strong>
         <small class="aqi-year-range">${escapeHtml(day)}</small>
       </div>
-      <button type="button" class="lu-theme-year-side" id="aqi-day-next"
+      <button type="button" class="lu-theme-year-side aqi-day-nav" id="aqi-day-next"
         ${nextDisabled ? "disabled" : ""} data-day="${escapeAttr(next)}"
-        aria-label="Next day">
-        <span class="lu-theme-year-side-val">${escapeHtml(nextDisabled ? "—" : shortDay(next))}</span>
-        <span class="lu-theme-year-arrow" aria-hidden="true">→</span>
-      </button>`;
+        aria-label="Next day">→</button>`;
     yearEl.hidden = false;
     yearEl.querySelector("#aqi-day-prev")?.addEventListener("click", onDayClick);
     yearEl.querySelector("#aqi-day-next")?.addEventListener("click", onDayClick);
@@ -345,6 +467,7 @@ export function mountAqiHud(root, hooks = {}) {
     try {
       hourly = await fetchHourlyAqi(point.lat, point.lon, day);
       if (open) renderPanel();
+      void loadCorridorColors();
     } catch (err) {
       console.warn("[aqi] hourly", err?.message || err);
     } finally {
@@ -362,6 +485,7 @@ export function mountAqiHud(root, hooks = {}) {
     show,
     hide,
     isOpen,
+    onChainageChange,
     dispose() {
       hide();
       backEl.remove();
@@ -373,12 +497,12 @@ export function mountAqiHud(root, hooks = {}) {
 }
 
 function trendSvg(series, color) {
-  const w = 360;
-  const h = 88;
-  const padL = 6;
-  const padR = 6;
-  const padT = 8;
-  const padB = 18;
+  const w = 320;
+  const h = 52;
+  const padL = 4;
+  const padR = 4;
+  const padT = 4;
+  const padB = 4;
   const vals = series.map((s) => s.value).filter((n) => Number.isFinite(n));
   if (!vals.length) return `<p class="aqi-panel-status">No samples</p>`;
   const min = Math.min(...vals);

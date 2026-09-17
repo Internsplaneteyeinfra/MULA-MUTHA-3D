@@ -23,6 +23,9 @@ import {
 } from "../../services/forecastService.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 import { AQI_FALLBACK_LL } from "../../services/aqiService.js";
+import { localToLonLat } from "../../geo/geoReference.js";
+import { interpolateChainage } from "../../geo/chainage.js";
+import { state } from "../../state.js";
 
 const HYDROLOGY_CATEGORIES = [
   { id: "geology", name: "GEOLOGY" },
@@ -197,13 +200,9 @@ export function mountAnalyticsControls(root, dataset) {
   const climateImpactHud = mountClimateImpactHud(root);
   const aqiHud = mountAqiHud(root, {
     getPoint() {
-      const origin = dataset?.origin || dataset?.geoOrigin || null;
-      const lat = Number(origin?.lat ?? origin?.latitude);
-      const lon = Number(origin?.lon ?? origin?.longitude);
-      if (Number.isFinite(lat) && Number.isFinite(lon)) {
-        return { lat, lon, label: "Mula–Mutha AOI" };
-      }
-      return { ...AQI_FALLBACK_LL, label: "Mula–Mutha" };
+      const fromState = Number(state.selectedChainageMeters);
+      const meters = Number.isFinite(fromState) ? fromState : selectedMeters;
+      return resolveAqiPoint(dataset, meters);
     },
   });
 
@@ -237,6 +236,7 @@ export function mountAnalyticsControls(root, dataset) {
     if (activeType === "forecast" && forecastCache && !modal.hidden) {
       renderForecastBody(forecastCache, selectedMeters, forecastLead);
     }
+    if (aqiHud.isOpen()) aqiHud.onChainageChange?.();
   });
 
   function setActive(type) {
@@ -1141,6 +1141,53 @@ function nearestIndex(points, meters) {
     }
   }
   return best;
+}
+
+/**
+ * Resolve live AQI query point from the selected chainage (true lat/lon).
+ * Prefers interpolated KML lon/lat; falls back to local→WGS84.
+ */
+function resolveAqiPoint(dataset, meters) {
+  const m = Number(meters);
+  const points = Array.isArray(dataset?.chainage) ? dataset.chainage : [];
+  const station = Number.isFinite(m) && points.length ? interpolateChainage(points, m) : null;
+
+  let lat = Number(station?.lat);
+  let lon = Number(station?.lon);
+
+  if ((!Number.isFinite(lat) || !Number.isFinite(lon)) && station) {
+    const x = Number(station.x);
+    const z = Number(station.z);
+    if (Number.isFinite(x) && Number.isFinite(z)) {
+      try {
+        const ll = localToLonLat(x, z);
+        lat = Number(ll?.lat);
+        lon = Number(ll?.lon);
+      } catch {
+        /* geo ref not ready */
+      }
+    }
+  }
+
+  if (Number.isFinite(lat) && Number.isFinite(lon)) {
+    const stationLabel =
+      station?.label || (Number.isFinite(m) ? metersToStation(m) : null);
+    return {
+      lat,
+      lon,
+      meters: Number.isFinite(m) ? m : station?.meters ?? null,
+      station: stationLabel,
+      label: stationLabel ? `Chainage ${stationLabel}` : "Selected chainage",
+    };
+  }
+
+  const origin = dataset?.origin || dataset?.geoOrigin || null;
+  const oLat = Number(origin?.lat ?? origin?.latitude);
+  const oLon = Number(origin?.lon ?? origin?.longitude);
+  if (Number.isFinite(oLat) && Number.isFinite(oLon)) {
+    return { lat: oLat, lon: oLon, label: "Mula–Mutha AOI", station: null, meters: null };
+  }
+  return { ...AQI_FALLBACK_LL, label: "Mula–Mutha", station: null, meters: null };
 }
 
 function escapeHtml(value) {

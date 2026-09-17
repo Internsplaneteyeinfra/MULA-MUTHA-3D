@@ -29,6 +29,7 @@ import { createApiFloodLayer } from "./apiFloodLayer.js";
 import { createClimateImpactLayer } from "./climateImpactLayer.js";
 import { createHydrologyLayer } from "./hydrologyLayer.js";
 import { createBodCodLayer } from "./bodCodLayer.js";
+import { createAqiRiverLayer } from "./aqiRiverLayer.js";
 import { createMainStemLayer } from "./mainStemLayer.js";
 import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
@@ -173,6 +174,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   /** Hydrology thematic overlays (Geology + Salinity). */
   const hydrologyLayer = createHydrologyLayer(dataset);
   const bodCodLayer = createBodCodLayer(dataset);
+  const aqiRiverLayer = createAqiRiverLayer(dataset);
   /** @deprecated alias — prefer apiFloodLayer */
   const floodSimLayer = apiFloodLayer;
   fillPierUniforms(river.material, dataset);
@@ -212,6 +214,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(climateImpactLayer);
   scene.add(hydrologyLayer);
   scene.add(bodCodLayer);
+  scene.add(aqiRiverLayer);
 
   // Spectral Lithology click marker (white point + ring)
   const lithologyPick = new THREE.Group();
@@ -701,6 +704,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     async showHydrologyLayer(id) {
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
+      aqiRiverLayer.userData?.setVisible?.(false);
+      aqiRiverLayer.visible = false;
       climateImpactLayer.userData?.clear?.();
       climateImpactLayer.visible = false;
       const result = await hydrologyLayer.userData?.showLayer?.(id);
@@ -741,6 +746,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologyLayer.userData?.hideAll?.();
       climateImpactLayer.userData?.clear?.();
       climateImpactLayer.visible = false;
+      aqiRiverLayer.userData?.clear?.();
+      aqiRiverLayer.userData?.setVisible?.(false);
+      aqiRiverLayer.visible = false;
       state.hydrologyHidesWater = false;
       state.hydrologyHidesFlood = false;
       state.bankErosionMode = false;
@@ -778,6 +786,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologyLayer.userData?.hideAll?.();
       climateImpactLayer.userData?.clear?.();
       climateImpactLayer.visible = false;
+      aqiRiverLayer.userData?.setVisible?.(false);
+      aqiRiverLayer.visible = false;
       bodCodLayer.userData?.setData?.(data);
       bodCodLayer.userData?.setVisible?.(true);
       bodCodLayer.visible = true;
@@ -795,6 +805,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologyLayer.userData?.hideAll?.();
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
+      aqiRiverLayer.userData?.setVisible?.(false);
+      aqiRiverLayer.visible = false;
       state.hydrologyHidesWater = false;
       state.hydrologyHidesFlood = false;
       // Keep existing WRD lines when switching periods (do not clear them here)
@@ -827,6 +839,37 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     hideClimateImpact() {
       climateImpactLayer.userData?.clear?.();
       climateImpactLayer.visible = false;
+    },
+    showAqiRiver(opts = {}) {
+      hydrologyLayer.userData?.hideAll?.();
+      bodCodLayer.userData?.setVisible?.(false);
+      bodCodLayer.visible = false;
+      climateImpactLayer.userData?.clear?.();
+      climateImpactLayer.visible = false;
+      state.hydrologyHidesWater = false;
+      state.hydrologyHidesFlood = false;
+      const info = aqiRiverLayer.userData?.prepare?.(opts) || { n: 0 };
+      aqiRiverLayer.userData?.setMetric?.(opts.metric || "aqi");
+      aqiRiverLayer.userData?.setVisible?.(true);
+      aqiRiverLayer.visible = true;
+      return { available: info.n > 0, ok: info.n > 0, info };
+    },
+    setAqiRiverReading(meters, reading) {
+      aqiRiverLayer.userData?.setReadingAt?.(meters, reading);
+    },
+    setAqiRiverMetric(metric) {
+      aqiRiverLayer.userData?.setMetric?.(metric);
+    },
+    setAqiRiverFocus(meters) {
+      aqiRiverLayer.userData?.setFocusMeters?.(meters);
+    },
+    getAqiRiverSamples() {
+      return aqiRiverLayer.userData?.getSamplePoints?.() || [];
+    },
+    hideAqiRiver() {
+      aqiRiverLayer.userData?.clear?.();
+      aqiRiverLayer.userData?.setVisible?.(false);
+      aqiRiverLayer.visible = false;
     },
     focusBodCodReach(reachId, opts = {}) {
       const hit = bodCodLayer.userData?.focusReach?.(reachId, opts);
@@ -1449,6 +1492,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       if (bodCodLayer.visible) {
         bodCodLayer.userData?.update?.(dt);
+      }
+      if (aqiRiverLayer.visible) {
+        aqiRiverLayer.userData?.update?.(dt);
       }
       terrain.mesh.visible = true;
       if (terrain.surround) terrain.surround.visible = true;

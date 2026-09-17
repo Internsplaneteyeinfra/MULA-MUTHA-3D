@@ -67,7 +67,7 @@ export function aqiCategory(value) {
  */
 export async function fetchLiveAqi(lat, lon, opts = {}) {
   const q = quantizeLonLat(lat, lon);
-  const key = `${q.lat.toFixed(2)},${q.lon.toFixed(2)}:${opts.date || "live"}`;
+  const key = `${q.lat.toFixed(4)},${q.lon.toFixed(4)}:${opts.date || "live"}`;
   const hit = liveCache.get(key);
   if (!opts.bustCache && hit && Date.now() - hit.at < 45_000) return hit.data;
 
@@ -92,7 +92,7 @@ export async function fetchLiveAqi(lat, lon, opts = {}) {
 export async function fetchHourlyAqi(lat, lon, date) {
   const q = quantizeLonLat(lat, lon);
   const day = String(date || todayYmd());
-  const key = `${q.lat.toFixed(2)},${q.lon.toFixed(2)}:${day}`;
+  const key = `${q.lat.toFixed(4)},${q.lon.toFixed(4)}:${day}`;
   if (hourlyCache.has(key)) return hourlyCache.get(key);
 
   const raw = await postJson(`${aqiApiBase()}/aqi/hourly`, {
@@ -118,7 +118,7 @@ const TREND_KEY = "mm_aqi_trend_v1";
 const TREND_MAX = 60;
 
 function trendStoreKey(q) {
-  return `${q.lat.toFixed(2)},${q.lon.toFixed(2)}`;
+  return `${q.lat.toFixed(4)},${q.lon.toFixed(4)}`;
 }
 
 function readTrendMap() {
@@ -225,6 +225,7 @@ function num(v) {
   return Number.isFinite(n) ? n : null;
 }
 
+/** ~11 m grid — chainage steps get distinct API cells along the river. */
 function quantizeLonLat(lat, lon) {
   const a = Number(lat);
   const b = Number(lon);
@@ -232,8 +233,8 @@ function quantizeLonLat(lat, lon) {
     return { ...AQI_FALLBACK_LL };
   }
   return {
-    lat: Math.round(a * 100) / 100,
-    lon: Math.round(b * 100) / 100,
+    lat: Math.round(a * 10000) / 10000,
+    lon: Math.round(b * 10000) / 10000,
   };
 }
 
