@@ -1,12 +1,9 @@
 import {
   Mountain,
-  TrendingUp,
   Droplets,
   Pickaxe,
   Sprout,
-  MapPinPlus,
   Sun,
-  Waves,
   SunMedium,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
@@ -17,12 +14,15 @@ import { mountLandUseThemeHud } from "./landUseThemeHud.js";
 import { mountFocusThemeHud } from "../mapFocus.js";
 import { mountPollutionKeyPoints } from "./pollutionKeyPoints.js";
 import { mountBodCodHud } from "./bodCodHud.js";
+import { mountClimateImpactHud } from "./climateImpactHud.js";
+import { mountAqiHud } from "./aqiHud.js";
 import {
   FORECAST_HORIZONS,
   forecastProfile,
   downsampleProfile,
 } from "../../services/forecastService.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
+import { AQI_FALLBACK_LL } from "../../services/aqiService.js";
 
 const HYDROLOGY_CATEGORIES = [
   { id: "geology", name: "GEOLOGY" },
@@ -33,17 +33,14 @@ const HYDROLOGY_CATEGORIES = [
   { id: "aqi", name: "AQI" },
 ];
 
-/** Icon-only transparent toolbar — 9 independent buttons, same destinations. */
+/** Icon-only transparent toolbar — independent analytics buttons. */
 const NAV_ITEMS = [
   { icon: Mountain, tip: "Geology", type: "vehicle", tone: "tone-mountain", badge: null },
- // { icon: TrendingUp, tip: "Hydrograph", type: "hydrograph", tone: "tone-graph", badge: null },
   { icon: Droplets, tip: "Water Quality", type: "Water Quality", tone: "tone-droplet", badge: null },
   { icon: Pickaxe, tip: "Pollution", type: "Pollution", tone: "tone-drill", badge: null },
   { icon: Sprout, tip: "Land Use", type: "Land Use", tone: "tone-plant", badge: null },
-  { icon: MapPinPlus, tip: "Biodiversity", type: "Biodiversity", tone: "tone-pin", badge: null },
   { icon: Sun, tip: "Climate impact", type: "Climate impact", tone: "tone-sun", badge: null },
-  { icon: Waves, tip: "Flood / Water", type: "flood", tone: "tone-waves", badge: null },
-  { icon: SunMedium, tip: "AQI", type: "AQI", tone: "tone-brightness", badge: "1" },
+  { icon: SunMedium, tip: "AQI", type: "AQI", tone: "tone-brightness", badge: null },
 ];
 
 /**
@@ -173,12 +170,40 @@ export function mountAnalyticsControls(root, dataset) {
     },
   });
 
+  const waterQualityTheme = mountFocusThemeHud(root, {
+    onBack() {
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      hydroLegend.hidden = true;
+      hydroLegend.innerHTML = "";
+      if (!waterQualityHud.isOpen()) waterQualityHud.show();
+      else waterQualityHud.reposition?.();
+      setActive("Water Quality");
+    },
+    onClassSelect() {
+      // Class filter uses shared landUseSelectedClass for polygon highlight
+    },
+  });
+
   const pollutionKeys = mountPollutionKeyPoints(root);
 
   const bodCodHud = mountBodCodHud(root, {
     onBack() {
       setActive("hydrology");
       if (!waterQualityHud.isOpen()) waterQualityHud.show();
+    },
+  });
+
+  const climateImpactHud = mountClimateImpactHud(root);
+  const aqiHud = mountAqiHud(root, {
+    getPoint() {
+      const origin = dataset?.origin || dataset?.geoOrigin || null;
+      const lat = Number(origin?.lat ?? origin?.latitude);
+      const lon = Number(origin?.lon ?? origin?.longitude);
+      if (Number.isFinite(lat) && Number.isFinite(lon)) {
+        return { lat, lon, label: "Mula–Mutha AOI" };
+      }
+      return { ...AQI_FALLBACK_LL, label: "Mula–Mutha" };
     },
   });
 
@@ -241,6 +266,8 @@ export function mountAnalyticsControls(root, dataset) {
     closeLandUseHud();
     geology.close();
     if (bodCodHud.isVisible()) bodCodHud.hide();
+    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    if (aqiHud.isOpen()) aqiHud.hide();
     clearHydroLegend();
     setActive(null);
   }
@@ -250,6 +277,7 @@ export function mountAnalyticsControls(root, dataset) {
     hydroLegend.innerHTML = "";
     landUseTheme.hide();
     pollutionTheme.hide();
+    waterQualityTheme.hide();
     pollutionKeys.hide();
   }
 
@@ -272,10 +300,34 @@ export function mountAnalyticsControls(root, dataset) {
     return id === "pollution" || !!leg.garbageDensityToggle || /pollution/i.test(String(leg.title || ""));
   }
 
+  function isWaterQualityThemeLegend(leg) {
+    if (!leg || leg.type !== "classes") return false;
+    if (isLandUseThemeLegend(leg) || isPollutionThemeLegend(leg)) return false;
+    const id = String(leg.layerId || activeHydroId || "");
+    return (
+      id === "salinity" ||
+      id.startsWith("water_quality") ||
+      /salinity|turbidity|tss|ndci|wst|chlorophyll|temperature/i.test(
+        String(leg.title || ""),
+      )
+    );
+  }
+
+  function showWaterQualityTheme(leg) {
+    hydroLegend.hidden = true;
+    hydroLegend.innerHTML = "";
+    landUseTheme.hide();
+    pollutionTheme.hide();
+    pollutionKeys.hide();
+    waterQualityTheme.showClasses(leg.classes || [], "waterquality");
+    if (waterQualityHud.isOpen()) waterQualityHud.reposition?.();
+  }
+
   function showPollutionTheme(leg) {
     hydroLegend.hidden = true;
     hydroLegend.innerHTML = "";
     landUseTheme.hide();
+    waterQualityTheme.hide();
     const densityOn = !!leg.densityOn;
     pollutionTheme.showClasses(leg.classes || [], "pollution", {
       extraHtml: leg.garbageDensityToggle
@@ -292,10 +344,12 @@ export function mountAnalyticsControls(root, dataset) {
     if (opt?.id === "bod_cod") {
       geology.close();
       closeLandUseHud();
+      if (climateImpactHud.isOpen()) climateImpactHud.hide();
       hydroLegend.hidden = true;
       hydroLegend.innerHTML = "";
       landUseTheme.hide();
       pollutionTheme.hide();
+      waterQualityTheme.hide();
       pollutionKeys.hide();
       window.__MM_SCENE__?.hideHydrology?.();
       activeHydroId = "bod_cod";
@@ -370,6 +424,7 @@ export function mountAnalyticsControls(root, dataset) {
     geology.close();
     closeModal();
     closeLandUseHud();
+    if (climateImpactHud.isOpen()) climateImpactHud.hide();
     clearHydroLegend();
     window.__MM_SCENE__?.hideHydrology?.();
     setActive("hydrology");
@@ -380,6 +435,7 @@ export function mountAnalyticsControls(root, dataset) {
     geology.close();
     closeModal();
     closeWaterQualityHud();
+    if (climateImpactHud.isOpen()) climateImpactHud.hide();
     clearHydroLegend();
     window.__MM_SCENE__?.hideHydrology?.();
     setActive("Land Use");
@@ -396,9 +452,16 @@ export function mountAnalyticsControls(root, dataset) {
     // Land Use theme: top F/C/B/S/W chips + bottom year/period stepper
     if (isLandUseThemeLegend(leg)) {
       pollutionTheme.hide();
+      waterQualityTheme.hide();
       hydroLegend.hidden = true;
       hydroLegend.innerHTML = "";
       landUseTheme.showFromLegend(leg);
+      return;
+    }
+
+    // Water Quality theme: same letter chips + Back as Land Use
+    if (isWaterQualityThemeLegend(leg)) {
+      showWaterQualityTheme(leg);
       return;
     }
 
@@ -410,6 +473,7 @@ export function mountAnalyticsControls(root, dataset) {
 
     landUseTheme.hide();
     pollutionTheme.hide();
+    waterQualityTheme.hide();
 
     if (leg.type === "image") {
       hydroLegend.innerHTML = `
@@ -548,6 +612,7 @@ export function mountAnalyticsControls(root, dataset) {
     closeModal();
     closeWaterQualityHud();
     closeLandUseHud();
+    if (climateImpactHud.isOpen()) climateImpactHud.hide();
     clearHydroLegend();
     // Keep top Geology icon unselected — selection lives in the geology toolbar only.
     setActive(null);
@@ -566,6 +631,25 @@ export function mountAnalyticsControls(root, dataset) {
   });
   document.addEventListener("keydown", (event) => {
     if (event.key !== "Escape") return;
+    if (aqiHud.isOpen()) {
+      aqiHud.hide();
+      setActive(null);
+      return;
+    }
+    if (climateImpactHud.isOpen()) {
+      climateImpactHud.hide();
+      setActive(null);
+      return;
+    }
+    if (waterQualityTheme.isVisible()) {
+      waterQualityTheme.hide();
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      if (!waterQualityHud.isOpen()) waterQualityHud.show();
+      else waterQualityHud.reposition?.();
+      setActive("Water Quality");
+      return;
+    }
     if (pollutionTheme.isVisible()) {
       pollutionTheme.hide();
       pollutionKeys.hide();
@@ -622,6 +706,7 @@ export function mountAnalyticsControls(root, dataset) {
       const weather = document.querySelector(".weather-widget");
       weather?.classList.add("is-nav-pulse");
       window.setTimeout(() => weather?.classList.remove("is-nav-pulse"), 1600);
+      document.getElementById("weather-icon-btn")?.click();
       return;
     }
 
@@ -655,6 +740,7 @@ export function mountAnalyticsControls(root, dataset) {
       closeLandUseHud();
       geology.close();
       closeModal();
+      if (climateImpactHud.isOpen()) climateImpactHud.hide();
       setActive("Pollution");
       (async () => {
         try {
@@ -690,9 +776,51 @@ export function mountAnalyticsControls(root, dataset) {
       return;
     }
 
+    // Climate impact (sun): RiverEye flood / surface-water heatmap periods
+    if (type === "Climate impact") {
+      if (climateImpactHud.isOpen()) {
+        closeAll();
+        return;
+      }
+      closeWaterQualityHud();
+      closeLandUseHud();
+      geology.close();
+      closeModal();
+      if (bodCodHud.isVisible()) bodCodHud.hide();
+      if (aqiHud.isOpen()) aqiHud.hide();
+      clearHydroLegend();
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = "climate_impact";
+      setActive("Climate impact");
+      void climateImpactHud.show();
+      return;
+    }
+
+    // AQI (sun-medium): RiverEye live air quality
+    if (type === "AQI") {
+      if (aqiHud.isOpen()) {
+        closeAll();
+        return;
+      }
+      closeWaterQualityHud();
+      closeLandUseHud();
+      geology.close();
+      closeModal();
+      if (climateImpactHud.isOpen()) climateImpactHud.hide();
+      if (bodCodHud.isVisible()) bodCodHud.hide();
+      clearHydroLegend();
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = "aqi";
+      setActive("AQI");
+      void aqiHud.show();
+      return;
+    }
+
     closeWaterQualityHud();
     closeLandUseHud();
     geology.close();
+    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    if (aqiHud.isOpen()) aqiHud.hide();
     setActive(type);
     modal.hidden = false;
 

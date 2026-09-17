@@ -68,30 +68,41 @@ export function mountRiverDataPanel(root, dataset) {
         <p class="river-measure-hint" id="river-measure-hint">Click first point</p>
       </div>
     </div>
-    <div class="river-profile-popup" id="river-profile-popup" hidden aria-hidden="true">
-      <div class="river-profile-popup-inner" role="dialog" aria-modal="false" aria-labelledby="river-profile-title">
-        <header class="river-profile-header">
+  `;
+  root.appendChild(el);
+
+  // Floating profile popup — outside River Data shell so it is not stacked in the same box
+  const popup = document.createElement("div");
+  popup.className = "river-profile-popup map-chrome";
+  popup.id = "river-profile-popup";
+  popup.hidden = true;
+  popup.setAttribute("aria-hidden", "true");
+  popup.innerHTML = `
+    <div class="river-profile-popup-inner" role="dialog" aria-modal="false" aria-labelledby="river-profile-title">
+      <header class="river-profile-header">
+        <div class="river-profile-heading">
+          <span class="river-profile-emoji" id="river-profile-emoji" aria-hidden="true">🌊</span>
           <div>
-            <h2 class="river-profile-title" id="river-profile-title">DEPTH PROFILE</h2>
-            <p class="river-profile-meta">
-              <span id="river-profile-station">—</span>
-              <span class="river-profile-sep">·</span>
-              <strong id="river-profile-value">—</strong>
-            </p>
+            <h2 class="river-profile-title" id="river-profile-title">Depth profile</h2>
+            <p class="river-profile-station" id="river-profile-station">—</p>
           </div>
-          <button type="button" class="river-profile-close" id="river-profile-close" aria-label="Close profile">
-            ${lucideHtml(X, { size: 16 })}
-          </button>
-        </header>
-        <div class="river-profile-chart" id="river-profile-chart"></div>
-        <div class="river-profile-axes">
-          <span>Chainage</span>
-          <span id="river-profile-y-label">Depth (m)</span>
         </div>
+        <button type="button" class="river-profile-close" id="river-profile-close" aria-label="Close profile">
+          ${lucideHtml(X, { size: 16 })}
+        </button>
+      </header>
+      <div class="river-profile-hero">
+        <span class="river-profile-hero-lab" id="river-profile-hero-lab">Depth</span>
+        <strong class="river-profile-hero-val" id="river-profile-value">—</strong>
+      </div>
+      <div class="river-profile-chart" id="river-profile-chart"></div>
+      <div class="river-profile-axes">
+        <span>Chainage</span>
+        <span id="river-profile-y-label">Depth (m)</span>
       </div>
     </div>
   `;
-  root.appendChild(el);
+  root.appendChild(popup);
 
   const fabEl = el.querySelector("#river-data-fab");
   const shellEl = el.querySelector("#river-data-shell");
@@ -102,13 +113,14 @@ export function mountRiverDataPanel(root, dataset) {
   const measurePanel = el.querySelector("#river-measure-panel");
   const measureBody = el.querySelector("#river-measure-body");
   const measureExit = el.querySelector("#river-measure-exit");
-  const popup = el.querySelector("#river-profile-popup");
-  const titleEl = el.querySelector("#river-profile-title");
-  const stationEl = el.querySelector("#river-profile-station");
-  const valueEl = el.querySelector("#river-profile-value");
-  const chartEl = el.querySelector("#river-profile-chart");
-  const yLabelEl = el.querySelector("#river-profile-y-label");
-  const closeBtn = el.querySelector("#river-profile-close");
+  const titleEl = popup.querySelector("#river-profile-title");
+  const stationEl = popup.querySelector("#river-profile-station");
+  const valueEl = popup.querySelector("#river-profile-value");
+  const chartEl = popup.querySelector("#river-profile-chart");
+  const yLabelEl = popup.querySelector("#river-profile-y-label");
+  const heroLabEl = popup.querySelector("#river-profile-hero-lab");
+  const emojiEl = popup.querySelector("#river-profile-emoji");
+  const closeBtn = popup.querySelector("#river-profile-close");
 
   let current = null;
   /** @type {null | "depth" | "width"} */
@@ -118,6 +130,12 @@ export function mountRiverDataPanel(root, dataset) {
   /** Fresh load always open — never read localStorage. */
   let collapsed = false;
   let measureOpen = false;
+  /** @type {null | { setToast?: Function, hide?: Function, showFromMeasure?: Function }} */
+  let profileAnalysis = null;
+
+  function bindProfileAnalysis(api) {
+    profileAnalysis = api || null;
+  }
 
   function setCollapsed(on) {
     collapsed = !!on;
@@ -181,9 +199,11 @@ export function mountRiverDataPanel(root, dataset) {
     if (!current) return;
     try {
       const isDepth = kind === "depth";
-      titleEl.textContent = isDepth ? "DEPTH PROFILE" : "WIDTH PROFILE";
+      titleEl.textContent = isDepth ? "Depth profile" : "Width profile";
       yLabelEl.textContent = isDepth ? "Depth (m)" : "Width (m)";
-      stationEl.textContent = `${current.label || "—"} selected`;
+      heroLabEl.textContent = isDepth ? "Depth at station" : "Width at station";
+      emojiEl.textContent = isDepth ? "🌊" : "↔️";
+      stationEl.textContent = current.label ? `Station ${current.label}` : "Selected station";
       valueEl.textContent = isDepth ? current.depthText : current.widthText;
       const series = buildSeries(kind);
       const selectedMeters = Number(current.meters) || 0;
@@ -230,65 +250,32 @@ export function mountRiverDataPanel(root, dataset) {
   }
 
   depthBtn.addEventListener("click", (e) => {
-    if (e.target.closest(".river-data-row-action")) {
-      e.stopPropagation();
-      openPopup("depth");
-      return;
+    e.stopPropagation();
+    openPopup("depth");
+    if (!e.target.closest(".river-data-row-action")) {
+      toggleRiverMeasure("depth");
     }
-    toggleRiverMeasure("depth");
   });
   widthBtn.addEventListener("click", (e) => {
-    if (e.target.closest(".river-data-row-action")) {
-      e.stopPropagation();
-      openPopup("width");
-      return;
+    e.stopPropagation();
+    openPopup("width");
+    if (!e.target.closest(".river-data-row-action")) {
+      toggleRiverMeasure("width");
     }
-    toggleRiverMeasure("width");
   });
   closeBtn.addEventListener("click", () => closePopup());
 
-  /* ─── Two-point distance measure UI ─── */
-  function renderMeasureUi(snap) {
-    const s = snap || window.__MM_SCENE__?.getDistanceMeasureSnapshot?.() || {
-      phase: "a",
-      distanceText: "—",
-      pointA: null,
-      pointB: null,
-    };
-    if (s.phase === "done" && s.pointA && s.pointB) {
-      const a = formatCoord(s.pointA);
-      const b = formatCoord(s.pointB);
-      measureBody.innerHTML = `
-        <div class="river-measure-result">
-          <span class="river-measure-kicker">Distance</span>
-          <strong class="river-measure-dist" id="river-measure-dist">${escapeHtml(s.distanceText || "—")}</strong>
-        </div>
-        ${a ? `<p class="river-measure-coord"><span>A</span> ${escapeHtml(a)}</p>` : ""}
-        ${b ? `<p class="river-measure-coord"><span>B</span> ${escapeHtml(b)}</p>` : ""}
-        <button type="button" class="river-measure-clear" id="river-measure-clear">Clear</button>
-      `;
-      measureBody.querySelector("#river-measure-clear")?.addEventListener("click", (ev) => {
-        ev.preventDefault();
-        ev.stopPropagation();
-        window.__MM_SCENE__?.clearDistanceMeasure?.();
-      });
-    } else {
-      const hint = s.phase === "b" ? "Click second point" : "Click first point";
-      measureBody.innerHTML = `<p class="river-measure-hint" id="river-measure-hint">${hint}</p>`;
-    }
-  }
-
+  /* ─── Two-point distance measure → Profile Analysis ─── */
   function enterMeasure() {
     closePopup({ immediate: true });
     measureOpen = true;
     setCollapsed(false);
-    shellEl.hidden = true;
-    measurePanel.hidden = false;
-    measurePanel.setAttribute("aria-hidden", "false");
-    void measurePanel.offsetWidth;
-    measurePanel.classList.add("is-open");
+    // Keep River Data compact shell visible — profile opens separately on the right
+    measurePanel.hidden = true;
+    measurePanel.classList.remove("is-open");
     window.__MM_SCENE__?.setDistanceMeasureActive?.(true);
-    renderMeasureUi({ phase: "a" });
+    profileAnalysis?.setToast?.("📏 Measure Mode · Select first point");
+    profileAnalysis?.hide?.();
     syncMeasureRowActive();
     el.classList.add("is-measuring");
   }
@@ -299,6 +286,8 @@ export function mountRiverDataPanel(root, dataset) {
     measurePanel.setAttribute("aria-hidden", "true");
     measurePanel.hidden = true;
     window.__MM_SCENE__?.setDistanceMeasureActive?.(false);
+    profileAnalysis?.hide?.();
+    profileAnalysis?.setToast?.("");
     if (!collapsed) shellEl.hidden = false;
     syncMeasureRowActive();
     el.classList.remove("is-measuring");
@@ -318,9 +307,31 @@ export function mountRiverDataPanel(root, dataset) {
 
   function onDistanceChange(e) {
     if (!measureOpen) return;
-    renderMeasureUi(e.detail);
+    const snap = e.detail || {};
+    if (snap.phase === "a") {
+      profileAnalysis?.setToast?.("📏 Measure Mode · Select first point");
+      profileAnalysis?.hide?.();
+    } else if (snap.phase === "b") {
+      profileAnalysis?.setToast?.("📏 Measure Mode · Select second point");
+      profileAnalysis?.hide?.();
+    } else if (snap.phase === "done") {
+      profileAnalysis?.setToast?.(`📏 Distance ${snap.distanceText || "—"}`);
+      void profileAnalysis?.showFromMeasure?.(snap);
+    }
   }
   document.addEventListener("distance-measure-change", onDistanceChange);
+
+  function onProfileExit() {
+    if (measureOpen) exitMeasure();
+  }
+  function onProfileCleared() {
+    // Measure mode stays active for another pair
+    if (measureOpen) {
+      profileAnalysis?.setToast?.("📏 Measure Mode · Select first point");
+    }
+  }
+  document.addEventListener("profile-analysis-exit", onProfileExit);
+  document.addEventListener("profile-analysis-cleared", onProfileCleared);
 
   document.addEventListener("river-measure-ui-sync", syncMeasureRowActive);
   document.addEventListener("river-measure-clear", () => {
@@ -394,12 +405,18 @@ export function mountRiverDataPanel(root, dataset) {
   return {
     el,
     update,
+    bindProfileAnalysis,
     closeProfile: () => closePopup({ immediate: true }),
     dispose() {
       document.removeEventListener("distance-measure-change", onDistanceChange);
+      document.removeEventListener("profile-analysis-exit", onProfileExit);
+      document.removeEventListener("profile-analysis-cleared", onProfileCleared);
       document.removeEventListener("map-focus-change", syncFocusCollapse);
       document.removeEventListener("land-use-focus-change", syncFocusCollapse);
       if (measureOpen) exitMeasure();
+      window.clearTimeout(closingTimer);
+      if (profileRaf) cancelAnimationFrame(profileRaf);
+      popup.remove();
     },
   };
 }

@@ -1,8 +1,7 @@
 import {
   Mountain,
   Activity,
-  Droplets,
-  Pickaxe,
+  LandPlot,
   GitBranch,
   Sun,
   Waves,
@@ -106,7 +105,7 @@ export const LITHOLOGY_CLASSES = [
 export const GEOLOGY_MODULES = [
   { id: "vehicle", label: "Vehicle", icon: Mountain, color: "#F97316", available: false },
   { id: "spectral_lithology", label: "Spectral Lithology", icon: Activity, color: "#38BDF8", available: true },
-  { id: "bank_erosion", label: "Bank Erosion", icon: Droplets, color: "#22D3EE", available: true },
+  { id: "bank_erosion", label: "Erosion", icon: LandPlot, color: "#F08070", available: true },
   { id: "joining_streams", label: "Joining Streams", icon: GitBranch, color: "#4ADE80", available: true },
   { id: "main_stem", label: "Main Stem", icon: Sun, color: "#FACC15", available: true },
   { id: "bathymetry", label: "Bathymetry", icon: Waves, color: "#7DD3FC", available: true, dashboard: true },
@@ -119,8 +118,7 @@ export const GEOLOGY_MODULES = [
  */
 const GEOLOGY_TOOLBAR = [
   { moduleId: "spectral_lithology", tip: "Spectral Lithology", icon: Activity, color: "#38BDF8" },
-  { moduleId: "bank_erosion", tip: "Bank Erosion", icon: Droplets, color: "#22D3EE" },
-  { moduleId: "bank_erosion", tip: "Erosion", icon: Pickaxe, color: "#F08070", key: "erosion-pick" },
+  { moduleId: "bank_erosion", tip: "Erosion", icon: LandPlot, color: "#F08070" },
   { moduleId: "joining_streams", tip: "Joining Streams", icon: GitBranch, color: "#4ADE80" },
   { moduleId: "main_stem", tip: "Main Stem", icon: Sun, color: "#FACC15" },
   { moduleId: "bathymetry", tip: "Bathymetry", icon: Waves, color: "#7DD3FC" },
@@ -170,7 +168,7 @@ export function mountGeologyWorkspace(root) {
     <section class="geology-module-row" aria-label="Geology tools">
       <div class="geology-modules" role="toolbar" aria-label="Geology modules">
         ${GEOLOGY_TOOLBAR.map(
-          (m, i) => `
+          (m) => `
           <button type="button" class="geology-module-btn"
             data-geo-module="${m.moduleId}"
             data-geo-key="${m.key || m.moduleId}"
@@ -179,7 +177,8 @@ export function mountGeologyWorkspace(root) {
             title="${m.tip}"
             aria-pressed="false"
             style="--geo-accent:${m.color}">
-            <span class="geology-module-icon" style="color:${m.color}" aria-hidden="true">${lucideHtml(m.icon, { size: 28, strokeWidth: 1.75, className: "geo-mod-svg" })}</span>
+            <span class="geology-module-icon" style="color:${m.color}" aria-hidden="true">${lucideHtml(m.icon, { size: 26, strokeWidth: 1.75, className: "geo-mod-svg" })}</span>
+            <span class="geology-module-dot" aria-hidden="true"></span>
           </button>`,
         ).join("")}
       </div>
@@ -208,9 +207,9 @@ export function mountGeologyWorkspace(root) {
       </section>
 
       <section class="geology-panel geology-panel--erosion" data-geo-panel="bank_erosion" hidden>
-        <aside class="bank-erosion-legend geo-field-note" aria-label="Bank erosion hotspots legend">
+        <aside class="bank-erosion-legend geo-field-note" aria-label="Erosion hotspots legend">
           <header class="geo-field-note__head">
-            <strong>Bank erosion</strong>
+            <strong>Erosion</strong>
             <small>2016–2026</small>
           </header>
           <ul class="bank-erosion-legend__list">
@@ -504,6 +503,7 @@ export function mountGeologyWorkspace(root) {
       classes = BATHYMETRY_CLASSES.map((c, i) => ({ ...c, key: String(i + 1) }));
     }
     focusTheme.showClasses(classes, "geology");
+    positionUnderGeologyIcon();
   }
 
   function deactivateModule() {
@@ -693,27 +693,61 @@ export function mountGeologyWorkspace(root) {
   }
 
   wrap.querySelectorAll("[data-geo-module]").forEach((btn) => {
-    btn.addEventListener("click", () => {
+    btn.addEventListener("click", (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       void activateModule(btn.dataset.geoModule, { key: btn.dataset.geoKey || null });
+      positionUnderGeologyIcon();
     });
+    btn.addEventListener("pointerdown", (e) => e.stopPropagation());
   });
+
+  function positionUnderGeologyIcon() {
+    // Always center horizontally (Geology is first nav icon — anchoring under it shifts left)
+    wrap.style.left = "50%";
+    wrap.style.transform = "translateX(-50%)";
+    if (state.mapFocusKind === "geology" || root.classList.contains("geology-focus")) {
+      wrap.classList.add("geology-workspace--top");
+      wrap.style.top = `calc(max(14px, env(safe-area-inset-top)) + 12px)`;
+      return;
+    }
+    wrap.classList.remove("geology-workspace--top");
+    wrap.style.top = "calc(max(14px, env(safe-area-inset-top)) + 62px)";
+  }
+
+  function onResize() {
+    if (!wrap.hidden) positionUnderGeologyIcon();
+  }
+
+  function onFocusChange() {
+    if (!wrap.hidden) positionUnderGeologyIcon();
+  }
 
   return {
     el: wrap,
     open(moduleId = null) {
       wrap.hidden = false;
       root.classList.add("geology-open");
+      positionUnderGeologyIcon();
+      void wrap.offsetWidth;
+      wrap.classList.add("is-open");
+      window.addEventListener("resize", onResize);
+      document.addEventListener("map-focus-change", onFocusChange);
       // Toolbar only — Main Stem / Bathymetry (and other) panels stay off until clicked.
       if (moduleId) void activateModule(moduleId, { toggle: false });
       else deactivateModule();
     },
     close() {
-      wrap.hidden = true;
+      wrap.classList.remove("is-open", "geology-workspace--top");
       root.classList.remove("geology-open");
       deactivateModule();
+      window.removeEventListener("resize", onResize);
+      document.removeEventListener("map-focus-change", onFocusChange);
+      wrap.hidden = true;
     },
     isOpen: () => !wrap.hidden,
     getActiveModule: () => activeModule,
     activateModule,
+    reposition: positionUnderGeologyIcon,
   };
 }

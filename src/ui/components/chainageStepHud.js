@@ -2,7 +2,7 @@ import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 
 /**
- * Top-center chainage step control: clickable `10m ←  0+710  → 10m`.
+ * Top-center chainage step control: ←  0+710  →
  * Replaces bottom-ruler prev/next for ±interval navigation.
  */
 export function mountChainageStepHud(root, dataset) {
@@ -29,14 +29,12 @@ export function mountChainageStepHud(root, dataset) {
   el.innerHTML = `
     <button type="button" class="chainage-step-btn is-prev" id="chainage-step-prev"
       title="Back ${intervalM} m" aria-label="Previous ${intervalM} m">
-      <span class="chainage-step-delta">${intervalM}m</span>
       <span class="chainage-step-arrow" aria-hidden="true">←</span>
     </button>
     <span class="chainage-step-station" id="chainage-step-station">—</span>
     <button type="button" class="chainage-step-btn is-next" id="chainage-step-next"
       title="Forward ${intervalM} m" aria-label="Next ${intervalM} m">
       <span class="chainage-step-arrow" aria-hidden="true">→</span>
-      <span class="chainage-step-delta">${intervalM}m</span>
     </button>
   `;
   root.appendChild(el);

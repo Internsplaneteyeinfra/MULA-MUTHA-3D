@@ -1076,17 +1076,19 @@
   transform: translateX(-50%);
   z-index: 12;
   width: min(1280px, calc(100vw - 20px));
-  padding: 4px 8px 6px;
+  padding: 4px 8px 10px;
   background: transparent !important;
   backdrop-filter: none !important;
   border: none !important;
   border-radius: 0;
   box-shadow: none !important;
+  overflow: visible;
 }
 .chainage-ruler-row {
   display: flex;
   flex-direction: column;
   gap: 6px;
+  overflow: visible;
 }
 .chainage-ruler-head {
   display: flex;
@@ -1096,7 +1098,7 @@
   flex-wrap: wrap;
 }
 
-/* Top-center ±10 m chainage step control */
+/* Top-center ±chainage step control (arrows only) */
 .chainage-step-hud {
   position: fixed;
   /* Clear top analytics icons (≈14 + 44) + breathing room */
@@ -1106,8 +1108,8 @@
   z-index: 18;
   display: inline-flex;
   align-items: center;
-  gap: 14px;
-  padding: 10px 18px;
+  gap: 12px;
+  padding: 6px 12px;
   pointer-events: auto;
   border-radius: 999px;
   background: rgba(6, 18, 28, 0.28);
@@ -1120,9 +1122,9 @@
   display: none !important;
 }
 .chainage-step-station {
-  min-width: 5.5ch;
+  min-width: 6.2ch;
   text-align: center;
-  font: 700 34px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  font: 800 42px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
   letter-spacing: 0.04em;
   color: #ffffff;
   text-shadow:
@@ -1133,26 +1135,25 @@
 }
 .chainage-step-btn {
   appearance: none;
-  display: inline-flex;
-  align-items: center;
-  gap: 8px;
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
   margin: 0;
-  padding: 8px 12px;
+  padding: 0;
   border-radius: 999px;
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.35);
+  background: rgba(255, 255, 255, 0.12);
   color: #ffffff;
   cursor: pointer;
-  font: 700 18px/1 var(--font-ui);
-  letter-spacing: 0.02em;
   text-shadow:
     0 0 2px rgba(0, 0, 0, 0.95),
     0 2px 6px rgba(0, 0, 0, 0.8);
   transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
 }
 .chainage-step-btn:hover:not(:disabled) {
-  background: rgba(255, 213, 74, 0.18);
-  border-color: rgba(255, 213, 74, 0.65);
+  background: rgba(255, 213, 74, 0.22);
+  border-color: rgba(255, 213, 74, 0.75);
   transform: translateY(-1px);
 }
 .chainage-step-btn:active:not(:disabled) {
@@ -1163,29 +1164,29 @@
   cursor: default;
 }
 .chainage-step-arrow {
-  font-size: 22px;
+  font-size: 28px;
   line-height: 1;
   font-weight: 700;
 }
 .chainage-step-delta {
-  font: 700 18px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  display: none !important;
 }
 @media (max-width: 720px) {
   .chainage-step-hud {
     /* Analytics bar drops lower on small screens */
     top: calc(max(14px, env(safe-area-inset-top)) + 118px);
     gap: 8px;
-    padding: 8px 12px;
+    padding: 5px 10px;
   }
   .chainage-step-station {
-    font-size: 26px;
+    font-size: 32px;
   }
   .chainage-step-btn {
-    padding: 6px 10px;
-    font-size: 15px;
+    width: 36px;
+    height: 36px;
   }
   .chainage-step-arrow {
-    font-size: 18px;
+    font-size: 24px;
   }
 }
 .chainage-ruler-title {
@@ -1249,8 +1250,9 @@
 }
 .chainage-ruler-track {
   position: relative;
-  height: 52px;
-  margin: 0 10px;
+  height: 58px;
+  margin: 22px 10px 0;
+  overflow: visible;
 }
 .chainage-ruler-line {
   position: absolute;
@@ -1276,7 +1278,7 @@
   align-items: center;
   gap: 1px;
   width: max-content;
-  max-width: 48px;
+  max-width: 52px;
   color: rgba(255, 255, 255, 0.95);
   z-index: 1;
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85);
@@ -1313,12 +1315,11 @@
 .chainage-ruler-tick.is-alt .chainage-ruler-tick-mark {
   height: 8px;
 }
-.chainage-ruler-tick.is-active .chainage-ruler-label {
-  color: #ffe082;
-  font-weight: 700;
-}
+.chainage-ruler-tick.is-active .chainage-ruler-label,
 .chainage-ruler-tick.is-active .chainage-ruler-meters {
-  color: #ffd978;
+  /* Cursor badge owns this station — hide duplicate tick text */
+  opacity: 0;
+  pointer-events: none;
 }
 .chainage-ruler-tick.is-active .chainage-ruler-tick-mark {
   background: #f5c518;
@@ -1326,31 +1327,51 @@
 }
 .chainage-ruler-cursor {
   position: absolute;
-  top: 0;
-  transform: translateX(-50%);
+  top: 12px;
+  transform: translate(-50%, calc(-100% - 8px));
   pointer-events: none;
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 2px;
-  z-index: 3;
+  z-index: 12;
+}
+.chainage-ruler-cursor.is-edge-start {
+  transform: translate(4px, calc(-100% - 8px));
+}
+.chainage-ruler-cursor.is-edge-end {
+  transform: translate(calc(-100% - 4px), calc(-100% - 8px));
 }
 .chainage-ruler-cursor-dot {
-  width: 7px;
-  height: 7px;
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 3px);
+  width: 9px;
+  height: 9px;
+  margin: 0;
   border-radius: 50%;
-  background: #f5c518;
-  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35);
+  background: #ffd54a;
+  border: 2px solid #fff;
+  box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.45), 0 2px 8px rgba(0, 0, 0, 0.35);
+  transform: translateX(-50%);
+}
+.chainage-ruler-cursor.is-edge-start .chainage-ruler-cursor-dot {
+  left: 10px;
+}
+.chainage-ruler-cursor.is-edge-end .chainage-ruler-cursor-dot {
+  left: auto;
+  right: 10px;
+  transform: none;
 }
 .chainage-ruler-cursor-label {
   display: block;
-  padding: 2px 5px;
-  border-radius: 3px;
-  background: rgba(245, 197, 24, 0.92);
+  padding: 4px 9px;
+  border-radius: 999px;
+  background: #ffd54a;
   color: #1a1406;
-  font: 700 9px/1 var(--font-ui);
+  font: 800 11px/1.15 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.02em;
   white-space: nowrap;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35);
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
 /* —— Flood Simulation bar + info —— */
@@ -2095,7 +2116,7 @@
   }
 }
 
-/* Compact River Data + measure + profile — dark GIS glass */
+/* Compact River Data + measure + profile — light river teal glass */
 .gis-ui .river-data-panel.hud,
 .river-data-panel {
   position: relative;
@@ -2128,14 +2149,18 @@
 .river-data-shell,
 .river-measure-panel {
   padding: 10px 12px 10px;
-  border: 1px solid rgba(80, 140, 160, 0.42);
+  border: 1px solid rgba(140, 210, 228, 0.38);
   border-radius: 14px;
-  background: rgba(10, 22, 30, 0.78);
-  backdrop-filter: blur(16px) saturate(120%);
-  -webkit-backdrop-filter: blur(16px) saturate(120%);
+  background: linear-gradient(
+    165deg,
+    rgba(52, 118, 138, 0.52),
+    rgba(28, 78, 98, 0.46)
+  );
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
   box-shadow:
-    0 10px 28px rgba(0, 0, 0, 0.32),
-    inset 0 1px 0 rgba(255, 255, 255, 0.08);
+    0 10px 26px rgba(8, 40, 55, 0.22),
+    inset 0 1px 0 rgba(220, 245, 255, 0.18);
   transition: opacity 0.24s ease, transform 0.24s ease;
 }
 .river-data-shell[hidden],
@@ -2151,11 +2176,15 @@
   margin: 0;
   padding: 0;
   border-radius: 12px;
-  border: 1px solid rgba(91, 200, 232, 0.4);
-  background: rgba(10, 22, 30, 0.78);
+  border: 1px solid rgba(125, 211, 232, 0.48);
+  background: linear-gradient(
+    165deg,
+    rgba(52, 118, 138, 0.55),
+    rgba(28, 78, 98, 0.48)
+  );
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.28);
+  box-shadow: 0 8px 22px rgba(8, 40, 55, 0.2);
   color: #eaf8fb;
   cursor: pointer;
   transition: border-color 0.2s ease, box-shadow 0.2s ease, transform 0.2s ease;
@@ -2229,17 +2258,17 @@
   margin: 0;
   padding: 0;
   border-radius: 999px;
-  border: 1px solid rgba(120, 180, 200, 0.35);
-  background: rgba(255, 255, 255, 0.05);
-  color: rgba(220, 240, 245, 0.88);
+  border: 1px solid rgba(160, 220, 235, 0.4);
+  background: rgba(255, 255, 255, 0.12);
+  color: rgba(235, 250, 255, 0.92);
   cursor: pointer;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, color 0.18s ease;
 }
 .river-data-close:hover,
 .river-data-close:focus-visible {
-  border-color: rgba(91, 200, 232, 0.75);
+  border-color: rgba(145, 230, 245, 0.85);
   color: #fff;
-  box-shadow: 0 0 0 2px rgba(91, 200, 232, 0.2);
+  box-shadow: 0 0 0 2px rgba(91, 200, 232, 0.22);
   outline: none;
 }
 .river-data-rows {
@@ -2249,7 +2278,10 @@
 }
 .river-data-anno-btn { display: none !important; }
 .chainage-ruler--track-only .chainage-ruler-row { gap: 0; }
-.chainage-ruler--track-only .chainage-ruler-track { margin-top: 0; }
+.chainage-ruler--track-only .chainage-ruler-track {
+  /* Keep headroom so the yellow selection badge stays on-screen */
+  margin-top: 22px;
+}
 .river-data-row {
   appearance: none;
   display: grid;
@@ -2260,21 +2292,21 @@
   margin: 0;
   padding: 8px;
   border-radius: 10px;
-  border: 1px solid transparent;
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid rgba(170, 225, 238, 0.16);
+  background: rgba(255, 255, 255, 0.1);
   color: #eaf1ef;
   cursor: pointer;
   text-align: left;
   transition: background 0.15s ease, border-color 0.15s ease;
 }
 .river-data-row:hover {
-  background: rgba(91, 200, 232, 0.08);
-  border-color: rgba(91, 200, 232, 0.28);
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(145, 220, 238, 0.4);
 }
 .river-data-row:active { transform: translateY(0.5px); }
 .river-data-row.is-active {
-  background: rgba(91, 200, 232, 0.12);
-  border-color: rgba(91, 200, 232, 0.45);
+  background: rgba(145, 220, 238, 0.22);
+  border-color: rgba(145, 220, 238, 0.55);
 }
 .river-data-row-icon {
   display: grid;
@@ -2353,58 +2385,96 @@
 }
 
 .river-profile-popup {
-  position: absolute;
-  left: 0;
-  top: calc(100% + 8px);
-  z-index: 25;
-  width: min(340px, calc(100vw - 28px));
+  position: fixed;
+  /* Sit clear of left River Data stack so panels never overlap */
+  left: calc(clamp(10px, 1.2vw, 22px) + clamp(190px, 17vw, 235px) + 16px);
+  top: 50%;
+  z-index: 1200;
+  width: min(360px, calc(100vw - 28px));
+  max-width: calc(100vw - 280px);
   opacity: 0;
-  transform: translateY(-8px);
+  transform: translateY(-46%) scale(0.98);
   pointer-events: none;
-  transition: opacity 240ms ease, transform 240ms ease;
+  transition: opacity 220ms ease, transform 220ms ease;
 }
 .river-profile-popup.is-open {
   opacity: 1;
-  transform: translateY(0);
+  transform: translateY(-50%) scale(1);
   pointer-events: auto;
 }
 .river-profile-popup[hidden] {
-  display: none;
+  display: none !important;
 }
 .river-profile-popup-inner {
-  padding: 12px 12px 10px;
-  border-radius: 12px;
-  border: 1px solid rgba(112, 211, 239, 0.28);
-  background: rgba(6, 18, 26, 0.94);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  box-shadow: 0 18px 40px rgba(0, 0, 0, 0.35);
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  border: 1px solid rgba(150, 220, 238, 0.42);
+  background: linear-gradient(
+    165deg,
+    rgba(58, 128, 148, 0.72),
+    rgba(24, 72, 92, 0.68)
+  );
+  backdrop-filter: blur(18px) saturate(135%);
+  -webkit-backdrop-filter: blur(18px) saturate(135%);
+  box-shadow:
+    0 22px 48px rgba(6, 30, 42, 0.38),
+    inset 0 1px 0 rgba(230, 248, 255, 0.22);
 }
 .river-profile-header {
   display: flex;
   align-items: flex-start;
   justify-content: space-between;
   gap: 10px;
-  margin-bottom: 8px;
+  margin-bottom: 10px;
+}
+.river-profile-heading {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  min-width: 0;
+}
+.river-profile-emoji {
+  font-size: 18px;
+  line-height: 1.2;
+  margin-top: 1px;
 }
 .river-profile-title {
   margin: 0;
-  color: #8ce5f6;
-  font: 700 12px/1.2 var(--font-ui);
-  letter-spacing: 0.12em;
-}
-.river-profile-meta {
-  margin: 6px 0 0;
-  color: rgba(220, 240, 245, 0.72);
-  font-size: 11px;
-}
-.river-profile-meta strong {
   color: #eaf8fb;
-  font-weight: 600;
+  font: 700 13px/1.2 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
 }
+.river-profile-station {
+  margin: 4px 0 0;
+  color: rgba(210, 236, 244, 0.78);
+  font: 500 12px/1.2 var(--font-ui);
+}
+.river-profile-hero {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 12px;
+  padding: 12px 14px;
+  border-radius: 12px;
+  border: 1px solid rgba(180, 230, 245, 0.22);
+  background: rgba(255, 255, 255, 0.12);
+}
+.river-profile-hero-lab {
+  color: rgba(200, 232, 242, 0.78);
+  font: 600 10px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+}
+.river-profile-hero-val {
+  color: #ffffff;
+  font: 700 28px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  letter-spacing: 0.01em;
+  text-shadow: 0 1px 8px rgba(0, 30, 40, 0.35);
+}
+.river-profile-meta,
 .river-profile-sep {
-  margin: 0 4px;
-  opacity: 0.5;
+  display: none;
 }
 .river-profile-close {
   appearance: none;
@@ -2413,40 +2483,378 @@
   width: 28px;
   height: 28px;
   padding: 0;
-  border: 0;
-  border-radius: 8px;
-  background: transparent;
+  border: 1px solid rgba(170, 225, 238, 0.35);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
   color: #dff8ff;
   cursor: pointer;
+  transition: background 0.15s ease, border-color 0.15s ease;
 }
 .river-profile-close:hover {
-  background: rgba(120, 200, 220, 0.12);
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(170, 225, 238, 0.65);
 }
 .river-profile-chart {
-  min-height: 118px;
+  min-height: 128px;
+  padding: 8px 6px 4px;
+  border-radius: 12px;
+  border: 1px solid rgba(170, 225, 238, 0.16);
+  background: rgba(6, 28, 38, 0.28);
 }
 .river-profile-svg {
   display: block;
   width: 100%;
-  height: 118px;
+  height: 128px;
 }
 .river-profile-tick {
-  fill: rgba(180, 210, 220, 0.65);
+  fill: rgba(210, 235, 242, 0.72);
   font: 500 9px/1 var(--font-ui);
 }
 .river-profile-axes {
   display: flex;
   justify-content: space-between;
-  margin-top: 4px;
-  color: rgba(180, 210, 220, 0.55);
+  margin-top: 8px;
+  color: rgba(200, 230, 238, 0.68);
   font-size: 10px;
   letter-spacing: 0.04em;
 }
 .river-profile-empty {
-  margin: 18px 0;
-  color: rgba(220, 240, 245, 0.65);
+  margin: 22px 0;
+  color: rgba(220, 240, 245, 0.75);
   font-size: 12px;
   text-align: center;
+}
+
+/* ─── Measure toast + Profile Analysis (A→B transect) ─── */
+.measure-mode-toast {
+  position: fixed;
+  top: calc(max(14px, env(safe-area-inset-top)) + 92px);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 45;
+  padding: 8px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(91, 200, 232, 0.35);
+  background: rgba(8, 22, 30, 0.72);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  color: #eaf8fb;
+  font: 600 12px/1.2 var(--font-ui);
+  letter-spacing: 0.02em;
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  pointer-events: none;
+  white-space: nowrap;
+}
+.measure-mode-toast[hidden] {
+  display: none !important;
+}
+
+.profile-analysis-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1200;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(2, 10, 16, 0.42);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  pointer-events: auto;
+}
+.profile-analysis-backdrop[hidden] {
+  display: none !important;
+}
+
+.profile-analysis-panel {
+  position: relative;
+  top: auto;
+  right: auto;
+  left: auto;
+  z-index: 1;
+  width: min(520px, calc(100vw - 32px));
+  max-height: min(82vh, calc(100vh - 48px));
+  overflow: auto;
+  padding: 14px 16px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(140, 210, 228, 0.38);
+  background: linear-gradient(165deg, rgba(18, 42, 54, 0.96), rgba(8, 22, 30, 0.94));
+  backdrop-filter: blur(18px) saturate(130%);
+  -webkit-backdrop-filter: blur(18px) saturate(130%);
+  box-shadow:
+    0 24px 64px rgba(0, 0, 0, 0.48),
+    inset 0 1px 0 rgba(220, 245, 255, 0.14);
+  color: #eaf8fb;
+  pointer-events: auto;
+  transform: translateY(0);
+}
+.profile-analysis-panel[hidden] {
+  display: none !important;
+}
+.profile-analysis-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.profile-analysis-title {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 0;
+}
+.profile-analysis-title strong {
+  display: block;
+  font: 700 13px/1.2 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #dff8ff;
+}
+.profile-analysis-title p {
+  margin: 4px 0 0;
+  font: 500 11px/1.3 var(--font-ui);
+  color: rgba(200, 230, 238, 0.78);
+}
+.profile-analysis-title p b {
+  color: #b9f5ff;
+  font-weight: 700;
+}
+.profile-analysis-close {
+  appearance: none;
+  width: 28px;
+  height: 28px;
+  display: grid;
+  place-items: center;
+  border-radius: 999px;
+  border: 1px solid rgba(170, 225, 238, 0.3);
+  background: rgba(255, 255, 255, 0.08);
+  color: #dff8ff;
+  cursor: pointer;
+}
+.profile-analysis-chart {
+  min-height: 160px;
+  padding: 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(170, 225, 238, 0.14);
+  background: rgba(4, 18, 26, 0.35);
+}
+.profile-analysis-svg {
+  display: block;
+  width: 100%;
+  height: 168px;
+}
+.profile-analysis-tick {
+  fill: rgba(190, 220, 230, 0.7);
+  font: 500 9px/1 var(--font-ui);
+}
+.profile-analysis-axis {
+  fill: rgba(180, 215, 225, 0.55);
+  font: 600 9px/1 var(--font-ui);
+}
+.profile-analysis-grid {
+  stroke: rgba(180, 220, 230, 0.1);
+  stroke-width: 1;
+}
+.profile-analysis-tip {
+  margin-top: 8px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 11px;
+}
+.profile-analysis-tip[hidden] {
+  display: none !important;
+}
+.profile-analysis-tip div {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+}
+.profile-analysis-tip span {
+  color: rgba(190, 220, 230, 0.65);
+}
+.profile-analysis-tip b {
+  color: #eaf8fb;
+  font-weight: 700;
+  font-family: ui-monospace, SFMono-Regular, Consolas, monospace;
+}
+.profile-analysis-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin: 8px 0 10px;
+  font: 600 10px/1 var(--font-ui);
+  color: rgba(200, 230, 238, 0.75);
+}
+.profile-analysis-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 2px;
+  margin-right: 5px;
+  vertical-align: middle;
+  border-radius: 2px;
+}
+.profile-analysis-legend .is-terrain::before { background: #E8A13D; }
+.profile-analysis-legend .is-wse::before { background: #5bc8e8; }
+.profile-analysis-legend .is-bed::before { background: #5dcea0; }
+.profile-analysis-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 6px;
+  margin-bottom: 10px;
+}
+.profile-analysis-stats > div {
+  padding: 8px 8px;
+  border-radius: 10px;
+  border: 1px solid rgba(170, 225, 238, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+}
+.profile-analysis-stats span {
+  display: block;
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(190, 220, 230, 0.62);
+  margin-bottom: 4px;
+}
+.profile-analysis-stats b {
+  font: 700 13px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #b9f5ff;
+}
+.profile-analysis-conditions {
+  margin-bottom: 10px;
+}
+.profile-analysis-conditions > header {
+  font: 700 10px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(180, 230, 245, 0.85);
+  margin-bottom: 6px;
+}
+.profile-analysis-cond-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.profile-analysis-cond-grid > div {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(170, 225, 238, 0.12);
+}
+.profile-analysis-cond-grid span {
+  display: block;
+  font-size: 10px;
+  color: rgba(190, 220, 230, 0.62);
+  margin-bottom: 3px;
+}
+.profile-analysis-cond-grid b {
+  font: 700 13px/1.2 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #eaf8fb;
+}
+.profile-analysis-cond-grid .is-badge {
+  display: inline-block;
+  margin-top: 4px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(91, 200, 232, 0.16);
+  border: 1px solid rgba(91, 200, 232, 0.35);
+  color: #9fe7f6;
+  font: 700 9px/1.2 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+.profile-analysis-terrain-meta {
+  margin: 8px 0 0;
+  font-size: 10px;
+  color: rgba(190, 220, 230, 0.65);
+}
+.profile-analysis-points {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+  margin-bottom: 12px;
+}
+.profile-analysis-points > div {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(170, 225, 238, 0.1);
+}
+.profile-analysis-points strong {
+  display: block;
+  margin-bottom: 4px;
+  font-size: 11px;
+  color: #dff8ff;
+}
+.profile-analysis-points span {
+  display: block;
+  font: 500 11px/1.35 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: rgba(210, 235, 242, 0.82);
+}
+.profile-analysis-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+.profile-analysis-btn {
+  appearance: none;
+  height: 34px;
+  padding: 0 14px;
+  border-radius: 9px;
+  font: 700 11px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.profile-analysis-btn.is-clear {
+  border: 1px solid rgba(200, 230, 238, 0.28);
+  background: transparent;
+  color: #dff8ff;
+}
+.profile-analysis-btn.is-exit {
+  border: 1px solid rgba(220, 80, 80, 0.45);
+  background: rgba(120, 28, 28, 0.55);
+  color: #ffe4e4;
+}
+.profile-analysis-loading,
+.profile-analysis-error,
+.profile-analysis-empty {
+  margin: 16px 0;
+  text-align: center;
+  color: rgba(210, 235, 242, 0.75);
+  font-size: 12px;
+}
+.profile-analysis-error {
+  color: #ffc4a8;
+}
+@media (max-width: 1366px) {
+  .profile-analysis-panel {
+    width: min(480px, calc(100vw - 28px));
+  }
+  .profile-analysis-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+@media (max-width: 900px) {
+  .profile-analysis-backdrop {
+    align-items: end;
+    padding-bottom: max(12px, calc(env(safe-area-inset-bottom) + 8px));
+  }
+  .profile-analysis-panel {
+    width: min(100%, calc(100vw - 24px));
+    max-height: min(70vh, calc(100vh - 100px));
+  }
+  .measure-mode-toast {
+    top: calc(max(14px, env(safe-area-inset-top)) + 120px);
+    white-space: normal;
+    max-width: calc(100vw - 24px);
+    text-align: center;
+  }
 }
 
 .river-data-action-value { display:flex; align-items:center; justify-content:flex-end; gap:8px; }
@@ -2569,21 +2977,33 @@
 .forecast-retry:hover {
   background: rgba(34, 137, 164, 0.55);
 }
-.weather-copy small { display:block; margin-top:3px; color:rgba(178,211,220,.72); font-size:11px; }
+.weather-copy small { display:block; margin-top:2px; color:rgba(178,211,220,.72); font-size:11px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .weather-wq {
   display: grid;
-  align-content: center;
-  gap: 4px;
+  grid-template-columns: max-content max-content max-content;
+  align-items: baseline;
+  justify-content: start;
+  column-gap: 6px;
+  row-gap: 4px;
   margin: 0;
-  padding: 0 10px 0 0;
+  padding: 2px 10px 2px 2px;
   border: none;
-  border-right: 1px solid rgba(193, 225, 234, 0.14);
+  border-right: 1px solid rgba(193, 225, 234, 0.18);
   background: none !important;
   box-shadow: none !important;
   min-width: 0;
+  width: max-content;
+}
+.weather-wq-head {
+  grid-column: 1 / -1;
+  margin: 0 0 2px;
+  color: rgba(158, 220, 236, 0.78);
+  font: 700 8px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
 }
 .weather-wq-row {
-  display: block;
+  display: contents;
   margin: 0;
   padding: 0;
   white-space: nowrap;
@@ -2591,26 +3011,55 @@
   border: none !important;
   box-shadow: none !important;
   color: rgba(178, 211, 220, 0.72);
-  font: 500 11px/1.25 var(--font-ui);
+  font: 500 11px/1.2 var(--font-ui);
 }
 .weather-wq-row i {
   font-style: normal;
-  font-weight: 600;
-  letter-spacing: 0.06em;
+  font-weight: 700;
+  letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: rgba(178, 211, 220, 0.72);
-  background: none;
+  color: rgba(180, 222, 234, 0.78);
+  font-size: 10px;
+  line-height: 1.2;
+  padding-right: 2px;
+}
+.weather-wq-row.is-q i {
+  color: #7adcf0;
+  font-size: 9px;
+  letter-spacing: 0.04em;
 }
 #ui-root.gis-ui .weather-wq-row b,
 .weather-wq-row b {
-  font: 600 12px/1.25 var(--font-ui) !important;
-  color: #e9f8fb !important;
-  letter-spacing: 0.01em;
-  white-space: nowrap;
-  background: none !important;
+  justify-self: start;
+  margin: 0;
   padding: 0 !important;
   border: none !important;
+  background: none !important;
   box-shadow: none !important;
+  color: #ffffff !important;
+  font: 800 20px/1 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace) !important;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: -0.03em;
+  white-space: nowrap;
+}
+.weather-wq-row.is-q b {
+  color: #b8f6ff !important;
+  font-size: 26px !important;
+  font-weight: 800 !important;
+  letter-spacing: -0.04em;
+  text-shadow: 0 0 20px rgba(90, 210, 240, 0.35);
+}
+.weather-wq-row em {
+  font-style: normal;
+  color: rgba(186, 224, 236, 0.78);
+  font: 650 10px/1.1 var(--font-ui);
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  padding-left: 1px;
+}
+.weather-wq-row.is-q em {
+  color: rgba(170, 236, 250, 0.9);
+  font-size: 11px;
 }
 .river-data-grid > span, .river-data-grid > b { white-space: nowrap; }
 .river-data-grid > b { overflow: hidden; text-overflow: ellipsis; }
@@ -2649,7 +3098,7 @@
   .analytics-controls .nav-button { width: 40px; height: 40px; min-width: 40px; min-height: 40px; max-width: 40px; }
   .river-data-panel { padding: 10px; }
   .river-data-station { font-size: 22px; }
-  .river-profile-popup { width: min(300px, calc(100vw - 20px)); }
+  .river-profile-popup { width: min(320px, calc(100vw - 20px)); }
   .chainage-panel {
     left: 10px;
     top: auto;
@@ -2657,11 +3106,13 @@
     width: min(300px, calc(100vw - 20px));
   }
 }
-#ui-root.gis-ui .weather-copy strong { font-size: 13px; }
-#ui-root.gis-ui .weather-copy span { font-size: 14px; }
-#ui-root.gis-ui .weather-copy b { font-size: 18px; }
-#ui-root.gis-ui .weather-date { font-size: 11px; }
-#ui-root.gis-ui .weather-time { font-size: 14px; }
+#ui-root.gis-ui .weather-copy strong { font-size: 10px; }
+#ui-root.gis-ui .weather-copy .weather-temp,
+#ui-root.gis-ui .weather-copy b.weather-temp { font-size: 16px; }
+#ui-root.gis-ui .weather-copy .weather-condition,
+#ui-root.gis-ui .weather-copy i.weather-condition { font-size: 11px; }
+#ui-root.gis-ui .weather-date { font-size: 10px; }
+#ui-root.gis-ui .weather-time { font-size: 13px; }
 #ui-root.gis-ui .map-ctrl-label { font-size: 14px; }
 #ui-root.gis-ui .view-toggle-title { font-size: 12px; }
 #ui-root.gis-ui .view-toggle-btn { font-size: 14px; }
@@ -2712,18 +3163,33 @@
 .chainage-ruler-input::-moz-range-thumb { width:11px; height:11px; border:2px solid #b9f5ff; border-radius:50%; background:#168eac; box-shadow:0 0 0 3px rgba(71,210,239,.2); }
 .chainage-ruler-tick { z-index:6; }
 .chainage-ruler-tick.is-active .chainage-ruler-label,
-.chainage-ruler-tick.active .chainage-ruler-label {
-  color: #dff9ff;
-  font-weight: 700;
+.chainage-ruler-tick.active .chainage-ruler-label,
+.chainage-ruler-tick.is-active .chainage-ruler-meters,
+.chainage-ruler-tick.active .chainage-ruler-meters {
+  opacity: 0;
+}
+@media (max-width: 900px) {
+  .river-profile-popup {
+    left: max(12px, env(safe-area-inset-left));
+    right: max(12px, env(safe-area-inset-right));
+    top: auto;
+    bottom: max(110px, calc(env(safe-area-inset-bottom) + 88px));
+    width: auto;
+    max-width: none;
+    transform: translateY(12px) scale(0.98);
+  }
+  .river-profile-popup.is-open {
+    transform: translateY(0) scale(1);
+  }
 }
 @media (max-height: 720px) {
   .river-profile-popup {
     top: auto;
-    bottom: calc(100% + 8px);
-    transform: translateY(8px);
+    bottom: max(96px, calc(env(safe-area-inset-bottom) + 72px));
+    transform: translateY(10px) scale(0.98);
   }
   .river-profile-popup.is-open {
-    transform: translateY(0);
+    transform: translateY(0) scale(1);
   }
 }
 
@@ -2732,9 +3198,11 @@
 #ui-root.gis-ui .gis-brand strong { font-size: 16px; }
 #ui-root.gis-ui .gis-brand p { font-size: 12px; }
 #ui-root.gis-ui .gis-brand small { font-size: 11px; }
-#ui-root.gis-ui .weather-copy strong { font-size: 11px; }
-#ui-root.gis-ui .weather-copy span { font-size: 12px; }
-#ui-root.gis-ui .weather-copy b { font-size: 16px; }
+#ui-root.gis-ui .weather-copy strong { font-size: 10px; }
+#ui-root.gis-ui .weather-copy .weather-temp,
+#ui-root.gis-ui .weather-copy b.weather-temp { font-size: 15px; }
+#ui-root.gis-ui .weather-copy .weather-condition,
+#ui-root.gis-ui .weather-copy i.weather-condition { font-size: 11px; }
 #ui-root.gis-ui .weather-date { font-size: 10px; }
 #ui-root.gis-ui .weather-time { font-size: 12px; }
 #ui-root.gis-ui .map-ctrl-label { font-size: 12px; }
@@ -2820,35 +3288,442 @@
   right: max(14px, env(safe-area-inset-right));
   z-index: 19;
   display: grid;
-  grid-template-columns: auto auto 1fr auto;
+  grid-template-columns: auto auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 9px;
-  width: min(340px, 32vw);
-  min-width: 280px;
-  padding: 9px 11px;
+  column-gap: 12px;
+  row-gap: 0;
+  width: min(520px, calc(100vw - 120px));
+  min-width: 420px;
+  max-width: calc(100vw - 100px);
+  padding: 11px 13px;
   border: 1px solid rgba(182, 222, 235, .17);
   border-radius: 10px;
   background: rgba(8, 20, 27, .48);
   box-shadow: 0 10px 26px rgba(0, 0, 0, .16);
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
+  overflow: hidden;
 }
-.weather-icon { display: grid; place-items: center; color: #86dded; }
-.weather-copy { min-width: 0; display: grid; gap: 4px; }
+.weather-icon {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  margin: 0;
+  padding: 0;
+  border: 1px solid rgba(130, 210, 230, 0.28);
+  border-radius: 10px;
+  background: rgba(20, 70, 90, 0.35);
+  color: #86dded;
+  cursor: pointer;
+  transition: background 140ms ease, border-color 140ms ease, transform 140ms ease;
+}
+.weather-icon:hover {
+  background: rgba(40, 130, 160, 0.45);
+  border-color: rgba(150, 230, 250, 0.55);
+  transform: translateY(-1px);
+}
+.weather-copy-btn {
+  appearance: none;
+  text-align: left;
+  cursor: pointer;
+  color: inherit;
+  font: inherit;
+  border: 0;
+  background: transparent;
+  padding: 0;
+  margin: 0;
+}
+.weather-copy-btn:hover strong {
+  color: #b8f4ff;
+}
+
+.weather-detail-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 1250;
+  display: grid;
+  place-items: center;
+  padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right))
+    max(16px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
+  background: rgba(2, 10, 16, 0.5);
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+  pointer-events: auto;
+}
+.weather-detail-backdrop[hidden] {
+  display: none !important;
+}
+.weather-detail-panel {
+  position: relative;
+  z-index: 1;
+  width: min(920px, calc(100vw - 28px));
+  max-height: min(90vh, calc(100vh - 28px));
+  overflow: auto;
+  padding: 16px 16px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(140, 210, 228, 0.38);
+  background: linear-gradient(165deg, rgba(18, 42, 54, 0.97), rgba(8, 22, 30, 0.95));
+  box-shadow: 0 24px 64px rgba(0, 0, 0, 0.48), inset 0 1px 0 rgba(220, 245, 255, 0.12);
+  color: #eaf8fb;
+  pointer-events: auto;
+}
+.weather-detail-chart-wrap {
+  position: relative;
+  cursor: crosshair;
+}
+.weather-detail-chart-wrap.is-hovering .weather-detail-bar,
+.weather-detail-chart-wrap.is-hovering .weather-detail-dot {
+  opacity: 0.38;
+}
+.weather-detail-chart-wrap .weather-detail-bar:has(+ .weather-detail-hit.is-active),
+.weather-detail-chart-wrap .weather-detail-dot:has(+ .weather-detail-hit.is-active) {
+  opacity: 1 !important;
+  filter: brightness(1.15);
+}
+.weather-detail-hit {
+  pointer-events: all;
+}
+.weather-detail-hover-guide {
+  stroke: rgba(255, 240, 180, 0.55);
+  stroke-width: 1.25;
+  stroke-dasharray: 3 3;
+  pointer-events: none;
+}
+.weather-detail-hover-mark {
+  fill: #fff8d6;
+  stroke: #1a3040;
+  stroke-width: 1.5;
+  pointer-events: none;
+  filter: drop-shadow(0 0 6px rgba(255, 220, 120, 0.65));
+}
+.weather-detail-tip {
+  position: absolute;
+  z-index: 5;
+  min-width: 140px;
+  max-width: 220px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(160, 230, 250, 0.45);
+  background: rgba(6, 22, 32, 0.94);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+  pointer-events: none;
+  display: grid;
+  gap: 3px;
+}
+.weather-detail-tip[hidden] {
+  display: none !important;
+}
+.weather-detail-tip strong {
+  font-size: 11px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #9ee8f8;
+}
+.weather-detail-tip span {
+  color: rgba(220, 240, 245, 0.88);
+  font-size: 12px;
+}
+.weather-detail-tip b {
+  color: #ffffff;
+  font: 800 16px/1.15 var(--font-mono, ui-monospace, monospace);
+}
+.weather-detail-tip b em {
+  font-style: normal;
+  font-size: 11px;
+  font-weight: 600;
+  color: rgba(180, 230, 240, 0.85);
+}
+.weather-detail-tip small {
+  color: rgba(160, 210, 220, 0.7);
+  font-size: 10px;
+}
+.weather-detail-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 10px;
+}
+.weather-detail-head strong {
+  display: block;
+  font-size: 15px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #9ee8f8;
+}
+.weather-detail-head p {
+  margin: 4px 0 0;
+  color: rgba(200, 232, 240, 0.82);
+  font-size: 12px;
+}
+.weather-detail-close {
+  appearance: none;
+  display: grid;
+  place-items: center;
+  width: 30px;
+  height: 30px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: #dff8ff;
+  cursor: pointer;
+}
+.weather-detail-close:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+.weather-detail-banner {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px 14px;
+  margin: 0 0 10px;
+  padding: 8px 10px;
+  border-radius: 10px;
+  border: 1px solid rgba(90, 200, 140, 0.35);
+  background: rgba(20, 60, 40, 0.35);
+  color: rgba(210, 240, 220, 0.9);
+  font-size: 11px;
+}
+.weather-detail-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(40, 180, 90, 0.35);
+  color: #b6ffc8;
+  font: 800 10px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+}
+.weather-detail-live::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #4dff8a;
+  box-shadow: 0 0 8px rgba(80, 255, 140, 0.8);
+}
+.weather-detail-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px 16px;
+  margin: 0 0 12px;
+  font-size: 11px;
+  color: rgba(210, 235, 242, 0.88);
+}
+.weather-detail-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 14px;
+  height: 3px;
+  margin-right: 6px;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: #7adcf0;
+}
+.weather-detail-legend .is-past::before {
+  background: #7adcf0;
+}
+.weather-detail-legend .is-today::before {
+  background: #ffe08a;
+  height: 10px;
+  width: 3px;
+}
+.weather-detail-legend .is-future::before {
+  background: transparent;
+  border-top: 2px dashed #7adcf0;
+  height: 0;
+  opacity: 0.9;
+}
+.weather-detail-legend .is-axis::before {
+  display: none;
+}
+.weather-detail-legend .is-axis {
+  margin-left: auto;
+  color: rgba(180, 220, 230, 0.7);
+  font-weight: 600;
+}
+.weather-detail-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+.weather-detail-card {
+  padding: 12px 12px 8px;
+  border-radius: 12px;
+  border: 1px solid rgba(120, 190, 210, 0.28);
+  background: rgba(4, 16, 24, 0.55);
+}
+.weather-detail-card header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 6px;
+}
+.weather-detail-card strong {
+  display: block;
+  font-size: 13px;
+  letter-spacing: 0.03em;
+  color: #eef9fc;
+}
+.weather-detail-card strong em {
+  font-style: normal;
+  color: rgba(160, 220, 235, 0.75);
+  font-weight: 600;
+  font-size: 11px;
+}
+.weather-detail-card small {
+  display: block;
+  margin-top: 3px;
+  color: rgba(190, 225, 235, 0.78);
+  font-size: 11px;
+}
+.weather-detail-card header > b {
+  color: #c8f7ff;
+  font: 800 15px/1.1 var(--font-mono, ui-monospace, monospace);
+  white-space: nowrap;
+}
+.weather-detail-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  min-height: 150px;
+}
+.weather-detail-tick {
+  fill: rgba(210, 235, 242, 0.92);
+  font: 600 10px/1 var(--font-ui);
+}
+.weather-detail-x {
+  fill: rgba(200, 230, 238, 0.88);
+  font: 600 9px/1 var(--font-ui);
+}
+.weather-detail-x.is-today {
+  fill: #ffe08a;
+  font-weight: 800;
+}
+.weather-detail-axis-label {
+  fill: rgba(170, 215, 228, 0.75);
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+}
+.weather-detail-gridline {
+  stroke: rgba(140, 190, 210, 0.16);
+  stroke-width: 1;
+}
+.weather-detail-axis {
+  stroke: rgba(170, 210, 225, 0.45);
+  stroke-width: 1.25;
+}
+.weather-detail-today-line {
+  stroke: rgba(255, 220, 120, 0.75);
+  stroke-width: 1.5;
+  stroke-dasharray: 4 3;
+}
+.weather-detail-loading,
+.weather-detail-error,
+.weather-detail-empty,
+.weather-detail-note {
+  margin: 10px 0;
+  color: rgba(210, 235, 242, 0.8);
+  font-size: 12px;
+  text-align: center;
+}
+.weather-detail-error {
+  color: #ffc4a8;
+}
+.weather-detail-retry-row {
+  display: flex;
+  justify-content: center;
+  margin: 12px 0 4px;
+}
+.weather-detail-retry {
+  appearance: none;
+  padding: 8px 14px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 210, 230, 0.45);
+  background: rgba(30, 110, 140, 0.45);
+  color: #e8fbff;
+  font: 700 12px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+  cursor: pointer;
+}
+.weather-detail-retry:hover {
+  background: rgba(40, 140, 170, 0.6);
+}
+.weather-detail-note {
+  margin-top: 12px;
+  margin-bottom: 0;
+  font-size: 11px;
+  letter-spacing: 0.02em;
+}
+@media (max-width: 720px) {
+  .weather-detail-grid {
+    grid-template-columns: 1fr;
+  }
+  .weather-detail-panel {
+    width: min(100%, calc(100vw - 20px));
+    max-height: min(86vh, calc(100vh - 20px));
+  }
+  .weather-detail-legend .is-axis {
+    margin-left: 0;
+  }
+}
+.weather-copy { min-width: 0; max-width: 100%; display: grid; gap: 2px; overflow: hidden; }
 .weather-copy strong { font-size: 9px; letter-spacing: .1em; color: rgba(229, 242, 246, .86); white-space: nowrap; }
-.weather-copy span { display: flex; align-items: baseline; gap: 7px; font-size: 10px; color: rgba(178, 211, 220, .72); }
-.weather-copy b { color: #e9f8fb; font-size: 13px; font-weight: 600; }
-.weather-copy i { font-style: normal; }
+.weather-copy .weather-temp,
+.weather-copy b.weather-temp {
+  color: #e9f8fb;
+  font-size: 15px;
+  font-weight: 700;
+  line-height: 1.15;
+  white-space: nowrap;
+}
+.weather-copy .weather-condition,
+.weather-copy i.weather-condition {
+  display: block;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-style: normal;
+  font-size: 11px;
+  line-height: 1.2;
+  color: rgba(178, 211, 220, .78);
+}
+.weather-copy small {
+  display: block;
+  margin-top: 2px;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(178,211,220,.72);
+  font-size: 11px;
+}
 .weather-time-block {
   display: grid;
   align-content: center;
+  justify-items: end;
   gap: 3px;
-  padding-left: 9px;
+  flex-shrink: 0;
+  min-width: 7.8rem;
+  max-width: 9.5rem;
+  padding-left: 10px;
   border-left: 1px solid rgba(193, 225, 234, 0.16);
   text-align: right;
+  overflow: hidden;
 }
 .weather-date {
   display: block;
+  max-width: 100%;
+  overflow: hidden;
+  text-overflow: ellipsis;
   color: rgba(200, 232, 240, 0.88);
   font: 600 10px/1.15 var(--font-ui);
   letter-spacing: 0.02em;
@@ -2859,7 +3734,7 @@
   padding-left: 0;
   border-left: none;
   color: #a7dfea;
-  font: 500 11px/1 var(--font-mono, ui-monospace, monospace);
+  font: 600 12px/1 var(--font-mono, ui-monospace, monospace);
 }
 
 .gis-tools-stack {
@@ -2914,7 +3789,7 @@
 }
 @media (max-width: 900px) {
   .gis-brand { max-width: min(320px, calc(100vw - 300px)); }
-  .weather-widget { width: min(300px, calc(100vw - 80px)); min-width: 0; }
+  .weather-widget { width: min(440px, calc(100vw - 80px)); min-width: 300px; }
   .gis-tools-stack { right: 10px; }
   .gis-ui .chainage-ruler { width: min(92vw, 1100px); }
 }
@@ -2995,16 +3870,34 @@
 #ui-root.gis-ui.map-focus:not(.geology-focus) .geology-workspace {
   display: none !important;
 }
-#ui-root.gis-ui.map-focus.geology-focus .geology-workspace {
+#ui-root.gis-ui.map-focus.geology-focus .geology-workspace,
+.geology-workspace.geology-workspace--top {
   display: flex !important;
-  top: calc(max(14px, env(safe-area-inset-top)) + 12px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
   z-index: 26;
+  opacity: 1;
 }
 #ui-root.gis-ui.map-focus.geology-focus .geology-content {
   display: none !important;
 }
+/* Class chips replace left legend cards (same as Land Use) — keep joining nav card */
+#ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--lithology,
+#ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--erosion,
+#ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--bathymetry,
+#ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--main-stem {
+  display: none !important;
+}
 #ui-root.gis-ui.map-focus .lu-hud,
 .lu-hud.lu-hud--top {
+  top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 26;
+}
+#ui-root.gis-ui.map-focus .wq-hud,
+.wq-hud.wq-hud--top {
   top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
   left: 50% !important;
   transform: translateX(-50%) !important;
@@ -3030,22 +3923,25 @@
 
 /* Land Use: icons → classes → chainage */
 #ui-root.gis-ui.map-focus.land-use-focus .lu-theme-classes,
+#ui-root.gis-ui.map-focus.water-quality-focus .lu-theme-classes,
+#ui-root.gis-ui.map-focus.water-quality-focus .focus-theme-classes,
 #ui-root.gis-ui.map-focus .lu-theme-classes,
 #ui-root.gis-ui.map-focus .focus-theme-classes {
   top: calc(max(14px, env(safe-area-inset-top)) + 64px);
 }
 #ui-root.gis-ui.map-focus.geology-focus .lu-theme-classes,
 #ui-root.gis-ui.map-focus.geology-focus .focus-theme-classes {
-  top: calc(max(14px, env(safe-area-inset-top)) + 72px);
+  top: calc(max(14px, env(safe-area-inset-top)) + 64px);
 }
 #ui-root.gis-ui.map-focus .chainage-step-hud,
 #ui-root.gis-ui.map-focus.lu-theme-classes-open .chainage-step-hud {
   top: calc(max(14px, env(safe-area-inset-top)) + 132px) !important;
 }
 #ui-root.gis-ui.map-focus.geology-focus.lu-theme-classes-open .chainage-step-hud {
-  top: calc(max(14px, env(safe-area-inset-top)) + 140px) !important;
+  top: calc(max(14px, env(safe-area-inset-top)) + 132px) !important;
 }
-#ui-root.gis-ui.map-focus.land-use-focus.lu-theme-classes-open .chainage-step-hud {
+#ui-root.gis-ui.map-focus.land-use-focus.lu-theme-classes-open .chainage-step-hud,
+#ui-root.gis-ui.map-focus.water-quality-focus.lu-theme-classes-open .chainage-step-hud {
   top: calc(max(14px, env(safe-area-inset-top)) + 132px) !important;
 }
 
@@ -3064,8 +3960,7 @@
   min-width: 0;
 }
 #ui-root.gis-ui.map-focus .river-data-panel.is-collapsed .river-data-shell,
-#ui-root.gis-ui.map-focus .river-data-panel.is-collapsed .river-measure-panel,
-#ui-root.gis-ui.map-focus .river-data-panel.is-collapsed .river-profile-popup {
+#ui-root.gis-ui.map-focus .river-data-panel.is-collapsed .river-measure-panel {
   display: none !important;
 }
 #ui-root.gis-ui.map-focus .river-data-heading {
@@ -3140,6 +4035,542 @@
 }
 #ui-root.gis-ui.map-focus.bod-cod-focus .bod-cod-accuracy {
   display: block;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Climate Impact — Land Use chrome (chips + period sheet + graph)
+   ═══════════════════════════════════════════════════════════ */
+#ui-root.gis-ui.map-focus.climate-focus .aqi-classes,
+#ui-root.gis-ui.map-focus.climate-focus .aqi-legend,
+#ui-root.gis-ui.map-focus.climate-focus .aqi-card,
+#ui-root.gis-ui.map-focus.climate-focus .aqi-graph,
+#ui-root.gis-ui.map-focus.climate-focus .aqi-panel,
+#ui-root.gis-ui.map-focus.climate-focus .aqi-year,
+#ui-root.gis-ui.map-focus.climate-focus .wq-hud,
+#ui-root.gis-ui.map-focus.climate-focus .geology-workspace,
+#ui-root.gis-ui.map-focus.climate-focus .lu-hud,
+#ui-root.gis-ui.map-focus.climate-focus .lu-theme-classes:not(.climate-impact-classes),
+#ui-root.gis-ui.map-focus.climate-focus .focus-theme-classes,
+#ui-root.gis-ui.map-focus.climate-focus .pollution-keypoints,
+#ui-root.gis-ui.map-focus.climate-focus .pollution-side-hud,
+#ui-root.gis-ui.map-focus.climate-focus .left-ui-stack,
+#ui-root.gis-ui.map-focus.climate-focus .river-data-panel,
+#ui-root.gis-ui.map-focus.climate-focus .river-data-fab,
+#ui-root.gis-ui.map-focus.climate-focus .fishing-panel,
+#ui-root.gis-ui.map-focus.climate-focus .joining-streams-nav,
+#ui-root.gis-ui.map-focus.climate-focus .gis-tools-stack {
+  display: none !important;
+}
+
+#ui-root.gis-ui.map-focus.climate-focus .climate-impact-classes {
+  top: calc(max(10px, env(safe-area-inset-top)) + 10px);
+  z-index: 28;
+  display: flex !important;
+}
+#ui-root.gis-ui.map-focus.climate-focus .climate-impact-classes[hidden] {
+  display: none !important;
+}
+#ui-root.gis-ui.map-focus.climate-focus .chainage-step-hud,
+#ui-root.gis-ui.map-focus.climate-focus.lu-theme-classes-open .chainage-step-hud {
+  top: calc(max(14px, env(safe-area-inset-top)) + 88px) !important;
+}
+
+/* Multi-toggle chips: dim only when OFF (not exclusive Land Use focus) */
+.climate-impact-classes .lu-theme-class:not(.is-selected) {
+  opacity: 0.4;
+}
+.climate-impact-classes .lu-theme-class.is-selected {
+  opacity: 1;
+}
+.climate-impact-classes .lu-theme-class.is-disabled {
+  opacity: 0.28;
+  cursor: default;
+}
+.climate-impact-class--wrd .lu-theme-class-letter {
+  background: linear-gradient(135deg, #1565c0 0 33%, #c62828 33% 66%, #2e7d32 66% 100%) !important;
+  border-color: rgba(255, 255, 255, 0.45) !important;
+}
+
+/* Date sheet + graph docked bottom-right (annotation) */
+.climate-impact-year {
+  left: auto;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 78px);
+  transform: none;
+  z-index: 28;
+}
+.climate-impact-year-range {
+  display: block;
+  margin-top: 2px;
+  font: 600 9px/1.2 var(--font-ui);
+  letter-spacing: 0.02em;
+  color: rgba(200, 230, 210, 0.78);
+  white-space: nowrap;
+}
+
+.climate-impact-graph {
+  position: fixed;
+  left: auto;
+  right: max(16px, env(safe-area-inset-right));
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 148px);
+  transform: none;
+  z-index: 27;
+  width: min(300px, calc(100vw - 32px));
+  padding: 12px 14px 12px;
+  border-radius: 16px;
+  background: rgba(8, 20, 30, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.32);
+  color: #f4f8fb;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+.climate-impact-graph[hidden] {
+  display: none !important;
+}
+.climate-impact-graph-head {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.climate-impact-graph-head strong {
+  font: 750 13px/1.2 var(--font-ui);
+  letter-spacing: 0.01em;
+  color: #fff;
+}
+.climate-impact-graph-head small {
+  font: 500 10px/1.2 var(--font-ui);
+  color: rgba(210, 228, 236, 0.72);
+}
+.climate-impact-graph-stats {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.climate-impact-graph-stats div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.climate-impact-graph-stats span {
+  font: 700 9px/1 var(--font-ui);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(220, 236, 244, 0.7);
+}
+.climate-impact-graph-stats b {
+  font: 800 16px/1.1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: var(--ci-color, #fff);
+}
+.climate-impact-graph-bars {
+  display: flex;
+  align-items: flex-end;
+  gap: 5px;
+  height: 56px;
+  padding: 4px 2px 0;
+}
+.climate-impact-graph-bar {
+  flex: 1;
+  height: 100%;
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+  gap: 2px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+.climate-impact-graph-bar i {
+  display: block;
+  width: 6px;
+  min-height: 3px;
+  border-radius: 3px 3px 0 0;
+  opacity: 0.45;
+}
+.climate-impact-graph-bar.is-active i,
+.climate-impact-graph-bar:hover i {
+  opacity: 1;
+}
+.climate-impact-graph-wrd {
+  list-style: none;
+  margin: 0;
+  padding: 8px 0 0;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  border-top: 1px solid rgba(255, 255, 255, 0.12);
+}
+.climate-impact-graph-wrd li {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+}
+.climate-impact-graph-wrd i {
+  width: 14px;
+  height: 3px;
+  border-radius: 999px;
+  background: var(--ci-color, #888);
+}
+.climate-impact-graph-wrd span {
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.03em;
+  text-transform: uppercase;
+  color: rgba(220, 236, 244, 0.78);
+}
+.climate-impact-graph-status {
+  margin: 0;
+  font: 500 12px/1.4 var(--font-ui);
+  color: rgba(220, 236, 244, 0.82);
+}
+.climate-impact-graph-status.is-error {
+  color: #ffb4a8;
+}
+.climate-impact-retry {
+  align-self: flex-start;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: 650 11px/1 var(--font-ui);
+  cursor: pointer;
+}
+.climate-impact-back {
+  z-index: 30;
+}
+
+@media (max-width: 720px) {
+  .climate-impact-graph {
+    left: auto;
+    right: 12px;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 132px);
+    width: min(280px, calc(100vw - 24px));
+    padding: 10px 12px;
+    transform: none;
+  }
+  .climate-impact-year {
+    left: auto;
+    right: 12px;
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 70px);
+    transform: none;
+    max-width: calc(100vw - 24px);
+  }
+  .climate-impact-graph-bars {
+    height: 48px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   AQI — Climate-style chrome (chips + glass panel + date sheet)
+   ═══════════════════════════════════════════════════════════ */
+#ui-root.gis-ui.map-focus.aqi-focus .wq-hud,
+#ui-root.gis-ui.map-focus.aqi-focus .geology-workspace,
+#ui-root.gis-ui.map-focus.aqi-focus .lu-hud,
+#ui-root.gis-ui.map-focus.aqi-focus .lu-theme-classes:not(.aqi-classes),
+#ui-root.gis-ui.map-focus.aqi-focus .focus-theme-classes,
+#ui-root.gis-ui.map-focus.aqi-focus .climate-impact-classes,
+#ui-root.gis-ui.map-focus.aqi-focus .climate-impact-graph,
+#ui-root.gis-ui.map-focus.aqi-focus .climate-impact-year,
+#ui-root.gis-ui.map-focus.aqi-focus .aqi-legend,
+#ui-root.gis-ui.map-focus.aqi-focus .aqi-card,
+#ui-root.gis-ui.map-focus.aqi-focus .aqi-graph,
+#ui-root.gis-ui.map-focus.aqi-focus .pollution-keypoints,
+#ui-root.gis-ui.map-focus.aqi-focus .pollution-side-hud,
+#ui-root.gis-ui.map-focus.aqi-focus .left-ui-stack,
+#ui-root.gis-ui.map-focus.aqi-focus .river-data-panel,
+#ui-root.gis-ui.map-focus.aqi-focus .river-data-fab,
+#ui-root.gis-ui.map-focus.aqi-focus .fishing-panel,
+#ui-root.gis-ui.map-focus.aqi-focus .hud.fishing-panel,
+#ui-root.gis-ui.map-focus.aqi-focus .joining-streams-nav,
+#ui-root.gis-ui.map-focus.aqi-focus .gis-tools-stack,
+#ui-root.gis-ui.map-focus.aqi-focus .bridge-info,
+#ui-root.gis-ui.map-focus.aqi-focus .cine-info {
+  display: none !important;
+}
+
+#ui-root.gis-ui.map-focus.aqi-focus .aqi-classes {
+  top: calc(max(14px, env(safe-area-inset-top)) + 64px);
+  z-index: 28;
+  display: flex !important;
+}
+#ui-root.gis-ui.map-focus.aqi-focus .aqi-classes[hidden] {
+  display: none !important;
+}
+#ui-root.gis-ui.map-focus.aqi-focus .chainage-step-hud,
+#ui-root.gis-ui.map-focus.aqi-focus.lu-theme-classes-open .chainage-step-hud {
+  top: calc(max(14px, env(safe-area-inset-top)) + 132px) !important;
+}
+
+.aqi-classes .lu-theme-class:not(.is-selected) {
+  opacity: 0.4;
+}
+.aqi-classes .lu-theme-class.is-selected {
+  opacity: 1;
+}
+.aqi-chip-val {
+  font: 800 11px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #fff;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
+}
+
+.aqi-panel {
+  position: fixed;
+  left: 50%;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 148px);
+  transform: translateX(-50%);
+  z-index: 27;
+  width: min(340px, calc(100vw - 28px));
+  max-height: min(58vh, 520px);
+  overflow-x: hidden;
+  overflow-y: auto;
+  padding: 14px 14px 12px;
+  border-radius: 16px;
+  background: rgba(8, 20, 30, 0.58);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 14px 36px rgba(0, 0, 0, 0.34);
+  color: #f4f8fb;
+  pointer-events: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  isolation: isolate;
+}
+.aqi-panel[hidden] {
+  display: none !important;
+}
+.aqi-panel-head {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 10px;
+}
+.aqi-panel-head strong {
+  display: block;
+  font: 750 14px/1.2 var(--font-ui);
+  color: #fff;
+}
+.aqi-panel-head small {
+  display: block;
+  margin-top: 2px;
+  font: 500 10px/1.2 var(--font-ui);
+  color: rgba(210, 228, 236, 0.72);
+}
+.aqi-panel-stamp {
+  font: 600 9px/1.2 var(--font-ui);
+  color: rgba(190, 210, 220, 0.62);
+  white-space: nowrap;
+}
+
+.aqi-panel-hero {
+  display: grid;
+  grid-template-columns: 108px minmax(0, 1fr);
+  gap: 12px;
+  align-items: center;
+}
+.aqi-ring {
+  position: relative;
+  width: 108px;
+  height: 108px;
+}
+.aqi-ring-track {
+  position: absolute;
+  inset: 0;
+  border-radius: 50%;
+  background: conic-gradient(var(--aqi-color, #1c8a55) var(--aqi-pct, 0%), rgba(255, 255, 255, 0.12) 0);
+  mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
+  -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 10px), #000 calc(100% - 9px));
+}
+.aqi-ring-core {
+  position: absolute;
+  inset: 14px;
+  border-radius: 50%;
+  background: rgba(6, 16, 24, 0.82);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+}
+.aqi-ring-core b {
+  font: 800 30px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #fff;
+}
+.aqi-ring-core span {
+  font: 700 9px/1 var(--font-ui);
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(210, 228, 236, 0.7);
+}
+.aqi-hero-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+}
+.aqi-cat-pill {
+  align-self: flex-start;
+  padding: 5px 11px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--aqi-color, #1c8a55) 55%, transparent);
+  color: var(--aqi-color, #1c8a55);
+  font: 750 11px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  background: color-mix(in srgb, var(--aqi-color, #1c8a55) 16%, transparent);
+}
+.aqi-scale-row {
+  display: flex;
+  gap: 4px;
+}
+.aqi-scale-row i {
+  flex: 1;
+  height: 6px;
+  border-radius: 999px;
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.12);
+}
+.aqi-mini-stats {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+}
+.aqi-mini-stats span {
+  padding: 4px 7px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  font: 700 10px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #fff;
+}
+.aqi-mini-stats em {
+  font-style: normal;
+  font: 700 8px/1 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(200, 220, 230, 0.7);
+  margin-right: 3px;
+}
+
+.aqi-poll-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.aqi-poll-cell {
+  padding: 8px 9px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.07);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.aqi-poll-top {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 6px;
+  margin-bottom: 5px;
+}
+.aqi-poll-top span {
+  font: 650 10px/1 var(--font-ui);
+  color: rgba(220, 236, 244, 0.78);
+}
+.aqi-poll-top b {
+  font: 750 12px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
+  color: #fff;
+}
+.aqi-poll-track {
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+  overflow: hidden;
+}
+.aqi-poll-track i {
+  display: block;
+  height: 100%;
+  border-radius: 999px;
+  min-width: 2px;
+}
+
+.aqi-trend-block {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.aqi-trend-head strong {
+  display: block;
+  font: 750 12px/1.2 var(--font-ui);
+  color: #fff;
+}
+.aqi-trend-head small {
+  display: block;
+  margin-top: 2px;
+  font: 600 9px/1.2 var(--font-ui);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(200, 230, 210, 0.75);
+}
+.aqi-chart-wrap {
+  height: 88px;
+  overflow: hidden;
+  border-radius: 12px;
+  background: rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  padding: 4px 6px 0;
+}
+.aqi-trend-svg {
+  display: block;
+  width: 100%;
+  height: 80px;
+}
+
+.aqi-year { z-index: 28; }
+.aqi-year-range {
+  display: block;
+  margin-top: 2px;
+  font: 600 9px/1.2 var(--font-ui);
+  color: rgba(200, 230, 210, 0.78);
+}
+.aqi-panel-status {
+  margin: 0;
+  font: 500 12px/1.4 var(--font-ui);
+  color: rgba(220, 236, 244, 0.82);
+}
+.aqi-panel-status.is-error { color: #ffb4a8; }
+.aqi-retry {
+  align-self: flex-start;
+  margin: 0;
+  padding: 8px 12px;
+  border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
+  font: 650 11px/1 var(--font-ui);
+  cursor: pointer;
+}
+.aqi-back { z-index: 30; }
+
+@media (max-width: 720px) {
+  .aqi-panel {
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 132px);
+    width: min(320px, calc(100vw - 20px));
+    max-height: min(52vh, 460px);
+  }
+  .aqi-panel-hero {
+    grid-template-columns: 96px minmax(0, 1fr);
+  }
+  .aqi-ring { width: 96px; height: 96px; }
 }
 
 /* Live time scrubber + alerts + accuracy (must have glass chrome — not bare text) */
@@ -3876,18 +5307,18 @@
   color: var(--lu-class-color, #fff);
 }
 .lu-theme-class-letter {
-  display: grid;
-  place-items: center;
+  display: block;
   width: 36px;
   height: 36px;
   border-radius: 10px;
-  border: 1.5px solid color-mix(in srgb, var(--lu-class-color) 72%, #fff 18%);
-  background: color-mix(in srgb, var(--lu-class-color) 22%, rgba(6, 16, 24, 0.55));
-  color: #fff;
-  font: 800 15px/1 ui-monospace, SFMono-Regular, Consolas, monospace;
-  letter-spacing: 0.02em;
-  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.55);
+  border: 1.5px solid color-mix(in srgb, var(--lu-class-color) 78%, #fff 12%);
+  background: var(--lu-class-color, #888);
+  color: transparent;
+  font-size: 0;
+  line-height: 0;
+  text-shadow: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+  overflow: hidden;
 }
 .lu-theme-class-name {
   font: 600 9px/1.1 var(--font-ui);
@@ -4102,7 +5533,7 @@
   .lu-theme-class-letter {
     width: 30px;
     height: 30px;
-    font-size: 13px;
+    font-size: 0;
   }
   .lu-theme-class-name {
     font-size: 8px;
@@ -4324,8 +5755,8 @@
 }
 
 /* ═══════════════════════════════════════════════════════════
-   Water Quality — floating icon-only HUD (NO panel / card / glass)
-   Six icons only; labels via hover tooltip. No title.
+   Water Quality — floating icon-only HUD (same chrome as Land Use)
+   Labels via hover tooltip. Positioned under Water Quality icon.
    ═══════════════════════════════════════════════════════════ */
 .wq-hud {
   position: fixed;
@@ -4334,7 +5765,7 @@
   transform: translateX(-50%) translateY(-6px);
   z-index: 22;
   width: auto;
-  max-width: min(520px, calc(100vw - 28px));
+  max-width: min(420px, calc(100vw - 28px));
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -4364,7 +5795,7 @@
   flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: clamp(14px, 2.4vw, 28px);
+  gap: clamp(16px, 2.6vw, 32px);
   padding: 0;
   margin: 0;
   background: transparent !important;
@@ -4380,8 +5811,8 @@
   align-items: center;
   justify-content: center;
   gap: 4px;
-  width: 32px;
-  min-width: 28px;
+  width: 28px;
+  min-width: 26px;
   padding: 0;
   margin: 0;
   border: none !important;
@@ -4393,14 +5824,14 @@
   transition: transform 170ms ease-out, filter 170ms ease-out;
 }
 .wq-hud__item:hover {
-  transform: scale(1.05);
+  transform: scale(1.06);
   background: transparent !important;
 }
 .wq-hud__item:focus-visible {
   outline: none;
 }
 .wq-hud__item:focus-visible .wq-hud__icon {
-  filter: drop-shadow(0 0 8px rgba(160, 230, 255, 0.5));
+  filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
 }
 
 /* Hover tooltip — compact GIS HUD chip (labels NEVER permanent) */
@@ -4422,9 +5853,8 @@
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  box-shadow: 0 6px 14px rgba(0, 0, 0, 0.32);
   transition: opacity 160ms ease-out, transform 160ms ease-out;
-  z-index: 2;
+  z-index: 3;
 }
 .wq-hud__item:hover::after,
 .wq-hud__item:focus-visible::after {
@@ -4435,28 +5865,24 @@
 .wq-hud__icon {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  transition: filter 170ms ease-out;
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+  transition: filter 170ms ease-out, transform 170ms ease-out;
 }
 .wq-hud__svg {
   display: block;
-  width: 28px;
-  height: 28px;
-  filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.55));
+  width: 26px;
+  height: 26px;
 }
 
 .wq-hud__dot {
-  display: block;
-  width: 12px;
-  height: 2px;
-  border-radius: 2px;
-  background: transparent;
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
   opacity: 0;
-  transition: opacity 170ms ease, background 170ms ease;
+  transition: opacity 160ms ease-out;
 }
 
 /* Per-metric tones */
@@ -4468,44 +5894,45 @@
 .wq-hud__item.wq-tone-bod { color: #b89ae8; }
 
 .wq-hud__item.is-active .wq-hud__icon {
-  filter: brightness(1.18) drop-shadow(0 0 8px currentColor);
+  filter: drop-shadow(0 0 10px rgba(140, 220, 160, 0.55));
+  transform: scale(1.08);
 }
 .wq-hud__item.is-active .wq-hud__dot {
-  opacity: 1;
-  background: currentColor;
-  box-shadow: 0 0 6px currentColor;
-}
-.wq-hud__item:hover .wq-hud__icon {
-  filter: brightness(1.12) drop-shadow(0 0 7px currentColor);
+  opacity: 0.9;
 }
 
-/* Post-click status only (never permanent under icons) */
+.wq-hud__item:hover .wq-hud__icon {
+  filter: drop-shadow(0 0 8px rgba(160, 230, 180, 0.4));
+}
+
 .wq-hud__status {
   margin: 4px 0 0;
-  max-width: min(360px, 80vw);
+  padding: 8px 12px;
+  max-width: min(360px, calc(100vw - 40px));
+  border-radius: 8px;
+  background: rgba(10, 16, 22, 0.78);
+  border: 1px solid rgba(210, 230, 240, 0.18);
+  color: rgba(230, 240, 245, 0.92);
+  font: 500 12px/1.35 var(--font-ui);
   text-align: center;
-  font: 500 11px/1.35 var(--font-ui);
-  color: rgba(210, 230, 238, 0.85);
-  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.75);
-  background: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
 }
 .wq-hud__status[hidden] {
   display: none !important;
 }
 .wq-hud__status strong {
   display: block;
-  margin-bottom: 2px;
+  margin-bottom: 4px;
   font-weight: 700;
   letter-spacing: 0.04em;
-  color: rgba(255, 220, 180, 0.95);
+  font-size: 11px;
 }
 .wq-hud__status.is-unavail strong {
-  color: rgba(255, 200, 160, 0.95);
+  color: #f0b070;
 }
 .wq-hud__status span {
   display: block;
+  opacity: 0.88;
+  font-size: 11px;
 }
 
 /* Active Water Quality (droplet) — cyan glass + downward caret */
@@ -4547,27 +5974,20 @@
   visibility: hidden;
 }
 
-@media (max-width: 900px) {
+@media (max-width: 720px) {
   .wq-hud {
-    top: calc(max(12px, env(safe-area-inset-top)) + 56px);
     max-width: calc(100vw - 20px);
   }
   .wq-hud__row {
-    gap: clamp(10px, 2vw, 20px);
+    gap: 14px;
   }
   .wq-hud__item {
-    width: 28px;
+    width: 26px;
   }
   .wq-hud__icon,
   .wq-hud__svg {
-    width: 26px;
-    height: 26px;
-  }
-}
-@media (max-width: 640px) {
-  .wq-hud__row {
-    gap: 8px 12px;
-    flex-wrap: wrap;
+    width: 24px;
+    height: 24px;
   }
 }
 
@@ -4663,28 +6083,37 @@
 .hydro-legend-clear:hover { background: rgba(34, 137, 164, 0.5); }
 
 /* ═══════════════════════════════════════════════════════════
-   Geology workspace — transparent icon-only HUD toolbar
+   Geology workspace — floating icon-only HUD (same chrome as Land Use)
+   Labels via hover tooltip. Positioned under Geology mountain icon.
    ═══════════════════════════════════════════════════════════ */
 .geology-workspace {
   position: fixed;
   left: 50%;
-  top: calc(max(14px, env(safe-area-inset-top)) + 52px);
-  transform: translateX(-50%);
+  top: calc(max(14px, env(safe-area-inset-top)) + 62px);
+  transform: translateX(-50%) translateY(-6px);
   margin-left: 0;
-  z-index: 19;
+  z-index: 22;
   width: auto;
-  max-width: calc(100vw - 24px);
+  max-width: min(420px, calc(100vw - 28px));
   display: flex;
   flex-direction: column;
   align-items: center;
-  gap: 10px;
+  gap: 8px;
   pointer-events: none;
-  background: transparent;
-  border: none;
-  box-shadow: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
 }
 .geology-workspace[hidden] {
   display: none !important;
+}
+.geology-workspace.is-open {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
 }
 .geology-workspace > * {
   pointer-events: auto;
@@ -4721,9 +6150,10 @@
   flex-wrap: nowrap;
   align-items: center;
   justify-content: center;
-  gap: clamp(14px, 2.2vw, 26px);
+  gap: clamp(16px, 2.6vw, 32px);
   min-width: 0;
   padding: 0;
+  margin: 0;
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
@@ -4734,19 +6164,20 @@
   appearance: none;
   -webkit-appearance: none;
   position: relative;
-  display: grid;
-  place-items: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
   box-sizing: border-box;
-  width: 32px;
-  height: 32px;
-  min-width: 28px;
-  min-height: 28px;
+  width: 28px;
+  min-width: 26px;
   padding: 0;
   margin: 0;
   border-radius: 0;
   border: none !important;
   background: transparent !important;
-  color: #f4fafc;
+  color: inherit;
   cursor: pointer;
   flex: 0 0 auto;
   box-shadow: none !important;
@@ -4758,10 +6189,7 @@
   background: transparent !important;
   border: none !important;
   box-shadow: none !important;
-  transform: scale(1.05);
-}
-.geology-module-btn:hover .geology-module-icon {
-  filter: brightness(1.2) drop-shadow(0 0 7px color-mix(in srgb, var(--geo-accent, #38bdf8) 55%, transparent));
+  transform: scale(1.06);
 }
 .geology-module-btn:active {
   transform: scale(0.96);
@@ -4770,23 +6198,31 @@
 .geology-module-icon {
   display: grid;
   place-items: center;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   pointer-events: none;
-  filter: drop-shadow(0 0 4px color-mix(in srgb, var(--geo-accent, #38bdf8) 35%, transparent));
-  transition: filter 170ms ease-out;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+  transition: filter 170ms ease-out, transform 170ms ease-out;
 }
 .geology-module-icon svg,
 .geology-module-icon .geo-mod-svg {
   display: block;
-  width: 28px;
-  height: 28px;
+  width: 26px;
+  height: 26px;
   stroke: currentColor;
   pointer-events: none;
 }
 .geology-module-label,
 .geology-module-chip {
   display: none !important;
+}
+.geology-module-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--geo-accent, currentColor);
+  opacity: 0;
+  transition: opacity 160ms ease-out;
 }
 .geology-module-btn.is-active,
 .geology-module-btn[aria-pressed="true"] {
@@ -4797,49 +6233,48 @@
 }
 .geology-module-btn.is-active .geology-module-icon,
 .geology-module-btn[aria-pressed="true"] .geology-module-icon {
-  filter: brightness(1.28) drop-shadow(0 0 9px color-mix(in srgb, var(--geo-accent, #38bdf8) 70%, transparent));
+  filter: drop-shadow(0 0 10px rgba(140, 220, 160, 0.55));
+  transform: scale(1.08);
+}
+.geology-module-btn.is-active .geology-module-dot,
+.geology-module-btn[aria-pressed="true"] .geology-module-dot {
+  opacity: 0.9;
 }
 .geology-module-btn.is-active::before,
 .geology-module-btn[aria-pressed="true"]::before {
-  content: "";
-  position: absolute;
-  left: 50%;
-  bottom: -5px;
-  transform: translateX(-50%);
-  width: 12px;
-  height: 2px;
-  border-radius: 2px;
-  background: var(--geo-accent, #38bdf8);
-  box-shadow: 0 0 6px var(--geo-accent, #38bdf8);
-  pointer-events: none;
+  display: none !important;
+}
+.geology-module-btn:hover .geology-module-icon {
+  filter: drop-shadow(0 0 8px rgba(160, 230, 180, 0.4));
 }
 .geology-module-btn:focus-visible {
   outline: none;
 }
 .geology-module-btn:focus-visible .geology-module-icon {
-  filter: brightness(1.2) drop-shadow(0 0 8px color-mix(in srgb, var(--geo-accent, #38bdf8) 60%, transparent));
+  filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
 }
+
+/* Hover tooltip — same chip style as Land Use / Water Quality */
 .geology-module-btn::after {
   content: attr(data-tip);
   position: absolute;
   left: 50%;
   top: calc(100% + 10px);
-  transform: translateX(-50%) translateY(-4px);
-  padding: 5px 9px;
-  border-radius: 8px;
-  background: rgba(12, 22, 28, 0.82);
-  border: 1px solid rgba(210, 230, 240, 0.28);
+  transform: translateX(-50%) translateY(-3px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.82);
+  border: 1px solid rgba(210, 230, 240, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
   color: #f4fafc;
-  font: 500 11px/1.2 var(--font-ui);
-  letter-spacing: 0.02em;
+  font: 600 12px/1.2 var(--font-ui);
+  letter-spacing: 0.01em;
   white-space: nowrap;
   opacity: 0;
   pointer-events: none;
-  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
-  backdrop-filter: blur(10px);
-  -webkit-backdrop-filter: blur(10px);
-  transition: opacity 160ms ease, transform 160ms ease;
-  z-index: 40;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  z-index: 3;
 }
 .geology-module-btn:hover::after,
 .geology-module-btn:focus-visible::after {
@@ -5710,15 +7145,21 @@
   }
 }
 @media (max-width: 720px) {
+  .geology-workspace {
+    max-width: calc(100vw - 20px);
+  }
   .geology-modules {
-    gap: 10px;
+    gap: 14px;
   }
   .geology-module-btn {
-    width: 28px;
-    height: 28px;
+    width: 26px;
     min-width: 26px;
-    min-height: 26px;
-    border-radius: 0;
+  }
+  .geology-module-icon,
+  .geology-module-icon svg,
+  .geology-module-icon .geo-mod-svg {
+    width: 24px;
+    height: 24px;
   }
   .geology-lithology-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));

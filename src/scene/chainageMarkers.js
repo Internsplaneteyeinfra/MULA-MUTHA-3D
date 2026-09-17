@@ -24,9 +24,9 @@ export function createChainageLayer(dataset) {
   const majors = points.filter((p) => p.major || (Number(p.meters) % 1000 === 0));
   const minors = points.filter((p) => !majors.includes(p));
 
-  const rimGeo = makeDiscGeometry(6.4);
-  const majorGeo = makeDiscGeometry(5.1);
-  const minorGeo = makeDiscGeometry(1.55);
+  const rimGeo = makeDiscGeometry(3.6);
+  const majorGeo = makeDiscGeometry(2.85);
+  const minorGeo = makeDiscGeometry(0.95);
   const rimMat = new THREE.MeshBasicMaterial({
     color: "#ffffff",
     depthTest: false,
@@ -161,15 +161,15 @@ export function createChainageLayer(dataset) {
     selLineMat.resolution.set(w, h);
   };
 
-  // Selected marker ~40% smaller than previous oversized disc
-  const selectFill = new THREE.Mesh(makeDiscGeometry(4.3), selectFillMat);
+  // Selected marker — compact disc + thin ring
+  const selectFill = new THREE.Mesh(makeDiscGeometry(2.45), selectFillMat);
   selectFill.name = "chainageSelectedFill";
   selectFill.visible = false;
   selectFill.renderOrder = 27;
   selectFill.frustumCulled = false;
   group.add(selectFill);
 
-  const selectRing = new THREE.Mesh(new THREE.RingGeometry(4.4, 5.5, 36), selectRingMat);
+  const selectRing = new THREE.Mesh(new THREE.RingGeometry(2.55, 3.25, 36), selectRingMat);
   selectRing.name = "chainageSelectedRing";
   selectRing.rotation.x = -Math.PI / 2;
   selectRing.visible = false;
@@ -232,7 +232,7 @@ export function createChainageLayer(dataset) {
     }
     rimMesh.instanceMatrix.needsUpdate = true;
     majorMesh.instanceMatrix.needsUpdate = true;
-    const minorBoost = Math.max(1.05, boost * 0.95);
+    const minorBoost = Math.max(0.95, boost * 0.9);
     for (let i = 0; i < minors.length; i++) {
       const p = minors[i];
       dummy.position.set(p.x, MARKER_Y + 0.02, p.z);
@@ -243,13 +243,13 @@ export function createChainageLayer(dataset) {
     minorMesh.instanceMatrix.needsUpdate = true;
   }
 
-  /** Larger when close (River Side / chainage); modest grow in Overview. */
+  /** Larger when close (River Side / chainage); keep modest so discs stay neat. */
   function markerBoostForCam(camY) {
-    if (camY < 220) return 1.75;
-    if (camY < 380) return 1.55;
-    if (camY < 600) return 1.35;
-    if (camY < 1000) return 1.2;
-    return THREE.MathUtils.clamp(0.85 + camY / 1600, 1.25, 1.95);
+    if (camY < 220) return 1.2;
+    if (camY < 380) return 1.12;
+    if (camY < 600) return 1.05;
+    if (camY < 1000) return 1.0;
+    return THREE.MathUtils.clamp(0.9 + camY / 2200, 1.0, 1.35);
   }
 
   function syncLabels(_camera) {
@@ -275,8 +275,8 @@ export function createChainageLayer(dataset) {
 
     if (selectFill.visible) {
       const d = camera.position.distanceTo(selectFill.position);
-      // ~40% smaller screen-space scale than previous selection marker
-      const s = THREE.MathUtils.clamp(d * 0.0019, 0.7, 7.2) * Math.max(1.0, boost * 0.85);
+      // Keep selected disc compact on screen
+      const s = THREE.MathUtils.clamp(d * 0.00135, 0.55, 4.2) * Math.max(0.9, boost * 0.75);
       selectFill.scale.setScalar(s);
       selectRing.scale.setScalar(s);
     }

@@ -1225,6 +1225,7 @@ export function createHydrologyLayer(dataset) {
           type: "classes",
           title: def.legendTitle || def.name,
           subtitle: def.legendSubtitle || null,
+          layerId: id,
           classes: legendClasses.map((c) => ({
             label: c.label,
             color: c.color,

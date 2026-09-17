@@ -10,6 +10,9 @@ const KIND_CLASS = {
   geology: "geology-focus",
   pollution: "pollution-focus",
   bodcod: "bod-cod-focus",
+  climate: "climate-focus",
+  waterquality: "water-quality-focus",
+  aqi: "aqi-focus",
 };
 
 export function enterMapFocus(root, kind) {
@@ -43,7 +46,16 @@ export function exitMapFocus(root, kind = null) {
   state.mapFocusKind = null;
   state.landUseFocusMode = false;
   state.landUseSelectedClass = null;
-  root.classList.remove("map-focus", "land-use-focus", "geology-focus", "pollution-focus", "bod-cod-focus");
+  root.classList.remove(
+    "map-focus",
+    "land-use-focus",
+    "geology-focus",
+    "pollution-focus",
+    "bod-cod-focus",
+    "climate-focus",
+    "water-quality-focus",
+    "aqi-focus",
+  );
   document.dispatchEvent(
     new CustomEvent("map-focus-change", { detail: { on: false, kind: cur } }),
   );
@@ -113,6 +125,12 @@ export function mountFocusThemeHud(root, hooks = {}) {
       const m = s.match(/(\d+\.\d+)/);
       return m ? m[1].slice(-1) : (s.charAt(0) || "?").toUpperCase();
     }
+    if (/fresh/i.test(s)) return "F";
+    if (/brack/i.test(s)) return "B";
+    if (/saline|salt/i.test(s)) return "S";
+    if (/turbid|tss/i.test(s)) return "T";
+    if (/chloro|ndci/i.test(s)) return "C";
+    if (/temp|wst/i.test(s)) return "W";
     return (s.charAt(0) || "?").toUpperCase();
   }
 

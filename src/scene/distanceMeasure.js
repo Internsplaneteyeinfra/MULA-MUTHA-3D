@@ -55,6 +55,29 @@ export function createDistanceMeasure(dataset) {
   label.visible = false;
   group.add(label);
 
+  const letterA = makeLetterSprite("A", "#5bc8e8");
+  const letterB = makeLetterSprite("B", "#e8a13d");
+  letterA.visible = false;
+  letterB.visible = false;
+  group.add(letterA, letterB);
+
+  const cursorMat = new THREE.MeshBasicMaterial({
+    color: 0xffd54a,
+    transparent: true,
+    opacity: 0.95,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const cursor = new THREE.Mesh(new THREE.SphereGeometry(1.4, 14, 12), cursorMat);
+  cursor.visible = false;
+  cursor.renderOrder = 43;
+  cursor.frustumCulled = false;
+  group.add(cursor);
+
+  const cursorDepthLabel = makeDistanceLabel();
+  cursorDepthLabel.visible = false;
+  group.add(cursorDepthLabel);
+
   /** @type {null | { x:number, y:number, z:number, lon?:number, lat?:number }} */
   let pointA = null;
   /** @type {null | { x:number, y:number, z:number, lon?:number, lat?:number }} */
@@ -94,8 +117,12 @@ export function createDistanceMeasure(dataset) {
     distanceM = null;
     markerA.visible = false;
     markerB.visible = false;
+    letterA.visible = false;
+    letterB.visible = false;
     line.visible = false;
     label.visible = false;
+    cursor.visible = false;
+    cursorDepthLabel.visible = false;
     document.dispatchEvent(
       new CustomEvent("distance-measure-change", {
         detail: snapshot(),
@@ -138,13 +165,20 @@ export function createDistanceMeasure(dataset) {
       distanceM = null;
       markerA.position.set(pt.x, pt.y, pt.z);
       markerA.visible = true;
+      letterA.position.set(pt.x, pt.y + 3.2, pt.z);
+      letterA.visible = true;
       markerB.visible = false;
+      letterB.visible = false;
       line.visible = false;
       label.visible = false;
+      cursor.visible = false;
+      cursorDepthLabel.visible = false;
     } else {
       pointB = pt;
       markerB.position.set(pt.x, pt.y, pt.z);
       markerB.visible = true;
+      letterB.position.set(pt.x, pt.y + 3.2, pt.z);
+      letterB.visible = true;
       distanceM = metersDistance(pointA, pointB);
       lineGeom.setFromPoints([
         new THREE.Vector3(pointA.x, pointA.y, pointA.z),
@@ -167,11 +201,46 @@ export function createDistanceMeasure(dataset) {
   }
 
   function update(camera) {
-    if (!group.visible || !label.visible || !pointA || !pointB || !camera) return;
-    const mid = label.position;
-    const d = camera.position.distanceTo(mid);
-    const s = THREE.MathUtils.clamp(d * 0.022, 10, 28);
-    label.scale.set(s * 1.6, s * 0.45, 1);
+    if (!group.visible || !camera) return;
+    if (label.visible && pointA && pointB) {
+      const mid = label.position;
+      const d = camera.position.distanceTo(mid);
+      const s = THREE.MathUtils.clamp(d * 0.022, 10, 28);
+      label.scale.set(s * 1.6, s * 0.45, 1);
+    }
+    for (const spr of [letterA, letterB]) {
+      if (!spr.visible) continue;
+      const d = camera.position.distanceTo(spr.position);
+      const s = THREE.MathUtils.clamp(d * 0.014, 5, 14);
+      spr.scale.set(s, s, 1);
+    }
+    if (cursorDepthLabel.visible) {
+      const d = camera.position.distanceTo(cursorDepthLabel.position);
+      const s = THREE.MathUtils.clamp(d * 0.018, 8, 20);
+      cursorDepthLabel.scale.set(s * 1.5, s * 0.42, 1);
+    }
+  }
+
+  /**
+   * Graph ↔ 3D sync cursor along A→B.
+   * @param {null | { x:number, y?:number, z:number, depth_m?:number|null }} sample
+   */
+  function setProfileCursor(sample) {
+    if (!sample || !Number.isFinite(sample.x) || !Number.isFinite(sample.z)) {
+      cursor.visible = false;
+      cursorDepthLabel.visible = false;
+      return;
+    }
+    const y = Number.isFinite(sample.y) ? sample.y : elevY(sample.x, sample.z);
+    cursor.position.set(sample.x, y + 0.4, sample.z);
+    cursor.visible = true;
+    if (Number.isFinite(sample.depth_m)) {
+      paintDistanceLabel(cursorDepthLabel, `Depth ${Number(sample.depth_m).toFixed(2)} m`);
+      cursorDepthLabel.position.set(sample.x, y + 5.5, sample.z);
+      cursorDepthLabel.visible = true;
+    } else {
+      cursorDepthLabel.visible = false;
+    }
   }
 
   function dispose() {
@@ -180,12 +249,16 @@ export function createDistanceMeasure(dataset) {
     state.distanceMeasureActive = false;
     markerA.geometry?.dispose?.();
     markerB.geometry?.dispose?.();
+    cursor.geometry?.dispose?.();
     markerMat.dispose();
     markerBMat.dispose();
+    cursorMat.dispose();
     lineGeom.dispose();
     lineMat.dispose();
-    label.material?.map?.dispose?.();
-    label.material?.dispose?.();
+    for (const spr of [label, letterA, letterB, cursorDepthLabel]) {
+      spr.material?.map?.dispose?.();
+      spr.material?.dispose?.();
+    }
   }
 
   return {
@@ -194,6 +267,7 @@ export function createDistanceMeasure(dataset) {
     clearPoints,
     addPoint,
     update,
+    setProfileCursor,
     dispose,
     isActive: () => active,
     getSnapshot: snapshot,
@@ -243,4 +317,37 @@ function paintDistanceLabel(spr, text) {
   ctx.fillStyle = "#eaf8fb";
   ctx.fillText(String(text || "—"), w / 2, h / 2);
   if (spr.material.map) spr.material.map.needsUpdate = true;
+}
+
+function makeLetterSprite(letter, color) {
+  const canvas = document.createElement("canvas");
+  canvas.width = 128;
+  canvas.height = 128;
+  const ctx = canvas.getContext("2d");
+  ctx.clearRect(0, 0, 128, 128);
+  ctx.beginPath();
+  ctx.arc(64, 64, 52, 0, Math.PI * 2);
+  ctx.fillStyle = "rgba(8, 20, 28, 0.88)";
+  ctx.fill();
+  ctx.lineWidth = 6;
+  ctx.strokeStyle = color;
+  ctx.stroke();
+  ctx.fillStyle = "#ffffff";
+  ctx.font = "800 64px Inter, system-ui, sans-serif";
+  ctx.textAlign = "center";
+  ctx.textBaseline = "middle";
+  ctx.fillText(letter, 64, 68);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  const mat = new THREE.SpriteMaterial({
+    map: tex,
+    transparent: true,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const spr = new THREE.Sprite(mat);
+  spr.renderOrder = 44;
+  spr.frustumCulled = false;
+  spr.scale.set(8, 8, 1);
+  return spr;
 }

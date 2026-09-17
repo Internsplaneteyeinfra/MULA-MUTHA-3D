@@ -6,29 +6,48 @@ import {
   buildBodCodTimeline,
   defaultTimeIndex,
   sampleReachAt,
-  formatMgL,
 } from "../../services/bodCodService.js";
+import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
+import { mountWeatherDetailPanel } from "./weatherDetailPanel.js";
 import { state } from "../../state.js";
 
 /**
- * Top-right LIVE WEATHER + always-on BOD/COD numbers (weather typography, no extra panels).
+ * Top-right LIVE WEATHER + always-on BOD/COD + chainage-live discharge.
+ * Weather icon opens Open-Meteo past/future detail graphs.
  */
 export function mountWeatherWidget(root) {
   const el = document.createElement("aside");
   el.className = "hud weather-widget map-chrome";
   el.id = "weather-widget";
   el.innerHTML = `
-    <div class="weather-icon" aria-hidden="true">${lucideHtml(CloudSun, { size: 20 })}</div>
-    <div class="weather-wq" aria-label="BOD and COD at selected reach">
-      <span class="weather-wq-row"><i>BOD</i> <b id="weather-bod">—</b></span>
-      <span class="weather-wq-row"><i>COD</i> <b id="weather-cod">—</b></span>
+    <button type="button" class="weather-icon" id="weather-icon-btn" title="Open live weather details" aria-label="Open live weather details">
+      ${lucideHtml(CloudSun, { size: 18 })}
+    </button>
+    <div class="weather-wq" aria-label="Live discharge, BOD and COD at selected chainage">
+      <div class="weather-wq-head">LIVE REACH</div>
+      <div class="weather-wq-row is-q">
+        <i>Discharge</i>
+        <b id="weather-discharge">—</b>
+        <em id="weather-discharge-unit">m³/s</em>
+      </div>
+      <div class="weather-wq-row is-bod">
+        <i>BOD</i>
+        <b id="weather-bod">—</b>
+        <em>mg/L</em>
+      </div>
+      <div class="weather-wq-row is-cod">
+        <i>COD</i>
+        <b id="weather-cod">—</b>
+        <em>mg/L</em>
+      </div>
     </div>
-    <div class="weather-copy">
+    <button type="button" class="weather-copy weather-copy-btn" id="weather-open-detail" title="Open live weather details">
       <strong>LIVE WEATHER</strong>
-      <span><b id="weather-temp">— °C</b><i id="weather-condition">Weather unavailable</i></span>
+      <b id="weather-temp" class="weather-temp">— °C</b>
+      <i id="weather-condition" class="weather-condition">Weather unavailable</i>
       <small id="weather-wind">Wind —</small>
       <small id="weather-location">Selected station —</small>
-    </div>
+    </button>
     <div class="weather-time-block" aria-label="Local date and time">
       <time class="weather-date" datetime="">—</time>
       <time class="weather-time" datetime="">--:--</time>
@@ -36,12 +55,18 @@ export function mountWeatherWidget(root) {
   `;
   root.appendChild(el);
 
+  const detail = mountWeatherDetailPanel(root);
+  /** @type {{ lat?:number, lon?:number, label?:string } | null} */
+  let lastPoint = null;
+
   const dateEl = el.querySelector(".weather-date");
   const time = el.querySelector(".weather-time");
   const temperature = el.querySelector("#weather-temp");
   const condition = el.querySelector("#weather-condition");
   const wind = el.querySelector("#weather-wind");
   const location = el.querySelector("#weather-location");
+  const dischargeEl = el.querySelector("#weather-discharge");
+  const dischargeUnitEl = el.querySelector("#weather-discharge-unit");
   const bodEl = el.querySelector("#weather-bod");
   const codEl = el.querySelector("#weather-cod");
 
@@ -56,6 +81,7 @@ export function mountWeatherWidget(root) {
   let bodTimeIndex = 0;
   let lastMeters = null;
   let bodLoadPromise = null;
+  let dischargeSerial = 0;
 
   const dateFmt = new Intl.DateTimeFormat("en-IN", {
     weekday: "short",
@@ -144,13 +170,43 @@ export function mountWeatherWidget(root) {
           : 0;
     const reach = reachAtMeters(meters);
     const sample = sampleReachAt(reach, bodTimeIndex, bodData, bodTimeline);
-    bodEl.textContent = formatMgL(sample?.p50, 1);
-    codEl.textContent = formatMgL(sample?.cod_p50, 1);
+    bodEl.textContent = formatMetricNumber(sample?.p50, 1);
+    codEl.textContent = formatMetricNumber(sample?.cod_p50, 1);
+  }
+
+  function formatMetricNumber(v, digits = 1) {
+    const n = Number(v);
+    if (!Number.isFinite(n)) return "—";
+    return n.toFixed(digits);
+  }
+
+  async function renderDischarge() {
+    const meters =
+      lastMeters != null
+        ? lastMeters
+        : Number.isFinite(state.selectedChainageMeters)
+          ? state.selectedChainageMeters
+          : 0;
+    const serial = ++dischargeSerial;
+    try {
+      const q = await getLiveDischargeAtChainage(meters);
+      if (serial !== dischargeSerial) return;
+      dischargeEl.textContent = formatMetricNumber(q, 1);
+      if (dischargeUnitEl) dischargeUnitEl.hidden = !Number.isFinite(q);
+      dischargeEl.title = `Live discharge at chainage ${Math.round(meters)} m`;
+    } catch (err) {
+      if (serial !== dischargeSerial) return;
+      console.warn("[weather-q]", err?.message || err);
+      dischargeEl.textContent = "—";
+      if (dischargeUnitEl) dischargeUnitEl.hidden = true;
+      dischargeEl.title = "Discharge unavailable";
+    }
   }
 
   function updateBodCodForChainage(point) {
     lastMeters = point?.meters ?? state.selectedChainageMeters ?? null;
     void ensureBodData().then(() => renderBodCod());
+    void renderDischarge();
   }
 
   function onBodCodTime(e) {
@@ -167,6 +223,10 @@ export function mountWeatherWidget(root) {
   document.addEventListener("bod-cod-time-change", onBodCodTime);
 
   function updateForChainage(point) {
+    lastPoint = point
+      ? { lat: point.lat, lon: point.lon, label: point.label }
+      : null;
+    detail.setPoint(lastPoint);
     location.textContent = point?.label ? `Selected ${point.label}` : "Selected station —";
     updateBodCodForChainage(point);
     window.clearTimeout(requestTimer);
@@ -193,16 +253,25 @@ export function mountWeatherWidget(root) {
     }, 600);
   }
 
-  // Prefetch twin so numbers appear without waiting for Water Quality open
+  function openDetail() {
+    void detail.show(lastPoint);
+  }
+  el.querySelector("#weather-icon-btn")?.addEventListener("click", openDetail);
+  el.querySelector("#weather-open-detail")?.addEventListener("click", openDetail);
+
+  // Prefetch twin + live Q so numbers appear without waiting for Water Quality open
   void ensureBodData();
+  void renderDischarge();
 
   return {
     el,
     updateForChainage,
+    openDetail,
     dispose: () => {
       window.clearTimeout(requestTimer);
       window.clearInterval(timer);
       document.removeEventListener("bod-cod-time-change", onBodCodTime);
+      detail.dispose();
     },
   };
 }

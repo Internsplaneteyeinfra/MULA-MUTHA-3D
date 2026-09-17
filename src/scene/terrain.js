@@ -240,6 +240,12 @@ export function terrainHeightAt(x, z, stations) {
   return heightAt(x, z, stations, activeDtm);
 }
 
+/** Raw FABDEM scene elevation — no channel carve (for profile / analysis charts). */
+export function rawDtmElevationAt(x, z) {
+  const y = activeDtm?.sampleSceneXY?.(x, z);
+  return Number.isFinite(y) ? y : null;
+}
+
 function nearest(x, z, stations) {
   let bestI = 0;
   let bestD = Infinity;

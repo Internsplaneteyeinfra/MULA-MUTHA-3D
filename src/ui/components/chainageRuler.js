@@ -162,6 +162,8 @@ export function mountChainageRuler(root, dataset) {
     if (range && Number.isFinite(sel)) range.value = String(Math.min(maxM, Math.max(minM, sel)));
     const pct = Math.min(100, Math.max(0, ((sel - minM) / Math.max(1, maxM - minM)) * 100));
     cursor.style.left = `${pct}%`;
+    cursor.classList.toggle("is-edge-start", pct <= 4);
+    cursor.classList.toggle("is-edge-end", pct >= 96);
     cursor.hidden = false;
     const p = interpolateChainage(points, sel);
     const label = p?.label || metersToStation(sel);

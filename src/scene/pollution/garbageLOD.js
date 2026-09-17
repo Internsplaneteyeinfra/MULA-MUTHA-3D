@@ -24,14 +24,14 @@ export function resolveGarbageLOD(camY, distToTarget = Infinity) {
   return LOD.VERY_NEAR;
 }
 
-/** Marker world-scale vs camera altitude (readable in 2D overview). */
+/** Marker world-scale vs camera altitude — compact dots in overview. */
 export function markerScaleForCamera(camera) {
-  if (!camera) return 1.4;
+  if (!camera) return 1.15;
   const y = camera.position.y;
-  if (y < 100) return 1.0;
-  if (y < 250) return 1.35;
-  if (y < 450) return 2.0;
-  if (y < 800) return 3.0;
-  if (y < 1400) return 4.2;
-  return Math.min(8.5, y / 280);
+  if (y < 100) return 0.85;
+  if (y < 250) return 1.05;
+  if (y < 450) return 1.45;
+  if (y < 800) return 2.1;
+  if (y < 1400) return 2.9;
+  return Math.min(5.2, y / 420);
 }

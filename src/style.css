@@ -321,6 +321,69 @@ html, body, #app { margin: 0; width: 100%; height: 100%; overflow: hidden; backg
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
+
+/* Proposed Garbage Location card */
+.tooltip.is-garbage-panel {
+  min-width: 248px;
+  max-width: 300px;
+  padding: 12px 14px 10px;
+  border-radius: 14px;
+  border: 1px solid rgba(232, 154, 28, 0.4);
+  background: linear-gradient(165deg, rgba(22, 28, 36, 0.94), rgba(10, 14, 20, 0.92));
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 180, 60, 0.08);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+.tooltip.is-garbage-panel .tip-garbage-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 0 0 10px;
+}
+.tooltip.is-garbage-panel .tip-garbage-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: radial-gradient(circle at 35% 35%, #ffe08a, #e89a1c 55%, #ff6b2c);
+  box-shadow: 0 0 10px rgba(232, 154, 28, 0.75);
+  flex: 0 0 auto;
+}
+.tooltip.is-garbage-panel h3 {
+  margin: 0;
+  color: #ffe8c2;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  text-transform: none;
+}
+.tooltip.is-garbage-panel .tip-garbage-grid {
+  display: grid;
+  gap: 3px;
+}
+.tooltip.is-garbage-panel .kv {
+  margin: 0;
+  padding: 3px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+.tooltip.is-garbage-panel .kv:last-child {
+  border-bottom: none;
+}
+.tooltip.is-garbage-panel .k {
+  color: rgba(210, 220, 230, 0.62);
+  font-size: 10px;
+}
+.tooltip.is-garbage-panel .v {
+  color: #f4f7fa;
+  font-size: 11px;
+  font-weight: 600;
+}
+.tooltip.is-garbage-panel .tip-garbage-foot {
+  display: block;
+  margin-top: 8px;
+  font-size: 9px;
+  color: rgba(200, 210, 220, 0.55);
+  font-style: normal;
+}
+
 .fishing-panel {
   right: 16px; bottom: 72px; min-width: 220px; padding: 10px 12px; z-index: 25;
 }

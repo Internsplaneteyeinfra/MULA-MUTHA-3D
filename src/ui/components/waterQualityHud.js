@@ -2,20 +2,17 @@ import {
   Pickaxe,
   FlaskConical,
   Leaf,
-  Droplets,
   Thermometer,
   Hexagon,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
+import { state } from "../../state.js";
 
 /**
- * Water Quality floating HUD — icon-only, no panel/card/title/labels.
+ * Water Quality floating HUD — same icon-only chrome as Land Use.
  * Labels appear only on hover (CSS tooltips).
  *
- * Order: Salinity → Turbidity → NDCI → NDWI → WST → BOD–COD
- *
- * Salinity reuses the project’s Pickaxe mark (same stroke family as top-nav
- * Geology / reference salinity glyph) — not an emoji.
+ * Order: Salinity → Turbidity → NDCI → WST → BOD–COD
  */
 export const WATER_QUALITY_OPTIONS = [
   {
@@ -40,14 +37,6 @@ export const WATER_QUALITY_OPTIONS = [
     icon: Leaf,
     tone: "wq-tone-ndci",
     layerId: "water_quality_ndci",
-    fallbackLayerId: null,
-  },
-  {
-    id: "ndwi",
-    tip: "NDWI / Water Detection",
-    icon: Droplets,
-    tone: "wq-tone-ndwi",
-    layerId: "water_quality_ndwi",
     fallbackLayerId: null,
   },
   {
@@ -91,7 +80,7 @@ export function mountWaterQualityHud(root, hooks = {}) {
           aria-label="${escapeAttr(o.tip)}"
           aria-pressed="false">
           <span class="wq-hud__icon" aria-hidden="true">${lucideHtml(o.icon, {
-            size: 28,
+            size: 26,
             strokeWidth: 1.75,
             className: "wq-hud__svg",
           })}</span>
@@ -131,8 +120,39 @@ export function mountWaterQualityHud(root, hooks = {}) {
     statusEl.innerHTML = html;
   }
 
+  function positionUnderWaterQualityIcon() {
+    // When a WQ layer is active, lift icons to the top bar slot (same as Land Use)
+    if (
+      state.mapFocusKind === "waterquality" ||
+      root.classList.contains("water-quality-focus")
+    ) {
+      wrap.classList.add("wq-hud--top");
+      wrap.style.left = "50%";
+      wrap.style.top = `calc(max(14px, env(safe-area-inset-top)) + 12px)`;
+      wrap.style.transform = "translateX(-50%)";
+      return;
+    }
+    wrap.classList.remove("wq-hud--top");
+    wrap.style.transform = "";
+    const btn = document.querySelector(
+      '.analytics-controls [data-analytics="Water Quality"], .analytics-controls [data-analytics="hydrology"]',
+    );
+    if (!btn || btn.offsetParent === null) {
+      wrap.style.left = "50%";
+      wrap.style.top = "calc(max(14px, env(safe-area-inset-top)) + 62px)";
+      wrap.style.transform = "translateX(-50%)";
+      return;
+    }
+    const r = btn.getBoundingClientRect();
+    wrap.style.left = `${Math.round(r.left + r.width / 2)}px`;
+    wrap.style.top = `${Math.round(r.bottom + 12)}px`;
+    wrap.style.transform = "translateX(-50%)";
+  }
+
   wrap.querySelectorAll("[data-wq]").forEach((btn) => {
-    btn.addEventListener("click", async () => {
+    btn.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       const id = btn.dataset.wq;
       const opt = WATER_QUALITY_OPTIONS.find((o) => o.id === id);
       if (!opt) return;
@@ -146,24 +166,39 @@ export function mountWaterQualityHud(root, hooks = {}) {
           { unavailable: true },
         );
       }
+      positionUnderWaterQualityIcon();
     });
+    btn.addEventListener("pointerdown", (e) => e.stopPropagation());
   });
+
+  function onResize() {
+    if (open) positionUnderWaterQualityIcon();
+  }
+
+  function onFocusChange() {
+    if (open) positionUnderWaterQualityIcon();
+  }
 
   function show() {
     open = true;
+    positionUnderWaterQualityIcon();
     wrap.hidden = false;
     void wrap.offsetWidth;
     wrap.classList.add("is-open");
     root.classList.add("water-quality-open");
+    window.addEventListener("resize", onResize);
+    document.addEventListener("map-focus-change", onFocusChange);
   }
 
   function hide() {
     open = false;
-    wrap.classList.remove("is-open");
+    wrap.classList.remove("is-open", "wq-hud--top");
     root.classList.remove("water-quality-open");
     activeId = null;
     setActiveOption(null);
     setStatus("");
+    window.removeEventListener("resize", onResize);
+    document.removeEventListener("map-focus-change", onFocusChange);
     window.setTimeout(() => {
       if (!open) wrap.hidden = true;
     }, 220);
@@ -178,6 +213,7 @@ export function mountWaterQualityHud(root, hooks = {}) {
     setActiveOption,
     setStatus,
     getActiveId: () => activeId,
+    reposition: positionUnderWaterQualityIcon,
   };
 }
 

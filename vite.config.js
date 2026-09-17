@@ -10,6 +10,15 @@ export default defineConfig({
     port: 5176,
     strictPort: true,
     open: true,
+    // RiverEye API CORS only allows localhost:3000 — proxy for local AQI/weather
+    proxy: {
+      "/rivereye-api": {
+        target: "https://rivereye-production.up.railway.app",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/rivereye-api/, "/api"),
+      },
+    },
     // Large GeoJSON / TIFF over tunnels — keep connections warm
     headers: {
       "Cache-Control": "public, max-age=120",
@@ -21,9 +30,8 @@ export default defineConfig({
       ignored: [
         "**/public/data/**/*.tif",
         "**/public/data/**/*.csv",
-        // Do NOT ignore *.kml — Vite then returns SPA HTML for newly added public KMLs
+        // Do NOT ignore *.kml / *.geojson — Vite then returns SPA HTML for newly added public assets
         "**/public/data/**/*.kmz",
-        "**/public/data/**/*.geojson",
         "**/tmp_*/**",
         "**/*.zip",
       ],
@@ -38,5 +46,13 @@ export default defineConfig({
     host: true,
     port: 4176,
     strictPort: true,
+    proxy: {
+      "/rivereye-api": {
+        target: "https://rivereye-production.up.railway.app",
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/rivereye-api/, "/api"),
+      },
+    },
   },
 });

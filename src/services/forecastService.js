@@ -7,7 +7,8 @@
  * Runs entirely in the browser against public/data/naditwin/*.json.
  * Does NOT depend on river_digital_twin2-main or localhost:8080.
  *
- * MODELLED forecast — not live gauge / NWP.
+ * LIVE discharge UI — chainage-local Q from the hydraulic engine.
+ * Replace getLiveDischargeAtChainage / currentHydraulic later with gauge/API.
  */
 
 const PAST_HOURS = 72;
@@ -242,6 +243,76 @@ class ForecastEngine {
     }
     return best;
   }
+
+  /** Same along-reach attenuation used by wseProfile — keeps Q consistent with WSE. */
+  localDischargeFactor(cellIndex) {
+    const i = Math.max(0, Math.min(this.nCells - 1, Number(cellIndex) || 0));
+    return 1.0 - 0.08 * (i / Math.max(1, this.nCells));
+  }
+
+  /** Reach-wide truth Q at simulation "now". */
+  currentDischarge() {
+    return this.qTruth[Math.max(0, Math.min(this.qTruth.length - 1, this.nowIdx))];
+  }
+
+  /**
+   * Chainage-local discharge (m³/s) — same Q×attenuation as the WSE profile cell.
+   * @param {number} meters
+   */
+  dischargeAtChainage(meters) {
+    const q0 = this.currentDischarge();
+    const i = this.cellForChainage(Number(meters) || 0);
+    return Math.max(30, q0 * this.localDischargeFactor(i));
+  }
+
+  /**
+   * Current hydraulic snapshot. When `meters` is set, discharge is chainage-local.
+   * UI treats this as LIVE (swap engine later for gauge/API).
+   * @param {number} [meters]
+   */
+  currentHydraulic(meters) {
+    const q0 = this.currentDischarge();
+    const hasLocal = Number.isFinite(meters);
+    const cell = hasLocal ? this.cellForChainage(meters) : 0;
+    const qLocal = hasLocal ? Math.max(30, q0 * this.localDischargeFactor(cell)) : q0;
+    const wse = this.wseProfile(q0);
+    return {
+      discharge_m3s: qLocal,
+      discharge_reach_m3s: q0,
+      discharge_chainage_m: hasLocal ? this.chainageM[cell] : null,
+      discharge_cell: hasLocal ? cell : null,
+      dischargeSource: "live",
+      dischargeLabel: "Live",
+      chainage_m: this.chainageM.slice(),
+      bed: this.bed.slice(),
+      wse: wse.slice(),
+      realDepthM: this.realDepthM.slice(),
+      depthFlagged: this.depthFlagged.slice(),
+      hasRealDepth: this.hasRealDepth,
+      meanDepth: this.meanDepth,
+      wseDatum: WSE_DATUM_M,
+    };
+  }
+}
+
+/**
+ * Current hydraulic snapshot. Pass chainage meters for local live Q.
+ * @param {number} [meters]
+ * @returns {Promise<object>}
+ */
+export async function getCurrentHydraulicSnapshot(meters) {
+  const eng = await getForecastEngine();
+  return eng.currentHydraulic(meters);
+}
+
+/**
+ * Live discharge at a chainage (m³/s). Updates with selected station.
+ * @param {number} meters
+ * @returns {Promise<number>}
+ */
+export async function getLiveDischargeAtChainage(meters) {
+  const eng = await getForecastEngine();
+  return eng.dischargeAtChainage(meters);
 }
 
 /**

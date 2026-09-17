@@ -4,6 +4,7 @@ import { mountProjectIdentity } from "./components/projectIdentity.js";
 import { mountWeatherWidget } from "./components/weatherWidget.js";
 import { mountAnalyticsControls } from "./components/analyticsControls.js";
 import { mountRiverDataPanel } from "./components/riverDataPanel.js";
+import { mountProfileAnalysisPanel } from "./components/profileAnalysisPanel.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import { mountNavigationControls } from "./components/navigationControls.js";
 import { mountCompassNavigation } from "./components/compassNavigation.js";
@@ -39,6 +40,7 @@ export function createTooltip(root) {
       el.classList.toggle("tooltip--survey", !!info.rawSurveyPoint);
       el.classList.toggle("tooltip--bank-erosion", !!info.bankErosionHover);
       el.classList.toggle("tooltip--lithology", !!info.lithologyClick);
+      el.classList.toggle("is-garbage-panel", !!info.hydrologyPollution);
       if (info.lithologyClick) {
         // Anchor at geographic screen point; CSS translates card above + leader to tip
         el.style.left = `${x}px`;
@@ -142,23 +144,24 @@ export function createTooltip(root) {
             .replace(/</g, "&lt;")
             .replace(/>/g, "&gt;")
             .replace(/"/g, "&quot;");
-        const nameRow =
-          info.displayName || info.name
-            ? `<div class="kv"><span class="k">Name</span><span class="v"><span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:#E89A1C;border:1px solid rgba(255,255,255,.35);margin-right:6px;vertical-align:middle"></span>${esc(info.displayName || info.name)}</span></div>`
-            : "";
-        const typeRow = info.displayType
-          ? `<div class="kv"><span class="k">Type</span><span class="v">${esc(info.displayType)}</span></div>`
-          : `<div class="kv"><span class="k">Type</span><span class="v">General waste</span></div>`;
+        const siteId = esc(info.displayName || info.name || "—");
+        const status = esc(info.associationStatus || "—");
         el.innerHTML = `
-          <h3>GARBAGE LOCATION</h3>
-          ${nameRow}
-          ${typeRow}
-          ${info.lat != null && info.lon != null ? `<div class="kv"><span class="k">Location</span><span class="v">${Number(info.lat).toFixed(6)}° N, ${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
-          ${info.chainageLabel ? `<div class="kv"><span class="k">River Chainage</span><span class="v">${esc(info.chainageLabel)}</span></div>` : ""}
-          ${info.distanceToRiver != null ? `<div class="kv"><span class="k">Distance to River</span><span class="v">${Number(info.distanceToRiver).toFixed(1)} m</span></div>` : ""}
-          ${info.associationStatus ? `<div class="kv"><span class="k">Status</span><span class="v">${esc(info.associationStatus)}</span></div>` : ""}
-          ${info.description ? `<div class="kv"><span class="k">Description</span><span class="v">${esc(info.description)}</span></div>` : ""}
-          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.garbageSelected ? "Selected · click elsewhere to clear" : "Hover preview · click to select"}</em>
+          <header class="tip-garbage-head">
+            <span class="tip-garbage-dot" aria-hidden="true"></span>
+            <h3>Garbage Location</h3>
+          </header>
+          <div class="tip-garbage-grid">
+            <div class="kv"><span class="k">Site ID</span><span class="v">${siteId}</span></div>
+            ${info.chainageLabel ? `<div class="kv"><span class="k">Chainage</span><span class="v">${esc(info.chainageLabel)}</span></div>` : ""}
+            ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}°</span></div>` : ""}
+            ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}°</span></div>` : ""}
+            ${info.distanceToRiver != null ? `<div class="kv"><span class="k">Distance to River</span><span class="v">${Number(info.distanceToRiver).toFixed(1)} m</span></div>` : ""}
+            <div class="kv"><span class="k">Status</span><span class="v">${status}</span></div>
+            <div class="kv"><span class="k">Source</span><span class="v">KML</span></div>
+            ${info.displayType ? `<div class="kv"><span class="k">Type</span><span class="v">${esc(info.displayType)}</span></div>` : ""}
+          </div>
+          <em class="tip-garbage-foot">${info.garbageSelected ? "Selected · click elsewhere to clear" : "Hover preview · click to select"}</em>
         `;
         return;
       }
@@ -264,6 +267,7 @@ export function createTooltip(root) {
       el.classList.remove("tooltip--survey");
       el.classList.remove("tooltip--bank-erosion");
       el.classList.remove("tooltip--lithology");
+      el.classList.remove("is-garbage-panel");
     },
   };
 }
@@ -349,6 +353,8 @@ export function mountUI(root, {
   if (leftStack.firstElementChild !== riverData.el) {
     leftStack.prepend(riverData.el);
   }
+  const profileAnalysis = mountProfileAnalysisPanel(root, dataset);
+  riverData.bindProfileAnalysis?.(profileAnalysis);
   const flowBtn = mountWaterFlowControl(root);
   if (flowBtn) flowBtn.hidden = true; // no floating start CTA; pause only during cinematic
   const { panel: layers } = mountLayersPanel(root);

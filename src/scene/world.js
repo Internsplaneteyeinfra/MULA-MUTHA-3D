@@ -26,6 +26,7 @@ import { createJoiningStreamsController } from "./drainage/joiningStreamsControl
 import { createDepthZonesLayer } from "./depthZonesLayer.js";
 import { createFloodLayer } from "./floodLayer.js";
 import { createApiFloodLayer } from "./apiFloodLayer.js";
+import { createClimateImpactLayer } from "./climateImpactLayer.js";
 import { createHydrologyLayer } from "./hydrologyLayer.js";
 import { createBodCodLayer } from "./bodCodLayer.js";
 import { createMainStemLayer } from "./mainStemLayer.js";
@@ -167,6 +168,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const floodLayer = createFloodLayer(dataset);
   /** MODE A — JalNetra API flood (source of truth for inundation extent). */
   const apiFloodLayer = createApiFloodLayer(dataset);
+  /** Climate Impact — RiverEye flood/surface-water heatmap periods. */
+  const climateImpactLayer = createClimateImpactLayer(dataset);
   /** Hydrology thematic overlays (Geology + Salinity). */
   const hydrologyLayer = createHydrologyLayer(dataset);
   const bodCodLayer = createBodCodLayer(dataset);
@@ -206,6 +209,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(rawSurveyPoints);
   scene.add(floodLayer);
   scene.add(apiFloodLayer);
+  scene.add(climateImpactLayer);
   scene.add(hydrologyLayer);
   scene.add(bodCodLayer);
 
@@ -692,10 +696,13 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     floodLayer,
     apiFloodLayer,
     floodSimLayer,
+    climateImpactLayer,
     hydrologyLayer,
     async showHydrologyLayer(id) {
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
+      climateImpactLayer.userData?.clear?.();
+      climateImpactLayer.visible = false;
       const result = await hydrologyLayer.userData?.showLayer?.(id);
       if (result?.available && !result?.superseded) {
         hydrologyLayer.visible = true;
@@ -732,6 +739,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     hideHydrology() {
       hydrologyLayer.userData?.hideAll?.();
+      climateImpactLayer.userData?.clear?.();
+      climateImpactLayer.visible = false;
       state.hydrologyHidesWater = false;
       state.hydrologyHidesFlood = false;
       state.bankErosionMode = false;
@@ -767,6 +776,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     showBodCod(data) {
       hydrologyLayer.userData?.hideAll?.();
+      climateImpactLayer.userData?.clear?.();
+      climateImpactLayer.visible = false;
       bodCodLayer.userData?.setData?.(data);
       bodCodLayer.userData?.setVisible?.(true);
       bodCodLayer.visible = true;
@@ -779,6 +790,43 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     hideBodCod() {
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
+    },
+    showClimateImpact(payload, classes = {}) {
+      hydrologyLayer.userData?.hideAll?.();
+      bodCodLayer.userData?.setVisible?.(false);
+      bodCodLayer.visible = false;
+      state.hydrologyHidesWater = false;
+      state.hydrologyHidesFlood = false;
+      // Keep existing WRD lines when switching periods (do not clear them here)
+      climateImpactLayer.userData?.setPeriodData?.(payload);
+      climateImpactLayer.userData?.setClassVisible?.(classes);
+      climateImpactLayer.userData?.setVisible?.(true);
+      if (!cinematic.isActive()) {
+        cam.applyMode?.("overview");
+      }
+      const info = climateImpactLayer.userData?.getInfo?.() || null;
+      const n =
+        (info?.nFlood || 0) + (info?.nWater || 0) + (info?.showWrd ? info?.nWrd || 0 : 0);
+      return {
+        available: n > 0 || !!info?.wrdLoaded,
+        ok: n > 0 || !!info?.wrdLoaded,
+        info,
+        message: n ? undefined : "No climate heatmap points for this period",
+      };
+    },
+    setClimateImpactWrdLines(geo, visible = true) {
+      climateImpactLayer.userData?.setWrdFloodLines?.(geo);
+      climateImpactLayer.userData?.setClassVisible?.({ wrd: visible });
+      climateImpactLayer.userData?.setVisible?.(true);
+      return climateImpactLayer.userData?.getInfo?.() || null;
+    },
+    setClimateImpactClasses(classes) {
+      climateImpactLayer.userData?.setClassVisible?.(classes);
+      return climateImpactLayer.userData?.getInfo?.() || null;
+    },
+    hideClimateImpact() {
+      climateImpactLayer.userData?.clear?.();
+      climateImpactLayer.visible = false;
     },
     focusBodCodReach(reachId, opts = {}) {
       const hit = bodCodLayer.userData?.focusReach?.(reachId, opts);
@@ -1037,6 +1085,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     getDistanceMeasureSnapshot() {
       return distanceMeasure.getSnapshot();
+    },
+    setDistanceMeasureProfileCursor(sample) {
+      distanceMeasure.setProfileCursor?.(sample);
     },
     setRawSurveyPointsVisible(_visible) {
       state.showRawSurveyPoints = false;

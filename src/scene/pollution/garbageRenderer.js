@@ -1,14 +1,18 @@
 /**
- * Garbage visuals — readable 3D waste piles + ground ring + focus beacon.
- * Selected / tour sites always show a clear pile (not just a flat disc).
+ * Garbage visuals — proposed style:
+ * far = compact amber dots · near/selected = glowing stem + orb + dark site label
+ * + readable waste pile (bottles / bags / foam / crates).
  */
 import * as THREE from "three";
 import { LOD, markerScaleForCamera } from "./garbageLOD.js";
 
 const AMBER = "#E89A1C";
 const AMBER_LIGHT = "#FFE08A";
+const AMBER_HOT = "#FFB347";
 const DEBRIS = "#8B7355";
 const PLASTIC = "#C4D4E0";
+const FOAM = "#F2EDE4";
+const STEM_H = 11;
 
 export function createGarbageRenderer() {
   const root = new THREE.Group();
@@ -24,18 +28,25 @@ export function createGarbageRenderer() {
   densityGroup.visible = false;
   root.add(markers, debris, densityGroup);
 
-  // Compact ground ring — secondary cue; pile is primary
-  const discGeo = new THREE.CircleGeometry(4.2, 28);
+  // Compact ground glow (far / overview dots)
+  const discGeo = new THREE.CircleGeometry(2.4, 24);
   discGeo.rotateX(-Math.PI / 2);
-  const rimGeo = new THREE.RingGeometry(4.0, 5.4, 28);
+  const rimGeo = new THREE.RingGeometry(2.2, 3.1, 24);
   rimGeo.rotateX(-Math.PI / 2);
-  const coreGeo = new THREE.CircleGeometry(1.4, 16);
+  const coreGeo = new THREE.CircleGeometry(0.85, 14);
   coreGeo.rotateX(-Math.PI / 2);
+
+  // Proposed beacon: thin stem + glowing orb (replaces flag)
+  const stemGeo = new THREE.CylinderGeometry(0.09, 0.14, STEM_H, 10);
+  const orbGeo = new THREE.SphereGeometry(0.95, 20, 16);
+  const orbHaloGeo = new THREE.SphereGeometry(1.55, 16, 12);
+  const glowDiscGeo = new THREE.CircleGeometry(2.8, 28);
+  glowDiscGeo.rotateX(-Math.PI / 2);
 
   const fillMat = new THREE.MeshBasicMaterial({
     color: AMBER,
     transparent: true,
-    opacity: 0.55,
+    opacity: 0.62,
     depthTest: false,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -43,7 +54,7 @@ export function createGarbageRenderer() {
   const rimMat = new THREE.MeshBasicMaterial({
     color: AMBER_LIGHT,
     transparent: true,
-    opacity: 0.75,
+    opacity: 0.8,
     depthTest: false,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -51,7 +62,7 @@ export function createGarbageRenderer() {
   const coreMat = new THREE.MeshBasicMaterial({
     color: "#fff6d8",
     transparent: true,
-    opacity: 0.9,
+    opacity: 0.95,
     depthTest: false,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -59,55 +70,81 @@ export function createGarbageRenderer() {
   const selectMat = new THREE.MeshBasicMaterial({
     color: "#FF6B2C",
     transparent: true,
-    opacity: 0.7,
+    opacity: 0.78,
     depthTest: false,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
 
-  const boxGeo = new THREE.BoxGeometry(1.6, 1.0, 1.2);
-  const bagGeo = new THREE.SphereGeometry(1.0, 10, 8);
-  bagGeo.scale(1.4, 0.75, 1.15);
-  const bottleGeo = new THREE.CylinderGeometry(0.25, 0.32, 1.3, 8);
-  const crateGeo = new THREE.BoxGeometry(2.1, 1.25, 1.6);
-  const poleGeo = new THREE.CylinderGeometry(0.2, 0.26, 12, 8);
-  const flagGeo = new THREE.BoxGeometry(3.6, 1.8, 0.14);
+  const boxGeo = new THREE.BoxGeometry(1.4, 0.85, 1.05);
+  const bagGeo = new THREE.SphereGeometry(0.95, 12, 10);
+  bagGeo.scale(1.45, 0.72, 1.2);
+  const bottleGeo = new THREE.CylinderGeometry(0.22, 0.28, 1.35, 10);
+  const bottleCapGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.18, 8);
+  const foamGeo = new THREE.BoxGeometry(1.1, 0.55, 0.85);
+  const crateGeo = new THREE.BoxGeometry(1.9, 1.05, 1.4);
 
   const debrisMat = new THREE.MeshStandardMaterial({
     color: DEBRIS,
     roughness: 0.92,
-    metalness: 0.05,
+    metalness: 0.04,
     flatShading: true,
   });
   const plasticMat = new THREE.MeshStandardMaterial({
     color: PLASTIC,
-    roughness: 0.55,
-    metalness: 0.08,
+    roughness: 0.42,
+    metalness: 0.12,
     flatShading: true,
   });
   const bagMat = new THREE.MeshStandardMaterial({
-    color: "#5a6b4a",
+    color: "#4f6a48",
     roughness: 0.88,
     metalness: 0.02,
     flatShading: true,
   });
-  const accentMat = new THREE.MeshStandardMaterial({
-    color: "#E89A1C",
-    roughness: 0.45,
-    metalness: 0.12,
+  const foamMat = new THREE.MeshStandardMaterial({
+    color: FOAM,
+    roughness: 0.95,
+    metalness: 0.0,
     flatShading: true,
-    emissive: "#E89A1C",
-    emissiveIntensity: 0.18,
   });
-  const poleMat = new THREE.MeshBasicMaterial({
-    color: "#FFB347",
+  const accentMat = new THREE.MeshStandardMaterial({
+    color: AMBER,
+    roughness: 0.5,
+    metalness: 0.1,
+    flatShading: true,
+    emissive: AMBER,
+    emissiveIntensity: 0.22,
+  });
+
+  const stemMat = new THREE.MeshBasicMaterial({
+    color: AMBER_HOT,
+    transparent: true,
+    opacity: 0.92,
     depthTest: false,
     depthWrite: false,
   });
-  const flagMat = new THREE.MeshBasicMaterial({
-    color: "#FF6B2C",
+  const orbMat = new THREE.MeshBasicMaterial({
+    color: AMBER_LIGHT,
+    transparent: true,
+    opacity: 0.98,
     depthTest: false,
     depthWrite: false,
+  });
+  const orbHaloMat = new THREE.MeshBasicMaterial({
+    color: AMBER,
+    transparent: true,
+    opacity: 0.28,
+    depthTest: false,
+    depthWrite: false,
+  });
+  const glowDiscMat = new THREE.MeshBasicMaterial({
+    color: AMBER,
+    transparent: true,
+    opacity: 0.35,
+    depthTest: false,
+    depthWrite: false,
+    side: THREE.DoubleSide,
   });
 
   /** @type {{ record:object, marker:THREE.Group, debris:THREE.Group|null, beacon:THREE.Group|null, baseY:number, fill?:THREE.Mesh, label?:THREE.Sprite }[]} */
@@ -185,8 +222,10 @@ export function createGarbageRenderer() {
       core.renderOrder = 44;
       marker.add(rim, fill, core);
 
-      const label = makeSiteLabel(siteDisplayName(r), siteChainageLabel(r));
-      label.position.set(0, 14, 0);
+      const title = siteDisplayName(r);
+      const ch = siteChainageLabel(r);
+      const label = makeSiteLabel(title, ch);
+      label.position.set(0, STEM_H + 3.2, 0);
       label.visible = false;
       marker.add(label);
 
@@ -215,56 +254,81 @@ export function createGarbageRenderer() {
     }
   }
 
-  /** Readable low-poly waste pile — visible from tour camera distance. */
+  /** Waste pile — bottles, bags, foam, crates (proposed close-view look). */
   function buildDebrisCluster(r) {
     const g = new THREE.Group();
     g.name = `garbageDebris_${r.id}`;
     g.userData.recordId = r.id;
     const phase = r.phase || 0;
-    const n = 7 + (r.sourceIndex % 4);
+    const n = 9 + (r.sourceIndex % 5);
 
-    // Base heap mound
     const mound = new THREE.Mesh(bagGeo, bagMat);
-    mound.position.set(0, 0.55, 0);
-    mound.scale.set(2.4, 1.5, 2.2);
+    mound.position.set(0, 0.5, 0);
+    mound.scale.set(2.6, 1.55, 2.35);
     g.add(mound);
 
     for (let k = 0; k < n; k++) {
-      const kind = k % 4;
+      const kind = k % 5;
       let mesh;
-      if (kind === 0) mesh = new THREE.Mesh(crateGeo, debrisMat);
-      else if (kind === 1) mesh = new THREE.Mesh(bagGeo, bagMat);
-      else if (kind === 2) mesh = new THREE.Mesh(boxGeo, accentMat);
-      else mesh = new THREE.Mesh(bottleGeo, plasticMat);
+      if (kind === 0) {
+        mesh = new THREE.Mesh(crateGeo, debrisMat);
+      } else if (kind === 1) {
+        mesh = new THREE.Mesh(bagGeo, bagMat);
+      } else if (kind === 2) {
+        const bottle = new THREE.Group();
+        const body = new THREE.Mesh(bottleGeo, plasticMat);
+        const cap = new THREE.Mesh(bottleCapGeo, accentMat);
+        cap.position.y = 0.75;
+        bottle.add(body, cap);
+        mesh = bottle;
+      } else if (kind === 3) {
+        mesh = new THREE.Mesh(foamGeo, foamMat);
+      } else {
+        mesh = new THREE.Mesh(boxGeo, accentMat);
+      }
 
       const a = (k / n) * Math.PI * 2 + phase;
-      const rad = 1.2 + (k % 4) * 0.55;
+      const rad = 0.9 + (k % 5) * 0.48;
       mesh.position.set(
         Math.cos(a) * rad,
-        0.45 + (k % 3) * 0.55,
+        0.4 + (k % 4) * 0.42,
         Math.sin(a) * rad,
       );
-      mesh.rotation.set(phase * 0.25 + k * 0.2, a, phase * 0.15);
-      mesh.scale.setScalar(1.15 + (k % 3) * 0.25);
-      mesh.castShadow = false;
+      mesh.rotation.set(phase * 0.2 + k * 0.18, a * 0.9, phase * 0.12 + k * 0.08);
+      mesh.scale.setScalar(0.95 + (k % 3) * 0.22);
+      mesh.traverse?.((c) => {
+        if (c.isMesh) c.castShadow = false;
+      });
+      if (mesh.isMesh) mesh.castShadow = false;
       g.add(mesh);
     }
 
-    // Overall pile scale so it reads from ~40–80 m
-    g.scale.setScalar(2.6);
+    g.scale.setScalar(2.35);
     return g;
   }
 
+  /** Glowing stem + orb (proposed marker, not triangular flag). */
   function buildBeacon() {
     const g = new THREE.Group();
     g.name = "garbageBeacon";
-    const pole = new THREE.Mesh(poleGeo, poleMat);
-    pole.position.y = 6;
-    pole.renderOrder = 50;
-    const flag = new THREE.Mesh(flagGeo, flagMat);
-    flag.position.set(1.9, 11.2, 0);
-    flag.renderOrder = 51;
-    g.add(pole, flag);
+
+    const glow = new THREE.Mesh(glowDiscGeo, glowDiscMat);
+    glow.position.y = 0.06;
+    glow.renderOrder = 48;
+
+    const stem = new THREE.Mesh(stemGeo, stemMat);
+    stem.position.y = STEM_H * 0.5;
+    stem.renderOrder = 50;
+
+    const halo = new THREE.Mesh(orbHaloGeo, orbHaloMat);
+    halo.position.y = STEM_H;
+    halo.renderOrder = 51;
+
+    const orb = new THREE.Mesh(orbGeo, orbMat);
+    orb.position.y = STEM_H;
+    orb.renderOrder = 52;
+
+    g.add(glow, stem, halo, orb);
     return g;
   }
 
@@ -279,11 +343,11 @@ export function createGarbageRenderer() {
     geo.rotateX(-Math.PI / 2);
     for (const cell of cells) {
       const color =
-        cell.level === "HIGH" ? "#C0392B" : cell.level === "MEDIUM" ? "#E67E22" : "#F1C40F";
+        cell.level === "HIGH" ? "#C0392B" : cell.level === "MEDIUM" ? "#E67E22" : "#27AE60";
       const mat = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.18 + Math.min(0.28, cell.count * 0.04),
+        opacity: 0.16 + Math.min(0.28, cell.count * 0.04),
         depthWrite: false,
         depthTest: true,
         side: THREE.DoubleSide,
@@ -310,13 +374,19 @@ export function createGarbageRenderer() {
       const on = e.record.id === id;
       if (e.fill) e.fill.material = on ? selectMat : fillMat;
       if (e.beacon) e.beacon.visible = on && !e.marker.userData.filteredOut;
+      if (e.label) {
+        const title = siteDisplayName(e.record);
+        const ch = siteChainageLabel(e.record);
+        paintSiteLabel(e.label, title, ch);
+      }
     }
   }
 
   function applyLOD(lod, camera, selected = selectedId) {
     const boost = markerScaleForCamera(camera);
     const camY = camera?.position?.y ?? 800;
-    const showDebrisFar = lod === LOD.FAR || lod === LOD.MEDIUM;
+    const far = lod === LOD.FAR;
+    const medium = lod === LOD.MEDIUM;
 
     for (const e of entries) {
       if (e.marker.userData.filteredOut) {
@@ -328,29 +398,28 @@ export function createGarbageRenderer() {
       }
 
       const isSel = e.record.id === selected;
-      // Always keep a ring for context; shrink when focused on pile
       e.marker.visible = true;
-      const ringScale = boost * (isSel ? 0.85 : 1.0);
+      // Far overview: compact dots; selected slightly larger
+      const ringScale = boost * (isSel ? 0.7 : far ? 0.55 : 0.75);
       e.marker.scale.set(ringScale, ringScale, ringScale);
 
-      // Waste pile: always on for selected; otherwise at near/medium
       if (e.debris) {
-        const showPile = isSel || !showDebrisFar || lod === LOD.NEAR || lod === LOD.VERY_NEAR;
+        const showPile = isSel || (!far && (medium || lod === LOD.NEAR || lod === LOD.VERY_NEAR));
         e.debris.visible = showPile;
-        const pileScale = isSel ? 3.4 : showDebrisFar ? 1.8 : 2.4;
-        e.debris.scale.setScalar(pileScale);
+        e.debris.scale.setScalar(isSel ? 3.1 : medium ? 1.7 : 2.3);
       }
 
       if (e.beacon) {
         e.beacon.visible = isSel;
-        e.beacon.scale.setScalar(isSel ? 1.15 : 1);
+        e.beacon.scale.setScalar(isSel ? 1.05 : 1);
       }
 
       if (e.label) {
-        e.label.visible = labelsEnabled && isSel;
-        const ls = THREE.MathUtils.clamp(camY * 0.016, 7, 22);
-        e.label.scale.set(ls * 1.35, ls * 0.4, 1);
-        e.label.position.y = 16 + Math.min(10, camY * 0.01);
+        // Selected always shows proposed dark label; optional labelsEnabled for all
+        e.label.visible = isSel || (labelsEnabled && !far);
+        const ls = THREE.MathUtils.clamp(camY * 0.012, 6, 16);
+        e.label.scale.set(ls * 1.55, ls * 0.42, 1);
+        e.label.position.y = STEM_H + 2.8 + Math.min(6, camY * 0.006);
       }
     }
   }
@@ -383,12 +452,16 @@ export function createGarbageRenderer() {
       discGeo,
       rimGeo,
       coreGeo,
+      stemGeo,
+      orbGeo,
+      orbHaloGeo,
+      glowDiscGeo,
       boxGeo,
       bagGeo,
       bottleGeo,
+      bottleCapGeo,
+      foamGeo,
       crateGeo,
-      poleGeo,
-      flagGeo,
     ]) {
       g.dispose();
     }
@@ -400,9 +473,12 @@ export function createGarbageRenderer() {
       debrisMat,
       plasticMat,
       bagMat,
+      foamMat,
       accentMat,
-      poleMat,
-      flagMat,
+      stemMat,
+      orbMat,
+      orbHaloMat,
+      glowDiscMat,
     ]) {
       m.dispose();
     }
@@ -436,7 +512,7 @@ function siteDisplayName(r) {
 }
 
 function siteChainageLabel(r) {
-  const m = Number(r?.riverChainageMeters);
+  const m = Number(r?.riverChainageMeters ?? r?.nearestChainageMeters);
   if (!Number.isFinite(m)) return "";
   const km = Math.floor(m / 1000);
   const rem = Math.round(m % 1000);
@@ -445,8 +521,8 @@ function siteChainageLabel(r) {
 
 function makeSiteLabel(title, subtitle) {
   const canvas = document.createElement("canvas");
-  canvas.width = 512;
-  canvas.height = 160;
+  canvas.width = 640;
+  canvas.height = 140;
   const tex = new THREE.CanvasTexture(canvas);
   tex.colorSpace = THREE.SRGBColorSpace;
   tex.generateMipmaps = false;
@@ -465,7 +541,7 @@ function makeSiteLabel(title, subtitle) {
   spr.frustumCulled = false;
   spr.center.set(0.5, 0);
   paintSiteLabel(spr, title, subtitle);
-  spr.scale.set(42, 13, 1);
+  spr.scale.set(36, 8, 1);
   return spr;
 }
 
@@ -477,27 +553,27 @@ function paintSiteLabel(spr, title, subtitle) {
   const h = canvas.height;
   ctx.clearRect(0, 0, w, h);
 
-  const pad = 18;
-  roundRect(ctx, pad, pad, w - pad * 2, h - pad * 2, 22);
-  ctx.fillStyle = "rgba(8, 16, 24, 0.88)";
+  const line = subtitle ? `${title}, ${subtitle}` : String(title || "Site");
+  ctx.font = "800 44px Inter, system-ui, sans-serif";
+  const tw = Math.min(w - 48, ctx.measureText(line).width + 48);
+  const bx = (w - tw) / 2;
+  const by = h * 0.22;
+  const bh = h * 0.56;
+
+  roundRect(ctx, bx, by, tw, bh, 18);
+  ctx.fillStyle = "rgba(6, 10, 16, 0.92)";
   ctx.fill();
-  ctx.strokeStyle = "rgba(232, 154, 28, 0.95)";
-  ctx.lineWidth = 6;
-  roundRect(ctx, pad, pad, w - pad * 2, h - pad * 2, 22);
+  ctx.strokeStyle = "rgba(232, 154, 28, 0.55)";
+  ctx.lineWidth = 3;
+  roundRect(ctx, bx, by, tw, bh, 18);
   ctx.stroke();
 
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
-  ctx.shadowColor = "rgba(0,0,0,0.55)";
-  ctx.shadowBlur = 6;
-  ctx.fillStyle = "#fff6e0";
-  ctx.font = "800 52px Inter, system-ui, sans-serif";
-  ctx.fillText(String(title || "Site").slice(0, 28), w / 2, subtitle ? h * 0.42 : h * 0.52);
-  if (subtitle) {
-    ctx.fillStyle = "rgba(255, 214, 150, 0.95)";
-    ctx.font = "700 34px ui-monospace, SFMono-Regular, Consolas, monospace";
-    ctx.fillText(String(subtitle).slice(0, 18), w / 2, h * 0.7);
-  }
+  ctx.shadowColor = "rgba(0,0,0,0.45)";
+  ctx.shadowBlur = 4;
+  ctx.fillStyle = "#fff8ec";
+  ctx.fillText(line.slice(0, 36), w / 2, by + bh * 0.52);
   ctx.shadowBlur = 0;
   spr.material.map.needsUpdate = true;
 }
