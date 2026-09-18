@@ -1,0 +1,16 @@
+{
+  "id": "salinity",
+  "source": "Smoth kmls/salinity_smoothed.kmz",
+  "sourceKmz": "salinity_smoothed.kmz",
+  "bounds": {
+    "north": 18.5621806682,
+    "south": 18.509269898,
+    "east": 73.9940952056,
+    "west": 73.8527902114
+  },
+  "overlayWidth": 6292,
+  "overlayHeight": 2356,
+  "overlayUrl": "/data/hydrology/water_quality/salinity/overlay.png",
+  "legendUrl": "/data/hydrology/water_quality/salinity/legend.png",
+  "smoothed": true
+}

@@ -1,11 +1,13 @@
 {
-  "source": "public/data/vegetation.geojson",
-  "features": 131,
+  "source": "vegetation_type_study_area.kml",
+  "sourceTitle": "Mula-Mutha Vegetation Type - Study Area",
+  "features": 85,
   "classes": {
-    "Mixed / Diverse": 49,
-    "Trees": 12,
-    "Shrub / Scrub": 3,
-    "Grass / Herbaceous": 67
+    "Non-Vegetation": 26,
+    "Trees": 35,
+    "Shrub / Scrub": 20,
+    "Grass / Herbaceous": 2,
+    "Mixed / Diverse": 2
   },
   "geojson": "/data/hydrology/vegetation/vegetation_extent.geojson",
   "kml": "/data/hydrology/vegetation/vegetation_extent.kml"

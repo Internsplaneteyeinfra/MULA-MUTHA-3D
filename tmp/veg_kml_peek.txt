@@ -1,0 +1,12 @@
+folders=5 placemarks=85
+[0] name='⬜ Non-Vegetation' placemarks=26 colors=['c8a9a9a9']
+[1] name='🌳 Trees' placemarks=35 colors=['c8228b22']
+[2] name='🌿 Shrub / Scrub' placemarks=20 colors=['c832cd9a']
+[3] name='🌾 Grass / Herbaceous' placemarks=2 colors=['c890ee90']
+[4] name='🍃 Mixed / Diverse' placemarks=2 colors=['c8e22b8a']
+name stems:
+    35  Trees
+    26  Non-Vegetation
+    20  Shrub / Scrub
+     2  Grass / Herbaceous
+     2  Mixed / Diverse

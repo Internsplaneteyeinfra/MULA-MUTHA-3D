@@ -1,58 +1,103 @@
 #!/usr/bin/env python3
-"""Build hydrology vegetation_extent GeoJSON + KML from public/data/vegetation.geojson."""
+"""Build vegetation_extent GeoJSON (+ cleaned KML) from Mula–Mutha Vegetation Type KML."""
 
 from __future__ import annotations
 
 import json
+import re
+import shutil
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-SRC = ROOT / "public" / "data" / "vegetation.geojson"
 OUT_DIR = ROOT / "public" / "data" / "hydrology" / "vegetation"
 
-CLASS_MAP = {
-    "wood": ("Trees", "#2d6a4f"),
-    "forest": ("Trees", "#2d6a4f"),
-    "scrub": ("Shrub / Scrub", "#52b788"),
-    "grass": ("Grass / Herbaceous", "#95d5b2"),
-    "park": ("Mixed / Diverse", "#74c69d"),
+# Prefer bundled copy; fall back to Shweta_River-2.0 Sources.
+CANDIDATES = [
+    OUT_DIR / "vegetation_type_study_area.kml",
+    ROOT / "public" / "data" / "vegetation_type_study_area.kml",
+    Path(r"C:\Users\Sahil.Rajankar\Desktop\Shweta\Shweta_River-2.0\src\Sources\62862d940cba4d3ba7a0f5610cde1290.kml"),
+]
+
+# KML PolyStyle ABGR → legend
+CLASS_COLORS = {
+    "Non-Vegetation": "#A9A9A9",
+    "Trees": "#228B22",
+    "Shrub / Scrub": "#9ACD32",
+    "Grass / Herbaceous": "#90EE90",
+    "Mixed / Diverse": "#8A2BE2",
 }
 
 
-def classify(props: dict) -> tuple[str, str]:
-    natural = (props.get("natural") or "").lower()
-    landuse = (props.get("landuse") or "").lower()
-    leisure = (props.get("leisure") or "").lower()
-    for key in (natural, landuse, leisure):
-        if key in CLASS_MAP:
-            return CLASS_MAP[key]
-    return ("Mixed / Diverse", "#74c69d")
+def abgr_to_hex(abgr: str) -> str | None:
+    s = re.sub(r"[^0-9A-Fa-f]", "", abgr or "")
+    if len(s) != 8:
+        return None
+    r, g, b = s[6:8], s[4:6], s[2:4]
+    return f"#{r}{g}{b}".upper()
 
 
-def abgr(hexc: str, a: str = "c8") -> str:
-    h = hexc.lstrip("#")
-    return f"{a}{h[4:6]}{h[2:4]}{h[0:2]}"
+def normalize_class(name: str) -> str:
+    n = re.sub(r"^\W+", "", str(name or "")).strip()
+    n = re.sub(r"\s+\d+$", "", n).strip()
+    for label in CLASS_COLORS:
+        if n.lower() == label.lower() or n.lower().startswith(label.lower()):
+            return label
+    return n or "Unknown"
 
 
-def ring_coords(geom: dict | None) -> list:
-    if not geom:
-        return []
-    if geom.get("type") == "Polygon":
-        return [geom["coordinates"][0]]
-    if geom.get("type") == "MultiPolygon":
-        return [p[0] for p in geom["coordinates"]]
-    return []
+def parse_coords(blob: str) -> list[list[float]]:
+    ring: list[list[float]] = []
+    for tok in re.split(r"\s+", blob.strip()):
+        if not tok:
+            continue
+        parts = tok.split(",")
+        if len(parts) < 2:
+            continue
+        try:
+            lon, lat = float(parts[0]), float(parts[1])
+        except ValueError:
+            continue
+        ring.append([lon, lat])
+    return ring
 
 
-def main() -> int:
-    OUT_DIR.mkdir(parents=True, exist_ok=True)
-    data = json.loads(SRC.read_text(encoding="utf-8"))
-    features = []
-    counts: dict[str, int] = {}
-    for f in data.get("features") or []:
-        props = dict(f.get("properties") or {})
-        label, color = classify(props)
-        counts[label] = counts.get(label, 0) + 1
+def parse_kml(text: str) -> list[dict]:
+    # Style id → hex
+    styles: dict[str, str] = {}
+    for m in re.finditer(r'<Style\s+id="([^"]+)"[\s\S]*?</Style>', text, re.I):
+        cm = re.search(
+            r"<PolyStyle[\s\S]*?<color>\s*([0-9A-Fa-f]{8})\s*</color>",
+            m.group(0),
+            re.I,
+        )
+        if cm:
+            hx = abgr_to_hex(cm.group(1))
+            if hx:
+                styles[m.group(1)] = hx
+
+    features: list[dict] = []
+    for i, pm in enumerate(re.finditer(r"<Placemark[\s\S]*?</Placemark>", text, re.I)):
+        content = pm.group(0)
+        name_m = re.search(r"<name>\s*([^<]*)\s*</name>", content, re.I)
+        name = (name_m.group(1) if name_m else "").strip()
+        style_m = re.search(r"<styleUrl>\s*#?([^<\s]+)\s*</styleUrl>", content, re.I)
+        style_id = (style_m.group(1) if style_m else "").strip()
+        outer = re.search(
+            r"<outerBoundaryIs>[\s\S]*?<coordinates>([\s\S]*?)</coordinates>",
+            content,
+            re.I,
+        )
+        if not outer:
+            continue
+        ring = parse_coords(outer.group(1))
+        if len(ring) < 3:
+            continue
+        # close ring
+        if ring[0] != ring[-1]:
+            ring = ring + [ring[0]]
+        label = normalize_class(name)
+        color = CLASS_COLORS.get(label) or styles.get(style_id) or "#74c69d"
         features.append(
             {
                 "type": "Feature",
@@ -60,65 +105,98 @@ def main() -> int:
                     "layer": "vegetation_extent",
                     "class": label,
                     "class_label": label,
-                    "name": props.get("name") or label,
-                    "description": props.get("source") or "OPENSTREETMAP",
+                    "name": name or label,
+                    "description": "Mula-Mutha Vegetation Type - Study Area",
                     "color": color,
-                    "osmId": props.get("osmId"),
-                    "source": "vegetation.geojson",
+                    "source": "vegetation_type_study_area.kml",
                 },
-                "geometry": f.get("geometry"),
+                "geometry": {"type": "Polygon", "coordinates": [ring]},
             }
         )
+    return features
 
+
+def abgr(hexc: str, a: str = "c8") -> str:
+    h = hexc.lstrip("#")
+    return f"{a}{h[4:6]}{h[2:4]}{h[0:2]}"
+
+
+def write_kml(features: list[dict], path: Path) -> None:
+    styles = {
+        label: (f"s_{label.replace(' / ', '_').replace(' ', '_').replace('-', '_')}", color)
+        for label, color in CLASS_COLORS.items()
+    }
+    lines = [
+        '<?xml version="1.0" encoding="UTF-8"?>',
+        '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
+        "<name>Mula-Mutha Vegetation Extent</name>",
+    ]
+    for label, (sid, color) in styles.items():
+        lines.append(
+            f'<Style id="{sid}"><LineStyle><color>{abgr(color, "ff")}</color><width>1</width></LineStyle>'
+            f"<PolyStyle><color>{abgr(color)}</color></PolyStyle></Style>"
+        )
+    for f in features:
+        label = f["properties"]["class_label"]
+        sid = styles.get(label, styles["Mixed / Diverse"])[0]
+        name = (
+            str(f["properties"].get("name") or label)
+            .replace("&", "&amp;")
+            .replace("<", "&lt;")
+        )
+        ring = f["geometry"]["coordinates"][0]
+        coords = " ".join(f"{c[0]},{c[1]},0" for c in ring)
+        lines.append(
+            f"<Placemark><name>{name}</name><styleUrl>#{sid}</styleUrl>"
+            f'<ExtendedData><Data name="class"><value>{label}</value></Data></ExtendedData>'
+            f"<Polygon><outerBoundaryIs><LinearRing><coordinates>{coords}</coordinates>"
+            f"</LinearRing></outerBoundaryIs></Polygon></Placemark>"
+        )
+    lines.append("</Document></kml>")
+    path.write_text("\n".join(lines), encoding="utf-8")
+
+
+def main() -> int:
+    src = next((p for p in CANDIDATES if p.is_file()), None)
+    if not src:
+        print("ERROR: vegetation type KML not found in:")
+        for p in CANDIDATES:
+            print(f"  - {p}")
+        return 1
+
+    OUT_DIR.mkdir(parents=True, exist_ok=True)
+    bundled = OUT_DIR / "vegetation_type_study_area.kml"
+    if src.resolve() != bundled.resolve():
+        shutil.copy2(src, bundled)
+        print(f"copied source -> {bundled}")
+
+    text = bundled.read_text(encoding="utf-8", errors="replace")
+    features = parse_kml(text)
+    if not features:
+        print("ERROR: no polygon features parsed")
+        return 1
+
+    counts = Counter(f["properties"]["class_label"] for f in features)
     gj = {
         "type": "FeatureCollection",
         "name": "Mula-Mutha Vegetation Extent",
         "features": features,
     }
     (OUT_DIR / "vegetation_extent.geojson").write_text(json.dumps(gj), encoding="utf-8")
-
-    styles = {v[0]: (f"s_{v[0].replace(' / ', '_').replace(' ', '_')}", v[1]) for v in CLASS_MAP.values()}
-    kml = [
-        '<?xml version="1.0" encoding="UTF-8"?>',
-        '<kml xmlns="http://www.opengis.net/kml/2.2"><Document>',
-        "<name>Mula-Mutha Vegetation Extent</name>",
-    ]
-    for label, (sid, color) in styles.items():
-        kml.append(
-            f'<Style id="{sid}"><LineStyle><color>{abgr(color, "ff")}</color><width>1</width></LineStyle>'
-            f"<PolyStyle><color>{abgr(color)}</color></PolyStyle></Style>"
-        )
-
-    for f in features:
-        label = f["properties"]["class_label"]
-        sid = styles[label][0]
-        name = (
-            str(f["properties"].get("name") or label)
-            .replace("&", "&amp;")
-            .replace("<", "&lt;")
-        )
-        for ring in ring_coords(f.get("geometry")):
-            if not ring or len(ring) < 3:
-                continue
-            coords = " ".join(f"{c[0]},{c[1]},0" for c in ring)
-            kml.append(
-                f"<Placemark><name>{name}</name><styleUrl>#{sid}</styleUrl>"
-                f'<ExtendedData><Data name="class"><value>{label}</value></Data></ExtendedData>'
-                f"<Polygon><outerBoundaryIs><LinearRing><coordinates>{coords}</coordinates>"
-                f"</LinearRing></outerBoundaryIs></Polygon></Placemark>"
-            )
-    kml.append("</Document></kml>")
-    (OUT_DIR / "vegetation_extent.kml").write_text("\n".join(kml), encoding="utf-8")
+    write_kml(features, OUT_DIR / "vegetation_extent.kml")
 
     meta = {
-        "source": "public/data/vegetation.geojson",
+        "source": "vegetation_type_study_area.kml",
+        "sourceTitle": "Mula-Mutha Vegetation Type - Study Area",
         "features": len(features),
-        "classes": counts,
+        "classes": dict(counts),
         "geojson": "/data/hydrology/vegetation/vegetation_extent.geojson",
         "kml": "/data/hydrology/vegetation/vegetation_extent.kml",
     }
     (OUT_DIR / "meta.json").write_text(json.dumps(meta, indent=2), encoding="utf-8")
-    print(json.dumps(meta, indent=2))
+    print(f"wrote {len(features)} features -> {OUT_DIR}")
+    for k, v in sorted(counts.items()):
+        print(f"  {v:3d}  {k}")
     return 0
 
 

@@ -1,12 +1,16 @@
-﻿{
-  "name": "Spectral Lithology / Surface Material",
-  "sourceKmz": "b7acfdf14dfa4a5a9c0ec4c050e2d000.kmz",
+{
+  "id": "geology",
+  "source": "Smoth kmls/Lithology.kmz",
+  "sourceKmz": "Lithology.kmz",
   "bounds": {
-    "north": 18.56235850242967,
-    "south": 18.509121676972974,
-    "east": 73.99637575213919,
-    "west": 73.8497860331936
+    "north": 18.5623585024,
+    "south": 18.509121677,
+    "east": 73.9963757521,
+    "west": 73.8497860332
   },
+  "overlayWidth": 8192,
+  "overlayHeight": 2975,
   "overlayUrl": "/data/hydrology/geology/overlay.png",
-  "legendUrl": "/data/hydrology/geology/legend.png"
+  "legendUrl": "/data/hydrology/geology/legend.png",
+  "smoothed": true
 }

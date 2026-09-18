@@ -1,5 +1,5 @@
   {
-    "version": 14,
+    "version": 17,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -10,15 +10,15 @@
       "type": "groundOverlay",
       "crs": "EPSG:4326",
       "bounds": {
-        "north": 18.56235850242967,
-        "south": 18.509121676972974,
-        "east": 73.99637575213919,
-        "west": 73.8497860331936
+        "north": 18.5623585024,
+        "south": 18.509121677,
+        "east": 73.9963757521,
+        "west": 73.8497860332
       },
-      "overlay": "/data/hydrology/geology/overlay.png",
-      "legend": "/data/hydrology/geology/legend.png",
+      "overlay": "/data/hydrology/geology/overlay.png?v=16",
+      "legend": "/data/hydrology/geology/legend.png?v=16",
       "meta": "/data/hydrology/geology/meta.json",
-      "source": "b7acfdf14dfa4a5a9c0ec4c050e2d000.kmz",
+      "source": "Smoth kmls/Lithology.kmz",
       "opacity": 0.78,
       "gridSegments": 96,
       "liftM": 0.35,
@@ -31,21 +31,21 @@
       "type": "groundOverlay",
       "crs": "EPSG:4326",
       "bounds": {
-        "north": 18.54742583968735,
-        "south": 18.520745875749,
-        "east": 73.9935113006977,
-        "west": 73.85472158930123
+        "north": 18.5474258397,
+        "south": 18.5207458757,
+        "east": 73.9935113007,
+        "west": 73.8547215893
       },
-      "overlay": "/data/hydrology/bank_erosion/overlay.png",
-      "legend": "/data/hydrology/bank_erosion/legend.png",
+      "overlay": "/data/hydrology/bank_erosion/overlay.png?v=16",
+      "legend": "/data/hydrology/bank_erosion/legend.png?v=16",
       "meta": "/data/hydrology/bank_erosion/meta.json",
-      "source": "bank_erosion_hotspot.kmz",
+      "source": "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
       "opacity": 1,
       "gridSegments": 144,
       "liftM": 1.6,
       "renderType": "terrainDrapedTexture",
       "legendTitle": "Bank erosion hotspots",
-      "legendSubtitle": "2016–2026 smoothed classification.",
+      "legendSubtitle": "2016–2026 smoothed continuous overlay.",
       "legendClasses": [
         { "id": "none", "label": "No erosion", "color": "#90EE90", "pct": "83.1%" },
         { "id": "low", "label": "Low erosion", "color": "#FFFF00", "pct": "15.5%" },
@@ -65,20 +65,29 @@
       "id": "water_quality_tss",
       "name": "Turbidity / TSS",
       "available": true,
-      "type": "kmlPolygons",
+      "type": "groundOverlay",
       "crs": "EPSG:4326",
-      "data": "/data/hydrology/water_quality/TSS.kml",
-      "source": "TSS.kml",
-      "opacity": 0.72,
-      "liftM": 0.4,
+      "bounds": {
+        "north": 18.548421173,
+        "south": 18.5193301309,
+        "east": 73.9941221551,
+        "west": 73.853726256
+      },
+      "overlay": "/data/hydrology/water_quality/tss/overlay.png?v=17",
+      "legend": "/data/hydrology/water_quality/tss/legend.png?v=17",
+      "meta": "/data/hydrology/water_quality/tss/meta.json",
+      "source": "Smoth kmls/TSS_smoothed.kmz",
+      "opacity": 0.78,
+      "liftM": 0.5,
+      "gridSegments": 112,
       "legendTitle": "Turbidity / TSS",
-      "legendSubtitle": "July 2026 classified overlay",
+      "legendSubtitle": "Smoothed continuous overlay",
       "classes": [
         { "id": "class_1", "kmlClass": "Class 1", "label": "Low TSS", "color": "#1E90FF", "range": "≤0.62" },
         { "id": "class_2", "kmlClass": "Class 2", "label": "Medium", "color": "#E8B923", "range": "0.62–1.17" },
         { "id": "class_3", "kmlClass": "Class 3", "label": "High", "color": "#E53935", "range": ">1.17" }
       ],
-      "renderType": "terrainDrapedPolygonsMergedByClass"
+      "renderType": "terrainDrapedTexture"
     },
     {
       "id": "water_quality_ndwi",
@@ -102,19 +111,28 @@
       "id": "water_quality_ndci",
       "name": "NDCI — Chlorophyll",
       "available": true,
-      "type": "kmlPolygons",
+      "type": "groundOverlay",
       "crs": "EPSG:4326",
-      "data": "/data/hydrology/water_quality/NDCI.kml",
-      "source": "NDCI.kml",
-      "opacity": 0.72,
-      "liftM": 0.4,
+      "bounds": {
+        "north": 18.5484187775,
+        "south": 18.519382832,
+        "east": 73.9940164533,
+        "west": 73.8537286515
+      },
+      "overlay": "/data/hydrology/water_quality/ndci/overlay.png?v=16",
+      "legend": "/data/hydrology/water_quality/ndci/legend.png?v=16",
+      "meta": "/data/hydrology/water_quality/ndci/meta.json",
+      "source": "Smoth kmls/NDCI_smoothed.kmz",
+      "opacity": 0.78,
+      "liftM": 0.5,
+      "gridSegments": 112,
       "legendTitle": "NDCI — Chlorophyll",
-      "legendSubtitle": "July 2026 classified overlay",
+      "legendSubtitle": "Smoothed continuous overlay",
       "classes": [
         { "id": "class_1", "kmlClass": "Class 1", "label": "Low chlorophyll", "color": "#B8E0C8", "range": "<0" },
         { "id": "class_2", "kmlClass": "Class 2", "label": "High chlorophyll", "color": "#1B5E20", "range": "≥0" }
       ],
-      "renderType": "terrainDrapedPolygonsMergedByClass"
+      "renderType": "terrainDrapedTexture"
     },
     {
       "id": "water_quality_wst",
@@ -141,18 +159,23 @@
       "id": "salinity",
       "name": "SALINITY",
       "available": true,
-      "type": "kmlPolygons",
+      "type": "groundOverlay",
       "crs": "EPSG:4326",
-      "data": "/data/hydrology/water_quality/salinity.kml",
-      "source": "salinity.kml",
-      "opacity": 0.65,
-      "liftM": 0.35,
       "bounds": {
-        "west": 73.85350886366767,
-        "east": 73.99328672187666,
-        "south": 18.510033465985874,
-        "north": 18.561462016001716
+        "north": 18.5621806682,
+        "south": 18.509269898,
+        "east": 73.9940952056,
+        "west": 73.8527902114
       },
+      "overlay": "/data/hydrology/water_quality/salinity/overlay.png?v=16",
+      "legend": "/data/hydrology/water_quality/salinity/legend.png?v=16",
+      "meta": "/data/hydrology/water_quality/salinity/meta.json",
+      "source": "Smoth kmls/salinity_smoothed.kmz",
+      "opacity": 0.78,
+      "liftM": 0.45,
+      "gridSegments": 112,
+      "legendTitle": "Salinity",
+      "legendSubtitle": "Smoothed continuous overlay",
       "classes": [
         { "id": "very_low", "label": "Very Low Salinity", "color": "#0000FF", "range": "-1.00 to -0.60" },
         { "id": "low", "label": "Low Salinity", "color": "#00BFFF", "range": "-0.60 to -0.20" },
@@ -160,7 +183,7 @@
         { "id": "high", "label": "High Salinity", "color": "#FFFF00", "range": "0.20 to 0.60" },
         { "id": "very_high", "label": "Very High Salinity", "color": "#FF0000", "range": "0.60 to 1.00" }
       ],
-      "renderType": "terrainDrapedPolygonsMergedByClass"
+      "renderType": "terrainDrapedTexture"
     },
     {
       "id": "pollution",
@@ -334,16 +357,17 @@
       "type": "kmlPolygons",
       "crs": "EPSG:4326",
       "data": "/data/hydrology/vegetation/vegetation_extent.geojson",
-      "source": "vegetation.geojson / vegetation_extent.kml",
+      "source": "vegetation_type_study_area.kml",
       "opacity": 0.72,
       "liftM": 1.1,
       "legendTitle": "Vegetation Extent",
-      "legendSubtitle": "OSM parks · woods · scrub · grass",
+      "legendSubtitle": "Study-area vegetation type polygons",
       "classes": [
-        { "id": "trees", "label": "Trees", "color": "#2d6a4f" },
-        { "id": "shrub", "label": "Shrub / Scrub", "color": "#52b788" },
-        { "id": "grass", "label": "Grass / Herbaceous", "color": "#95d5b2" },
-        { "id": "mixed", "label": "Mixed / Diverse", "color": "#74c69d" }
+        { "id": "non_vegetation", "label": "Non-Vegetation", "color": "#A9A9A9" },
+        { "id": "trees", "label": "Trees", "color": "#228B22" },
+        { "id": "shrub", "label": "Shrub / Scrub", "color": "#9ACD32" },
+        { "id": "grass", "label": "Grass / Herbaceous", "color": "#90EE90" },
+        { "id": "mixed", "label": "Mixed / Diverse", "color": "#8A2BE2" }
       ],
       "renderType": "terrainDrapedPolygons"
     },

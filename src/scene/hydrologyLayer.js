@@ -23,23 +23,29 @@ import {
 } from "./hydrology/bankErosionMaterial.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
-const CONFIG_VERSION = 14;
+const CONFIG_VERSION = 17;
 
 const POLYGON_LAYER_IDS = new Set([
-  "salinity",
-  "water_quality_tss",
   "water_quality_ndwi",
-  "water_quality_ndci",
   "water_quality_wst",
   "landuse_lulc",
   "vegetation_extent",
 ]);
 
+const DRAPED_CLASS_LAYER_IDS = new Set([
+  "geology",
+  "bank_erosion",
+  "salinity",
+  "water_quality_ndci",
+  "water_quality_tss",
+]);
+
 const VEGETATION_EXTENT_CLASSES = [
-  { id: "trees", label: "Trees", color: "#2d6a4f" },
-  { id: "shrub", label: "Shrub / Scrub", color: "#52b788" },
-  { id: "grass", label: "Grass / Herbaceous", color: "#95d5b2" },
-  { id: "mixed", label: "Mixed / Diverse", color: "#74c69d" },
+  { id: "non_vegetation", label: "Non-Vegetation", color: "#A9A9A9" },
+  { id: "trees", label: "Trees", color: "#228B22" },
+  { id: "shrub", label: "Shrub / Scrub", color: "#9ACD32" },
+  { id: "grass", label: "Grass / Herbaceous", color: "#90EE90" },
+  { id: "mixed", label: "Mixed / Diverse", color: "#8A2BE2" },
 ];
 
 const LULC_LEGEND = [
@@ -199,7 +205,7 @@ const BUILTIN_LAYER_DEFS = {
     overlay: bankErosionOverlayUrl,
     legend: bankErosionLegendUrl,
     meta: "/data/hydrology/bank_erosion/meta.json",
-    source: "bank_erosion_hotspot.kmz",
+    source: "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
     opacity: 1,
     gridSegments: 144,
     liftM: 1.6,
@@ -207,7 +213,7 @@ const BUILTIN_LAYER_DEFS = {
     flipV: true,
     renderType: "terrainDrapedTexture",
     legendTitle: "Bank erosion hotspots",
-    legendSubtitle: "2016–2026 smoothed classification.",
+    legendSubtitle: "2016–2026 smoothed continuous overlay.",
     legendClasses: [
       { id: "none", label: "No erosion", color: "#90EE90", pct: "83.1%" },
       { id: "low", label: "Low erosion", color: "#FFFF00", pct: "15.5%" },
@@ -257,11 +263,11 @@ const BUILTIN_LAYER_DEFS = {
     type: "kmlPolygons",
     crs: "EPSG:4326",
     data: "/data/hydrology/vegetation/vegetation_extent.geojson",
-    source: "vegetation.geojson",
+    source: "vegetation_type_study_area.kml",
     opacity: 0.72,
     liftM: 1.1,
     legendTitle: "Vegetation Extent",
-    legendSubtitle: "OSM parks · woods · scrub · grass",
+    legendSubtitle: "Study-area vegetation type polygons",
     classes: VEGETATION_EXTENT_CLASSES,
     renderType: "terrainDrapedPolygons",
   },
@@ -392,7 +398,7 @@ export function createHydrologyLayer(dataset) {
     const slot = drapedOverlays[id];
     if (!slot) throw new Error(`No draped overlay slot for ${id}`);
 
-    const GEO_UV_VERSION = 16;
+    const GEO_UV_VERSION = 17;
     if (
       slot.loaded &&
       (slot.mesh?.userData?.geoUvVersion !== GEO_UV_VERSION ||
@@ -421,7 +427,12 @@ export function createHydrologyLayer(dataset) {
         slot.sampler = await createGeologySampler(def).catch(() => null);
       }
       if (
-        (id === "landuse_lulc" || id === "silt_classification" || id === "silt_volume_surface") &&
+        (id === "landuse_lulc" ||
+          id === "silt_classification" ||
+          id === "silt_volume_surface" ||
+          id === "salinity" ||
+          id === "water_quality_ndci" ||
+          id === "water_quality_tss") &&
         !slot.sampler
       ) {
         slot.sampler = await createLandUseSampler(def, id).catch((err) => {
@@ -498,7 +509,14 @@ export function createHydrologyLayer(dataset) {
           slot.sampler = null;
         }
       }
-      if (id === "landuse_lulc" || id === "silt_classification" || id === "silt_volume_surface") {
+      if (
+        id === "landuse_lulc" ||
+        id === "silt_classification" ||
+        id === "silt_volume_surface" ||
+        id === "salinity" ||
+        id === "water_quality_ndci" ||
+        id === "water_quality_tss"
+      ) {
         try {
           slot.sampler = await createLandUseSampler(def, id);
         } catch (err) {
@@ -1115,7 +1133,7 @@ export function createHydrologyLayer(dataset) {
       };
     }
 
-    if (id === "geology" || id === "bank_erosion") {
+    if (DRAPED_CLASS_LAYER_IDS.has(id)) {
       await loadDrapedOverlay(def);
       if (pendingShowId !== id) {
         // A newer request won — don't report failure for the stale one
@@ -1143,15 +1161,15 @@ export function createHydrologyLayer(dataset) {
       activeId = id;
       group.visible = !!slot?.mesh;
       const legend =
-        def.legendClasses?.length
+        def.legendClasses?.length || def.classes?.length
           ? {
               type: "classes",
               title: def.legendTitle || def.name,
               subtitle: def.legendSubtitle || null,
-              classes: def.legendClasses.map((c) => ({
+              classes: (def.legendClasses || def.classes).map((c) => ({
                 label: c.label,
                 color: c.color,
-                pct: c.pct,
+                pct: c.pct || c.range,
               })),
             }
           : { type: "image", url: def.legend, title: def.name };
@@ -1303,6 +1321,9 @@ export function createHydrologyLayer(dataset) {
     if (activeId === "geology") {
       return sampleGeologyAt(x, z);
     }
+    if (activeId === "salinity" || activeId === "water_quality_ndci" || activeId === "water_quality_tss") {
+      return sampleDrapedClassAt(activeId, x, z);
+    }
     if (
       activeId === "landuse_lulc" ||
       activeId === "silt_classification" ||
@@ -1329,11 +1350,11 @@ export function createHydrologyLayer(dataset) {
     return best;
   }
 
-  /** Sample bank-erosion class at local XZ from the draped overlay raster. */
-  function sampleBankErosionAt(x, z) {
-    const slot = drapedOverlays.bank_erosion;
+  /** Sample draped class overlay (salinity / NDCI) at local XZ. */
+  function sampleDrapedClassAt(id, x, z) {
+    const slot = drapedOverlays[id];
     const sampler = slot?.sampler;
-    if (!sampler || activeId !== "bank_erosion") return null;
+    if (!sampler || activeId !== id) return null;
     const ll = localToLonLat(x, z);
     const hit = sampler.sampleLonLat(ll.lon, ll.lat);
     if (!hit) return null;
@@ -1343,8 +1364,13 @@ export function createHydrologyLayer(dataset) {
       z,
       lon: ll.lon,
       lat: ll.lat,
-      hydrology: "bank_erosion",
+      hydrology: id,
     };
+  }
+
+  /** Sample bank-erosion class at local XZ from the draped overlay raster. */
+  function sampleBankErosionAt(x, z) {
+    return sampleDrapedClassAt("bank_erosion", x, z);
   }
 
   /** Sample spectral lithology class at local XZ (click identification). */

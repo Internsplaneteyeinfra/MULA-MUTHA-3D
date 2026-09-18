@@ -1,21 +1,16 @@
 {
-  "name": "Bank Erosion Hotspot (2016-2026)",
-  "sourceKmz": "bank_erosion_hotspot.kmz",
-  "smoothedBy": "smooth_erosion_kml.py",
+  "id": "bank_erosion",
+  "source": "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
+  "sourceKmz": "bank_erosion_hotspot_smoothed.kmz",
   "bounds": {
-    "north": 18.54742583968735,
-    "south": 18.520745875749,
-    "east": 73.9935113006977,
-    "west": 73.85472158930123
+    "north": 18.5474258397,
+    "south": 18.5207458757,
+    "east": 73.9935113007,
+    "west": 73.8547215893
   },
+  "overlayWidth": 8192,
+  "overlayHeight": 1575,
   "overlayUrl": "/data/hydrology/bank_erosion/overlay.png",
   "legendUrl": "/data/hydrology/bank_erosion/legend.png",
-  "vectorKml": "/data/hydrology/bank_erosion/bank_erosion_smoothed.kml",
-  "classes": [
-    { "label": "No erosion", "color": "#90EE90", "pct": "83.1%" },
-    { "label": "Low erosion", "color": "#FFFF00", "pct": "15.5%" },
-    { "label": "Moderate erosion", "color": "#FFA500", "pct": "1.4%" },
-    { "label": "High erosion", "color": "#FF0000", "pct": "0%" },
-    { "label": "Very high erosion", "color": "#8B0000", "pct": "0%" }
-  ]
+  "smoothed": true
 }

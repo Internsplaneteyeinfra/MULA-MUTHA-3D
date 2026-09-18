@@ -23,7 +23,8 @@
     "extract:osm:validate": "python scripts/extractOsmFromKml.py --skip-fetch",
     "enrich:osm": "python scripts/enrichOsmDatasets.py",
     "smooth:silt": "python scripts/smoothSiltOverlays.py",
-    "build:vegetation-extent": "python scripts/buildVegetationExtent.py"
+    "build:vegetation-extent": "python scripts/buildVegetationExtent.py",
+    "install:smoth-overlays": "python scripts/installSmothOverlays.py"
   },
   "dependencies": {
     "geotiff": "^2.1.3",

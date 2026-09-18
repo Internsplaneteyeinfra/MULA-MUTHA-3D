@@ -292,7 +292,12 @@ function classLabelFromPlacemarkName(name) {
   if (salinity) return salinity[1];
   const cls = n.match(/^(Class\s*\d+)/i);
   if (cls) return cls[1].replace(/\s+/g, " ");
-  return n.replace(/\s*\([^)]*\)\s*$/, "").trim() || "Unknown";
+  // "Trees 12" / "Non-Vegetation 3" → class stem
+  return n
+    .replace(/^\W+/, "")
+    .replace(/\s+\d+$/, "")
+    .replace(/\s*\([^)]*\)\s*$/, "")
+    .trim() || "Unknown";
 }
 
 /**

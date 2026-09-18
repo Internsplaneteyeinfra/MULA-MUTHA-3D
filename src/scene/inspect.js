@@ -102,7 +102,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     if (
       id !== "landuse_lulc" &&
       id !== "silt_classification" &&
-      id !== "silt_volume_surface"
+      id !== "silt_volume_surface" &&
+      id !== "vegetation_extent"
     ) {
       return { hydro: null, feat: null, wx: null, wz: null, id: null };
     }
@@ -313,13 +314,14 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       window.__MM_SCENE__?.clearLithologyPick?.();
     }
 
-    // Land Use / LULC / silt — hover class under pointer
+    // Land Use / LULC / silt / vegetation — hover class under pointer
     {
       const luId = getHydrologyGroup?.()?.userData?.getActiveId?.();
       if (
         luId === "landuse_lulc" ||
         luId === "silt_classification" ||
-        luId === "silt_volume_surface"
+        luId === "silt_volume_surface" ||
+        luId === "vegetation_extent"
       ) {
         const { feat } = pickLandUseAtPointer();
         if (feat) {
@@ -330,7 +332,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             landUseHover: true,
             siltVolume: luId === "silt_volume_surface",
             siltClass: luId === "silt_classification",
-            label: feat.label || feat.class_label,
+            label: feat.label || feat.class_label || feat.name,
             class_label: feat.class_label || feat.label,
             color: feat.color,
             sampleColor: feat.sampleColor || feat.color,
@@ -338,11 +340,18 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             value: feat.value,
             valueMax: feat.valueMax,
             rampLabel: feat.rampLabel,
-            layerTitle: feat.layerTitle || "LAND USE",
-            lon: feat.lon,
-            lat: feat.lat,
+            layerTitle:
+              feat.layerTitle ||
+              (luId === "vegetation_extent" ? "VEGETATION EXTENT" : "LAND USE"),
+            lon: feat.lon ?? feat.vertices?.[0]?.lon,
+            lat: feat.lat ?? feat.vertices?.[0]?.lat,
           });
-          state.hover = { x: feat.x, z: feat.z, layer: luId, class: feat.label };
+          state.hover = {
+            x: feat.x,
+            z: feat.z,
+            layer: luId,
+            class: feat.label || feat.class_label,
+          };
           if (fromClick) {
             document.dispatchEvent(
               new CustomEvent("river-measure-clear"),
@@ -593,8 +602,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
           hydroId === "water_quality_ndwi" ||
           hydroId === "water_quality_ndci" ||
           hydroId === "water_quality_wst" ||
-          hydroId === "pollution" ||
-          hydroId === "vegetation_extent"
+          hydroId === "pollution"
         ) {
           const feat = hydro.userData.pickAt?.(wx, wz);
           if (feat) {
@@ -605,31 +613,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               water_quality_wst: "WST — Temperature",
               salinity: "SALINITY",
               pollution: "POLLUTION",
-              vegetation_extent: "VEGETATION EXTENT",
             };
-
-            if (hydroId === "vegetation_extent") {
-              state.landUseTipActive = true;
-              state.chainageTipActive = false;
-              riverWidthMeasure?.hide?.();
-              tooltip.show(e.clientX, e.clientY, {
-                landUseHover: true,
-                label: feat.label || feat.class_label || feat.name,
-                class_label: feat.class_label || feat.label,
-                color: feat.color || "#74c69d",
-                sampleColor: feat.color || "#74c69d",
-                layerTitle: "VEGETATION EXTENT",
-                lon: feat.lon ?? feat.vertices?.[0]?.lon,
-                lat: feat.lat ?? feat.vertices?.[0]?.lat,
-              });
-              state.hover = {
-                x: feat.x,
-                z: feat.z,
-                layer: "vegetation_extent",
-                class: feat.class_label,
-              };
-              return;
-            }
 
             if (hydroId === "pollution" && fromClick) {
               const layer = hydro.userData.getPollutionLayer?.();

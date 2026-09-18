@@ -32,6 +32,9 @@ export default defineConfig({
         "**/public/data/**/*.csv",
         // Do NOT ignore *.kml / *.geojson — Vite then returns SPA HTML for newly added public assets
         "**/public/data/**/*.kmz",
+        // Raw GIS dumps under src/data (often locked KMZ) — not imported by Vite
+        "**/src/data/**",
+        "**/*.kmz",
         "**/tmp/**",
         "**/tmp_*/**",
         "**/*.zip",

@@ -1,0 +1,16 @@
+{
+  "id": "water_quality_tss",
+  "source": "Smoth kmls/TSS_smoothed.kmz",
+  "sourceKmz": "TSS_smoothed.kmz",
+  "bounds": {
+    "north": 18.548421173,
+    "south": 18.5193301309,
+    "east": 73.9941221551,
+    "west": 73.853726256
+  },
+  "overlayWidth": 3552,
+  "overlayHeight": 736,
+  "overlayUrl": "/data/hydrology/water_quality/tss/overlay.png",
+  "legendUrl": "/data/hydrology/water_quality/tss/legend.png",
+  "smoothed": true
+}

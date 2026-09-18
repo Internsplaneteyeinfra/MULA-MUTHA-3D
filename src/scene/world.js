@@ -573,7 +573,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         hydroId === "silt_volume_surface" ||
         hydroId === "vegetation_extent" ||
         hydroId === "bank_erosion" ||
-        hydroId === "geology"
+        hydroId === "geology" ||
+        hydroId === "salinity" ||
+        hydroId === "water_quality_ndci" ||
+        hydroId === "water_quality_tss"
       ) {
         if (state.chainageTipActive) hideChainageTip();
         return;
