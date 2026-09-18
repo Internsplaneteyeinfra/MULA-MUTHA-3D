@@ -1,17 +1,16 @@
-import { MapPinned, Map, Layers, CloudRain, Settings, Droplets } from "lucide";
+import { MapPinned, Layers, CloudRain, Settings } from "lucide";
 import { state } from "../../state.js";
 import { lucideHtml } from "../icons.js";
 
 /**
- * Right-side view modes: Overview · 2D/3D · Drainage · Layers · Settings · Flood.
- * Keeps the same callbacks / camera modes as before.
+ * Right-side view modes: Overview · 2D/3D · Layers · Settings · Flood.
+ * Drainage toggle lives in Layers / Geology — not on this toolbar.
  */
 export function mountNavigationControls(root, {
   onOverview,
   onRiverSide,
   on3D,
   onLayersToggle,
-  onDrainageToggle,
   onSettingsToggle,
   onFloodToggle,
 }) {
@@ -37,9 +36,6 @@ export function mountNavigationControls(root, {
         <button type="button" class="view-toggle-btn" id="nav-3d" data-mode="overview" aria-label="3D perspective view">3D</button>
       </div>
     </div>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--icon toolbar-button drainage-toggle-button" id="drainage-btn" aria-label="Drainage" aria-pressed="false" title="Toggle drainage channels">
-      <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Droplets, { size: 20, className: "map-ctrl-svg" })}</span>
-    </button>
     <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button layers-toggle-button" id="layers-btn" aria-label="Layers" aria-pressed="false">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Layers, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Layers</span>
@@ -58,7 +54,6 @@ export function mountNavigationControls(root, {
   const overviewBtn = modes.querySelector("#nav-overview");
   const view2dBtn = modes.querySelector("#nav-2d");
   const view3dBtn = modes.querySelector("#nav-3d");
-  const drainageBtn = modes.querySelector("#drainage-btn");
   const layersBtn = modes.querySelector("#layers-btn");
   const settingsBtn = modes.querySelector("#settings-btn");
   const floodBtn = modes.querySelector("#flood-btn");
@@ -91,11 +86,6 @@ export function mountNavigationControls(root, {
     clearRiverMeasure();
     onLayersToggle?.();
   });
-  drainageBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    onDrainageToggle?.();
-  });
   settingsBtn.addEventListener("click", () => {
     if (state.cinematicActive) return;
     clearRiverMeasure();
@@ -127,9 +117,8 @@ export function mountNavigationControls(root, {
     settingsBtn.classList.toggle("active", !!open);
   }
 
-  function setDrainagePressed(on) {
-    drainageBtn.setAttribute("aria-pressed", on ? "true" : "false");
-    drainageBtn.classList.toggle("active", !!on);
+  function setDrainagePressed() {
+    /* Drainage toolbar icon removed — Layers / Geology still control drainage. */
   }
 
   function setFloodPressed(open) {

@@ -1,0 +1,72 @@
+{
+  "period": "2026-06",
+  "kind": "classification",
+  "source": "Jun_2026_Silt_Classification.kmz",
+  "mode": "discrete",
+  "bounds": {
+    "north": 18.5473360082,
+    "south": 18.5207458757,
+    "east": 73.9935113007,
+    "west": 73.8549012524
+  },
+  "smoothing": {
+    "title": "Silt Classification - June 2026",
+    "n_features": 19052,
+    "n_classes": 4,
+    "class_names": [
+      "Class 0",
+      "Class 1",
+      "Class 2",
+      "Class 3"
+    ],
+    "legend": [
+      {
+        "name": "Class 0",
+        "rgb": [
+          200,
+          216,
+          80
+        ],
+        "hex": "#C8D850"
+      },
+      {
+        "name": "Class 1",
+        "rgb": [
+          240,
+          176,
+          72
+        ],
+        "hex": "#F0B048"
+      },
+      {
+        "name": "Class 2",
+        "rgb": [
+          64,
+          200,
+          24
+        ],
+        "hex": "#40C818"
+      },
+      {
+        "name": "Class 3",
+        "rgb": [
+          224,
+          24,
+          24
+        ],
+        "hex": "#E01818"
+      }
+    ],
+    "pixel_size_m": null,
+    "grid": "3086x592",
+    "source_type": "ground_overlay_png",
+    "is_batch": false,
+    "combined": false,
+    "n_source_files": 1,
+    "source_files": [
+      "Jun_2026_Silt_Classification"
+    ]
+  },
+  "overlay": "/data/hydrology/silt/classification/2026-06/overlay.png",
+  "legend": "/data/hydrology/silt/classification/2026-06/legend.png"
+}

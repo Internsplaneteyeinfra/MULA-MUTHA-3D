@@ -109,7 +109,12 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     const { wx, wz } = pickWorldXZ();
     if (wx == null) return { hydro, feat: null, wx: null, wz: null, id };
     let feat = hydro.userData.pickAt?.(wx, wz) || null;
-    if (feat && state.landUseSelectedClass) {
+    // Class filter is for LULC legend chips only — never block silt volume/class hover.
+    if (
+      feat &&
+      state.landUseSelectedClass &&
+      id === "landuse_lulc"
+    ) {
       const label = String(feat.label || feat.class_label || "");
       if (!label.toLowerCase().includes(String(state.landUseSelectedClass).toLowerCase()) &&
           String(state.landUseSelectedClass).toLowerCase() !== label.toLowerCase()) {
@@ -318,12 +323,21 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       ) {
         const { feat } = pickLandUseAtPointer();
         if (feat) {
+          state.landUseTipActive = true;
+          state.chainageTipActive = false;
+          riverWidthMeasure?.hide?.();
           tooltip.show(e.clientX, e.clientY, {
             landUseHover: true,
+            siltVolume: luId === "silt_volume_surface",
+            siltClass: luId === "silt_classification",
             label: feat.label || feat.class_label,
             class_label: feat.class_label || feat.label,
             color: feat.color,
+            sampleColor: feat.sampleColor || feat.color,
             pct: feat.pct || feat.range || null,
+            value: feat.value,
+            valueMax: feat.valueMax,
+            rampLabel: feat.rampLabel,
             layerTitle: feat.layerTitle || "LAND USE",
             lon: feat.lon,
             lat: feat.lat,
@@ -337,10 +351,14 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
           return;
         }
         if (!fromClick) {
+          state.landUseTipActive = false;
           tooltip.hide();
           state.hover = null;
           return;
         }
+        state.landUseTipActive = false;
+      } else if (state.landUseTipActive) {
+        state.landUseTipActive = false;
       }
     }
 
@@ -575,7 +593,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
           hydroId === "water_quality_ndwi" ||
           hydroId === "water_quality_ndci" ||
           hydroId === "water_quality_wst" ||
-          hydroId === "pollution"
+          hydroId === "pollution" ||
+          hydroId === "vegetation_extent"
         ) {
           const feat = hydro.userData.pickAt?.(wx, wz);
           if (feat) {
@@ -586,7 +605,31 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               water_quality_wst: "WST — Temperature",
               salinity: "SALINITY",
               pollution: "POLLUTION",
+              vegetation_extent: "VEGETATION EXTENT",
             };
+
+            if (hydroId === "vegetation_extent") {
+              state.landUseTipActive = true;
+              state.chainageTipActive = false;
+              riverWidthMeasure?.hide?.();
+              tooltip.show(e.clientX, e.clientY, {
+                landUseHover: true,
+                label: feat.label || feat.class_label || feat.name,
+                class_label: feat.class_label || feat.label,
+                color: feat.color || "#74c69d",
+                sampleColor: feat.color || "#74c69d",
+                layerTitle: "VEGETATION EXTENT",
+                lon: feat.lon ?? feat.vertices?.[0]?.lon,
+                lat: feat.lat ?? feat.vertices?.[0]?.lat,
+              });
+              state.hover = {
+                x: feat.x,
+                z: feat.z,
+                layer: "vegetation_extent",
+                class: feat.class_label,
+              };
+              return;
+            }
 
             if (hydroId === "pollution" && fromClick) {
               const layer = hydro.userData.getPollutionLayer?.();
@@ -826,6 +869,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   canvas.addEventListener("click", (e) => inspect(e, { fromClick: true }));
   canvas.addEventListener("pointerleave", () => {
     clearStickySurvey();
+    state.landUseTipActive = false;
     tooltip.hide();
     state.hover = null;
   });

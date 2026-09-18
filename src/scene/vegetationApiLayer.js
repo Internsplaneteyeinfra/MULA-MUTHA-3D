@@ -95,6 +95,7 @@ export async function createVegetationApiLayer(dataset, vegetationData) {
       const mesh = new THREE.InstancedMesh(proto.geometry, proto.material, list.length);
       mesh.castShadow = true;
       mesh.receiveShadow = true;
+      mesh.frustumCulled = false;
       mesh.name = `vegApi:${assetId}`;
       for (let i = 0; i < list.length; i++) {
         const p = list[i];

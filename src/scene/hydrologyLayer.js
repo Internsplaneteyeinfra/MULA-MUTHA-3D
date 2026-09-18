@@ -23,7 +23,7 @@ import {
 } from "./hydrology/bankErosionMaterial.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
-const CONFIG_VERSION = 13;
+const CONFIG_VERSION = 14;
 
 const POLYGON_LAYER_IDS = new Set([
   "salinity",
@@ -32,7 +32,15 @@ const POLYGON_LAYER_IDS = new Set([
   "water_quality_ndci",
   "water_quality_wst",
   "landuse_lulc",
+  "vegetation_extent",
 ]);
+
+const VEGETATION_EXTENT_CLASSES = [
+  { id: "trees", label: "Trees", color: "#2d6a4f" },
+  { id: "shrub", label: "Shrub / Scrub", color: "#52b788" },
+  { id: "grass", label: "Grass / Herbaceous", color: "#95d5b2" },
+  { id: "mixed", label: "Mixed / Diverse", color: "#74c69d" },
+];
 
 const LULC_LEGEND = [
   { label: "Forest", color: "#006400" },
@@ -128,10 +136,10 @@ const LULC_YEARS = [
 ];
 
 const SILT_CLASS_BOUNDS = {
-  north: 18.547336008158936,
-  south: 18.520745875748997,
-  east: 73.99351130069769,
-  west: 73.85490125235805,
+  north: 18.5473360082,
+  south: 18.5207458757,
+  east: 73.9935113007,
+  west: 73.8549012524,
 };
 
 const SILT_CLASS_CLASSES = [
@@ -154,12 +162,14 @@ const SILT_CLASS_PERIODS = [
 /** Continuous silt volume surface (YlOrBr, fixed 0–94.31 scale). Same LatLonBox as classification. */
 const SILT_VOLUME_BOUNDS = { ...SILT_CLASS_BOUNDS };
 
+/** Continuous silt volume ramp (YlOrBr). `value` is the scale endpoint for hover sampling. */
+const SILT_VOLUME_MAX = 94.31;
 const SILT_VOLUME_CLASSES = [
-  { id: "v0", label: "0", color: "#FFFFD4", range: "low" },
-  { id: "v25", label: "~24", color: "#FED98E", range: "" },
-  { id: "v50", label: "~47", color: "#FE9929", range: "" },
-  { id: "v75", label: "~71", color: "#D95F0E", range: "" },
-  { id: "v100", label: "94.3", color: "#993404", range: "high" },
+  { id: "v0", label: "0", color: "#FFFFD4", value: 0, range: "low" },
+  { id: "v25", label: "~24", color: "#FED98E", value: SILT_VOLUME_MAX * 0.25, range: "" },
+  { id: "v50", label: "~47", color: "#FE9929", value: SILT_VOLUME_MAX * 0.5, range: "" },
+  { id: "v75", label: "~71", color: "#D95F0E", value: SILT_VOLUME_MAX * 0.75, range: "" },
+  { id: "v100", label: "94.3", color: "#993404", value: SILT_VOLUME_MAX, range: "high" },
 ];
 
 const SILT_VOLUME_PERIODS = [
@@ -217,7 +227,7 @@ const BUILTIN_LAYER_DEFS = {
     liftM: 1.4,
     gridSegments: 128,
     legendTitle: "Silt Classification",
-    legendSubtitle: "Discrete silt classes",
+    legendSubtitle: "Smoothed discrete classes (API).",
     bounds: SILT_CLASS_BOUNDS,
     classes: SILT_CLASS_CLASSES,
     periods: SILT_CLASS_PERIODS,
@@ -234,11 +244,26 @@ const BUILTIN_LAYER_DEFS = {
     liftM: 1.5,
     gridSegments: 128,
     legendTitle: "Silt Volume Surface",
-    legendSubtitle: "Fixed scale 0–94.31 · YlOrBr",
+    legendSubtitle: "Smoothed volume surface · fixed 0–94.31",
     bounds: SILT_VOLUME_BOUNDS,
     classes: SILT_VOLUME_CLASSES,
     periods: SILT_VOLUME_PERIODS,
     renderType: "terrainDrapedSiltVolume",
+  },
+  vegetation_extent: {
+    id: "vegetation_extent",
+    name: "VEGETATION EXTENT",
+    available: true,
+    type: "kmlPolygons",
+    crs: "EPSG:4326",
+    data: "/data/hydrology/vegetation/vegetation_extent.geojson",
+    source: "vegetation.geojson",
+    opacity: 0.72,
+    liftM: 1.1,
+    legendTitle: "Vegetation Extent",
+    legendSubtitle: "OSM parks · woods · scrub · grass",
+    classes: VEGETATION_EXTENT_CLASSES,
+    renderType: "terrainDrapedPolygons",
   },
 };
 
@@ -379,6 +404,15 @@ export function createHydrologyLayer(dataset) {
       slot.loaded = false;
       slot.sampler = null;
     }
+    // Force silt samplers to rebuild when overlay URL is unchanged but
+    // sampler code / PNG content changed (same public path).
+    if (
+      slot.loaded &&
+      (id === "silt_classification" || id === "silt_volume_surface") &&
+      slot.sampler?.kind !== id
+    ) {
+      slot.sampler = null;
+    }
     if (slot.loaded) {
       if (id === "bank_erosion" && !slot.sampler) {
         slot.sampler = await createBankErosionSampler(def).catch(() => null);
@@ -390,7 +424,10 @@ export function createHydrologyLayer(dataset) {
         (id === "landuse_lulc" || id === "silt_classification" || id === "silt_volume_surface") &&
         !slot.sampler
       ) {
-        slot.sampler = await createLandUseSampler(def, id).catch(() => null);
+        slot.sampler = await createLandUseSampler(def, id).catch((err) => {
+          console.warn(`[${id}] hover sampler unavailable`, err);
+          return null;
+        });
       }
       return;
     }
@@ -434,11 +471,9 @@ export function createHydrologyLayer(dataset) {
         lift: id === "bank_erosion" ? Math.max(lift, 1.2) : lift,
         opacity: id === "bank_erosion" ? 1 : opacity,
         version: GEO_UV_VERSION,
-        // Smoothed overlay: linear filter (not nearest) for anti-aliased edges
-        nearest:
-          id === "landuse_lulc" ||
-          id === "silt_classification" ||
-          id === "silt_volume_surface",
+        // Classification: nearest keeps only legend class colors.
+        // Volume: linear softens the continuous ramp.
+        nearest: id === "landuse_lulc" || id === "silt_classification",
         highContrast:
           id === "bank_erosion" || id === "silt_classification" || id === "silt_volume_surface",
         animateBankErosion: id === "bank_erosion",
@@ -1580,8 +1615,12 @@ async function createBankErosionSampler(def) {
 
 /**
  * LULC / silt draped overlay sampler — same UV as buildDrapedGridMesh (flipV).
+ * Silt overlays are upscaled (~12k px) — use a dedicated downsampled sampler.
  */
 async function createLandUseSampler(def, id) {
+  if (id === "silt_classification" || id === "silt_volume_surface") {
+    return createSiltOverlaySampler(def, id);
+  }
   const classes =
     (Array.isArray(def.legendClasses) && def.legendClasses.length
       ? def.legendClasses
@@ -1600,6 +1639,196 @@ async function createLandUseSampler(def, id) {
       pct: c.pct || c.range || null,
     })),
   });
+}
+
+/**
+ * Decode silt classification / volume overlays for hover.
+ * - Classification: snap to discrete legend colors (Low → Very High)
+ * - Volume: project pixel RGB onto the white→brown ramp → numeric 0–94.31
+ * Downsamples large smoothed PNGs so getImageData stays reliable on Windows.
+ */
+async function createSiltOverlaySampler(def, id) {
+  const box = def.bounds;
+  const west = Number(box.west);
+  const east = Number(box.east);
+  const north = Number(box.north);
+  const south = Number(box.south);
+  if (![west, east, north, south].every(Number.isFinite)) {
+    throw new Error(`${id} sampler bounds invalid`);
+  }
+
+  const isVolume = id === "silt_volume_surface";
+  const rawClasses =
+    (Array.isArray(def.legendClasses) && def.legendClasses.length
+      ? def.legendClasses
+      : null) ||
+    (Array.isArray(def.classes) && def.classes.length ? def.classes : null) ||
+    (isVolume ? SILT_VOLUME_CLASSES : SILT_CLASS_CLASSES);
+
+  const classes = rawClasses.map((c, i) => {
+    const hex = normalizeHex(c.color) || "#888888";
+    const rgb = hexToRgb(hex);
+    const value =
+      Number.isFinite(Number(c.value))
+        ? Number(c.value)
+        : isVolume
+          ? (i / Math.max(1, rawClasses.length - 1)) * SILT_VOLUME_MAX
+          : null;
+    return {
+      id: c.id || `class_${i}`,
+      label: c.label,
+      color: hex,
+      pct: c.pct || c.range || null,
+      value,
+      r: rgb.r,
+      g: rgb.g,
+      b: rgb.b,
+    };
+  });
+
+  const abs = def.overlay.startsWith("http")
+    ? def.overlay
+    : new URL(def.overlay, window.location.origin).href;
+  const res = await fetch(abs, { cache: "no-store" });
+  if (!res.ok) throw new Error(`${id} sampler image unavailable (${res.status})`);
+  const blob = await res.blob();
+  const full = await createImageBitmap(blob);
+  const maxW = 2048;
+  const scale = Math.min(1, maxW / Math.max(1, full.width));
+  const width = Math.max(1, Math.round(full.width * scale));
+  const height = Math.max(1, Math.round(full.height * scale));
+  const canvas = document.createElement("canvas");
+  canvas.width = width;
+  canvas.height = height;
+  const ctx = canvas.getContext("2d", { willReadFrequently: true });
+  ctx.imageSmoothingEnabled = !isVolume ? false : true;
+  ctx.drawImage(full, 0, 0, width, height);
+  full.close?.();
+  const { data } = ctx.getImageData(0, 0, width, height);
+
+  function rgbToHex(r, g, b) {
+    const h = (n) => n.toString(16).padStart(2, "0");
+    return `#${h(r)}${h(g)}${h(b)}`;
+  }
+
+  /** Project RGB onto piecewise-linear legend ramp → continuous value. */
+  function volumeFromRgb(r, g, b) {
+    if (classes.length < 2) {
+      return { value: classes[0]?.value ?? 0, color: classes[0]?.color, label: classes[0]?.label };
+    }
+    let bestD = Infinity;
+    let bestValue = 0;
+    let bestColor = classes[0].color;
+    let bestLabel = classes[0].label;
+    for (let i = 0; i < classes.length - 1; i++) {
+      const a = classes[i];
+      const c = classes[i + 1];
+      const abx = c.r - a.r;
+      const aby = c.g - a.g;
+      const abz = c.b - a.b;
+      const abLen2 = abx * abx + aby * aby + abz * abz || 1;
+      let t = ((r - a.r) * abx + (g - a.g) * aby + (b - a.b) * abz) / abLen2;
+      t = Math.max(0, Math.min(1, t));
+      const pr = a.r + abx * t;
+      const pg = a.g + aby * t;
+      const pb = a.b + abz * t;
+      const d = (r - pr) ** 2 + (g - pg) ** 2 + (b - pb) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        const va = Number.isFinite(a.value) ? a.value : 0;
+        const vc = Number.isFinite(c.value) ? c.value : SILT_VOLUME_MAX;
+        bestValue = va + (vc - va) * t;
+        bestColor = rgbToHex(
+          Math.round(pr),
+          Math.round(pg),
+          Math.round(pb),
+        );
+        // Prefer the nearer stop label for the chip text
+        bestLabel = t < 0.5 ? a.label : c.label;
+      }
+    }
+    // Also allow snap to endpoint classes (outside segment projection)
+    for (const c of classes) {
+      const d = (c.r - r) ** 2 + (c.g - g) ** 2 + (c.b - b) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        bestValue = Number.isFinite(c.value) ? c.value : bestValue;
+        bestColor = c.color;
+        bestLabel = c.label;
+      }
+    }
+    return {
+      value: Math.max(0, Math.min(SILT_VOLUME_MAX, bestValue)),
+      color: bestColor,
+      label: bestLabel,
+      matchDist: Math.sqrt(bestD),
+    };
+  }
+
+  function classFromRgb(r, g, b) {
+    let best = null;
+    let bestD = Infinity;
+    for (const c of classes) {
+      const d = (c.r - r) ** 2 + (c.g - g) ** 2 + (c.b - b) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = c;
+      }
+    }
+    // Remapped overlays are exact legend colors; allow some edge bleed.
+    if (!best || bestD > 110 * 110) return null;
+    return best;
+  }
+
+  function sampleLonLat(lon, lat) {
+    if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
+    if (lon < west || lon > east || lat < south || lat > north) return null;
+    const texU = (lon - west) / (east - west);
+    const texV = (north - lat) / (north - south);
+    const px = Math.min(width - 1, Math.max(0, Math.round(texU * (width - 1))));
+    const py = Math.min(height - 1, Math.max(0, Math.round(texV * (height - 1))));
+    const i = (py * width + px) * 4;
+    const r = data[i];
+    const g = data[i + 1];
+    const b = data[i + 2];
+    const a = data[i + 3];
+    if (a < 20) return null;
+    if (r + g + b < 24) return null;
+
+    if (isVolume) {
+      const hit = volumeFromRgb(r, g, b);
+      const value = hit.value;
+      const valueLabel =
+        value >= 10 ? value.toFixed(1) : value.toFixed(2);
+      return {
+        class_label: valueLabel,
+        label: valueLabel,
+        id: "volume",
+        color: hit.color || rgbToHex(r, g, b),
+        sampleColor: rgbToHex(r, g, b),
+        pct: null,
+        value,
+        valueMax: SILT_VOLUME_MAX,
+        unit: "",
+        rampLabel: hit.label,
+        class: valueLabel,
+      };
+    }
+
+    const best = classFromRgb(r, g, b);
+    if (!best) return null;
+    return {
+      class_label: best.label,
+      label: best.label,
+      id: best.id,
+      color: best.color,
+      sampleColor: rgbToHex(r, g, b),
+      pct: best.pct,
+      class: best.label,
+    };
+  }
+
+  return { sampleLonLat, width, height, west, east, north, south, kind: id };
 }
 
 /**

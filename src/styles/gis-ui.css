@@ -1714,6 +1714,40 @@
   color: #e2e8f0;
   font-size: 11px;
 }
+
+/* Flood sim open — stop HUD stacking (fishing / river-data / flood card) */
+#ui-root.gis-ui.flood-sim-open .fishing-panel,
+#ui-root.gis-ui.flood-sim-open .hud.fishing-panel,
+#ui-root.gis-ui.api-flood-mode .fishing-panel,
+#ui-root.gis-ui.api-flood-mode .hud.fishing-panel {
+  display: none !important;
+}
+#ui-root.gis-ui.flood-sim-open .flood-sim-bar,
+#ui-root.gis-ui.api-flood-mode .flood-sim-bar {
+  z-index: 32;
+}
+#ui-root.gis-ui.api-flood-mode .flood-result-panel {
+  top: calc(max(10px, env(safe-area-inset-top)) + 108px);
+  left: max(14px, env(safe-area-inset-left));
+  z-index: 30;
+  max-height: min(42vh, 360px);
+  overflow-y: auto;
+}
+#ui-root.gis-ui.api-flood-mode .river-data-panel,
+#ui-root.gis-ui.api-flood-mode .river-data-fab {
+  display: none !important;
+}
+#ui-root.gis-ui.api-flood-mode .flood-playback {
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 92px);
+  z-index: 31;
+  right: auto;
+}
+#ui-root.gis-ui.flood-sim-open .weather-widget,
+#ui-root.gis-ui.api-flood-mode .weather-widget {
+  opacity: 0.92;
+}
 .flood-result-panel__head,
 .flood-info-panel__head {
   display: flex;

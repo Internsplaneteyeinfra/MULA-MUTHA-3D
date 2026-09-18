@@ -5,12 +5,18 @@ import { standTreeUpright } from "./treeOrient.js";
 
 const cache = new Map();
 
+function treeAssetUrl(file) {
+  const base = (typeof import.meta !== "undefined" && import.meta.env?.BASE_URL) || "/";
+  const root = String(base).endsWith("/") ? base : `${base}/`;
+  return `${root}assets/trees/${file}`;
+}
+
 export const TREE_MANIFEST = [
-  { id: "palm", url: "/assets/trees/palm.glb", nativeW: 6, nativeD: 6, nativeH: 10, tags: ["palm", "areca", "cocos"] },
-  { id: "broadleaf", url: "/assets/trees/broadleaf.glb", nativeW: 7, nativeD: 7, nativeH: 9.5, tags: ["broadleaf", "deciduous", "alan"] },
-  { id: "conifer", url: "/assets/trees/conifer.glb", nativeW: 6, nativeD: 6, nativeH: 11, tags: ["conifer", "pine", "cedar"] },
-  { id: "birch", url: "/assets/trees/birch.glb", nativeW: 5, nativeD: 5, nativeH: 8.5, tags: ["birch", "betula"] },
-  { id: "grass", url: "/assets/trees/grass.glb", nativeW: 1.2, nativeD: 1.2, nativeH: 1.4, tags: ["grass", "shrub", "plant"] },
+  { id: "palm", url: treeAssetUrl("palm.glb"), nativeW: 6, nativeD: 6, nativeH: 10, tags: ["palm", "areca", "cocos"] },
+  { id: "broadleaf", url: treeAssetUrl("broadleaf.glb"), nativeW: 7, nativeD: 7, nativeH: 9.5, tags: ["broadleaf", "deciduous", "alan"] },
+  { id: "conifer", url: treeAssetUrl("conifer.glb"), nativeW: 6, nativeD: 6, nativeH: 11, tags: ["conifer", "pine", "cedar"] },
+  { id: "birch", url: treeAssetUrl("birch.glb"), nativeW: 5, nativeD: 5, nativeH: 8.5, tags: ["birch", "betula"] },
+  { id: "grass", url: treeAssetUrl("grass.glb"), nativeW: 1.2, nativeD: 1.2, nativeH: 1.4, tags: ["grass", "shrub", "plant"] },
 ];
 
 /** Kick off browser prefetch for tree GLBs (meshopt-compressed). */

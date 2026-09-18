@@ -38,7 +38,10 @@ export function createTooltip(root) {
     show(x, y, info) {
       el.classList.add("visible");
       el.classList.toggle("tooltip--survey", !!info.rawSurveyPoint);
-      el.classList.toggle("tooltip--bank-erosion", !!info.bankErosionHover);
+      el.classList.toggle(
+        "tooltip--bank-erosion",
+        !!info.bankErosionHover || !!info.landUseHover,
+      );
       el.classList.toggle("tooltip--lithology", !!info.lithologyClick);
       el.classList.toggle("is-garbage-panel", !!info.hydrologyPollution);
       if (info.lithologyClick) {
@@ -78,11 +81,21 @@ export function createTooltip(root) {
         return;
       }
       if (info.landUseHover) {
-        const color = info.color || "#9fd98a";
-        const label = info.label || info.class_label || "—";
+        const color = info.sampleColor || info.color || "#9fd98a";
         const title = info.layerTitle || "LAND USE";
-        const extra = info.pct
-          ? `<span class="be-pct">${info.pct}</span>`
+        const isVolume = info.siltVolume || /volume/i.test(String(title));
+        const label = isVolume
+          ? info.value != null
+            ? Number(info.value).toFixed(Number(info.value) >= 10 ? 1 : 2)
+            : info.label || "—"
+          : info.label || info.class_label || "—";
+        const extra = isVolume
+          ? `<span class="be-pct">/ ${Number(info.valueMax ?? 94.31).toFixed(1)}</span>`
+          : info.pct
+            ? `<span class="be-pct">${info.pct}</span>`
+            : "";
+        const sub = isVolume
+          ? `<div class="be-row be-row-muted"><span class="be-label">${info.rampLabel ? `Near ${info.rampLabel}` : "Volume scale"}</span></div>`
           : "";
         el.innerHTML = `
           <div class="be-card lu-hover-card">
@@ -93,6 +106,7 @@ export function createTooltip(root) {
                 <span class="be-label">${label}</span>
                 ${extra}
               </div>
+              ${sub}
             </div>
           </div>
         `;
@@ -377,6 +391,7 @@ export function mountUI(root, {
   const floodPlayback = mountFloodPlaybackControls(root, {
     onPlay: () => {
       state.apiFlood.isPlaying = true;
+      // Multi-date: spread each scene river→outward; single: same reveal
       window.__MM_SCENE__?.playFloodTimeline?.();
     },
     onPause: () => {
@@ -385,14 +400,21 @@ export function mountUI(root, {
     },
     onReplay: () => {
       state.apiFlood.currentScene = 0;
-      window.__MM_SCENE__?.setFloodScene?.(0);
-      window.__MM_SCENE__?.playFloodTimeline?.();
+      state.apiFlood.isPlaying = true;
+      window.__MM_SCENE__?.setFloodScene?.(0, { animate: true });
+      // If only one scene, ensure reveal runs
+      if ((state.apiFlood.scenes?.length || 0) < 2) {
+        window.__MM_SCENE__?.replayFloodSimulation?.();
+      } else {
+        window.__MM_SCENE__?.playFloodTimeline?.();
+      }
       floodPlayback.setIndex(0);
       syncApiFloodFromLayer();
     },
     onSeek: (index) => {
       state.apiFlood.currentScene = index;
-      window.__MM_SCENE__?.setFloodScene?.(index);
+      // Scrub jumps to full extent for that date (instant)
+      window.__MM_SCENE__?.setFloodScene?.(index, { animate: false });
       syncApiFloodFromLayer();
     },
   });
@@ -433,6 +455,8 @@ export function mountUI(root, {
     floodBar?.setStatus("");
     floodInfo.hide();
     floodPlayback.hide();
+    root.classList.remove("api-flood-mode");
+    if (!state.showFloodBar) root.classList.remove("flood-sim-open");
     state.apiFlood = {
       ...state.apiFlood,
       status: "idle",
@@ -462,6 +486,10 @@ export function mountUI(root, {
     apply(result);
     const scenes = result.scenes || [];
     state.floodMode = "api";
+    root.classList.add("api-flood-mode", "flood-sim-open");
+    root.querySelectorAll(".fishing-panel, .hud.fishing-panel").forEach((el) => {
+      el.hidden = true;
+    });
     state.apiFlood = {
       ...state.apiFlood,
       status: "ready",
@@ -494,7 +522,7 @@ export function mountUI(root, {
     setLpFloodStatus("Complete", "ok");
     syncFloodSimStats();
     syncIllustrativeDisabled();
-    window.__MM_SCENE__?.playFloodSimulation?.();
+    window.__MM_SCENE__?.replayFloodSimulation?.();
     setTimeout(() => window.__MM_SCENE__?.focusFloodSimulation?.(), 80);
   }
 
@@ -740,11 +768,19 @@ export function mountUI(root, {
     state.showFloodBar = open;
     if (floodBar?.el) floodBar.el.hidden = !open;
     nav.setFloodPressed?.(open);
+    root.classList.toggle("flood-sim-open", !!open);
     // When opening Flood controls, keep the toolbar easy to find
     if (open && floodBar?.el) {
       floodBar.el.classList.add("is-open");
+      // Hide fishing HUD so it doesn't stack over flood result / playback
+      root.querySelectorAll(".fishing-panel, .hud.fishing-panel").forEach((el) => {
+        el.hidden = true;
+      });
     } else if (floodBar?.el) {
       floodBar.el.classList.remove("is-open");
+    }
+    if (!open && state.floodMode !== "api") {
+      root.classList.remove("api-flood-mode");
     }
   }
 

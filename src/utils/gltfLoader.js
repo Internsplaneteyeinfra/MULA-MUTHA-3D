@@ -10,9 +10,13 @@ let meshoptReady = null;
 
 function ensureMeshopt() {
   if (!meshoptReady) {
-    meshoptReady = Promise.resolve(MeshoptDecoder.ready).catch((err) => {
-      console.warn("[gltf] MeshoptDecoder ready failed", err?.message || err);
-    });
+    meshoptReady = Promise.resolve(MeshoptDecoder.ready).then(
+      () => true,
+      (err) => {
+        console.warn("[gltf] MeshoptDecoder ready failed — compressed tree GLBs may fall back", err?.message || err);
+        return false;
+      },
+    );
   }
   return meshoptReady;
 }

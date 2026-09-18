@@ -1,0 +1,12 @@
+{
+  "source": "public/data/vegetation.geojson",
+  "features": 131,
+  "classes": {
+    "Mixed / Diverse": 49,
+    "Trees": 12,
+    "Shrub / Scrub": 3,
+    "Grass / Herbaceous": 67
+  },
+  "geojson": "/data/hydrology/vegetation/vegetation_extent.geojson",
+  "kml": "/data/hydrology/vegetation/vegetation_extent.kml"
+}

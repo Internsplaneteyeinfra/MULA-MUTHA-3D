@@ -12,11 +12,11 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
   panel.setAttribute("aria-label", "Flood scene playback");
 
   panel.innerHTML = `
-    <div class="flood-playback__label">FLOOD PLAYBACK</div>
+    <div class="flood-playback__label">FLOOD PLAYBACK · river → plains</div>
     <div class="flood-playback__controls">
-      <button type="button" class="flood-playback-btn" id="flood-pb-play" title="Play scenes">▶ Play</button>
+      <button type="button" class="flood-playback-btn" id="flood-pb-play" title="Play flood spread from river outward">▶ Play</button>
       <button type="button" class="flood-playback-btn" id="flood-pb-pause" title="Pause">❚❚ Pause</button>
-      <button type="button" class="flood-playback-btn" id="flood-pb-replay" title="Replay">↺ Replay</button>
+      <button type="button" class="flood-playback-btn" id="flood-pb-replay" title="Replay from river">↺ Replay</button>
     </div>
     <div class="flood-playback__timeline">
       <span class="flood-playback-track-end" aria-hidden="true">▐</span>

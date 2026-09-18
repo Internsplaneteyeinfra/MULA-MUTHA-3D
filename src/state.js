@@ -129,6 +129,8 @@ export const state = {
   chainageTipActive: false,
   /** True while bank-erosion class card owns the map tooltip (sticky or hover). */
   bankErosionTipActive: false,
+  /** True while LULC / silt hover card owns the map tooltip. */
+  landUseTipActive: false,
   /** True while Geology → Bank Erosion overlay is the active focus mode. */
   bankErosionMode: false,
   /** True while Geology → Spectral Lithology overlay is active. */

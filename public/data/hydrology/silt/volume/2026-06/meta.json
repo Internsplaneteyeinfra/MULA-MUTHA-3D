@@ -1,0 +1,272 @@
+{
+  "period": "2026-06",
+  "kind": "volume",
+  "source": "Jun_2026_Silt_Volume_Surface.kmz",
+  "mode": "gradient",
+  "bounds": {
+    "north": 18.5473360082,
+    "south": 18.5207458757,
+    "east": 73.9935113007,
+    "west": 73.8549012524
+  },
+  "smoothing": {
+    "title": "Silt Volume Surface - June 2026",
+    "n_features": 21829,
+    "n_classes": 24,
+    "class_names": [
+      "Class 0",
+      "Class 1",
+      "Class 2",
+      "Class 3",
+      "Class 4",
+      "Class 5",
+      "Class 6",
+      "Class 7",
+      "Class 8",
+      "Class 9",
+      "Class 10",
+      "Class 11",
+      "Class 12",
+      "Class 13",
+      "Class 14",
+      "Class 15",
+      "Class 16",
+      "Class 17",
+      "Class 18",
+      "Class 19",
+      "Class 20",
+      "Class 21",
+      "Class 22",
+      "Class 23"
+    ],
+    "legend": [
+      {
+        "name": "Class 0",
+        "rgb": [
+          248,
+          184,
+          72
+        ],
+        "hex": "#F8B848"
+      },
+      {
+        "name": "Class 1",
+        "rgb": [
+          248,
+          168,
+          56
+        ],
+        "hex": "#F8A838"
+      },
+      {
+        "name": "Class 2",
+        "rgb": [
+          248,
+          224,
+          144
+        ],
+        "hex": "#F8E090"
+      },
+      {
+        "name": "Class 3",
+        "rgb": [
+          248,
+          200,
+          96
+        ],
+        "hex": "#F8C860"
+      },
+      {
+        "name": "Class 4",
+        "rgb": [
+          248,
+          208,
+          112
+        ],
+        "hex": "#F8D070"
+      },
+      {
+        "name": "Class 5",
+        "rgb": [
+          248,
+          152,
+          40
+        ],
+        "hex": "#F89828"
+      },
+      {
+        "name": "Class 6",
+        "rgb": [
+          248,
+          176,
+          64
+        ],
+        "hex": "#F8B040"
+      },
+      {
+        "name": "Class 7",
+        "rgb": [
+          96,
+          32,
+          0
+        ],
+        "hex": "#602000"
+      },
+      {
+        "name": "Class 8",
+        "rgb": [
+          248,
+          160,
+          48
+        ],
+        "hex": "#F8A030"
+      },
+      {
+        "name": "Class 9",
+        "rgb": [
+          248,
+          216,
+          128
+        ],
+        "hex": "#F8D880"
+      },
+      {
+        "name": "Class 10",
+        "rgb": [
+          248,
+          216,
+          120
+        ],
+        "hex": "#F8D878"
+      },
+      {
+        "name": "Class 11",
+        "rgb": [
+          248,
+          192,
+          80
+        ],
+        "hex": "#F8C050"
+      },
+      {
+        "name": "Class 12",
+        "rgb": [
+          248,
+          200,
+          88
+        ],
+        "hex": "#F8C858"
+      },
+      {
+        "name": "Class 13",
+        "rgb": [
+          248,
+          232,
+          160
+        ],
+        "hex": "#F8E8A0"
+      },
+      {
+        "name": "Class 14",
+        "rgb": [
+          248,
+          208,
+          104
+        ],
+        "hex": "#F8D068"
+      },
+      {
+        "name": "Class 15",
+        "rgb": [
+          248,
+          216,
+          136
+        ],
+        "hex": "#F8D888"
+      },
+      {
+        "name": "Class 16",
+        "rgb": [
+          248,
+          232,
+          168
+        ],
+        "hex": "#F8E8A8"
+      },
+      {
+        "name": "Class 17",
+        "rgb": [
+          240,
+          128,
+          24
+        ],
+        "hex": "#F08018"
+      },
+      {
+        "name": "Class 18",
+        "rgb": [
+          232,
+          120,
+          24
+        ],
+        "hex": "#E87818"
+      },
+      {
+        "name": "Class 19",
+        "rgb": [
+          248,
+          240,
+          176
+        ],
+        "hex": "#F8F0B0"
+      },
+      {
+        "name": "Class 20",
+        "rgb": [
+          248,
+          240,
+          184
+        ],
+        "hex": "#F8F0B8"
+      },
+      {
+        "name": "Class 21",
+        "rgb": [
+          248,
+          232,
+          152
+        ],
+        "hex": "#F8E898"
+      },
+      {
+        "name": "Class 22",
+        "rgb": [
+          240,
+          136,
+          32
+        ],
+        "hex": "#F08820"
+      },
+      {
+        "name": "Class 23",
+        "rgb": [
+          232,
+          112,
+          16
+        ],
+        "hex": "#E87010"
+      }
+    ],
+    "pixel_size_m": null,
+    "grid": "3086x592",
+    "source_type": "ground_overlay_png",
+    "is_batch": false,
+    "combined": false,
+    "n_source_files": 1,
+    "source_files": [
+      "Jun_2026_Silt_Volume_Surface"
+    ]
+  },
+  "overlay": "/data/hydrology/silt/volume/2026-06/overlay.png",
+  "legend": "/data/hydrology/silt/volume/2026-06/legend.png"
+}

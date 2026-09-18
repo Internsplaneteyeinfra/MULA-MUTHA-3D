@@ -223,11 +223,10 @@ function loadImage(src) {
 }
 
 function isFloodPixel(r, g, b, a) {
-  if (a < 12) return false;
-  // API Flood ≈ #FF0000 (allow anti-alias / compression)
-  if (r >= 140 && r > g + 35 && r > b + 35) return true;
-  // Some exports use bright magenta-red
-  if (r >= 160 && g <= 100 && b <= 120 && r >= g && r >= b) return true;
+  if (a < 8) return false;
+  // API Flood ≈ #FF0000 (allow anti-alias / compression / orange-red)
+  if (r >= 120 && r > g + 25 && r > b + 25) return true;
+  if (r >= 150 && g <= 110 && b <= 130 && r >= g && r >= b) return true;
   return false;
 }
 

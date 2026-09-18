@@ -8,8 +8,10 @@ const MAX_TREES = 11000;
 /**
  * Vegetation from OSM trees + parks + riparian buffer.
  * Uses reference GLB models (palm, broadleaf, conifer, birch, grass).
+ * @param {object} dataset
+ * @param {{ maxTrees?: number }} [opts]
  */
-export async function createVegetation(dataset) {
+export async function createVegetation(dataset, opts = {}) {
   const stations = dataset.corridor.stations;
   const green = dataset.osm?.green || dataset.osm?.vegetation || [];
   const buildings = dataset.osm?.buildings || [];
@@ -18,6 +20,7 @@ export async function createVegetation(dataset) {
   const rng = mulberry(33);
   const placements = [];
   const pickables = [];
+  const maxTrees = Math.max(200, Number(opts.maxTrees) || MAX_TREES);
 
   for (const ot of osmTrees) {
     if (blocked(ot.x, ot.z, buildings, roads, stations, true)) continue;
@@ -93,7 +96,7 @@ export async function createVegetation(dataset) {
     }
   }
 
-  const capped = placements.slice(0, MAX_TREES);
+  const capped = placements.slice(0, maxTrees);
   for (const p of capped) {
     p.y = terrainHeightAt(p.x, p.z, stations);
   }
@@ -119,6 +122,7 @@ export async function createVegetation(dataset) {
     const mesh = new THREE.InstancedMesh(proto.geometry, proto.material, list.length);
     mesh.castShadow = true;
     mesh.receiveShadow = true;
+    mesh.frustumCulled = false;
     mesh.name = `trees:${assetId}`;
 
     for (let i = 0; i < list.length; i++) {
@@ -136,15 +140,23 @@ export async function createVegetation(dataset) {
     }
     mesh.instanceMatrix.needsUpdate = true;
     if (mesh.instanceColor) mesh.instanceColor.needsUpdate = true;
+    mesh.computeBoundingSphere?.();
     group.add(mesh);
   }
 
   // Procedural fallback if GLBs missing
   if (!byAsset.size) {
+    console.warn("[vegetation] GLB prototypes missing — using procedural trees", {
+      placements: capped.length,
+      osmTrees: osmTrees.length,
+      green: green.length,
+    });
     group.add(createProceduralFallback(capped.length ? capped : [{ x: 0, z: 0, y: 0, scale: 1, rotY: 0, kind: "park" }], stations, rng));
   }
 
   group.userData.pickables = pickables;
+  group.userData.treeCount = capped.length;
+  group.userData.glbAssets = [...byAsset.keys()];
   return group;
 }
 

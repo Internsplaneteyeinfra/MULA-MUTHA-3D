@@ -49,9 +49,10 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   ] = await Promise.all([
     fetchFirst([roadsUrl, roadsLegacy]),
     fetchFirst([buildingsUrl, buildingsLegacy]),
-    lite ? Promise.resolve(null) : fetchFirst([vegUrl, greenLegacy]),
-    lite ? Promise.resolve(null) : fetchOptional(treesUrl),
-    lite ? Promise.resolve(null) : fetchOptional(treeRowsUrl),
+    // Always load vegetation + trees — lite only skips heavy metadata/water extras
+    fetchFirst([vegUrl, greenLegacy]),
+    fetchOptional(treesUrl),
+    fetchOptional(treeRowsUrl),
     lite ? Promise.resolve(null) : fetchOptional(waterUrl),
     lite ? Promise.resolve(null) : fetchOptional(metaUrl),
     lite ? Promise.resolve(null) : fetchOptional(kmlValUrl),

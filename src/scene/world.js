@@ -312,8 +312,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   prefetchTreeAssets();
   const loadUrbanLayers = async () => {
     try {
+      const lowTier = quality.get().tier === "low";
+      // Lite OSM still loads trees/vegetation; only skips heavy extras
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
-        const lowTier = quality.get().tier === "low";
         const osm = await dataset.loadOsmLater({ lite: lowTier });
         dataset.osm = osm;
         if (osm.alignment && !osm.alignment.ok) {
@@ -328,30 +329,32 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         }
         dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
       }
-      const lowTier = quality.get().tier === "low";
       const gUrban = await createUrban(dataset);
       urbanResult = gUrban;
       urbanGroup.add(gUrban);
 
-      if (!lowTier) {
-        // Trees after buildings — compressed GLBs (~0.6MB total) should be fast
-        createVegetation(dataset)
-          .then((gTrees) => {
-            treesResult = gTrees;
-            treesGroup.add(gTrees);
-          })
-          .catch((err) => console.warn("Vegetation GLB load:", err?.message || err));
-      }
+      // Always plant trees — low tier uses a lower instance cap, never skips
+      const maxTrees = quality.get().maxTrees || (lowTier ? 3500 : 11000);
+      createVegetation(dataset, { maxTrees })
+        .then((gTrees) => {
+          treesResult = gTrees;
+          treesGroup.add(gTrees);
+          console.info("[vegetation] OSM trees ready", {
+            meshes: gTrees.children?.length || 0,
+            maxTrees,
+            osmTrees: dataset.osm?.trees?.length || 0,
+            green: dataset.osm?.green?.length || 0,
+          });
+        })
+        .catch((err) => console.warn("Vegetation GLB load:", err?.message || err));
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
     }
 
     // JalNetra Vegetation Type — independent layer; does not block terrain
-    if (quality.get().tier !== "low") {
-      loadJalnetraVegetation().catch((err) => {
-        console.warn("Vegetation Type API:", err?.message || err);
-      });
-    }
+    loadJalnetraVegetation().catch((err) => {
+      console.warn("Vegetation Type API:", err?.message || err);
+    });
   };
 
   async function loadJalnetraVegetation() {
@@ -557,12 +560,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         hideChainageTip();
         return;
       }
+      // Land-use / silt / geology / bank-erosion own the shared tooltip on hover.
+      const hydroId = hydrologyLayer.userData?.getActiveId?.();
       if (
         state.riverMeasureActive ||
         state.bankErosionTipActive ||
         state.lithologyTipActive ||
-        state.joiningStreamsTipActive
+        state.joiningStreamsTipActive ||
+        state.landUseTipActive ||
+        hydroId === "landuse_lulc" ||
+        hydroId === "silt_classification" ||
+        hydroId === "silt_volume_surface" ||
+        hydroId === "vegetation_extent" ||
+        hydroId === "bank_erosion" ||
+        hydroId === "geology"
       ) {
+        if (state.chainageTipActive) hideChainageTip();
         return;
       }
       const hit = resolveChainageUnderCursor(e, 70);
@@ -922,7 +935,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     /**
      * Land Use thematic layers (mutually exclusive with other hydrology overlays).
-     * vegetation_extent → JalNetra Mula–Mutha vegetation API (when ready).
+     * vegetation_extent → local OSM vegetation polygons (+ optional JalNetra trees).
      * landuse_lulc → Mula–Mutha LULC overlays (2021–2026).
      * silt_classification / silt_volume_surface → monthly silt rasters (2026).
      */
@@ -934,51 +947,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
 
       if (id === "vegetation_extent") {
-        // Only clear hydrology for vegetation (non-hydrology path).
-        // For LULC / silt, showHydrologyLayer already clears prior overlays —
-        // calling hideAll() first races pendingShowId and can mark loads superseded.
-        hydrologyLayer.userData?.hideAll?.();
-        if (
-          state.vegetationStatus === "ready" &&
-          vegApiResult &&
-          !vegApiResult.userData?.empty &&
-          (vegApiResult.userData?.instanceCount > 0 || vegApiResult.children?.length)
-        ) {
-          vegApiGroup.visible = true;
-          vegApiResult.visible = true;
-          const legend =
-            vegApiResult.userData?.vegetationLegend || {
-              type: "classes",
-              title: "VEGETATION EXTENT",
-              classes: [
-                { label: "Trees", color: "#2d6a4f" },
-                { label: "Shrub / Scrub", color: "#52b788" },
-                { label: "Grass / Herbaceous", color: "#95d5b2" },
-                { label: "Mixed / Diverse", color: "#74c69d" },
-              ],
-            };
-          return {
-            ok: true,
-            id,
-            available: true,
-            legend,
-            stats: vegApiResult.userData?.vegetationMeta || null,
-          };
-        }
-        const reason =
-          state.vegetationMessage ||
-          (state.vegetationStatus === "loading"
-            ? "JalNetra vegetation analysis is still running for this AOI."
-            : "No verified Mula–Mutha vegetation extent is available yet.");
-        return {
-          ok: true,
-          id,
-          available: false,
-          message: "DATA UNAVAILABLE",
-          reason,
-          legend: null,
-        };
+        // Hide API instance trees while polygon extent layer owns the HUD.
+        vegApiGroup.visible = false;
+        if (vegApiResult) vegApiResult.visible = false;
+        return this.showHydrologyLayer(id);
       }
+
+      // Leaving vegetation — keep API trees off until explicitly re-enabled elsewhere
+      vegApiGroup.visible = false;
+      if (vegApiResult) vegApiResult.visible = false;
 
       return this.showHydrologyLayer(id);
     },
@@ -1181,7 +1158,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     applyFloodSimulation(result) {
       window.__MM_SCENE__.enterApiFloodMode();
-      apiFloodLayer.loadFloodResult(result);
+      try {
+        apiFloodLayer.loadFloodResult(result);
+      } catch (err) {
+        console.error("[apiFlood] apply failed", err);
+        state.floodSimStatus = "error";
+        state.floodSimMessage = err?.message || "Flood visualization failed.";
+        throw err;
+      }
       apiFloodLayer.setVisible(state.showFloodSimulation !== false && state.apiFlood?.showLayer !== false);
       state.floodSimInfo = result?.info || apiFloodLayer.userData?.info || null;
       state.floodSimStatus = "ready";
@@ -1197,7 +1181,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     playFloodSimulation() {
       if (!apiFloodLayer.userData?.hasFlood) return;
       apiFloodLayer.setVisible(state.showFloodSimulation !== false);
-      apiFloodLayer.play();
+      apiFloodLayer.replay();
     },
     playFloodTimeline() {
       if (!apiFloodLayer.userData?.hasFlood) return;
@@ -1207,9 +1191,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     pauseFloodSimulation() {
       apiFloodLayer.pause?.();
     },
-    setFloodScene(index) {
-      apiFloodLayer.setSceneIndex?.(index, { animate: false });
-      apiFloodLayer.setProgress?.(1);
+    setFloodScene(index, opts = {}) {
+      const animate = opts.animate === true;
+      apiFloodLayer.setSceneIndex?.(index, { animate });
+      if (!animate) apiFloodLayer.setProgress?.(1);
     },
     replayFloodSimulation() {
       if (!apiFloodLayer.userData?.hasFlood) return;
