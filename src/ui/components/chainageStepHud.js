@@ -31,7 +31,9 @@ export function mountChainageStepHud(root, dataset) {
       title="Back ${intervalM} m" aria-label="Previous ${intervalM} m">
       <span class="chainage-step-arrow" aria-hidden="true">←</span>
     </button>
-    <span class="chainage-step-station" id="chainage-step-station">—</span>
+    <div class="chainage-step-center">
+      <span class="chainage-step-station" id="chainage-step-station">—</span>
+    </div>
     <button type="button" class="chainage-step-btn is-next" id="chainage-step-next"
       title="Forward ${intervalM} m" aria-label="Next ${intervalM} m">
       <span class="chainage-step-arrow" aria-hidden="true">→</span>
@@ -74,12 +76,15 @@ export function mountChainageStepHud(root, dataset) {
   }
 
   function step(dir) {
-    const idx = currentIndex();
-    if (idx < 0) return;
-    const nextIdx = Math.min(points.length - 1, Math.max(0, idx + dir));
-    const target = points[nextIdx];
-    if (!target || nextIdx === idx) return;
-    dispatchSelect(Number(target.meters) || 0);
+    const sel = state.selectedChainageMeters;
+    if (sel == null) return;
+    const targetMeters = sel + (dir * intervalM);
+    // Clamp to min/max
+    const minMeters = points[0]?.meters ?? 0;
+    const maxMeters = points[points.length - 1]?.meters ?? 0;
+    const clampedMeters = Math.max(minMeters, Math.min(maxMeters, targetMeters));
+    if (Math.abs(clampedMeters - sel) < 1) return;
+    dispatchSelect(clampedMeters);
   }
 
   prevBtn.addEventListener("click", (e) => {
@@ -100,8 +105,7 @@ export function mountChainageStepHud(root, dataset) {
     if (!show) return;
 
     const idx = currentIndex();
-    const p = idx >= 0 ? points[idx] : null;
-    const label = p?.label || metersToStation(state.selectedChainageMeters);
+    const label = metersToStation(state.selectedChainageMeters);
     stationEl.textContent = label;
 
     prevBtn.disabled = idx <= 0;

@@ -948,6 +948,20 @@ export function createCameraSystem(canvas, dataset) {
       else keepUp.normalize();
       const keepZoom = orthoCamera.zoom;
       zoomTransition = null;
+      const mapDur = opts.dur ?? 0.85;
+      if (mapDur <= 0) {
+        localTransition = null;
+        activeCamera.position.copy(tmpP);
+        controls.target.copy(tmpL);
+        activeCamera.up.copy(keepUp);
+        orthoCamera.zoom = keepZoom;
+        orthoCamera.updateProjectionMatrix();
+        activeCamera.lookAt(controls.target);
+        state.cameraMode = "aerial";
+        state.playing = false;
+        controls.enabled = true;
+        return;
+      }
       localTransition = {
         fromP: activeCamera.position.clone(),
         fromL: controls.target.clone(),
@@ -958,7 +972,7 @@ export function createCameraSystem(canvas, dataset) {
         fromZoom: keepZoom,
         toZoom: keepZoom,
         t: 0,
-        dur: opts.dur ?? 0.85,
+        dur: mapDur,
         releaseMode: "aerial",
       };
       return;
@@ -993,6 +1007,21 @@ export function createCameraSystem(canvas, dataset) {
       activeCamera.updateProjectionMatrix();
     }
 
+    // Instant snap (chainage step/ruler): keep river view, no fly/arc.
+    const snapDur = opts.dur ?? 0.85;
+    if (snapDur <= 0) {
+      zoomTransition = null;
+      localTransition = null;
+      activeCamera.position.copy(tmpP);
+      controls.target.copy(tmpL);
+      activeCamera.up.set(0, 1, 0);
+      activeCamera.lookAt(controls.target);
+      state.cameraMode = "orbit";
+      state.playing = false;
+      controls.enabled = true;
+      return;
+    }
+
     // Prevent OrbitControls from fighting the fly-to mid-tween
     controls.enabled = false;
 
@@ -1012,7 +1041,7 @@ export function createCameraSystem(canvas, dataset) {
     }
 
     // Clear-river hops stay quick/straight; building clears get a longer arc so walls read well.
-    let dur = opts.dur ?? 0.85;
+    let dur = snapDur;
     let ease = opts.ease || "outCubic";
     if (transitLift > 0) {
       dur = Math.max(dur, THREE.MathUtils.clamp(0.95 + hopDist * 0.0012, 1.05, 1.45));

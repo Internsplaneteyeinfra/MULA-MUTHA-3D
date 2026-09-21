@@ -34,3 +34,5 @@ coverage/
 
 # Optional local preview caches
 .cache/
+tmp/
+tmp/

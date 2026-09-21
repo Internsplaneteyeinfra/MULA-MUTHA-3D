@@ -29,3 +29,31 @@ export function formatStation(meters) {
   const value = Math.max(0, Math.round(Number(meters) || 0));
   return `${Math.floor(value / 1000)}+${String(value % 1000).padStart(3, "0")}`;
 }
+
+export const CHAINAGE_DESTINATIONS = [
+  { id: "sangam", name: "Sangam", chainage_m: 622 },
+  { id: "bund-garden", name: "Bund Garden", chainage_m: 3452 },
+  { id: "dhanori", name: "Dhanori", chainage_m: 5902 },
+  { id: "wadgaon-sheri", name: "Wadgaon Sheri", chainage_m: 7532 },
+  { id: "hadapsar", name: "Hadapsar", chainage_m: 9132 },
+  { id: "mundhwa", name: "Mundhwa", chainage_m: 9562 },
+  { id: "kharadi", name: "Kharadi", chainage_m: 10752 },
+  { id: "manjari", name: "Manjari", chainage_m: 15522 }
+];
+
+export function getDestinations(sel) {
+  let prev = null;
+  let next = null;
+  let current = null;
+  for (const dest of CHAINAGE_DESTINATIONS) {
+    // Treat near-hits as arrived so the name banner can grow at the point.
+    if (Math.abs(dest.chainage_m - sel) <= 40) {
+      current = dest;
+    } else if (dest.chainage_m < sel) {
+      prev = dest;
+    } else if (dest.chainage_m > sel && !next) {
+      next = dest;
+    }
+  }
+  return { prev, next, current };
+}

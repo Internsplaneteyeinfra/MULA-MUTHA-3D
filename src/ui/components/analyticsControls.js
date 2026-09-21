@@ -5,6 +5,7 @@ import {
   Sprout,
   Sun,
   SunMedium,
+  Activity,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { mountGeologyWorkspace } from "./geologyWorkspace.js";
@@ -38,6 +39,7 @@ const HYDROLOGY_CATEGORIES = [
 
 /** Icon-only transparent toolbar — independent analytics buttons. */
 const NAV_ITEMS = [
+  { icon: Activity, tip: "3D Digital Twin", type: "digital_twin", tone: "dt-mode-toggle", badge: null },
   { icon: Mountain, tip: "Geology", type: "vehicle", tone: "tone-mountain", badge: null },
   { icon: Droplets, tip: "Water Quality", type: "Water Quality", tone: "tone-droplet", badge: null },
   { icon: Pickaxe, tip: "Pollution", type: "Pollution", tone: "tone-drill", badge: null },
@@ -260,6 +262,23 @@ export function mountAnalyticsControls(root, dataset) {
     if (landUseHud.isOpen()) landUseHud.hide();
   }
 
+  function closeDigitalTwin() {
+    const uiRoot = document.getElementById("ui-root");
+    const dtPanel = document.querySelector("#dt-panel");
+    const dtDock = document.querySelector("#twin-analytics-dock");
+    const dtBtn = el.querySelector("[data-analytics='digital_twin']");
+    const dtModeBtn = document.querySelector("#dt-mode-toggle");
+    if (dtPanel) dtPanel.hidden = true;
+    if (dtDock) dtDock.hidden = true;
+    uiRoot?.classList.remove("dt-mode-active");
+    document.body.classList.remove("dt-mode-active");
+    for (const btn of [dtBtn, dtModeBtn]) {
+      if (!btn) continue;
+      btn.classList.remove("active");
+      btn.setAttribute("aria-pressed", "false");
+    }
+  }
+
   function closeAll() {
     closeModal();
     closeWaterQualityHud();
@@ -268,6 +287,7 @@ export function mountAnalyticsControls(root, dataset) {
     if (bodCodHud.isVisible()) bodCodHud.hide();
     if (climateImpactHud.isOpen()) climateImpactHud.hide();
     if (aqiHud.isOpen()) aqiHud.hide();
+    closeDigitalTwin();
     clearHydroLegend();
     setActive(null);
   }
@@ -682,6 +702,40 @@ export function mountAnalyticsControls(root, dataset) {
     document.dispatchEvent(new CustomEvent("river-measure-clear"));
     const type = button.dataset.analytics;
 
+    if (type === "digital_twin") {
+      const uiRoot = document.getElementById("ui-root");
+      const dtPanel = document.querySelector("#dt-panel");
+      const dtDock = document.querySelector("#twin-analytics-dock");
+      const isCurrentlyVisible = dtPanel && !dtPanel.hidden;
+      const targetState = !isCurrentlyVisible;
+
+      if (targetState) {
+        closeModal();
+        closeWaterQualityHud();
+        closeLandUseHud();
+        geology.close();
+        if (bodCodHud.isVisible()) bodCodHud.hide();
+        if (climateImpactHud.isOpen()) climateImpactHud.hide();
+        if (aqiHud.isOpen()) aqiHud.hide();
+        clearHydroLegend();
+        setActive("digital_twin");
+      } else {
+        setActive(null);
+      }
+
+      if (dtPanel) dtPanel.hidden = !targetState;
+      if (dtDock) dtDock.hidden = !targetState;
+
+      uiRoot?.classList.toggle("dt-mode-active", targetState);
+      document.body.classList.toggle("dt-mode-active", targetState);
+      button.classList.toggle("active", targetState);
+      button.setAttribute("aria-pressed", targetState ? "true" : "false");
+      if (targetState) {
+        window.__MM_SCENE__?.setAssetMarkersVisible?.(false);
+      }
+      return;
+    }
+
     // Soft extras — reuse existing UI without new routing.
     if (type === "monitoring") {
       closeAll();
@@ -851,6 +905,24 @@ export function mountAnalyticsControls(root, dataset) {
       modal.querySelector("#analytics-body").innerHTML = `
         <p class="analytics-unavailable">${escapeHtml(error.message || "Service unavailable")}</p>
         <p class="analytics-note">This modelled analytics endpoint is not available in the production build.</p>`;
+    }
+  });
+
+  document.addEventListener("click", (event) => {
+    const uiRoot = document.getElementById("ui-root");
+    const dtOn =
+      uiRoot?.classList.contains("dt-mode-active") ||
+      document.body.classList.contains("dt-mode-active");
+    if (!dtOn) return;
+    const isDtPanel = event.target.closest("#dt-panel");
+    const isDtDock = event.target.closest("#twin-analytics-dock");
+    const isDtBtn =
+      event.target.closest("[data-analytics='digital_twin']") ||
+      event.target.closest("#dt-mode-toggle");
+    const isDtAsset = event.target.closest(".dt-strip-node");
+    const isLeftStack = event.target.closest("#left-ui-stack");
+    if (!isDtPanel && !isDtDock && !isDtBtn && !isDtAsset && !isLeftStack) {
+      closeDigitalTwin();
     }
   });
 

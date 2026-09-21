@@ -1,3 +1,5 @@
+@import url('./app-overlays.css');
+
 /* GIS dashboard UI — Zoom Earth–style type hierarchy */
 :root {
   --gis-bg: #101A21;

@@ -4,10 +4,17 @@ import { LineGeometry } from "three/examples/jsm/lines/LineGeometry.js";
 import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { SURFACE_Y } from "./river.js";
 import { state } from "../state.js";
+import { CHAINAGE_DESTINATIONS, getDestinations, interpolateChainage } from "../geo/chainage.js";
 
 /** Flat markers sit just above water surface. */
 const MARKER_Y = SURFACE_Y + 0.55;
 const LINE_Y = SURFACE_Y + 1.15;
+/** Destination name banners float above the river; lower + larger when arrived. */
+const DEST_LABEL_Y = SURFACE_Y + 55;
+const DEST_LABEL_Y_ARRIVED = SURFACE_Y + 28;
+/** Within this distance the name banner grows toward “arrived” size. */
+const DEST_NEAR_M = 350;
+const DEST_ARRIVED_M = 40;
 
 /**
  * Chainage styled after the GIS reference:
@@ -161,50 +168,54 @@ export function createChainageLayer(dataset) {
     selLineMat.resolution.set(w, h);
   };
 
-  // Selected marker — compact disc + thin ring
-  const selectFill = new THREE.Mesh(makeDiscGeometry(2.45), selectFillMat);
-  selectFill.name = "chainageSelectedFill";
-  selectFill.visible = false;
-  selectFill.renderOrder = 27;
-  selectFill.frustumCulled = false;
-  group.add(selectFill);
+  // DOM Overlays for Destination Markers
+  const domContainer = document.createElement("div");
+  domContainer.className = "chainage-dom-overlay";
+  domContainer.style.position = "absolute";
+  domContainer.style.top = "0";
+  domContainer.style.left = "0";
+  domContainer.style.width = "100%";
+  domContainer.style.height = "100%";
+  domContainer.style.pointerEvents = "none";
+  domContainer.style.zIndex = "40";
+  document.body.appendChild(domContainer);
 
-  const selectRing = new THREE.Mesh(new THREE.RingGeometry(2.55, 3.25, 36), selectRingMat);
-  selectRing.name = "chainageSelectedRing";
-  selectRing.rotation.x = -Math.PI / 2;
-  selectRing.visible = false;
-  selectRing.renderOrder = 28;
-  selectRing.frustumCulled = false;
-  group.add(selectRing);
+  const destinationEls = [];
+  for (const dest of CHAINAGE_DESTINATIONS) {
+    const el = document.createElement("div");
+    el.className = "chainage-destination-marker";
+    el.hidden = true;
+    el.innerHTML = `
+      <div class="chainage-destination-banner">
+        <div class="chainage-destination-name">${dest.name.toUpperCase()}</div>
+        <div class="chainage-destination-dist"></div>
+      </div>
+    `;
+    domContainer.appendChild(el);
+    destinationEls.push({ dest, el });
+  }
 
-  // Screen HUD owns the selected-station step control; no 3D sprite label.
-  const labelGroup = new THREE.Group();
-  labelGroup.name = "chainageLabels";
-  labelGroup.visible = false;
-  group.add(labelGroup);
+  const currentMarkerEl = document.createElement("div");
+  currentMarkerEl.className = "chainage-current-marker";
+  currentMarkerEl.hidden = true;
+  currentMarkerEl.innerHTML = `
+    <div class="chainage-current-pin"></div>
+    <div style="font-size: 16px; margin-top: 2px; color: #ffc832; text-shadow: 0 0 4px #000;">◎</div>
+  `;
+  domContainer.appendChild(currentMarkerEl);
 
   function syncSelection() {
     const sel = state.selectedChainageMeters;
     if (sel == null) {
-      selectFill.visible = false;
-      selectRing.visible = false;
       selLine.visible = false;
       return;
     }
-    const idx = points.findIndex((c) => c.meters === sel);
+    const idx = points.findIndex((c) => Math.abs((c.meters ?? 0) - sel) < 0.5);
     if (idx < 0) {
-      selectFill.visible = false;
-      selectRing.visible = false;
       selLine.visible = false;
       return;
     }
     const p = points[idx];
-    selectFill.visible = true;
-    selectRing.visible = true;
-    selectFill.position.set(p.x, MARKER_Y + 0.05, p.z);
-    selectRing.position.set(p.x, MARKER_Y + 0.08, p.z);
-
-    // Orange segment spanning neighbors around the selected station
     const a = points[Math.max(0, idx - 1)];
     const b = points[Math.min(points.length - 1, idx + 1)];
     if (a !== b) {
@@ -216,44 +227,40 @@ export function createChainageLayer(dataset) {
     }
   }
 
-  let lastMarkerBoost = -1;
-
-  function applyMarkerBoost(boost) {
-    if (Math.abs(boost - lastMarkerBoost) < 0.03) return;
-    lastMarkerBoost = boost;
-    for (let i = 0; i < majors.length; i++) {
-      const p = majors[i];
-      dummy.position.set(p.x, MARKER_Y, p.z);
-      dummy.scale.set(boost, 1, boost);
-      dummy.rotation.set(0, 0, 0);
-      dummy.updateMatrix();
-      rimMesh.setMatrixAt(i, dummy.matrix);
-      majorMesh.setMatrixAt(i, dummy.matrix);
+  function formatRelativeDistance(diff) {
+    const sign = diff > 0 ? "+" : "";
+    const absDiff = Math.abs(diff);
+    if (absDiff >= 1000) {
+      return `${sign}${(diff / 1000).toFixed(2)} km`;
     }
-    rimMesh.instanceMatrix.needsUpdate = true;
-    majorMesh.instanceMatrix.needsUpdate = true;
-    const minorBoost = Math.max(0.95, boost * 0.9);
-    for (let i = 0; i < minors.length; i++) {
-      const p = minors[i];
-      dummy.position.set(p.x, MARKER_Y + 0.02, p.z);
-      dummy.scale.set(minorBoost, 1, minorBoost);
-      dummy.updateMatrix();
-      minorMesh.setMatrixAt(i, dummy.matrix);
-    }
-    minorMesh.instanceMatrix.needsUpdate = true;
+    return `${sign}${Math.round(diff)} m`;
   }
 
-  /** Larger when close (River Side / chainage); keep modest so discs stay neat. */
-  function markerBoostForCam(camY) {
-    if (camY < 220) return 1.2;
-    if (camY < 380) return 1.12;
-    if (camY < 600) return 1.05;
-    if (camY < 1000) return 1.0;
-    return THREE.MathUtils.clamp(0.9 + camY / 2200, 1.0, 1.35);
-  }
+  const _v = new THREE.Vector3();
+  const formatStation = metersToStation;
+  function updateDomBanner(el, x, y, z, camera, distText, opts = {}) {
+    if (!el || !camera) return;
+    _v.set(x, y, z);
+    _v.project(camera);
+    // Behind camera or out of frustum depth
+    if (_v.z > 1 || _v.z < -1) {
+      el.hidden = true;
+      return;
+    }
+    const w = window.innerWidth;
+    const h = window.innerHeight;
+    const sx = (_v.x * 0.5 + 0.5) * w;
+    const sy = (1 - (_v.y * 0.5 + 0.5)) * h;
+    const scale = Number.isFinite(opts.scale) ? opts.scale : 1;
+    el.hidden = false;
+    el.classList.toggle("is-arrived", !!opts.arrived);
+    el.classList.toggle("is-near", !!opts.near && !opts.arrived);
+    el.style.transform = `translate(${sx}px, ${sy}px) translate(-50%, -100%) scale(${scale})`;
 
-  function syncLabels(_camera) {
-    labelGroup.visible = false;
+    if (distText !== undefined) {
+      const distEl = el.querySelector('.chainage-destination-dist');
+      if (distEl) distEl.textContent = distText;
+    }
   }
 
   function update(camera) {
@@ -267,18 +274,95 @@ export function createChainageLayer(dataset) {
     rimMesh.visible = true;
     majorMesh.visible = true;
     chainLine.visible = true;
-    const boost = markerBoostForCam(camY);
-    applyMarkerBoost(boost);
     lineMat.linewidth = camY < 500 ? 2.4 : camY > 900 ? 2.2 : 1.95;
     syncSelection();
-    syncLabels(camera);
 
-    if (selectFill.visible) {
-      const d = camera.position.distanceTo(selectFill.position);
-      // Keep selected disc compact on screen
-      const s = THREE.MathUtils.clamp(d * 0.00135, 0.55, 4.2) * Math.max(0.9, boost * 0.75);
-      selectFill.scale.setScalar(s);
-      selectRing.scale.setScalar(s);
+    // DOM UI for locations
+    const isOverview = state.cameraMode === "overview";
+    domContainer.hidden = !show || (!inspecting && !isOverview);
+
+    if (show && (inspecting || isOverview)) {
+      const sel = state.selectedChainageMeters;
+      
+      // Determine what to show (prev / next / arrived current)
+      let prev = null;
+      let next = null;
+      let current = null;
+      if (!isOverview && sel != null) {
+        const dests = getDestinations(sel);
+        prev = dests.prev;
+        next = dests.next;
+        current = dests.current;
+      }
+
+      // Update the 8 destination markers
+      for (const item of destinationEls) {
+        let shouldShow = false;
+        let distText = "";
+        let absDist = Infinity;
+
+        if (isOverview) {
+          shouldShow = true;
+          distText = formatStation(item.dest.chainage_m);
+        } else if (sel != null) {
+          absDist = Math.abs(item.dest.chainage_m - sel);
+          if (current && current.id === item.dest.id) {
+            shouldShow = true;
+            distText = formatStation(item.dest.chainage_m);
+          } else if (prev && prev.id === item.dest.id) {
+            shouldShow = true;
+            distText = formatRelativeDistance(item.dest.chainage_m - sel);
+          } else if (next && next.id === item.dest.id) {
+            shouldShow = true;
+            distText = formatRelativeDistance(item.dest.chainage_m - sel);
+          }
+        }
+
+        if (shouldShow) {
+          const destPoint = interpolateChainage(points, item.dest.chainage_m);
+          if (destPoint) {
+            // Grow a little as you approach; at the exact point go bigger (not only higher).
+            let scale = 1;
+            let arrived = false;
+            let near = false;
+            let labelY = DEST_LABEL_Y;
+            if (!isOverview && Number.isFinite(absDist)) {
+              if (absDist <= DEST_ARRIVED_M) {
+                arrived = true;
+                scale = 1.42;
+                labelY = DEST_LABEL_Y_ARRIVED;
+              } else if (absDist <= DEST_NEAR_M) {
+                near = true;
+                const t = 1 - (absDist - DEST_ARRIVED_M) / (DEST_NEAR_M - DEST_ARRIVED_M);
+                scale = 1 + 0.42 * Math.max(0, Math.min(1, t));
+                labelY = DEST_LABEL_Y + (DEST_LABEL_Y_ARRIVED - DEST_LABEL_Y) * Math.max(0, Math.min(1, t));
+              }
+            }
+            updateDomBanner(item.el, destPoint.x, labelY, destPoint.z, camera, distText, {
+              scale,
+              arrived,
+              near,
+            });
+          } else {
+            item.el.hidden = true;
+          }
+        } else {
+          item.el.hidden = true;
+          item.el.classList.remove("is-arrived", "is-near");
+        }
+      }
+
+      // Update the current selection marker
+      if (sel != null && !isOverview) {
+        const cur = interpolateChainage(points, sel);
+        if (cur) {
+          updateDomBanner(currentMarkerEl, cur.x, MARKER_Y + 0.05, cur.z, camera);
+        } else {
+          currentMarkerEl.hidden = true;
+        }
+      } else {
+        currentMarkerEl.hidden = true;
+      }
     }
   }
 

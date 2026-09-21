@@ -2,7 +2,7 @@ import { POLLUTION_KEY_SIDES } from "../../scene/pollution/pollutionSides.js";
 import { state } from "../../state.js";
 
 /**
- * Arrow HUD:  ←  Mulshi side  1/6  →
+ * Arrow HUD:  ←  Sangam side  1/6  →
  * Steps through the 6 corridor sides; within a side, steps each garbage site
  * so the tour covers every location.
  *

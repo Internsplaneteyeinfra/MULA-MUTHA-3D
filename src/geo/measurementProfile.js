@@ -211,32 +211,78 @@ function sampleBathymetryAt(x, z, dataset) {
     }
   }
 
-  const st = stations[bestI];
-  const half = Math.max(
-    8,
-    Number(st.halfWidth) ||
-      (Number.isFinite(st.width) ? st.width * 0.5 : null) ||
-      (Number.isFinite(st.half) ? st.half : 20),
-  );
-  const width_m = Number.isFinite(st.width) ? st.width : half * 2;
+  let idxA = bestI;
+  let idxB = bestI;
+  let tLong = 0;
 
-  let acrossU = 0.5;
-  if (Number.isFinite(st.leftX) && Number.isFinite(st.rightX)) {
-    const lx = st.rightX - st.leftX;
-    const lz = st.rightZ - st.leftZ;
-    const len2 = lx * lx + lz * lz || 1;
-    acrossU = ((x - st.leftX) * lx + (z - st.leftZ) * lz) / len2;
-    acrossU = Math.max(0, Math.min(1, acrossU));
-  } else {
-    const flowX = Number(st.flowX) || 1;
-    const flowZ = Number(st.flowZ) || 0;
-    const signed = (x - st.x) * -flowZ + (z - st.z) * flowX;
-    acrossU = Math.max(0, Math.min(1, 0.5 + signed / (2 * half)));
+  if (stations.length > 1) {
+    let dPrev = Infinity, dNext = Infinity;
+    if (bestI > 0) {
+      const s = stations[bestI - 1];
+      dPrev = (s.x - x) ** 2 + (s.z - z) ** 2;
+    }
+    if (bestI < stations.length - 1) {
+      const s = stations[bestI + 1];
+      dNext = (s.x - x) ** 2 + (s.z - z) ** 2;
+    }
+
+    if (dNext < dPrev && bestI < stations.length - 1) {
+      idxA = bestI;
+      idxB = bestI + 1;
+    } else if (bestI > 0) {
+      idxA = bestI - 1;
+      idxB = bestI;
+    } else {
+      idxA = 0;
+      idxB = 1;
+    }
+
+    const sA = stations[idxA], sB = stations[idxB];
+    const dx = sB.x - sA.x, dz = sB.z - sA.z;
+    const l2 = dx * dx + dz * dz;
+    if (l2 > 0) {
+      tLong = ((x - sA.x) * dx + (z - sA.z) * dz) / l2;
+      tLong = Math.max(0, Math.min(1, tLong));
+    }
   }
 
-  const flowX = Number(st.flowX) || 1;
-  const flowZ = Number(st.flowZ) || 0;
-  const lat = Math.abs((x - st.x) * -flowZ + (z - st.z) * flowX);
+  function getStationMetrics(st) {
+    const half = Math.max(
+      8,
+      Number(st.halfWidth) ||
+        (Number.isFinite(st.width) ? st.width * 0.5 : null) ||
+        (Number.isFinite(st.half) ? st.half : 20)
+    );
+    const width_m = Number.isFinite(st.width) ? st.width : half * 2;
+    
+    let u = 0.5;
+    if (Number.isFinite(st.leftX) && Number.isFinite(st.rightX)) {
+      const lx = st.rightX - st.leftX;
+      const lz = st.rightZ - st.leftZ;
+      const len2 = lx * lx + lz * lz || 1;
+      u = ((x - st.leftX) * lx + (z - st.leftZ) * lz) / len2;
+      u = Math.max(0, Math.min(1, u));
+    } else {
+      const flowX = Number(st.flowX) || 1;
+      const flowZ = Number(st.flowZ) || 0;
+      const signed = (x - st.x) * -flowZ + (z - st.z) * flowX;
+      u = Math.max(0, Math.min(1, 0.5 + signed / (2 * half)));
+    }
+    
+    const flowX = Number(st.flowX) || 1;
+    const flowZ = Number(st.flowZ) || 0;
+    const lat = Math.abs((x - st.x) * -flowZ + (z - st.z) * flowX);
+    
+    return { half, width_m, u, lat };
+  }
+
+  const mA = getStationMetrics(stations[idxA]);
+  const mB = getStationMetrics(stations[idxB]);
+
+  const half = mA.half * (1 - tLong) + mB.half * tLong;
+  const width_m = mA.width_m * (1 - tLong) + mB.width_m * tLong;
+  let acrossU = mA.u * (1 - tLong) + mB.u * tLong;
+  const lat = mA.lat * (1 - tLong) + mB.lat * tLong;
 
   let depth = null;
   let exact = false;
@@ -249,29 +295,47 @@ function sampleBathymetryAt(x, z, dataset) {
     if (Number.isFinite(nearVert.acrossU)) acrossU = nearVert.acrossU;
   }
 
-  // 2) Bilinear sample across columns at this station row (smoother trough).
+  // 2) Bilinear sample across columns longitudinally interpolated (smoother trough).
   if (bath?.depths?.length) {
     const cols = (bath.across || 40) + 1;
     const colF = acrossU * (cols - 1);
     const c0 = Math.max(0, Math.min(cols - 2, Math.floor(colF)));
     const c1 = c0 + 1;
     const frac = colF - c0;
-    const i0 = bestI * cols + c0;
-    const i1 = bestI * cols + c1;
-    if (i0 >= 0 && i1 < bath.depths.length) {
-      const d0 = Number(bath.depths[i0]);
-      const d1 = Number(bath.depths[i1]);
-      if (Number.isFinite(d0) && Number.isFinite(d1)) {
-        const blended = d0 * (1 - frac) + d1 * frac;
-        // Prefer blended when vertex is far, or average when both exist.
-        if (!Number.isFinite(depth) || (nearVert && nearVert.dist > half * 0.35)) {
-          depth = blended;
-          exact = false;
-        } else {
-          depth = depth * 0.55 + blended * 0.45;
+
+    const getDepthForStation = (i) => {
+      const i0 = i * cols + c0;
+      const i1 = i * cols + c1;
+      if (i0 >= 0 && i1 < bath.depths.length) {
+        const d0 = Number(bath.depths[i0]);
+        const d1 = Number(bath.depths[i1]);
+        if (Number.isFinite(d0) && Number.isFinite(d1)) {
+          return d0 * (1 - frac) + d1 * frac;
         }
-      } else if (!Number.isFinite(depth) && Number.isFinite(d0)) {
-        depth = d0;
+        if (Number.isFinite(d0)) return d0;
+        if (Number.isFinite(d1)) return d1;
+      }
+      return null;
+    };
+
+    const dA = getDepthForStation(idxA);
+    const dB = getDepthForStation(idxB);
+
+    let blended = null;
+    if (dA !== null && dB !== null) {
+      blended = dA * (1 - tLong) + dB * tLong;
+    } else if (dA !== null) {
+      blended = dA;
+    } else if (dB !== null) {
+      blended = dB;
+    }
+
+    if (blended !== null) {
+      if (!Number.isFinite(depth) || (nearVert && nearVert.dist > half * 0.35)) {
+        depth = blended;
+        exact = false;
+      } else {
+        depth = depth * 0.55 + blended * 0.45;
       }
     }
   }
@@ -292,13 +356,26 @@ function sampleBathymetryAt(x, z, dataset) {
     depth > 0.04 &&
     (lat <= half * 1.12 || (nearBank && lat <= half * 1.35));
 
+  const stA = stations[idxA];
+  const stB = stations[idxB];
+  const alongA = Number.isFinite(stA.along) ? stA.along : (Number.isFinite(stA.meters) ? stA.meters : null);
+  const alongB = Number.isFinite(stB.along) ? stB.along : (Number.isFinite(stB.meters) ? stB.meters : null);
+  let along = null;
+  if (alongA !== null && alongB !== null) {
+    along = alongA * (1 - tLong) + alongB * tLong;
+  } else if (alongA !== null) {
+    along = alongA;
+  } else if (alongB !== null) {
+    along = alongB;
+  }
+
   return {
     depth: Number.isFinite(depth) ? depth : 0,
     acrossU,
     lat,
     half,
     width_m,
-    along: Number.isFinite(st.along) ? st.along : Number.isFinite(st.meters) ? st.meters : null,
+    along,
     inWater,
     exact,
   };

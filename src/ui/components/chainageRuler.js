@@ -48,6 +48,7 @@ export function mountChainageRuler(root, dataset) {
         <div class="chainage-ruler-line" aria-hidden="true"></div>
         <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="${intervalM}" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
         ${ticksHtml}
+        <div class="chainage-ruler-current" id="chainage-ruler-current" hidden></div>
         <div class="chainage-ruler-cursor" id="chainage-ruler-cursor" hidden>
           <span class="chainage-ruler-cursor-label" id="chainage-ruler-cursor-label">0+000</span>
           <span class="chainage-ruler-cursor-dot"></span>
@@ -134,6 +135,7 @@ export function mountChainageRuler(root, dataset) {
 
   const cursor = el.querySelector("#chainage-ruler-cursor");
   const cursorLabel = el.querySelector("#chainage-ruler-cursor-label");
+  const currentDot = el.querySelector("#chainage-ruler-current");
 
   function update() {
     const show = state.showChainage !== false && !state.cinematicActive;
@@ -157,6 +159,7 @@ export function mountChainageRuler(root, dataset) {
 
     if (sel == null || !cursor) {
       if (cursor) cursor.hidden = true;
+      if (currentDot) currentDot.hidden = true;
       return;
     }
     if (range && Number.isFinite(sel)) range.value = String(Math.min(maxM, Math.max(minM, sel)));
@@ -165,6 +168,12 @@ export function mountChainageRuler(root, dataset) {
     cursor.classList.toggle("is-edge-start", pct <= 4);
     cursor.classList.toggle("is-edge-end", pct >= 96);
     cursor.hidden = false;
+
+    if (currentDot) {
+      currentDot.style.left = `${pct}%`;
+      currentDot.hidden = false;
+    }
+
     const p = interpolateChainage(points, sel);
     const label = p?.label || metersToStation(sel);
     if (cursorLabel) {

@@ -81,7 +81,7 @@ function profileFor(tier) {
       chainageHz: 10,
       coordLabelHz: 4,
       softShadow: false,
-      maxTrees: 3500,
+      maxTrees: 2000,
     };
   }
   if (tier === "medium") {
@@ -98,7 +98,7 @@ function profileFor(tier) {
       chainageHz: 15,
       coordLabelHz: 8,
       softShadow: false,
-      maxTrees: 7000,
+      maxTrees: 4000,
     };
   }
   return {
@@ -115,7 +115,7 @@ function profileFor(tier) {
     chainageHz: 30,
     coordLabelHz: 15,
     softShadow: true,
-    maxTrees: 11000,
+    maxTrees: 6500,
   };
 }
 

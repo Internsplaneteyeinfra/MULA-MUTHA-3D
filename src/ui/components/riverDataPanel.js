@@ -7,7 +7,7 @@ import { nearestStationU, stationAt } from "../../scene/riverCamera.js";
 
 /**
  * Compact River Data HUD.
- * 🫧 identity · Depth / Width profiles · real two-point Measure.
+ * 🫧 identity · Depth profile · real two-point Measure.
  * Fresh load = OPEN (no localStorage). Collapse → compact 🫧 button only.
  */
 export function mountRiverDataPanel(root, dataset) {
@@ -37,12 +37,6 @@ export function mountRiverDataPanel(root, dataset) {
             <span class="river-data-row-icon" aria-hidden="true">🌊</span>
             <span class="river-data-row-label">Depth</span>
             <span class="river-data-row-value" id="river-data-depth">—</span>
-            <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
-          </button>
-          <button type="button" class="river-data-row" id="width-profile-btn" data-profile="width" aria-expanded="false" title="Width profile">
-            <span class="river-data-row-icon" aria-hidden="true">↔️</span>
-            <span class="river-data-row-label">Width</span>
-            <span class="river-data-row-value" id="river-data-width">—</span>
             <span class="river-data-row-action" aria-hidden="true">${lucideHtml(ChevronRight, { size: 14 })}</span>
           </button>
           <button type="button" class="river-data-row" id="distance-measure-btn" data-measure="distance" aria-expanded="false" title="Measure distance">
@@ -108,7 +102,6 @@ export function mountRiverDataPanel(root, dataset) {
   const shellEl = el.querySelector("#river-data-shell");
   const collapseBtn = el.querySelector("#river-data-collapse");
   const depthBtn = el.querySelector("#depth-survey-btn");
-  const widthBtn = el.querySelector("#width-profile-btn");
   const measureBtn = el.querySelector("#distance-measure-btn");
   const measurePanel = el.querySelector("#river-measure-panel");
   const measureBody = el.querySelector("#river-measure-body");
@@ -176,9 +169,7 @@ export function mountRiverDataPanel(root, dataset) {
 
   function syncMeasureRowActive() {
     depthBtn.classList.toggle("is-active", !!state.riverMeasureDepthOn);
-    widthBtn.classList.toggle("is-active", !!state.riverMeasureWidthOn);
     depthBtn.setAttribute("aria-expanded", state.riverMeasureDepthOn ? "true" : "false");
-    widthBtn.setAttribute("aria-expanded", state.riverMeasureWidthOn ? "true" : "false");
     measureBtn.classList.toggle("is-active", !!measureOpen || !!state.distanceMeasureActive);
     measureBtn.setAttribute("aria-expanded", measureOpen ? "true" : "false");
   }
@@ -254,13 +245,6 @@ export function mountRiverDataPanel(root, dataset) {
     openPopup("depth");
     if (!e.target.closest(".river-data-row-action")) {
       toggleRiverMeasure("depth");
-    }
-  });
-  widthBtn.addEventListener("click", (e) => {
-    e.stopPropagation();
-    openPopup("width");
-    if (!e.target.closest(".river-data-row-action")) {
-      toggleRiverMeasure("width");
     }
   });
   closeBtn.addEventListener("click", () => closePopup());
@@ -375,7 +359,6 @@ export function mountRiverDataPanel(root, dataset) {
 
     el.querySelector("#river-data-station").textContent = label || "—";
     el.querySelector("#river-data-depth").textContent = depthText;
-    el.querySelector("#river-data-width").textContent = widthText;
 
     current = {
       ...p,

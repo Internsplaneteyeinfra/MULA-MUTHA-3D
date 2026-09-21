@@ -840,13 +840,29 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     });
   }
 
+  let lastMoveTime = 0;
+  
   function onMove(e) {
     lastE = e;
-    if (raf) return;
-    raf = requestAnimationFrame(() => {
+    const now = performance.now();
+    // Throttle to roughly 15-20 times per second (~50-60ms interval) to save GPU/CPU cycles
+    if (now - lastMoveTime < 60) {
+      if (!raf) {
+        raf = requestAnimationFrame(() => {
+          raf = 0;
+          lastMoveTime = performance.now();
+          if (lastE) inspect(lastE);
+        });
+      }
+      return;
+    }
+    
+    lastMoveTime = now;
+    if (raf) {
+      cancelAnimationFrame(raf);
       raf = 0;
-      if (lastE) inspect(lastE);
-    });
+    }
+    inspect(e);
   }
 
   canvas.addEventListener("pointermove", onMove);

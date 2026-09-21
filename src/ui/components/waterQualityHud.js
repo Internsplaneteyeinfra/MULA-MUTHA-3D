@@ -39,14 +39,7 @@ export const WATER_QUALITY_OPTIONS = [
     layerId: "water_quality_ndci",
     fallbackLayerId: null,
   },
-  {
-    id: "wst",
-    tip: "WST / Temperature",
-    icon: Thermometer,
-    tone: "wq-tone-wst",
-    layerId: "water_quality_wst",
-    fallbackLayerId: null,
-  },
+
   {
     id: "bod_cod",
     tip: "BOD–COD / Organic Pollution",

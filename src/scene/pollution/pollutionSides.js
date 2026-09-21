@@ -4,7 +4,7 @@
  * navigation covers the full set.
  */
 export const POLLUTION_KEY_SIDES = [
-  { id: "mulshi", index: 1, name: "Mulshi side", lon: 73.8565, lat: 18.5323 },
+  { id: "sangam", index: 1, name: "Sangam side", lon: 73.8598, lat: 18.5316 },
   { id: "sangamwadi", index: 2, name: "Sangamwadi side", lon: 73.8620, lat: 18.5345 },
   { id: "bund_garden", index: 3, name: "Bund Garden side", lon: 73.8831, lat: 18.5430 },
   { id: "mundhwa", index: 4, name: "Mundhwa side", lon: 73.9398, lat: 18.5366 },

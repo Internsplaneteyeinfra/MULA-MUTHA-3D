@@ -40,6 +40,8 @@ import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import { nearestStationU } from "./riverCamera.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
+import { createAssetMarkers } from "./assetMarkers.js";
+import { initDigitalTwin } from "../services/digitalTwinService.js";
 
 export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
   const quality = createQualityProfile();
@@ -215,6 +217,24 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(hydrologyLayer);
   scene.add(bodCodLayer);
   scene.add(aqiRiverLayer);
+
+  // ── Digital Twin Asset Markers ───────────────────────────────────────────
+  const assetMarkers = createAssetMarkers(scene, {
+    getTerrainY: () => SURFACE_Y + 12,
+  });
+  // Bootstrap the digital twin service and wire marker updates
+  initDigitalTwin().then((twinState) => {
+    if (twinState?.assets) assetMarkers.update(twinState.assets);
+  }).catch((err) => console.warn("[DigitalTwin] init deferred:", err));
+  document.addEventListener("twin-state-change", (e) => {
+    if (e.detail?.assets) assetMarkers.update(e.detail.assets);
+  });
+  document.addEventListener("twin-asset-select", (e) => {
+    assetMarkers.setSelected(e.detail?.id ?? null);
+    if (e.detail?.asset?.chainage_m != null) {
+      window.__MM_SCENE__?.goToChainageView?.(e.detail.asset.chainage_m);
+    }
+  });
 
   // Spectral Lithology click marker (white point + ring)
   const lithologyPick = new THREE.Group();
@@ -483,6 +503,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   // Eye-level corridor (reference screenshot): low boat height, nearly flat look.
   // Height 16 / back 55 / ahead 180 / lookY ≈ eye → horizon mid-frame, marker mid-foreground.
+  // Chainage steps/ruler snap instantly — keep river view, no fly/arc animation.
   function chainageCameraOptions(_point, dragging = false) {
     return {
       cameraHeight: 16,
@@ -491,7 +512,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       lookY: SURFACE_Y + 12,
       lateralOffset: 0,
       fov: 58,
-      dur: dragging ? 0.22 : 0.85,
+      dur: 0,
+      transitLift: 0,
       ease: "outCubic",
       dragging: !!dragging,
     };
@@ -552,42 +574,87 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
   });
 
+  let lastChainMoveTime = 0;
   canvas.addEventListener("pointermove", (e) => {
-    if (chainHoverRaf) return;
-    chainHoverRaf = requestAnimationFrame(() => {
+    const now = performance.now();
+    // Throttle chainage tooltips to max 15fps (~65ms) to save main thread cycles
+    if (now - lastChainMoveTime < 65) {
+      if (!chainHoverRaf) {
+        chainHoverRaf = requestAnimationFrame(() => {
+          chainHoverRaf = 0;
+          lastChainMoveTime = performance.now();
+          if (state.cinematicActive || !state.showChainage) {
+            hideChainageTip();
+            return;
+          }
+          const hydroId = hydrologyLayer.userData?.getActiveId?.();
+          if (
+            state.riverMeasureActive ||
+            state.bankErosionTipActive ||
+            state.lithologyTipActive ||
+            state.joiningStreamsTipActive ||
+            state.landUseTipActive ||
+            hydroId === "landuse_lulc" ||
+            hydroId === "silt_classification" ||
+            hydroId === "silt_volume_surface" ||
+            hydroId === "vegetation_extent" ||
+            hydroId === "bank_erosion" ||
+            hydroId === "geology" ||
+            hydroId === "salinity" ||
+            hydroId === "water_quality_ndci" ||
+            hydroId === "water_quality_tss"
+          ) {
+            if (state.chainageTipActive) hideChainageTip();
+            return;
+          }
+          const hit = resolveChainageUnderCursor(e, 70);
+          if (hit) {
+            showChainageTipAt(e.clientX + 14, e.clientY - 12, hit);
+          } else {
+            hideChainageTip();
+          }
+        });
+      }
+      return;
+    }
+
+    lastChainMoveTime = now;
+    if (chainHoverRaf) {
+      cancelAnimationFrame(chainHoverRaf);
       chainHoverRaf = 0;
-      if (state.cinematicActive || !state.showChainage) {
-        hideChainageTip();
-        return;
-      }
-      // Land-use / silt / geology / bank-erosion own the shared tooltip on hover.
-      const hydroId = hydrologyLayer.userData?.getActiveId?.();
-      if (
-        state.riverMeasureActive ||
-        state.bankErosionTipActive ||
-        state.lithologyTipActive ||
-        state.joiningStreamsTipActive ||
-        state.landUseTipActive ||
-        hydroId === "landuse_lulc" ||
-        hydroId === "silt_classification" ||
-        hydroId === "silt_volume_surface" ||
-        hydroId === "vegetation_extent" ||
-        hydroId === "bank_erosion" ||
-        hydroId === "geology" ||
-        hydroId === "salinity" ||
-        hydroId === "water_quality_ndci" ||
-        hydroId === "water_quality_tss"
-      ) {
-        if (state.chainageTipActive) hideChainageTip();
-        return;
-      }
-      const hit = resolveChainageUnderCursor(e, 70);
-      if (hit) {
-        showChainageTipAt(e.clientX + 14, e.clientY - 12, hit);
-      } else {
-        hideChainageTip();
-      }
-    });
+    }
+    
+    if (state.cinematicActive || !state.showChainage) {
+      hideChainageTip();
+      return;
+    }
+    // Land-use / silt / geology / bank-erosion own the shared tooltip on hover.
+    const hydroId = hydrologyLayer.userData?.getActiveId?.();
+    if (
+      state.riverMeasureActive ||
+      state.bankErosionTipActive ||
+      state.lithologyTipActive ||
+      state.joiningStreamsTipActive ||
+      state.landUseTipActive ||
+      hydroId === "landuse_lulc" ||
+      hydroId === "silt_classification" ||
+      hydroId === "silt_volume_surface" ||
+      hydroId === "vegetation_extent" ||
+      hydroId === "bank_erosion" ||
+      hydroId === "geology" ||
+      hydroId === "salinity" ||
+      hydroId === "water_quality_ndci" ||
+      hydroId === "water_quality_tss"
+    ) {
+      if (state.chainageTipActive) hideChainageTip();
+      return;
+    }
+    const hit = resolveChainageUnderCursor(e, 70);
+    if (hit) {
+      showChainageTipAt(e.clientX + 14, e.clientY - 12, hit);
+    } else {
+      hideChainageTip();
+    }
   });
 
   canvas.addEventListener("pointerleave", () => {
@@ -1375,6 +1442,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         }, 9000);
       }
     },
+    // Digital Twin asset marker controls
+    setAssetMarkersVisible(v) { assetMarkers.setVisible(!!v); },
+    getAssetMarkers() { return assetMarkers; },
   };
 
   return {
@@ -1549,6 +1619,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       riverWidthMeasure.update?.(cam.camera);
       distanceMeasure.update?.(cam.camera);
+      assetMarkers.tick(dt);
       cinematic.update(dt);
       if (fishing) fishing.update(dt, cam.camera);
       if (!cinematic.isActive()) cam.update(dt);

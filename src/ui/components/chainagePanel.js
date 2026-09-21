@@ -1,5 +1,6 @@
 import { Milestone, ChevronLeft, ChevronRight, X, PenLine } from "lucide";
 import { state } from "../../state.js";
+import { getDestinations } from "../../geo/chainage.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 import { lucideHtml } from "../icons.js";
 
@@ -101,17 +102,15 @@ export function mountChainagePanel(root, dataset) {
   }
 
   function render(p, points) {
-    const idx = points.findIndex((c) => c.meters === p.meters);
-    const prev = idx > 0 ? points[idx - 1] : null;
-    const next = idx >= 0 && idx < points.length - 1 ? points[idx + 1] : null;
-
     const station = p.label || metersToStation(p.meters);
     stationEl.textContent = station;
 
+    const { prev, next } = getDestinations(p.meters);
+
     el.querySelector("#ch-panel-prev").disabled = !prev;
     el.querySelector("#ch-panel-next").disabled = !next;
-    el.querySelector("#ch-panel-prev").dataset.meters = prev ? String(prev.meters) : "";
-    el.querySelector("#ch-panel-next").dataset.meters = next ? String(next.meters) : "";
+    el.querySelector("#ch-panel-prev").dataset.meters = prev ? String(prev.chainage_m) : "";
+    el.querySelector("#ch-panel-next").dataset.meters = next ? String(next.chainage_m) : "";
 
     syncAnnoCount(p.meters);
     if (notesOpen) renderNotes(p.meters);
