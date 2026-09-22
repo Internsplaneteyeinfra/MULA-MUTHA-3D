@@ -19,6 +19,10 @@ export function standTreeUpright(root) {
 }
 
 export function treeTargetHeight(assetId, placementScale = 1) {
-  if (assetId === "grass") return 1.2 * placementScale;
-  return Math.max(5, Math.min(16, placementScale * 8));
+  const s = Math.max(0.6, Number(placementScale) || 1);
+  if (assetId === "grass") return 2.0 * s;
+  if (assetId === "palm") return Math.max(9, Math.min(18, s * 12));
+  if (assetId === "conifer") return Math.max(10, Math.min(20, s * 13));
+  if (assetId === "birch") return Math.max(8, Math.min(15, s * 10));
+  return Math.max(9, Math.min(18, s * 11.5));
 }

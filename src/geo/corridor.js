@@ -68,8 +68,13 @@ export function buildCorridorFromKml(ringLocal, depthPoints, opts = {}) {
     snapStationsToCenterline(stations, centerlineLocal);
   }
 
-  // Keep banks tight to KML (was 1.02 — spilled water onto OSM buildings/roads)
-  expandBanks(stations, 1.005);
+  // Rebuild left/right banks from the full KML polygon face so every station
+  // spans bank-to-bank. Prevents dry "un-rivered" gaps inside the KML ring.
+  assignTangents(stations);
+  fitBanksToKmlRing(stations, closed);
+
+  // Tiny outward pad so triangles fully cover the KML face (no land peek-through)
+  expandBanks(stations, 1.012);
 
   assignTangents(stations);
 
@@ -262,6 +267,77 @@ function expandBanks(stations, factor = 1.02) {
     s.halfWidth = half;
     s.width = half * 2;
   }
+}
+
+/**
+ * Fit each station's left/right banks to the full KML river polygon.
+ * Cross-section line through the station center intersects the ring at two
+ * (or more) points — take the outermost pair so the water mesh fills the
+ * entire river face with no dry interior gaps.
+ */
+function fitBanksToKmlRing(stations, ring) {
+  if (!stations?.length || !ring?.length) return;
+  const closed = closeRing(ring);
+  if (closed.length < 3) return;
+
+  for (let i = 0; i < stations.length; i++) {
+    const s = stations[i];
+    // Prefer flow-perpendicular as the across axis (stable through bends)
+    let ax = -(s.flowZ || 0);
+    let az = s.flowX || 0;
+    let alen = Math.hypot(ax, az);
+    if (alen < 1e-6) {
+      ax = s.rightX - s.leftX;
+      az = s.rightZ - s.leftZ;
+      alen = Math.hypot(ax, az) || 1;
+    }
+    ax /= alen;
+    az /= alen;
+
+    const hits = intersectLineWithRing(s.x, s.z, ax, az, closed);
+    if (hits.length < 2) continue;
+
+    hits.sort((a, b) => a - b);
+    const tMin = hits[0];
+    const tMax = hits[hits.length - 1];
+    const span = tMax - tMin;
+    const prevHalf = Math.max(8, s.halfWidth || 8);
+
+    // Only adopt KML banks when they cover at least the measured corridor —
+    // avoids collapsing width on bad tip / multi-lobe intersections.
+    if (!(span >= prevHalf * 1.05)) continue;
+
+    s.leftX = s.x + ax * tMin;
+    s.leftZ = s.z + az * tMin;
+    s.rightX = s.x + ax * tMax;
+    s.rightZ = s.z + az * tMax;
+    s.halfWidth = span * 0.5;
+    s.width = span;
+  }
+}
+
+/**
+ * Intersect infinite line P + t·D with every ring edge.
+ * Returns signed distances t along D (metres).
+ */
+function intersectLineWithRing(px, pz, dx, dz, ring) {
+  const hits = [];
+  const n = ring.length;
+  for (let i = 0; i < n; i++) {
+    const a = ring[i];
+    const b = ring[(i + 1) % n];
+    const ex = b.x - a.x;
+    const ez = b.z - a.z;
+    const den = dx * ez - dz * ex;
+    if (Math.abs(den) < 1e-9) continue;
+    const fx = a.x - px;
+    const fz = a.z - pz;
+    const t = (fx * ez - fz * ex) / den;
+    const u = (fx * dz - fz * dx) / den;
+    if (u < -1e-6 || u > 1 + 1e-6) continue;
+    hits.push(t);
+  }
+  return hits;
 }
 
 function assignTangents(stations) {

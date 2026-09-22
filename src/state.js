@@ -185,7 +185,7 @@ export const state = {
   // ── Sky & Atmosphere (Overview cinematic sky) ──
   skyEnabled: true,
   skyPreset: "calmRealistic",
-  skyCloudDensity: 0.42,
+  skyCloudDensity: 0.22,
   /** 0.2–0.55 ≈ very slow cinematic (full cycle ~90–180s at mid values). */
   skyCloudSpeed: 0.32,
   skyAnimStrength: 0.28,

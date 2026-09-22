@@ -103,7 +103,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       id !== "landuse_lulc" &&
       id !== "silt_classification" &&
       id !== "silt_volume_surface" &&
-      id !== "vegetation_extent"
+      id !== "vegetation_extent" &&
+      id !== "vegetation_health"
     ) {
       return { hydro: null, feat: null, wx: null, wz: null, id: null };
     }
@@ -321,7 +322,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         luId === "landuse_lulc" ||
         luId === "silt_classification" ||
         luId === "silt_volume_surface" ||
-        luId === "vegetation_extent"
+        luId === "vegetation_extent" ||
+        luId === "vegetation_health"
       ) {
         const { feat } = pickLandUseAtPointer();
         if (feat) {
@@ -342,7 +344,11 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             rampLabel: feat.rampLabel,
             layerTitle:
               feat.layerTitle ||
-              (luId === "vegetation_extent" ? "VEGETATION EXTENT" : "LAND USE"),
+              (luId === "vegetation_extent"
+                ? "VEGETATION TYPE"
+                : luId === "vegetation_health"
+                  ? "VEGETATION HEALTH"
+                  : "LAND USE"),
             lon: feat.lon ?? feat.vertices?.[0]?.lon,
             lat: feat.lat ?? feat.vertices?.[0]?.lat,
           });

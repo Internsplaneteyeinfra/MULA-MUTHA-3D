@@ -133,11 +133,12 @@ export function mountAnalyticsControls(root, dataset) {
       clearHydroLegend();
     },
     onBack() {
-      // Leave focus chrome; clear map layer so user can pick LULC / silt again
+      // Leave focus chrome; clear map layer so user can pick LULC / silt / veg again
       window.__MM_SCENE__?.hideHydrology?.();
       activeHydroId = null;
       hydroLegend.hidden = true;
       hydroLegend.innerHTML = "";
+      landUseHud.setActiveOption(null);
       landUseHud.setStatus("");
       if (!landUseHud.isOpen()) landUseHud.show();
       setActive("Land Use");
@@ -260,6 +261,18 @@ export function mountAnalyticsControls(root, dataset) {
 
   function closeLandUseHud() {
     if (landUseHud.isOpen()) landUseHud.hide();
+    landUseTheme.hide();
+    const luIds = new Set([
+      "landuse_lulc",
+      "silt_classification",
+      "silt_volume_surface",
+      "vegetation_extent",
+      "vegetation_health",
+    ]);
+    if (luIds.has(String(activeHydroId || ""))) {
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+    }
   }
 
   function closeDigitalTwin() {
@@ -289,6 +302,8 @@ export function mountAnalyticsControls(root, dataset) {
     if (aqiHud.isOpen()) aqiHud.hide();
     closeDigitalTwin();
     clearHydroLegend();
+    window.__MM_SCENE__?.hideHydrology?.();
+    activeHydroId = null;
     setActive(null);
   }
 
@@ -340,7 +355,7 @@ export function mountAnalyticsControls(root, dataset) {
     landUseTheme.hide();
     pollutionTheme.hide();
     pollutionKeys.hide();
-    waterQualityTheme.showClasses(leg.classes || [], "waterquality");
+    waterQualityTheme.showClasses(leg.classes || [], "waterquality", { legendOnly: true });
     if (waterQualityHud.isOpen()) waterQualityHud.reposition?.();
   }
 
@@ -411,6 +426,19 @@ export function mountAnalyticsControls(root, dataset) {
   }
 
   async function activateLandUseLayer(opt) {
+    const layerId = opt?.layerId || null;
+    // Same button again → turn layer off (keep Land Use HUD open)
+    if (layerId && activeHydroId === layerId) {
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = null;
+      clearHydroLegend();
+      landUseHud.setActiveOption(null);
+      landUseHud.setStatus("");
+      if (!landUseHud.isOpen()) landUseHud.show();
+      setActive("Land Use");
+      return;
+    }
+
     const tryIds = [opt.layerId, opt.fallbackLayerId].filter(Boolean);
     let last = null;
     for (const id of tryIds) {
@@ -422,6 +450,7 @@ export function mountAnalyticsControls(root, dataset) {
         if (!result) continue;
         activeHydroId = id;
         if (result.available) {
+          landUseHud.setActiveOption(opt.id);
           landUseHud.setStatus("");
           renderHydroLegend(result);
           return;

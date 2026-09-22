@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { lonLatToLocal } from "../geo/geoReference.js";
 import { terrainHeightAt } from "./terrain.js";
-import { classifyTreeAsset, preloadTreeAssets } from "./treeRegistry.js";
+import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { SURFACE_Y } from "./river.js";
 
@@ -93,9 +93,9 @@ export async function createVegetationApiLayer(dataset, vegetationData) {
     for (const [assetId, list] of byAsset) {
       const proto = prototypes.get(assetId);
       const mesh = new THREE.InstancedMesh(proto.geometry, proto.material, list.length);
-      mesh.castShadow = true;
-      mesh.receiveShadow = true;
-      mesh.frustumCulled = false;
+      mesh.castShadow = false;
+      mesh.receiveShadow = false;
+      mesh.frustumCulled = true;
       mesh.name = `vegApi:${assetId}`;
       for (let i = 0; i < list.length; i++) {
         const p = list[i];
@@ -106,8 +106,11 @@ export async function createVegetationApiLayer(dataset, vegetationData) {
         dummy.scale.setScalar(uniform);
         dummy.updateMatrix();
         mesh.setMatrixAt(i, dummy.matrix);
-        const base = assetId === "grass" ? "#5a8a48" : "#3f6f3a";
-        color.set(base).offsetHSL((rng() - 0.5) * 0.06, 0.03, (rng() - 0.5) * 0.05);
+        if (proto.material?.vertexColors) {
+          color.setRGB(0.9 + rng() * 0.1, 0.95 + rng() * 0.05, 0.88 + rng() * 0.1);
+        } else {
+          color.set(foliageHex(assetId)).offsetHSL((rng() - 0.5) * 0.05, 0.04, (rng() - 0.5) * 0.04);
+        }
         mesh.setColorAt(i, color);
       }
       mesh.instanceMatrix.needsUpdate = true;
@@ -150,9 +153,15 @@ function classToKind(name = "") {
 }
 
 function assetForKind(kind, rng) {
-  if (kind === "grass") return rng() < 0.35 ? "birch" : "grass";
-  if (kind === "shrub") return rng() < 0.45 ? classifyTreeAsset({}, "park", rng) : "grass";
-  return classifyTreeAsset({}, kind === "trees" ? "forest" : "park", rng);
+  if (kind === "grass") return "grass";
+  if (kind === "shrub") return rng() < 0.55 ? "grass" : "birch";
+  if (kind === "trees") {
+    const roll = rng();
+    if (roll < 0.34) return "palm";
+    if (roll < 0.67) return "broadleaf";
+    return "conifer";
+  }
+  return classifyTreeAsset({}, "park", rng);
 }
 
 function scaleForKind(kind, rng) {
@@ -207,22 +216,36 @@ function pointInRing(x, z, ring) {
 
 function createProceduralFallback(trees, stations) {
   const n = Math.max(1, trees.length);
-  const trunkGeo = new THREE.CylinderGeometry(0.2, 0.34, 2.8, 5);
+  const trunkGeo = new THREE.CylinderGeometry(0.2, 0.34, 2.8, 6);
   trunkGeo.translate(0, 1.4, 0);
-  const canopyGeo = new THREE.SphereGeometry(1.5, 7, 6);
-  canopyGeo.scale(1, 1.1, 1);
-  canopyGeo.translate(0, 3.6, 0);
+  const canopyGeo = new THREE.SphereGeometry(1.65, 9, 7);
+  canopyGeo.scale(1.15, 1.05, 1.1);
+  canopyGeo.translate(0, 3.8, 0);
   const trunks = new THREE.InstancedMesh(
     trunkGeo,
-    new THREE.MeshStandardMaterial({ color: "#5c4638", roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({
+      color: "#5c4638",
+      roughness: 0.95,
+      metalness: 0,
+      vertexColors: false,
+    }),
     n,
   );
   const canopy = new THREE.InstancedMesh(
     canopyGeo,
-    new THREE.MeshStandardMaterial({ color: "#4f7a48", roughness: 0.82 }),
+    new THREE.MeshStandardMaterial({
+      color: "#ffffff",
+      roughness: 0.78,
+      metalness: 0,
+      emissive: "#5aaa4a",
+      emissiveIntensity: 0.28,
+      vertexColors: false,
+      side: THREE.DoubleSide,
+    }),
     n,
   );
   const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
   for (let i = 0; i < trees.length; i++) {
     const t = trees[i];
     dummy.position.set(t.x, t.y ?? terrainHeightAt(t.x, t.z, stations), t.z);
@@ -231,9 +254,13 @@ function createProceduralFallback(trees, stations) {
     dummy.updateMatrix();
     trunks.setMatrixAt(i, dummy.matrix);
     canopy.setMatrixAt(i, dummy.matrix);
+    color.set("#5aaa4a");
+    canopy.setColorAt(i, color);
   }
   trunks.count = trees.length;
   canopy.count = trees.length;
+  trunks.instanceMatrix.needsUpdate = true;
+  canopy.instanceMatrix.needsUpdate = true;
   const g = new THREE.Group();
   g.add(trunks);
   g.add(canopy);

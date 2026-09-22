@@ -1,4 +1,4 @@
-import { Building2, Layers, Leaf, Mountain, Trees } from "lucide";
+import { Activity, Building2, Layers, Mountain, Sprout } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
 
@@ -6,7 +6,7 @@ import { state } from "../../state.js";
  * Land Use floating HUD — icon-only, no panel/card/title/labels.
  * Labels appear only on hover (CSS tooltips).
  *
- * Order: LULC → Silt Classification → Silt Volume → Vegetation Type → Health
+ * Order: LULC → Silt Classification → Silt Volume → Vegetation Health → Vegetation Type
  */
 export const LAND_USE_OPTIONS = [
   {
@@ -34,19 +34,19 @@ export const LAND_USE_OPTIONS = [
     fallbackLayerId: null,
   },
   {
-    id: "vegetation_extent",
-    tip: "Vegetation Type",
-    icon: Trees,
-    tone: "lu-tone-veg",
-    layerId: "vegetation_extent",
+    id: "vegetation_health",
+    tip: "Vegetation Health",
+    icon: Activity,
+    tone: "lu-tone-veg-health",
+    layerId: "vegetation_health",
     fallbackLayerId: null,
   },
   {
-    id: "vegetation_health",
-    tip: "Vegetation Health",
-    icon: Leaf,
-    tone: "lu-tone-veg-health",
-    layerId: "vegetation_health",
+    id: "vegetation_extent",
+    tip: "Vegetation Type",
+    icon: Sprout,
+    tone: "lu-tone-veg",
+    layerId: "vegetation_extent",
     fallbackLayerId: null,
   },
 ];
@@ -134,7 +134,7 @@ export function mountLandUseHud(root, hooks = {}) {
     }
     const r = btn.getBoundingClientRect();
     wrap.style.left = `${Math.round(r.left + r.width / 2)}px`;
-    wrap.style.top = `${Math.round(r.bottom + 12)}px`;
+    wrap.style.top = `${Math.round(r.bottom + 22)}px`;
     wrap.style.transform = "translateX(-50%)";
   }
 

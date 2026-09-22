@@ -27,7 +27,7 @@ export async function fetchWeatherAt(lat, lon) {
   url.search = new URLSearchParams({
     latitude: String(q.lat),
     longitude: String(q.lon),
-    current: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,is_day",
+    current: "temperature_2m,apparent_temperature,weather_code,wind_speed_10m,wind_direction_10m,is_day,cloud_cover,precipitation",
     timezone: "Asia/Kolkata",
   });
   const res = await fetch(url, { signal: activeController.signal });
@@ -38,6 +38,9 @@ export async function fetchWeatherAt(lat, lon) {
     temperature: Number.isFinite(current.temperature_2m) ? current.temperature_2m : null,
     apparent: Number.isFinite(current.apparent_temperature) ? current.apparent_temperature : null,
     wind: Number.isFinite(current.wind_speed_10m) ? current.wind_speed_10m : null,
+    windDir: Number.isFinite(current.wind_direction_10m) ? current.wind_direction_10m : null,
+    cloudCover: Number.isFinite(current.cloud_cover) ? current.cloud_cover : null,
+    precipitation: Number.isFinite(current.precipitation) ? current.precipitation : null,
     code: current.weather_code,
     isDay: current.is_day === 1,
     condition: weatherCondition(current.weather_code),

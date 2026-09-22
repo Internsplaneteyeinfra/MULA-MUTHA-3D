@@ -1964,11 +1964,11 @@
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: clamp(6px, 0.7vw, 10px);
+  gap: clamp(8px, 0.85vw, 14px);
   width: auto;
   max-width: calc(100vw - 280px);
   height: auto;
-  min-height: 44px;
+  min-height: 58px;
   padding: 0;
   margin: 0;
   border: none;
@@ -1994,17 +1994,17 @@
   display: grid;
   place-items: center;
   box-sizing: border-box;
-  width: 44px;
-  height: 44px;
-  min-width: 44px;
-  min-height: 44px;
-  max-width: 44px;
+  width: 58px;
+  height: 58px;
+  min-width: 58px;
+  min-height: 58px;
+  max-width: 58px;
   padding: 0;
   margin: 0;
   color: rgba(240, 245, 220, 0.92);
   background: transparent;
   border: 1px solid transparent;
-  border-radius: 12px;
+  border-radius: 14px;
   box-shadow: none;
   backdrop-filter: none;
   -webkit-backdrop-filter: none;
@@ -2023,8 +2023,8 @@
 .analytics-controls .nav-button-icon {
   display: grid;
   place-items: center;
-  width: 22px;
-  height: 22px;
+  width: 32px;
+  height: 32px;
   color: inherit;
   transition: transform 180ms ease, filter 180ms ease;
   pointer-events: none;
@@ -2032,9 +2032,10 @@
 .analytics-controls .nav-button-icon svg,
 .analytics-controls .nav-icon-svg {
   display: block;
-  width: 20px;
-  height: 20px;
+  width: 30px;
+  height: 30px;
   stroke: currentColor;
+  stroke-width: 1.75;
   pointer-events: none;
 }
 .analytics-controls .nav-button-label {
@@ -3013,29 +3014,30 @@
 .forecast-retry:hover {
   background: rgba(34, 137, 164, 0.55);
 }
-.weather-copy small { display:block; margin-top:2px; color:rgba(178,211,220,.72); font-size:11px; min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.weather-copy small { display:block; margin-top:1px; color:rgba(178,211,220,.74); font-size:11px; min-width:0; max-width:100%; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
 .weather-wq {
   display: grid;
   grid-template-columns: max-content max-content max-content;
-  align-items: baseline;
+  align-items: end;
   justify-content: start;
-  column-gap: 6px;
-  row-gap: 4px;
+  column-gap: 8px;
+  row-gap: 6px;
   margin: 0;
-  padding: 2px 10px 2px 2px;
+  padding: 4px 12px 4px 4px;
   border: none;
   border-right: 1px solid rgba(193, 225, 234, 0.18);
   background: none !important;
   box-shadow: none !important;
   min-width: 0;
   width: max-content;
+  flex-shrink: 0;
 }
 .weather-wq-head {
   grid-column: 1 / -1;
-  margin: 0 0 2px;
-  color: rgba(158, 220, 236, 0.78);
-  font: 700 8px/1 var(--font-ui);
-  letter-spacing: 0.14em;
+  margin: 0 0 4px;
+  color: rgba(158, 220, 236, 0.88);
+  font: 700 10px/1 var(--font-ui);
+  letter-spacing: 0.16em;
   text-transform: uppercase;
 }
 .weather-wq-row {
@@ -3047,22 +3049,25 @@
   border: none !important;
   box-shadow: none !important;
   color: rgba(178, 211, 220, 0.72);
-  font: 500 11px/1.2 var(--font-ui);
+  font: 500 12px/1.2 var(--font-ui);
 }
 .weather-wq-row i {
   font-style: normal;
   font-weight: 700;
-  letter-spacing: 0.05em;
+  letter-spacing: 0.07em;
   text-transform: uppercase;
-  color: rgba(180, 222, 234, 0.78);
-  font-size: 10px;
-  line-height: 1.2;
+  color: rgba(180, 222, 234, 0.88);
+  font-size: 11px;
+  line-height: 1;
   padding-right: 2px;
+  padding-bottom: 2px;
+  align-self: end;
 }
 .weather-wq-row.is-q i {
   color: #7adcf0;
-  font-size: 9px;
-  letter-spacing: 0.04em;
+  font-size: 12px;
+  letter-spacing: 0.08em;
+  padding-bottom: 3px;
 }
 #ui-root.gis-ui .weather-wq-row b,
 .weather-wq-row b {
@@ -3073,65 +3078,80 @@
   background: none !important;
   box-shadow: none !important;
   color: #ffffff !important;
-  font: 800 20px/1 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace) !important;
+  font: 800 22px/0.95 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace) !important;
   font-variant-numeric: tabular-nums;
   letter-spacing: -0.03em;
   white-space: nowrap;
+  align-self: end;
 }
 .weather-wq-row.is-q b {
-  color: #b8f6ff !important;
-  font-size: 26px !important;
+  color: #ffffff !important;
+  font-size: 32px !important;
   font-weight: 800 !important;
   letter-spacing: -0.04em;
-  text-shadow: 0 0 20px rgba(90, 210, 240, 0.35);
+  line-height: 0.92 !important;
+  text-shadow: 0 0 20px rgba(90, 210, 240, 0.32);
 }
 .weather-wq-row em {
   font-style: normal;
-  color: rgba(186, 224, 236, 0.78);
-  font: 650 10px/1.1 var(--font-ui);
+  color: rgba(186, 224, 236, 0.9);
+  font: 650 12px/1 var(--font-ui);
   letter-spacing: 0.02em;
   white-space: nowrap;
-  padding-left: 1px;
+  padding-left: 0;
+  padding-bottom: 2px;
+  align-self: end;
 }
 .weather-wq-row.is-q em {
-  color: rgba(170, 236, 250, 0.9);
-  font-size: 11px;
+  color: rgba(190, 242, 252, 0.98);
+  font-size: 13px;
+  font-weight: 700;
+  padding-bottom: 3px;
 }
 .river-data-grid > span, .river-data-grid > b { white-space: nowrap; }
 .river-data-grid > b { overflow: hidden; text-overflow: ellipsis; }
 .river-data-action-value { min-width: 126px; }
-.weather-widget { min-height: 94px; }
+.weather-widget { min-height: 96px; }
 @media (max-width: 1200px) {
-  .analytics-controls, .top-navigation { max-width: calc(100vw - 360px); gap: 7px; }
-  .analytics-controls .nav-button { width: 44px; height: 44px; min-width: 44px; min-height: 44px; max-width: 44px; }
+  .analytics-controls, .top-navigation { max-width: calc(100vw - 360px); gap: 9px; }
+  .analytics-controls .nav-button { width: 54px; height: 54px; min-width: 54px; min-height: 54px; max-width: 54px; }
+  .analytics-controls .nav-button-icon { width: 30px; height: 30px; }
+  .analytics-controls .nav-button-icon svg,
+  .analytics-controls .nav-icon-svg { width: 28px; height: 28px; }
 }
 @media (max-width: 900px) {
   .chainage-ruler-tick.is-sparse { display:none; }
   .analytics-controls, .top-navigation {
     max-width: calc(100vw - 200px);
-    gap: 6px;
+    gap: 8px;
     padding: 0;
     background: transparent;
     border: none;
     box-shadow: none;
   }
-  .analytics-controls .nav-button { width: 42px; height: 42px; min-width: 42px; min-height: 42px; max-width: 42px; border-radius: 11px; }
+  .analytics-controls .nav-button { width: 52px; height: 52px; min-width: 52px; min-height: 52px; max-width: 52px; border-radius: 13px; }
+  .analytics-controls .nav-button-icon { width: 28px; height: 28px; }
+  .analytics-controls .nav-button-icon svg,
+  .analytics-controls .nav-icon-svg { width: 26px; height: 26px; }
 }
 @media (max-width: 640px) {
-  .weather-widget { min-height:42px; }
+  .weather-widget { min-height: 0; }
   .analytics-controls, .top-navigation {
     left: 50%;
     right: auto;
     transform: translateX(-50%);
-    top: 72px;
+    top: calc(max(10px, env(safe-area-inset-top)) + 64px);
     max-width: calc(100vw - 20px);
-    gap: 5px;
+    gap: 7px;
     padding: 0;
     background: transparent;
     border: none;
     box-shadow: none;
   }
-  .analytics-controls .nav-button { width: 40px; height: 40px; min-width: 40px; min-height: 40px; max-width: 40px; }
+  .analytics-controls .nav-button { width: 48px; height: 48px; min-width: 48px; min-height: 48px; max-width: 48px; }
+  .analytics-controls .nav-button-icon { width: 26px; height: 26px; }
+  .analytics-controls .nav-button-icon svg,
+  .analytics-controls .nav-icon-svg { width: 24px; height: 24px; }
   .river-data-panel { padding: 10px; }
   .river-data-station { font-size: 22px; }
   .river-profile-popup { width: min(320px, calc(100vw - 20px)); }
@@ -3142,13 +3162,13 @@
     width: min(300px, calc(100vw - 20px));
   }
 }
-#ui-root.gis-ui .weather-copy strong { font-size: 10px; }
+#ui-root.gis-ui .weather-copy strong { font-size: 10px; letter-spacing: 0.1em; }
 #ui-root.gis-ui .weather-copy .weather-temp,
-#ui-root.gis-ui .weather-copy b.weather-temp { font-size: 16px; }
+#ui-root.gis-ui .weather-copy b.weather-temp { font-size: 20px; }
 #ui-root.gis-ui .weather-copy .weather-condition,
-#ui-root.gis-ui .weather-copy i.weather-condition { font-size: 11px; }
-#ui-root.gis-ui .weather-date { font-size: 10px; }
-#ui-root.gis-ui .weather-time { font-size: 13px; }
+#ui-root.gis-ui .weather-copy i.weather-condition { font-size: 12px; }
+#ui-root.gis-ui .weather-date { font-size: 11px; white-space: nowrap; overflow: visible; }
+#ui-root.gis-ui .weather-time { font-size: 15px; }
 #ui-root.gis-ui .map-ctrl-label { font-size: 14px; }
 #ui-root.gis-ui .view-toggle-title { font-size: 12px; }
 #ui-root.gis-ui .view-toggle-btn { font-size: 14px; }
@@ -3234,13 +3254,13 @@
 #ui-root.gis-ui .gis-brand strong { font-size: 16px; }
 #ui-root.gis-ui .gis-brand p { font-size: 12px; }
 #ui-root.gis-ui .gis-brand small { font-size: 11px; }
-#ui-root.gis-ui .weather-copy strong { font-size: 10px; }
+#ui-root.gis-ui .weather-copy strong { font-size: 10px; letter-spacing: 0.1em; }
 #ui-root.gis-ui .weather-copy .weather-temp,
-#ui-root.gis-ui .weather-copy b.weather-temp { font-size: 15px; }
+#ui-root.gis-ui .weather-copy b.weather-temp { font-size: 20px; }
 #ui-root.gis-ui .weather-copy .weather-condition,
-#ui-root.gis-ui .weather-copy i.weather-condition { font-size: 11px; }
-#ui-root.gis-ui .weather-date { font-size: 10px; }
-#ui-root.gis-ui .weather-time { font-size: 12px; }
+#ui-root.gis-ui .weather-copy i.weather-condition { font-size: 12px; }
+#ui-root.gis-ui .weather-date { font-size: 11px; overflow: visible; }
+#ui-root.gis-ui .weather-time { font-size: 15px; }
 #ui-root.gis-ui .map-ctrl-label { font-size: 12px; }
 #ui-root.gis-ui .view-toggle-title { font-size: 10px; }
 #ui-root.gis-ui .view-toggle-btn { font-size: 12px; }
@@ -3293,8 +3313,10 @@
 #ui-root.gis-ui {
   position: fixed;
   inset: 0;
-  width: 100vw;
-  height: 100vh;
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   pointer-events: none;
   overflow: hidden;
 }
@@ -3324,14 +3346,15 @@
   right: max(14px, env(safe-area-inset-right));
   z-index: 19;
   display: grid;
-  grid-template-columns: auto auto minmax(0, 1fr) auto;
+  /* icon | LIVE REACH | LIVE WEATHER | date/time — none of the text columns shrink */
+  grid-template-columns: auto max-content max-content max-content;
   align-items: center;
-  column-gap: 12px;
+  column-gap: 14px;
   row-gap: 0;
-  width: min(520px, calc(100vw - 120px));
-  min-width: 420px;
-  max-width: calc(100vw - 100px);
-  padding: 11px 13px;
+  width: max-content;
+  min-width: 0;
+  max-width: min(720px, calc(100vw - 200px));
+  padding: 10px 14px;
   border: 1px solid rgba(182, 222, 235, .17);
   border-radius: 10px;
   background: rgba(8, 20, 27, .48);
@@ -3339,6 +3362,7 @@
   backdrop-filter: blur(12px);
   -webkit-backdrop-filter: blur(12px);
   overflow: hidden;
+  box-sizing: border-box;
 }
 .weather-icon {
   appearance: none;
@@ -3709,14 +3733,26 @@
     margin-left: 0;
   }
 }
-.weather-copy { min-width: 0; max-width: 100%; display: grid; gap: 2px; overflow: hidden; }
-.weather-copy strong { font-size: 9px; letter-spacing: .1em; color: rgba(229, 242, 246, .86); white-space: nowrap; }
+.weather-copy {
+  min-width: 11.5rem;
+  width: max-content;
+  max-width: 13.5rem;
+  display: grid;
+  gap: 3px;
+  overflow: hidden;
+}
+.weather-copy strong {
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  color: rgba(229, 242, 246, 0.92);
+  white-space: nowrap;
+}
 .weather-copy .weather-temp,
 .weather-copy b.weather-temp {
   color: #e9f8fb;
-  font-size: 15px;
+  font-size: 20px;
   font-weight: 700;
-  line-height: 1.15;
+  line-height: 1.05;
   white-space: nowrap;
 }
 .weather-copy .weather-condition,
@@ -3728,40 +3764,42 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-style: normal;
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.2;
-  color: rgba(178, 211, 220, .78);
+  color: rgba(178, 211, 220, 0.82);
 }
 .weather-copy small {
   display: block;
-  margin-top: 2px;
+  margin-top: 1px;
   min-width: 0;
+  max-width: 100%;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
-  color: rgba(178,211,220,.72);
+  color: rgba(178, 211, 220, 0.74);
   font-size: 11px;
+  line-height: 1.25;
 }
 .weather-time-block {
   display: grid;
   align-content: center;
   justify-items: end;
-  gap: 3px;
+  gap: 4px;
   flex-shrink: 0;
-  min-width: 7.8rem;
-  max-width: 9.5rem;
-  padding-left: 10px;
-  border-left: 1px solid rgba(193, 225, 234, 0.16);
+  min-width: max-content;
+  max-width: none;
+  padding-left: 12px;
+  border-left: 1px solid rgba(193, 225, 234, 0.18);
   text-align: right;
-  overflow: hidden;
+  overflow: visible;
 }
 .weather-date {
   display: block;
-  max-width: 100%;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  color: rgba(200, 232, 240, 0.88);
-  font: 600 10px/1.15 var(--font-ui);
+  max-width: none;
+  overflow: visible;
+  text-overflow: clip;
+  color: rgba(200, 232, 240, 0.9);
+  font: 600 11px/1.15 var(--font-ui);
   letter-spacing: 0.02em;
   white-space: nowrap;
 }
@@ -3770,7 +3808,8 @@
   padding-left: 0;
   border-left: none;
   color: #a7dfea;
-  font: 600 12px/1 var(--font-mono, ui-monospace, monospace);
+  font: 700 15px/1 var(--font-mono, ui-monospace, monospace);
+  white-space: nowrap;
 }
 
 .gis-tools-stack {
@@ -3824,16 +3863,45 @@
   .gis-ui .depth-legend .depth-bar { min-height: 88px; }
 }
 @media (max-width: 900px) {
-  .gis-brand { max-width: min(320px, calc(100vw - 300px)); }
-  .weather-widget { width: min(440px, calc(100vw - 80px)); min-width: 300px; }
+  .gis-brand { max-width: min(280px, calc(100vw - 260px)); }
+  .weather-widget {
+    width: min(360px, calc(100vw - 120px));
+    min-width: 0;
+    max-width: calc(100vw - 100px);
+    column-gap: 8px;
+    padding: 8px 10px;
+  }
   .gis-tools-stack { right: 10px; }
   .gis-ui .chainage-ruler { width: min(92vw, 1100px); }
 }
 @media (max-width: 640px) {
   .gis-brand { left: 10px; top: 10px; max-width: calc(100vw - 92px); padding: 8px 9px; }
-  .gis-brand p, .gis-brand small { margin-left: 0; }
-  .weather-widget { top: 10px; right: 10px; width: 42px; min-width: 42px; height: 42px; padding: 0; grid-template-columns: 1fr; border-radius: 10px; }
-  .weather-copy, .weather-time-block, .weather-wq { display: none; }
+  .gis-brand p, .gis-brand small { display: none; }
+  /* LIVE REACH stays visible — weather detail opens from the icon */
+  .weather-widget {
+    top: max(10px, env(safe-area-inset-top));
+    right: max(10px, env(safe-area-inset-right));
+    width: auto;
+    min-width: 0;
+    max-width: min(210px, calc(100vw - 88px));
+    height: auto;
+    padding: 6px 8px;
+    grid-template-columns: auto minmax(0, 1fr);
+    column-gap: 6px;
+    border-radius: 10px;
+  }
+  .weather-copy,
+  .weather-time-block {
+    display: none !important;
+  }
+  .weather-wq {
+    display: grid !important;
+    border-right: none;
+    padding: 0;
+    width: 100%;
+    column-gap: 4px;
+    row-gap: 2px;
+  }
   .gis-tools-stack { top: 64px; right: 10px !important; width: 58px; }
   .view-toggle { width: 58px; }
   .gis-ui .depth-legend .depth-bar { min-height: 80px; }
@@ -5471,6 +5539,34 @@
   white-space: normal;
 }
 
+/* LULC / silt: scale chips only — all classes always visible, no click filter */
+.lu-theme-classes.is-legend-only .lu-theme-class,
+.lu-theme-class.is-legend-chip {
+  cursor: default;
+  pointer-events: none;
+}
+.lu-theme-classes.is-legend-only .lu-theme-class:hover .lu-theme-class-letter,
+.lu-theme-class.is-legend-chip:hover .lu-theme-class-letter {
+  transform: none;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
+}
+.lu-theme-classes.is-legend-only .lu-theme-class.is-selected .lu-theme-class-letter,
+.lu-theme-classes.is-legend-only.has-selection .lu-theme-class:not(.is-selected),
+.lu-theme-classes.is-legend-only .lu-theme-class.is-selected,
+.focus-theme-classes.is-legend-only .lu-theme-class.is-selected .lu-theme-class-letter,
+.focus-theme-classes.is-legend-only.has-selection .lu-theme-class:not(.is-selected) {
+  opacity: 1 !important;
+  transform: none !important;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22) !important;
+  outline: none !important;
+  filter: none !important;
+}
+.lu-theme-classes.is-legend-only .lu-theme-class-name {
+  opacity: 1;
+  color: rgba(248, 252, 255, 0.95);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.85);
+}
+
 .lu-theme-year {
   position: fixed;
   left: 50%;
@@ -5876,8 +5972,16 @@
 .lu-hud__item.lu-tone-lulc { color: #9ec4e8; }
 .lu-hud__item.lu-tone-silt { color: #d4b483; }
 .lu-hud__item.lu-tone-volume { color: #c9a06a; }
-.lu-hud__item.lu-tone-veg { color: #8fd98a; }
-.lu-hud__item.lu-tone-veg-health { color: #6fd3a0; }
+.lu-hud__item.lu-tone-veg { color: #7ed98a; }
+.lu-hud__item.lu-tone-veg-health { color: #5ee0b0; }
+.lu-hud__item.lu-tone-veg.is-active {
+  color: #b8ffc0;
+  filter: drop-shadow(0 0 8px rgba(110, 220, 130, 0.45));
+}
+.lu-hud__item.lu-tone-veg-health.is-active {
+  color: #9affd8;
+  filter: drop-shadow(0 0 8px rgba(80, 220, 170, 0.5));
+}
 
 .lu-hud__item.is-active .lu-hud__icon {
   filter: drop-shadow(0 0 10px rgba(140, 220, 160, 0.55));
@@ -6070,8 +6174,8 @@
 }
 
 /* Per-metric tones */
-.wq-hud__item.wq-tone-salinity { color: #f07858; }
-.wq-hud__item.wq-tone-tss { color: #6ecfe8; }
+.wq-hud__item.wq-tone-salinity { color: #6ec8e8; }
+.wq-hud__item.wq-tone-tss { color: #7ad4f0; }
 .wq-hud__item.wq-tone-ndci { color: #7dcf7a; }
 .wq-hud__item.wq-tone-ndwi { color: #5eb8e8; }
 .wq-hud__item.wq-tone-wst { color: #e8b86a; }
@@ -6121,7 +6225,9 @@
 
 /* Active Water Quality (droplet) — cyan glass + downward caret */
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet.active,
-#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"] {
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"],
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="Water Quality"],
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="hydrology"] {
   color: #9aecff;
   background: rgba(80, 190, 230, 0.14);
   border-color: rgba(110, 220, 250, 0.72);
@@ -6132,11 +6238,15 @@
   filter: none;
 }
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet.active .nav-button-icon,
-#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"] .nav-button-icon {
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"] .nav-button-icon,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="Water Quality"] .nav-button-icon,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="hydrology"] .nav-button-icon {
   filter: brightness(1.25) drop-shadow(0 0 8px rgba(110, 220, 250, 0.75));
 }
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet.active::before,
-#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"]::before {
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"]::before,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="Water Quality"]::before,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="hydrology"]::before {
   content: "";
   position: absolute;
   left: 50%;
@@ -6151,11 +6261,30 @@
   pointer-events: none;
   z-index: 1;
 }
-/* Hide default tip while WQ submenu is open (caret replaces it) */
+/* Never show the "Water Quality" tip while the submenu icons are open */
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="Water Quality"]::after,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="hydrology"]::after,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet::after,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet:hover::after,
+#ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet:focus-visible::after,
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet.active::after,
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"]::after {
+  content: none !important;
+  display: none !important;
   opacity: 0 !important;
-  visibility: hidden;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+
+/* Same for Land Use sprout tip vs LU submenu */
+#ui-root.gis-ui.land-use-open .analytics-controls .nav-button[data-analytics="Land Use"]::after,
+#ui-root.gis-ui.land-use-open .analytics-controls .nav-button.tone-plant::after,
+#ui-root.gis-ui.land-use-open .analytics-controls .nav-button.tone-plant:hover::after,
+#ui-root.gis-ui.land-use-open .analytics-controls .nav-button.tone-plant:focus-visible::after {
+  content: none !important;
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
 }
 
 @media (max-width: 720px) {
@@ -6163,10 +6292,10 @@
     max-width: calc(100vw - 20px);
   }
   .wq-hud__row {
-    gap: 14px;
+    gap: 18px;
   }
   .wq-hud__item {
-    width: 26px;
+    width: 28px;
   }
   .wq-hud__icon,
   .wq-hud__svg {
@@ -7356,5 +7485,294 @@
     width: 40px;
     height: 40px;
     padding: 0;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Global responsive polish — live top HUD + map chrome
+   Keeps LIVE REACH readable on laptop / tablet / phone.
+   ═══════════════════════════════════════════════════════════ */
+#ui-root.gis-ui {
+  width: 100%;
+  height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
+}
+
+@media (max-width: 1440px) {
+  .weather-widget {
+    width: max-content;
+    max-width: min(680px, calc(100vw - 220px));
+    column-gap: 12px;
+    padding: 9px 12px;
+  }
+  #ui-root.gis-ui .weather-wq-row b,
+  .weather-wq-row b {
+    font-size: 20px !important;
+  }
+  .weather-wq-row.is-q b {
+    font-size: 28px !important;
+  }
+  .weather-wq-row i {
+    font-size: 10px;
+  }
+  .weather-wq-row.is-q i {
+    font-size: 11px;
+  }
+  .weather-wq-row em {
+    font-size: 11px;
+  }
+  .weather-wq-row.is-q em {
+    font-size: 12px;
+  }
+  .weather-wq-head {
+    font-size: 9px;
+  }
+  .weather-copy {
+    min-width: 11rem;
+  }
+  .analytics-controls,
+  .top-navigation {
+    max-width: min(520px, calc(100vw - 520px));
+  }
+  .gis-brand {
+    max-width: min(300px, calc(100vw - 560px));
+  }
+}
+
+@media (max-width: 1180px) {
+  .weather-widget {
+    grid-template-columns: auto minmax(0, 1fr);
+    width: min(280px, calc(100vw - 160px));
+    max-width: calc(100vw - 140px);
+    column-gap: 8px;
+    padding: 8px 10px;
+  }
+  .weather-copy,
+  .weather-time-block {
+    display: none !important;
+  }
+  .weather-wq {
+    border-right: none;
+    padding: 0;
+    width: 100%;
+  }
+  .analytics-controls,
+  .top-navigation {
+    max-width: calc(100vw - 340px);
+  }
+  .gis-brand {
+    max-width: min(240px, calc(100vw - 360px));
+  }
+  .gis-brand p,
+  .gis-brand small {
+    display: none;
+  }
+}
+
+@media (max-width: 900px) {
+  .weather-wq-row i {
+    font-size: 0 !important;
+    letter-spacing: 0;
+    padding-right: 0;
+  }
+  .weather-wq-row i::before {
+    content: attr(data-short);
+    font-size: 12px;
+    font-weight: 750;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: inherit;
+  }
+  .weather-wq-row.is-q i::before {
+    color: #7adcf0;
+    font-size: 13px;
+  }
+  #ui-root.gis-ui .weather-wq-row b,
+  .weather-wq-row b {
+    font-size: 20px !important;
+  }
+  .weather-wq-row.is-q b {
+    font-size: 28px !important;
+    text-shadow: 0 0 16px rgba(90, 210, 240, 0.3);
+  }
+  .weather-wq-row em {
+    font-size: 11px;
+  }
+  .weather-wq-row.is-q em {
+    font-size: 13px;
+  }
+  .weather-wq-head {
+    font-size: 9px;
+    letter-spacing: 0.14em;
+    margin-bottom: 2px;
+  }
+  .weather-icon {
+    width: 32px;
+    height: 32px;
+  }
+  .lu-theme-classes {
+    top: calc(max(12px, env(safe-area-inset-top)) + 100px);
+    left: 50%;
+    right: auto;
+    width: min(96vw, 720px);
+    max-width: calc(100vw - 16px);
+    transform: translateX(-50%);
+    flex-wrap: wrap;
+    justify-content: center;
+    row-gap: 8px;
+    column-gap: 10px;
+    padding: 0 6px;
+  }
+  .lu-theme-back {
+    top: calc(max(10px, env(safe-area-inset-top)) + 8px);
+  }
+  .left-ui-stack {
+    top: clamp(110px, 18vh, 160px);
+    max-height: calc(100dvh - 140px);
+  }
+}
+
+@media (max-width: 720px) {
+  .lu-theme-classes {
+    top: calc(max(10px, env(safe-area-inset-top)) + 112px);
+    gap: 8px;
+  }
+  .lu-theme-class-letter {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .lu-theme-class-name {
+    font-size: 7.5px;
+    max-width: 52px;
+  }
+  .lu-theme-classes.is-numeric-scale .lu-theme-class-name,
+  .lu-theme-class.is-numeric .lu-theme-class-name {
+    font-size: 7px;
+    max-width: 70px;
+  }
+  .lu-theme-year {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 64px);
+    max-width: calc(100vw - 16px);
+  }
+  .chainage-step-hud {
+    top: calc(max(10px, env(safe-area-inset-top)) + 108px);
+  }
+  #ui-root.gis-ui.map-focus.lu-theme-classes-open .chainage-step-hud,
+  #ui-root.gis-ui.map-focus.geology-focus.lu-theme-classes-open .chainage-step-hud,
+  #ui-root.gis-ui.map-focus.land-use-focus.lu-theme-classes-open .chainage-step-hud,
+  #ui-root.gis-ui.map-focus.water-quality-focus.lu-theme-classes-open .chainage-step-hud {
+    top: calc(max(10px, env(safe-area-inset-top)) + 168px) !important;
+  }
+}
+
+@media (max-width: 640px) {
+  .analytics-controls,
+  .top-navigation {
+    top: calc(max(10px, env(safe-area-inset-top)) + 58px);
+    max-width: calc(100vw - 16px);
+    gap: 4px;
+  }
+  .analytics-controls .nav-button {
+    width: 36px;
+    height: 36px;
+    min-width: 36px;
+    min-height: 36px;
+    max-width: 36px;
+    border-radius: 10px;
+  }
+  .analytics-controls .nav-button-icon,
+  .analytics-controls .nav-button-icon svg,
+  .analytics-controls .nav-icon-svg {
+    width: 17px;
+    height: 17px;
+  }
+  .weather-icon {
+    width: 28px;
+    height: 28px;
+    border-radius: 8px;
+  }
+  .weather-icon svg {
+    width: 14px;
+    height: 14px;
+  }
+  #ui-root.gis-ui .weather-wq-row b,
+  .weather-wq-row b {
+    font-size: 18px !important;
+  }
+  .weather-wq-row.is-q b {
+    font-size: 24px !important;
+  }
+  .weather-wq-row em {
+    font-size: 11px;
+  }
+  .weather-wq-row.is-q em {
+    font-size: 12px;
+  }
+  .weather-wq-head {
+    font-size: 8px;
+  }
+  .gis-tools-stack {
+    top: calc(max(10px, env(safe-area-inset-top)) + 102px);
+    width: 52px;
+  }
+  .view-toggle {
+    width: 52px;
+  }
+  .left-ui-stack {
+    top: calc(max(10px, env(safe-area-inset-top)) + 108px);
+    max-width: min(200px, calc(100vw - 72px));
+    max-height: calc(100dvh - 170px);
+  }
+  .aqi-panel,
+  .climate-impact-graph,
+  .pollution-side-hud {
+    max-width: calc(100vw - 20px);
+  }
+}
+
+@media (max-width: 420px) {
+  .weather-widget {
+    max-width: min(178px, calc(100vw - 78px));
+    padding: 5px 6px;
+  }
+  .weather-wq-row em {
+    display: none;
+  }
+  .analytics-controls .nav-button {
+    width: 34px;
+    height: 34px;
+    min-width: 34px;
+    min-height: 34px;
+    max-width: 34px;
+  }
+}
+
+/* Landscape phones / short laptops */
+@media (max-height: 520px) and (orientation: landscape) {
+  .weather-widget {
+    padding: 4px 8px;
+    max-width: min(240px, 42vw);
+  }
+  .gis-brand p,
+  .gis-brand small,
+  .weather-copy,
+  .weather-time-block {
+    display: none !important;
+  }
+  .analytics-controls,
+  .top-navigation {
+    top: max(6px, env(safe-area-inset-top));
+  }
+  .lu-theme-classes {
+    top: calc(max(6px, env(safe-area-inset-top)) + 48px);
+  }
+  .left-ui-stack {
+    top: calc(max(6px, env(safe-area-inset-top)) + 52px);
+    max-height: calc(100dvh - 90px);
+  }
+  .gis-ui .chainage-ruler {
+    padding: 4px 8px 4px;
   }
 }

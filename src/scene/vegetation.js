@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { terrainHeightAt } from "./terrain.js";
-import { classifyTreeAsset, preloadTreeAssets } from "./treeRegistry.js";
+import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 
 const MAX_TREES = 11000;
@@ -9,7 +9,7 @@ const MAX_TREES = 11000;
  * Vegetation from OSM trees + parks + riparian buffer.
  * Uses reference GLB models (palm, broadleaf, conifer, birch, grass).
  * @param {object} dataset
- * @param {{ maxTrees?: number }} [opts]
+ * @param {{ maxTrees?: number, castShadow?: boolean }} [opts]
  */
 export async function createVegetation(dataset, opts = {}) {
   const stations = dataset.corridor.stations;
@@ -21,6 +21,7 @@ export async function createVegetation(dataset, opts = {}) {
   const placements = [];
   const pickables = [];
   const maxTrees = Math.max(200, Number(opts.maxTrees) || MAX_TREES);
+  const castShadow = !!opts.castShadow;
 
   for (const ot of osmTrees) {
     if (blocked(ot.x, ot.z, buildings, roads, stations, true)) continue;
@@ -49,25 +50,26 @@ export async function createVegetation(dataset, opts = {}) {
     pickables.push(placements[placements.length - 1]);
   }
 
-  const riparianStep = osmTrees.length > 40 ? 2 : 1;
-  const riparianDens = osmTrees.length > 40 ? 0.78 : 0.92;
+  const riparianStep = maxTrees < 2000 ? 3 : maxTrees < 4000 ? 2 : 1;
+  const riparianDens = maxTrees < 2000 ? 0.55 : maxTrees < 4000 ? 0.75 : 0.9;
   for (let i = 0; i < stations.length; i += riparianStep) {
     const st = stations[i];
     for (const side of [-1, 1]) {
       const px = -st.flowZ;
       const pz = st.flowX;
       if (rng() > riparianDens) continue;
-      const n = 2 + Math.floor(rng() * 3);
+      const n = maxTrees < 2000 ? 1 + Math.floor(rng() * 2) : 2 + Math.floor(rng() * 3);
       for (let k = 0; k < n; k++) {
-        const dist = st.halfWidth + 8 + rng() * 36;
-        const along = (rng() - 0.5) * 22;
+        const dist = st.halfWidth + 6 + rng() * 48;
+        const along = (rng() - 0.5) * 28;
         const x = st.x + px * side * dist + st.flowX * along;
         const z = st.z + pz * side * dist + st.flowZ * along;
-        if (blocked(x, z, buildings, roads, stations)) continue;
+        // Keep off the water channel; allow near roads (parks / banks)
+        if (blocked(x, z, buildings, [], stations)) continue;
         placements.push({
           x,
           z,
-          scale: 0.9 + rng() * 1.25,
+          scale: 1.05 + rng() * 1.35,
           rotY: rng() * Math.PI * 2,
           assetId: classifyTreeAsset({}, "riparian", rng),
           kind: "riparian",
@@ -80,7 +82,10 @@ export async function createVegetation(dataset, opts = {}) {
     const props = poly;
     const areaHint = polygonArea(poly.vertices);
     const dense = props.natural === "wood" || props.landuse === "forest";
-    const count = Math.min(dense ? 160 : 120, Math.max(10, Math.floor(areaHint / (dense ? 260 : 360))));
+    const count = Math.min(
+      dense ? (maxTrees < 2000 ? 40 : 100) : maxTrees < 2000 ? 25 : 70,
+      Math.max(4, Math.floor(areaHint / (dense ? 400 : 520))),
+    );
     for (let i = 0; i < count; i++) {
       const p = randomInPolygon(poly.vertices, rng);
       if (!p) continue;
@@ -119,23 +124,29 @@ export async function createVegetation(dataset, opts = {}) {
 
   for (const [assetId, list] of byAsset) {
     const proto = prototypes.get(assetId);
-    const mesh = new THREE.InstancedMesh(proto.geometry, proto.material, list.length);
-    mesh.castShadow = true;
-    mesh.receiveShadow = true;
-    mesh.frustumCulled = false;
+    const mat = proto.material.clone();
+    const mesh = new THREE.InstancedMesh(proto.geometry, mat, list.length);
+    mesh.castShadow = castShadow;
+    mesh.receiveShadow = false;
+    mesh.frustumCulled = true;
     mesh.name = `trees:${assetId}`;
 
     for (let i = 0; i < list.length; i++) {
       const p = list[i];
       const targetH = treeTargetHeight(assetId, p.scale);
       const uniform = targetH / Math.max(0.5, proto.nativeH);
-      dummy.position.set(p.x, p.y, p.z);
+      // Sit slightly above terrain so canopies clear the ground mesh
+      dummy.position.set(p.x, (p.y || 0) + 0.15, p.z);
       dummy.rotation.set(0, p.rotY, 0);
       dummy.scale.setScalar(uniform);
       dummy.updateMatrix();
       mesh.setMatrixAt(i, dummy.matrix);
       const hue = (p.x * 0.001 + p.z * 0.0013) % 1;
-      color.set(assetId === "grass" ? "#5a8a48" : "#4a7a42").offsetHSL((hue - 0.5) * 0.08, 0.04, (hue - 0.5) * 0.06);
+      if (mat.vertexColors) {
+        color.setRGB(0.92 + hue * 0.08, 0.97, 0.9 + hue * 0.06);
+      } else {
+        color.set(foliageHex(assetId)).offsetHSL((hue - 0.5) * 0.05, 0.04, (hue - 0.5) * 0.03);
+      }
       mesh.setColorAt(i, color);
     }
     mesh.instanceMatrix.needsUpdate = true;
@@ -162,22 +173,36 @@ export async function createVegetation(dataset, opts = {}) {
 
 function createProceduralFallback(trees, stations, rng) {
   const n = Math.max(1, trees.length);
-  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 3.2, 5);
+  const trunkGeo = new THREE.CylinderGeometry(0.22, 0.38, 3.2, 6);
   trunkGeo.translate(0, 1.6, 0);
-  const canopyGeo = new THREE.SphereGeometry(1.7, 7, 6);
-  canopyGeo.scale(1, 1.15, 1);
-  canopyGeo.translate(0, 4.2, 0);
+  const canopyGeo = new THREE.SphereGeometry(1.85, 9, 7);
+  canopyGeo.scale(1.15, 1.05, 1.1);
+  canopyGeo.translate(0, 4.4, 0);
   const trunks = new THREE.InstancedMesh(
     trunkGeo,
-    new THREE.MeshStandardMaterial({ color: "#5c4638", roughness: 0.95 }),
+    new THREE.MeshStandardMaterial({
+      color: "#5c4638",
+      roughness: 0.95,
+      metalness: 0,
+      vertexColors: false,
+    }),
     n,
   );
   const canopy = new THREE.InstancedMesh(
     canopyGeo,
-    new THREE.MeshStandardMaterial({ color: "#4f7a48", roughness: 0.82 }),
+    new THREE.MeshStandardMaterial({
+      color: "#ffffff",
+      roughness: 0.78,
+      metalness: 0,
+      emissive: "#5aaa4a",
+      emissiveIntensity: 0.28,
+      vertexColors: false,
+      side: THREE.DoubleSide,
+    }),
     n,
   );
   const dummy = new THREE.Object3D();
+  const color = new THREE.Color();
   for (let i = 0; i < trees.length; i++) {
     const t = trees[i];
     dummy.position.set(t.x, t.y ?? terrainHeightAt(t.x, t.z, stations), t.z);
@@ -186,9 +211,14 @@ function createProceduralFallback(trees, stations, rng) {
     dummy.updateMatrix();
     trunks.setMatrixAt(i, dummy.matrix);
     canopy.setMatrixAt(i, dummy.matrix);
+    color.set("#5aaa4a").offsetHSL((rng() - 0.5) * 0.06, 0.04, (rng() - 0.5) * 0.04);
+    canopy.setColorAt(i, color);
   }
   trunks.count = trees.length;
   canopy.count = trees.length;
+  trunks.instanceMatrix.needsUpdate = true;
+  canopy.instanceMatrix.needsUpdate = true;
+  if (canopy.instanceColor) canopy.instanceColor.needsUpdate = true;
   const g = new THREE.Group();
   g.add(trunks);
   g.add(canopy);

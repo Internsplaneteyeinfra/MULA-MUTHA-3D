@@ -2,15 +2,14 @@
  * Adaptive render quality — shared/remote sessions struggle with full GPU settings.
  *
  * Force modes via URL:
- *   ?quality=low   — shared-port / weak GPU profile
- *   ?quality=high  — full local quality
- *   (default auto) — low when hostname isn't localhost, else high + FPS fallback
+ *   ?quality=low    — phones / weak GPU
+ *   ?quality=medium — default smooth profile (most users)
+ *   ?quality=high   — max detail (powerful local GPU)
  */
 
 function isLikelySharedOrRemote() {
   const h = location.hostname || "";
   if (h === "localhost" || h === "127.0.0.1" || h === "[::1]") return false;
-  // Cursor / tunnel / LAN share URLs
   return true;
 }
 
@@ -30,7 +29,10 @@ function readForcedTier() {
 
 export function createQualityProfile() {
   const forced = readForcedTier();
-  let tier = forced || (isLikelySharedOrRemote() || isLowMemoryDevice() ? "low" : "high");
+  // Default medium for smooth UX; low on weak/remote; high only when forced
+  let tier =
+    forced ||
+    (isLowMemoryDevice() || isLikelySharedOrRemote() ? "low" : "medium");
 
   const settings = () => profileFor(tier);
 
@@ -47,19 +49,21 @@ export function createQualityProfile() {
     /** Call once per rendered frame with dt seconds. Auto-downgrades if FPS tanks. */
     noteFrame(dt) {
       if (forced || tier === "low") return;
-      if (!dt || dt <= 0 || dt > 0.2) return;
+      if (!dt || dt <= 0 || dt > 0.25) return;
       const fps = 1 / dt;
       fpsSamples.push(fps);
-      if (fpsSamples.length > 45) fpsSamples.shift();
+      if (fpsSamples.length > 40) fpsSamples.shift();
       const now = performance.now();
-      if (now - lastAdapt < 2500 || fpsSamples.length < 30) return;
+      if (now - lastAdapt < 2000 || fpsSamples.length < 25) return;
       lastAdapt = now;
       const avg = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
-      if (avg < 28 && tier === "high") {
+      if (avg < 32 && tier === "high") {
         tier = "medium";
+        fpsSamples = [];
         console.info("[perf] Auto quality → medium (avg FPS", avg.toFixed(0), ")");
-      } else if (avg < 22 && tier === "medium") {
+      } else if (avg < 26 && tier === "medium") {
         tier = "low";
+        fpsSamples = [];
         console.info("[perf] Auto quality → low (avg FPS", avg.toFixed(0), ")");
       }
     },
@@ -76,46 +80,63 @@ function profileFor(tier) {
       shadowMapSize: 512,
       preserveDrawingBuffer: false,
       targetFps: 30,
-      labelHz: 8,
-      lodHz: 6,
-      chainageHz: 10,
-      coordLabelHz: 4,
+      labelHz: 6,
+      lodHz: 4,
+      chainageHz: 8,
+      coordLabelHz: 3,
       softShadow: false,
-      maxTrees: 2000,
+      maxTrees: 1200,
+      maxVegTypeTrees: 1800,
+      treeShadows: false,
+      enableVegApi: false,
+      enableFishing: false,
+      vegTypeStepM: 72,
+      lightTreesOnly: true,
     };
   }
   if (tier === "medium") {
     return {
       tier,
-      pixelRatioMax: 1.25,
+      pixelRatioMax: 1.15,
       antialias: true,
-      shadows: true,
+      shadows: false,
       shadowMapSize: 1024,
       preserveDrawingBuffer: false,
-      targetFps: 45,
-      labelHz: 12,
-      lodHz: 8,
-      chainageHz: 15,
-      coordLabelHz: 8,
+      targetFps: 50,
+      labelHz: 10,
+      lodHz: 6,
+      chainageHz: 12,
+      coordLabelHz: 5,
       softShadow: false,
-      maxTrees: 4000,
+      maxTrees: 2800,
+      maxVegTypeTrees: 3500,
+      treeShadows: false,
+      enableVegApi: false,
+      enableFishing: true,
+      vegTypeStepM: 55,
+      lightTreesOnly: true,
     };
   }
   return {
     tier: "high",
-    // Cap DPR — full 2×/3× retina framebuffers dominate GPU memory with little visible gain
     pixelRatioMax: 1.25,
     antialias: true,
     shadows: true,
     shadowMapSize: 1024,
     preserveDrawingBuffer: false,
     targetFps: 60,
-    labelHz: 20,
-    lodHz: 12,
-    chainageHz: 30,
-    coordLabelHz: 15,
+    labelHz: 16,
+    lodHz: 10,
+    chainageHz: 24,
+    coordLabelHz: 10,
     softShadow: true,
-    maxTrees: 6500,
+    maxTrees: 4500,
+    maxVegTypeTrees: 5500,
+    treeShadows: true,
+    enableVegApi: true,
+    enableFishing: true,
+    vegTypeStepM: 45,
+    lightTreesOnly: true,
   };
 }
 

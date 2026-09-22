@@ -26,17 +26,17 @@ export function mountWeatherWidget(root) {
     <div class="weather-wq" aria-label="Live discharge, BOD and COD at selected chainage">
       <div class="weather-wq-head">LIVE REACH</div>
       <div class="weather-wq-row is-q">
-        <i>Discharge</i>
+        <i data-short="Q">Discharge</i>
         <b id="weather-discharge">—</b>
         <em id="weather-discharge-unit">m³/s</em>
       </div>
       <div class="weather-wq-row is-bod">
-        <i>BOD</i>
+        <i data-short="BOD">BOD</i>
         <b id="weather-bod">—</b>
         <em>mg/L</em>
       </div>
       <div class="weather-wq-row is-cod">
-        <i>COD</i>
+        <i data-short="COD">COD</i>
         <b id="weather-cod">—</b>
         <em>mg/L</em>
       </div>
@@ -46,7 +46,7 @@ export function mountWeatherWidget(root) {
       <b id="weather-temp" class="weather-temp">— °C</b>
       <i id="weather-condition" class="weather-condition">Weather unavailable</i>
       <small id="weather-wind">Wind —</small>
-      <small id="weather-location">Selected station —</small>
+      <small id="weather-location">Station —</small>
     </button>
     <div class="weather-time-block" aria-label="Local date and time">
       <time class="weather-date" datetime="">—</time>
@@ -227,7 +227,7 @@ export function mountWeatherWidget(root) {
       ? { lat: point.lat, lon: point.lon, label: point.label }
       : null;
     detail.setPoint(lastPoint);
-    location.textContent = point?.label ? `Selected ${point.label}` : "Selected station —";
+    location.textContent = point?.label ? `Station ${point.label}` : "Station —";
     updateBodCodForChainage(point);
     window.clearTimeout(requestTimer);
     const serial = ++requestSerial;
@@ -241,6 +241,7 @@ export function mountWeatherWidget(root) {
         wind.textContent = weather.wind == null ? "Wind —" : `Wind ${weather.wind.toFixed(0)} km/h`;
         lastSuccessful = time.textContent;
         weatherAvailable = true;
+        window.__MM_SCENE__?.applyLiveWeather?.(weather);
       } catch (error) {
         if (error?.name === "AbortError" || serial !== requestSerial) return;
         weatherAvailable = false;

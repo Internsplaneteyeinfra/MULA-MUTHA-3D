@@ -39,7 +39,7 @@ import {
 } from "../geo/waterQualityClasses.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
-const CONFIG_VERSION = 24;
+const CONFIG_VERSION = 25;
 
 const POLYGON_LAYER_IDS = new Set([
   "water_quality_ndwi",
@@ -365,17 +365,18 @@ const BUILTIN_LAYER_DEFS = {
       east: 74.01249107,
       west: 73.83580284,
     },
-    overlay: "/data/hydrology/vegetation/vegetation_type_overlay.png?v=18",
+    overlay: "/data/hydrology/vegetation/vegetation_type_overlay.png?v=19",
     meta: "/data/hydrology/vegetation/vegetation_type_meta.json",
     source: "src/data/vegetation_type.kml",
-    opacity: 0.82,
+    // Slightly softer so grown 3D trees/grass read clearly on top
+    opacity: 0.58,
     gridSegments: 128,
     liftM: 1.1,
     flipU: false,
     flipV: true,
     renderType: "terrainDrapedTexture",
     legendTitle: "Vegetation Type",
-    legendSubtitle: "Study-area vegetation type overlay",
+    legendSubtitle: "src/data/vegetation_type.kml",
     legendClasses: VEGETATION_EXTENT_CLASSES,
   },
   vegetation_health: {
@@ -390,7 +391,7 @@ const BUILTIN_LAYER_DEFS = {
       east: 74.01249107,
       west: 73.83580284,
     },
-    overlay: "/data/hydrology/vegetation/vegetation_health_overlay.png?v=18",
+    overlay: "/data/hydrology/vegetation/vegetation_health_overlay.png?v=19",
     meta: "/data/hydrology/vegetation/vegetation_health_meta.json",
     source: "src/data/vegetation_health.kml",
     opacity: 0.82,
@@ -400,7 +401,7 @@ const BUILTIN_LAYER_DEFS = {
     flipV: true,
     renderType: "terrainDrapedTexture",
     legendTitle: "Vegetation Health",
-    legendSubtitle: "Study-area vegetation health overlay",
+    legendSubtitle: "src/data/vegetation_health.kml",
     legendClasses: [
       { id: "poor", label: "Stressed / Poor", color: "#C62828" },
       { id: "moderate", label: "Moderate", color: "#F9A825" },
@@ -449,6 +450,8 @@ export function createHydrologyLayer(dataset) {
     silt_volume_surface: { mesh: null, loaded: false, loading: null, sampler: null },
     salinity: { mesh: null, loaded: false, loading: null, sampler: null },
     water_quality_tss: { mesh: null, loaded: false, loading: null, sampler: null },
+    vegetation_extent: { mesh: null, loaded: false, loading: null, sampler: null },
+    vegetation_health: { mesh: null, loaded: false, loading: null, sampler: null },
   };
   /** @deprecated alias — keep older references working during loadGeology */
   const geology = drapedOverlays.geology;
@@ -590,8 +593,15 @@ export function createHydrologyLayer(dataset) {
           id === "silt_classification" ||
           id === "silt_volume_surface" ||
           id === "salinity" ||
-          id === "water_quality_tss") &&
-        !slot.sampler
+          id === "water_quality_tss" ||
+          id === "vegetation_extent" ||
+          id === "vegetation_health") &&
+        (!slot.sampler ||
+          ((id === "landuse_lulc" ||
+            id === "silt_classification" ||
+            id === "vegetation_extent" ||
+            id === "vegetation_health") &&
+            !slot.sampler.coverageByLabel))
       ) {
         slot.sampler = await createLandUseSampler(def, id).catch((err) => {
           console.warn(`[${id}] hover sampler unavailable`, err);
@@ -680,7 +690,9 @@ export function createHydrologyLayer(dataset) {
         id === "silt_classification" ||
         id === "silt_volume_surface" ||
         id === "salinity" ||
-        id === "water_quality_tss"
+        id === "water_quality_tss" ||
+        id === "vegetation_extent" ||
+        id === "vegetation_health"
       ) {
         try {
           slot.sampler = await createLandUseSampler(def, id);
@@ -910,12 +922,21 @@ export function createHydrologyLayer(dataset) {
     return years.find((e) => Number(e.year) === y) || years[years.length - 1] || null;
   }
 
-  function buildLulcLegend(def, year) {
-    const classes = (def.legendClasses?.length ? def.legendClasses : LULC_LEGEND).map((c) => ({
-      label: c.label,
-      color: c.color,
-      range: c.range,
-    }));
+  function buildLulcLegend(def, year, coverageByLabel = null) {
+    const source = def.legendClasses?.length ? def.legendClasses : LULC_LEGEND;
+    const classes = source.map((c) => {
+      const label = c.label;
+      const fromCoverage =
+        coverageByLabel && typeof coverageByLabel === "object"
+          ? coverageByLabel[label] || coverageByLabel[String(label)]
+          : null;
+      return {
+        label,
+        color: c.color,
+        range: c.range || null,
+        pct: fromCoverage || c.pct || c.range || null,
+      };
+    });
     return {
       type: "classes",
       title: def.legendTitle || def.name || "LULC",
@@ -924,6 +945,7 @@ export function createHydrologyLayer(dataset) {
       years: getLulcYears(def).map((e) => Number(e.year)),
       activeYear: year,
       layerId: "landuse_lulc",
+      interactiveClasses: false,
     };
   }
 
@@ -987,7 +1009,7 @@ export function createHydrologyLayer(dataset) {
         id: "landuse_lulc",
         available: !!slot?.mesh,
         message: slot?.mesh ? undefined : "Failed to build LULC overlay",
-        legend: buildLulcLegend(def, lulcYear),
+        legend: buildLulcLegend(def, lulcYear, slot?.sampler?.coverageByLabel || null),
         stats: { year: lulcYear, type: "groundOverlay", hasMesh: !!slot?.mesh },
       };
     }
@@ -1062,12 +1084,21 @@ export function createHydrologyLayer(dataset) {
     return periods.find((p) => String(p.id) === id) || periods[periods.length - 1] || null;
   }
 
-  function buildSiltClassLegend(def, period) {
-    const classes = (def.classes?.length ? def.classes : SILT_CLASS_CLASSES).map((c) => ({
-      label: c.label,
-      color: c.color,
-      range: c.range,
-    }));
+  function buildSiltClassLegend(def, period, coverageByLabel = null) {
+    const source = def.classes?.length ? def.classes : SILT_CLASS_CLASSES;
+    const classes = source.map((c) => {
+      const label = c.label;
+      const fromCoverage =
+        coverageByLabel && typeof coverageByLabel === "object"
+          ? coverageByLabel[label] || coverageByLabel[String(label)]
+          : null;
+      return {
+        label,
+        color: c.color,
+        range: c.range || null,
+        pct: fromCoverage || c.pct || c.range || null,
+      };
+    });
     const periods = getSiltPeriods(def);
     return {
       type: "classes",
@@ -1082,6 +1113,7 @@ export function createHydrologyLayer(dataset) {
       })),
       activePeriod: period.id,
       layerId: "silt_classification",
+      interactiveClasses: false,
     };
   }
 
@@ -1136,7 +1168,7 @@ export function createHydrologyLayer(dataset) {
       id: "silt_classification",
       available: !!slot?.mesh,
       message: slot?.mesh ? undefined : "Failed to build silt classification overlay",
-      legend: buildSiltClassLegend(def, period),
+      legend: buildSiltClassLegend(def, period, slot?.sampler?.coverageByLabel || null),
       stats: {
         period: period.id,
         type: "groundOverlay",
@@ -1348,18 +1380,25 @@ export function createHydrologyLayer(dataset) {
       }
       activeId = id;
       group.visible = !!slot?.mesh;
+      const coverage = slot?.sampler?.coverageByLabel || null;
+      const sourceClasses = def.legendClasses || def.classes || [];
       const legend =
-        def.legendClasses?.length || def.classes?.length
+        sourceClasses.length
           ? {
               type: "classes",
               title: def.legendTitle || def.name,
               subtitle: def.legendSubtitle || null,
               layerId: id,
-              classes: (def.legendClasses || def.classes).map((c) => ({
+              interactiveClasses: false,
+              classes: sourceClasses.map((c) => ({
                 label: c.label,
                 color: c.color,
                 range: c.range || null,
-                pct: c.pct || c.range || null,
+                pct:
+                  (coverage && (coverage[c.label] || coverage[String(c.label)])) ||
+                  c.pct ||
+                  c.range ||
+                  null,
               })),
             }
           : { type: "image", url: def.legend, title: def.name, layerId: id };
@@ -1516,7 +1555,9 @@ export function createHydrologyLayer(dataset) {
       activeId === "silt_classification" ||
       activeId === "silt_volume_surface" ||
       activeId === "salinity" ||
-      activeId === "water_quality_tss"
+      activeId === "water_quality_tss" ||
+      activeId === "vegetation_extent" ||
+      activeId === "vegetation_health"
     ) {
       return sampleLandUseAt(x, z);
     }
@@ -1580,7 +1621,7 @@ export function createHydrologyLayer(dataset) {
     };
   }
 
-  /** Sample LULC / silt class under the pointer for hover tooltips. */
+  /** Sample LULC / silt / vegetation class under the pointer for hover tooltips. */
   function sampleLandUseAt(x, z) {
     const id = activeId;
     if (
@@ -1588,7 +1629,9 @@ export function createHydrologyLayer(dataset) {
       id !== "silt_classification" &&
       id !== "silt_volume_surface" &&
       id !== "salinity" &&
-      id !== "water_quality_tss"
+      id !== "water_quality_tss" &&
+      id !== "vegetation_extent" &&
+      id !== "vegetation_health"
     ) {
       return null;
     }
@@ -1806,6 +1849,11 @@ async function createBankErosionSampler(def) {
   const imageData = ctx.getImageData(0, 0, canvas.width, canvas.height);
   const { data, width, height } = imageData;
 
+  const coverageByLabel = computeClassCoveragePct(data, width, height, classes);
+  for (const c of classes) {
+    if (coverageByLabel[c.label]) c.pct = coverageByLabel[c.label];
+  }
+
   function sampleLonLat(lon, lat) {
     if (!Number.isFinite(lon) || !Number.isFinite(lat)) return null;
     if (lon < west || lon > east || lat < south || lat > north) return null;
@@ -1847,7 +1895,54 @@ async function createBankErosionSampler(def) {
     };
   }
 
-  return { sampleLonLat, width, height, west, east, north, south };
+  return { sampleLonLat, width, height, west, east, north, south, coverageByLabel };
+}
+
+/**
+ * Approximate class area share from draped overlay pixels (skips transparent / empty).
+ * @param {Uint8ClampedArray} data
+ * @param {number} width
+ * @param {number} height
+ * @param {{ label: string, r: number, g: number, b: number }[]} classes
+ */
+function computeClassCoveragePct(data, width, height, classes) {
+  /** @type {Record<string, number>} */
+  const counts = Object.create(null);
+  for (const c of classes) counts[c.label] = 0;
+  let total = 0;
+  const pixels = Math.max(1, width * height);
+  const step = Math.max(1, Math.floor(Math.sqrt(pixels / 90000)));
+  const maxDist = 95 * 95;
+  for (let y = 0; y < height; y += step) {
+    for (let x = 0; x < width; x += step) {
+      const i = (y * width + x) * 4;
+      const a = data[i + 3];
+      if (a < 28) continue;
+      const r = data[i];
+      const g = data[i + 1];
+      const b = data[i + 2];
+      if (r + g + b < 40) continue;
+      let best = null;
+      let bestD = Infinity;
+      for (const c of classes) {
+        const d = (c.r - r) ** 2 + (c.g - g) ** 2 + (c.b - b) ** 2;
+        if (d < bestD) {
+          bestD = d;
+          best = c;
+        }
+      }
+      if (!best || bestD > maxDist) continue;
+      counts[best.label] = (counts[best.label] || 0) + 1;
+      total += 1;
+    }
+  }
+  /** @type {Record<string, string>} */
+  const out = Object.create(null);
+  for (const c of classes) {
+    const n = counts[c.label] || 0;
+    out[c.label] = total > 0 ? `${((100 * n) / total).toFixed(1)}%` : "0%";
+  }
+  return out;
 }
 
 /**
@@ -1942,6 +2037,15 @@ async function createSiltOverlaySampler(def, id) {
   ctx.drawImage(full, 0, 0, width, height);
   full.close?.();
   const { data } = ctx.getImageData(0, 0, width, height);
+
+  const coverageByLabel = !isVolume
+    ? computeClassCoveragePct(data, width, height, classes)
+    : null;
+  if (coverageByLabel) {
+    for (const c of classes) {
+      if (coverageByLabel[c.label]) c.pct = coverageByLabel[c.label];
+    }
+  }
 
   function rgbToHex(r, g, b) {
     const h = (n) => n.toString(16).padStart(2, "0");
@@ -2065,7 +2169,7 @@ async function createSiltOverlaySampler(def, id) {
     };
   }
 
-  return { sampleLonLat, width, height, west, east, north, south, kind: id };
+  return { sampleLonLat, width, height, west, east, north, south, kind: id, coverageByLabel };
 }
 
 /**

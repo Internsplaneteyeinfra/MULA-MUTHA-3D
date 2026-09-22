@@ -283,7 +283,8 @@ const frag = /* glsl */ `
 
     // Keep normal water clearly blue; cutaway mode below remains translucent.
     float alpha = mix(0.68, 0.92, smoothstep(0.05, 0.9, depthT)) * uOpacity;
-    alpha *= mix(0.65, 1.0, 1.0 - smoothstep(0.78, 1.0, edge));
+    // Keep bank edge water opaque enough so the KML face never reads as dry land
+    alpha *= mix(0.88, 1.0, 1.0 - smoothstep(0.9, 1.0, edge));
     alpha = mix(alpha, mix(0.12, 0.32, depthT) * uOpacity, uCutaway);
     alpha *= mix(0.08, 1.0, revealMask);
     alpha *= mix(1.0, 0.92, clamp(wake * 0.35, 0.0, 1.0));

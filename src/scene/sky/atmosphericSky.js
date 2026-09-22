@@ -100,37 +100,33 @@ const SKY_FRAG = /* glsl */ `
     col = mix(col, uHaze, hazeBand * 0.55 * hazeNoise);
 
     // Procedural cloud layers (parallax via different speeds / scales)
+    // Thresholds biased so blue sky stays visible — live-like sparse cover
     float cloudMask = 0.0;
     if (uQuality > 0.1 && uCloudDensity > 0.02 && h > -0.02) {
       float elev = smoothstep(-0.02, 0.55, h);
-      // Project onto sky dome UV
       vec2 base = dir.xz / max(0.15, dir.y + 0.35);
 
-      float spd = uCloudSpeed * 0.012; // ~90–180s feel when speed ~0.3–0.5
-      // Layer 1 — large soft clouds (slow)
-      vec2 uv1 = base * 1.15 + vec2(uTime * spd * 0.55, uTime * spd * 0.22);
+      float spd = uCloudSpeed * 0.012;
+      vec2 uv1 = base * 1.05 + vec2(uTime * spd * 0.55, uTime * spd * 0.22);
       float c1 = fbm(uv1);
-      c1 = smoothstep(0.48 - uCloudDensity * 0.22, 0.72, c1);
+      c1 = smoothstep(0.58 - uCloudDensity * 0.16, 0.82, c1);
 
       float c2 = 0.0;
       float c3 = 0.0;
       if (uQuality > 0.5) {
-        // Layer 2 — higher thin clouds (slightly faster)
-        vec2 uv2 = base * 2.4 + vec2(-uTime * spd * 0.95, uTime * spd * 0.4);
+        vec2 uv2 = base * 2.2 + vec2(-uTime * spd * 0.95, uTime * spd * 0.4);
         c2 = fbm(uv2 + 3.7);
-        c2 = smoothstep(0.55 - uCloudDensity * 0.15, 0.78, c2) * 0.65;
+        c2 = smoothstep(0.62 - uCloudDensity * 0.12, 0.86, c2) * 0.45;
       }
       if (uQuality > 1.5) {
-        // Layer 3 — distant haze streaks
-        vec2 uv3 = base * 0.7 + vec2(uTime * spd * 0.28, -uTime * spd * 0.18);
+        vec2 uv3 = base * 0.65 + vec2(uTime * spd * 0.28, -uTime * spd * 0.18);
         c3 = fbm(uv3 + 11.0);
-        c3 = smoothstep(0.5, 0.8, c3) * 0.35;
+        c3 = smoothstep(0.58, 0.88, c3) * 0.22;
       }
 
-      cloudMask = clamp(c1 * 0.85 + c2 + c3, 0.0, 1.0) * elev * uCloudDensity;
-      // Soft white-blue cloud colour; darker underlit on flood weather via mid mix
-      vec3 cloudCol = mix(vec3(0.92, 0.95, 0.98), mix(uMid, uHaze, 0.5), 0.22);
-      col = mix(col, cloudCol, cloudMask * 0.72);
+      cloudMask = clamp(c1 * 0.7 + c2 + c3, 0.0, 1.0) * elev * uCloudDensity;
+      vec3 cloudCol = mix(vec3(0.94, 0.96, 0.99), mix(uMid, uHaze, 0.45), 0.18);
+      col = mix(col, cloudCol, cloudMask * 0.52);
     }
 
     // Mild desaturation near horizon for depth
@@ -374,6 +370,77 @@ export function createAtmosphericSky(opts) {
     if (!on) shadowMesh.visible = false;
   }
 
+  /**
+   * Drive sky / lighting from Open-Meteo live conditions so the scene
+   * matches the HUD temperature & sky (not overcast by default).
+   */
+  function applyLiveWeather(weather) {
+    if (!weather) return;
+    const code = Number(weather.code);
+    const cloudPct = Number.isFinite(weather.cloudCover)
+      ? THREE.MathUtils.clamp(weather.cloudCover / 100, 0, 1)
+      : null;
+    const temp = Number(weather.temperature);
+    const isDay = weather.isDay !== false;
+
+    // Map live cloud cover → sparse-to-moderate density (never full whiteout)
+    let density;
+    if (cloudPct != null) {
+      density = 0.06 + cloudPct * 0.48;
+    } else if (code === 0) {
+      density = 0.08;
+    } else if (code === 1) {
+      density = 0.16;
+    } else if (code === 2) {
+      density = 0.28;
+    } else if (code === 3) {
+      density = 0.42;
+    } else if ([45, 48].includes(code)) {
+      density = 0.5;
+    } else if ([51, 53, 55, 56, 57, 61, 63, 65, 80, 81, 82].includes(code)) {
+      density = 0.55;
+    } else if ([95, 96, 99].includes(code)) {
+      density = 0.68;
+    } else {
+      density = 0.22;
+    }
+
+    // Temperature → sun warmth / exposure (Pune live feel)
+    let warmth = 0.12;
+    let sunMul = 1;
+    let haze = 0.38;
+    if (Number.isFinite(temp)) {
+      if (temp >= 34) {
+        warmth = 0.32;
+        sunMul = 1.12;
+        haze = 0.5;
+      } else if (temp >= 28) {
+        warmth = 0.2;
+        sunMul = 1.06;
+        haze = 0.42;
+      } else if (temp <= 18) {
+        warmth = 0.05;
+        sunMul = 0.92;
+        haze = 0.3;
+      }
+    }
+    if (!isDay) {
+      sunMul *= 0.55;
+      density = Math.min(0.75, density + 0.08);
+    }
+
+    state.skyCloudDensity = density;
+    state.skySunIntensity = sunMul;
+    state.skyHorizonHaze = haze;
+    state.skyAnimStrength = 0.2 + density * 0.2;
+    uniforms.uSunWarmth.value = warmth;
+    uniforms.uCloudDensity.value = density;
+    uniforms.uHorizonHaze.value = haze;
+    uniforms.uAnimStrength.value = state.skyAnimStrength;
+    applyLightingFromPreset(getSkyPreset(state.skyPreset || DEFAULT_SKY_PRESET));
+    syncFromState();
+  }
+
   function update(dt, camera) {
     if (!enabled || !group.visible) return;
     const t = state.elapsed || 0;
@@ -416,6 +483,7 @@ export function createAtmosphericSky(opts) {
     update,
     syncFromState,
     applyPreset,
+    applyLiveWeather,
     setVisible,
     setEnabled(on) {
       state.skyEnabled = !!on;

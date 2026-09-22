@@ -6,6 +6,7 @@ import { createRiver, applyExaggeration, applyRiverLook, SURFACE_Y } from "./riv
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
 import { createVegetationApiLayer } from "./vegetationApiLayer.js";
+import { createPermanentVegetationTypeTrees } from "./vegetationTypeGrowLayer.js";
 import { prefetchTreeAssets } from "./treeRegistry.js";
 import { fetchVegetationForAoi } from "../services/vegetationService.js";
 import { mountVegetationStatus } from "../ui/components/vegetationStatus.js";
@@ -16,6 +17,7 @@ import { createRiverWidthMeasure } from "./riverWidthMeasure.js";
 import { createDistanceMeasure } from "./distanceMeasure.js";
 import { createFlowParticles } from "./flowParticles.js";
 import { createWaterEffects } from "./waterEffects.js";
+import { createRiverRain } from "./riverRain.js";
 import { createChainageLayer, nearestChainage } from "./chainageMarkers.js";
 import { createProjectionValidation } from "./validation.js";
 import { createCoordinateGrid, mountCoordinateLabels } from "./coordinateGrid.js";
@@ -66,7 +68,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   if (q.tier !== "high") {
     console.info(
-      `[perf] Quality=${q.tier} (shared/remote-friendly). Use ?quality=high for full local detail.`,
+      `[perf] Quality=${q.tier} (smooth default). Use ?quality=high for max detail, ?quality=low for weak devices.`,
     );
   }
 
@@ -188,6 +190,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   );
   const particles = createFlowParticles(dataset);
   const waterFx = createWaterEffects(dataset);
+  const riverRain = createRiverRain(dataset);
   const chainage = createChainageLayer(dataset);
   const validation = createProjectionValidation(dataset);
   const bridges = createBridges(dataset);
@@ -202,6 +205,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   if (river.wire) scene.add(river.wire);
   scene.add(particles.mesh);
   scene.add(waterFx.group);
+  scene.add(riverRain.group);
   scene.add(chainage.group);
   scene.add(bridges);
   scene.add(validation);
@@ -316,6 +320,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   vegApiGroup.name = "vegetationApiPending";
   scene.add(vegApiGroup);
 
+  const vegTypeGrowGroup = new THREE.Group();
+  vegTypeGrowGroup.name = "vegetationTypePermanent";
+  scene.add(vegTypeGrowGroup);
+
   const fishGroup = new THREE.Group();
   fishGroup.name = "fishPending";
   scene.add(fishGroup);
@@ -323,7 +331,41 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   let urbanResult = null;
   let treesResult = null;
   let vegApiResult = null;
+  /** Permanent trees from project vegetation_type overlay — always on. */
+  let vegTypePermanent = null;
   let fishing = null;
+
+  async function loadPermanentVegetationTypeTrees() {
+    try {
+      const qNow = quality.get();
+      const layer = await createPermanentVegetationTypeTrees(dataset, {
+        animate: false,
+        maxInstances: qNow.maxVegTypeTrees || 3500,
+        stepM: qNow.vegTypeStepM || 55,
+        castShadow: !!qNow.treeShadows,
+      });
+      if (vegTypePermanent?.userData?.dispose) {
+        try {
+          vegTypePermanent.userData.dispose();
+        } catch {
+          /* ignore */
+        }
+      }
+      vegTypePermanent = layer;
+      vegTypeGrowGroup.clear();
+      vegTypeGrowGroup.add(layer);
+      vegTypeGrowGroup.visible = true;
+      console.info("[vegetation-type] permanent trees ready", {
+        instances: layer.userData?.instanceCount || 0,
+        types: layer.userData?.typeCounts || {},
+        quality: qNow.tier,
+      });
+      return layer;
+    } catch (err) {
+      console.warn("[vegetation-type] permanent place failed:", err?.message || err);
+      return null;
+    }
+  }
 
   const vegStatus = mountVegetationStatus(uiRoot);
 
@@ -353,28 +395,37 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       urbanResult = gUrban;
       urbanGroup.add(gUrban);
 
-      // Always plant trees — low tier uses a lower instance cap, never skips
-      const maxTrees = quality.get().maxTrees || (lowTier ? 3500 : 11000);
-      createVegetation(dataset, { maxTrees })
+      // Always plant trees — density follows quality profile
+      const qNow = quality.get();
+      const maxTrees = qNow.maxTrees || (lowTier ? 1200 : 2800);
+      createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows })
         .then((gTrees) => {
           treesResult = gTrees;
           treesGroup.add(gTrees);
           console.info("[vegetation] OSM trees ready", {
             meshes: gTrees.children?.length || 0,
             maxTrees,
+            quality: qNow.tier,
             osmTrees: dataset.osm?.trees?.length || 0,
             green: dataset.osm?.green?.length || 0,
           });
         })
         .catch((err) => console.warn("Vegetation GLB load:", err?.message || err));
+
+      // Permanent trees from project vegetation_type.kml overlay (always on)
+      loadPermanentVegetationTypeTrees().catch((err) =>
+        console.warn("Permanent vegetation type trees:", err?.message || err),
+      );
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
     }
 
-    // JalNetra Vegetation Type — independent layer; does not block terrain
-    loadJalnetraVegetation().catch((err) => {
-      console.warn("Vegetation Type API:", err?.message || err);
-    });
+    // JalNetra Vegetation Type — optional (heavy); skip on low/medium for smoothness
+    if (quality.get().enableVegApi) {
+      loadJalnetraVegetation().catch((err) => {
+        console.warn("Vegetation Type API:", err?.message || err);
+      });
+    }
   };
 
   async function loadJalnetraVegetation() {
@@ -430,7 +481,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     setTimeout(loadUrbanLayers, 50);
   });
 
-  if (quality.get().tier !== "low") {
+  if (quality.get().enableFishing) {
     createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
       .then((sys) => {
         fishing = sys;
@@ -519,16 +570,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     };
   }
 
-  canvas.addEventListener("click", (e) => {
-    if (state.cinematicActive || !state.showChainage) return;
-    if (state.distanceMeasureActive) return;
-    const hit = resolveChainageUnderCursor(e, 110);
-    if (hit) {
-      document.dispatchEvent(
-        new CustomEvent("chainage-select", { detail: { meters: hit.meters, focus: true } }),
-      );
-    }
-  });
+  // Chainage camera movement is UI-only (bottom ruler + top ± arrows).
+  // River / 3D chainage-point clicks must not jump the view.
 
   document.addEventListener("chainage-select", (e) => {
     if (state.cinematicActive) return;
@@ -776,6 +819,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     dataset,
     river,
     atmosphericSky,
+    riverRain,
+    applyLiveWeather(weather) {
+      atmosphericSky.applyLiveWeather?.(weather);
+      riverRain.applyLiveWeather?.(weather);
+    },
     coordinateGrid,
     riverBanks,
     drainageLayer,
@@ -1018,10 +1066,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.lithologyMode = false;
       document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
 
-      // Hide API instance trees while land-use hydrology overlays own the HUD.
-      vegApiGroup.visible = false;
-      if (vegApiResult) vegApiResult.visible = false;
-
+      // Vegetation Type trees stay permanent; this only toggles the draped overlay / HUD.
       return this.showHydrologyLayer(id);
     },
     setLithologyPick(info) {
@@ -1580,13 +1625,20 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (lodThrottle.ready(dt)) {
         urbanResult?.userData?.updateLod?.(cam.camera);
       }
-      // Vegetation is always present (OSM + JalNetra)
+      // Always keep OSM + API + permanent vegetation-type trees visible.
       state.showVegetation = true;
       state.showOsmTrees = true;
       if (treesResult) treesResult.visible = true;
+      if (treesGroup) treesGroup.visible = true;
       if (vegApiResult) vegApiResult.visible = true;
       if (vegApiGroup) vegApiGroup.visible = true;
-      if (treesGroup) treesGroup.visible = true;
+      if (vegTypePermanent) {
+        vegTypeGrowGroup.visible = true;
+        // Only run grow animation while unfinished (permanent places at full scale)
+        if (!vegTypePermanent.userData?.empty) {
+          vegTypePermanent.userData?.update?.(dt);
+        }
+      }
       bridges.visible = true;
       if (labelThrottle.ready(dt)) {
         updateBridgeLabels(bridges, cam.camera);
@@ -1608,6 +1660,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       if (particles.mesh.visible) particles.update(dt);
       if (waterFx.group.visible) waterFx.update(dt);
+      riverRain.update(dt);
       if (chainThrottle.ready(dt)) {
         chainage.update(cam.camera);
         if (state.lithologyTipActive) pinLithologyPickTip();

@@ -1,8 +1,7 @@
 import {
-  Pickaxe,
+  Waves,
   FlaskConical,
-  Leaf,
-  Thermometer,
+  LeafyGreen,
   Hexagon,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
@@ -12,13 +11,13 @@ import { state } from "../../state.js";
  * Water Quality floating HUD — same icon-only chrome as Land Use.
  * Labels appear only on hover (CSS tooltips).
  *
- * Order: Salinity → Turbidity → NDCI → WST → BOD–COD
+ * Order: Salinity → TSS → Chlorophyll-a → BOD–COD
  */
 export const WATER_QUALITY_OPTIONS = [
   {
     id: "salinity",
     tip: "Salinity (ppt)",
-    icon: Pickaxe,
+    icon: Waves,
     tone: "wq-tone-salinity",
     layerId: "salinity",
     fallbackLayerId: null,
@@ -34,12 +33,11 @@ export const WATER_QUALITY_OPTIONS = [
   {
     id: "ndci",
     tip: "Chlorophyll-a (µg/L)",
-    icon: Leaf,
+    icon: LeafyGreen,
     tone: "wq-tone-ndci",
     layerId: "water_quality_ndci",
     fallbackLayerId: null,
   },
-
   {
     id: "bod_cod",
     tip: "BOD–COD / Organic Pollution",
@@ -138,7 +136,8 @@ export function mountWaterQualityHud(root, hooks = {}) {
     }
     const r = btn.getBoundingClientRect();
     wrap.style.left = `${Math.round(r.left + r.width / 2)}px`;
-    wrap.style.top = `${Math.round(r.bottom + 12)}px`;
+    // Keep clear of the nav tooltip / caret under the droplet
+    wrap.style.top = `${Math.round(r.bottom + 22)}px`;
     wrap.style.transform = "translateX(-50%)";
   }
 

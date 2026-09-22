@@ -36,6 +36,17 @@ export function mergeMeshesForInstancing(root) {
 
   if (!prepared.length) throw new Error("No mesh geometries");
 
+  // mergeGeometries requires matching attribute sets — strip UV/color if not shared by all
+  const allHaveUv = prepared.every((g) => !!g.getAttribute("uv"));
+  const allHaveColor = prepared.every((g) => !!g.getAttribute("color"));
+  if (!allHaveUv || !allHaveColor) {
+    for (const g of prepared) {
+      if (!allHaveUv) g.deleteAttribute("uv");
+      if (!allHaveUv) g.deleteAttribute("uv1");
+      if (!allHaveColor) g.deleteAttribute("color");
+    }
+  }
+
   let merged = null;
   if (prepared.length === 1) {
     merged = prepared[0];
@@ -46,7 +57,9 @@ export function mergeMeshesForInstancing(root) {
       merged = best ? best.clone() : null;
       console.warn("mergeGeometries failed — using largest mesh part");
     }
-    for (const g of prepared) g.dispose();
+    for (const g of prepared) {
+      if (g !== merged) g.dispose();
+    }
   }
 
   if (!merged?.getAttribute("position")) {
@@ -73,11 +86,18 @@ export function mergeMeshesForInstancing(root) {
 function normalizeGeometry(source, matrixWorld, box, size) {
   let g = source.clone();
   if (g.index) g = g.toNonIndexed();
+
+  // Meshopt + KHR_mesh_quantization store POSITION as normalized Int16 in [-1,1]
+  // with real scale on the node matrix. BufferGeometry.applyMatrix4 writes back
+  // through setXYZ which re-quantizes/clamps → everything becomes a ~2×2×2 cube.
+  // Expand to Float32 first so the world matrix (incl. scale) bakes correctly.
+  dequantizeAttributes(g);
+
   g.applyMatrix4(matrixWorld);
   g.translate(-box.min.x - size.x * 0.5, -box.min.y, -box.min.z - size.z * 0.5);
 
-  // Keep only attributes every BufferGeometry shares for a clean merge
-  const keep = new Set(["position", "normal"]);
+  // Keep UV when present so textured tree GLBs stay detailed; drop exotic attrs for merge.
+  const keep = new Set(["position", "normal", "uv", "uv1", "color"]);
   for (const name of Object.keys(g.attributes)) {
     if (!keep.has(name)) g.deleteAttribute(name);
   }
@@ -91,3 +111,32 @@ function normalizeGeometry(source, matrixWorld, box, size) {
   }
   return g;
 }
+
+/**
+ * Convert quantized / non-float buffer attributes to Float32 so matrix bakes work.
+ * getX/getY/getZ already return decoded floats for normalized integer attrs.
+ */
+function dequantizeAttributes(geometry) {
+  for (const name of ["position", "normal", "color", "uv", "uv1"]) {
+    const attr = geometry.getAttribute(name);
+    if (!attr) continue;
+    const needsExpand =
+      attr.normalized ||
+      !(attr.array instanceof Float32Array) ||
+      attr.array instanceof Float64Array;
+    if (!needsExpand) continue;
+
+    const itemSize = attr.itemSize;
+    const count = attr.count;
+    const out = new Float32Array(count * itemSize);
+    for (let i = 0; i < count; i++) {
+      const o = i * itemSize;
+      if (itemSize >= 1) out[o] = attr.getX(i);
+      if (itemSize >= 2) out[o + 1] = attr.getY(i);
+      if (itemSize >= 3) out[o + 2] = attr.getZ(i);
+      if (itemSize >= 4) out[o + 3] = attr.getW(i);
+    }
+    geometry.setAttribute(name, new THREE.BufferAttribute(out, itemSize));
+  }
+}
+

@@ -366,7 +366,12 @@ export function createChainageLayer(dataset) {
     }
   }
 
-  function pick(raycaster, camera, maxDistM = 90) {
+  /**
+   * Resolve nearest chainage under the ray.
+   * @param {boolean} [select=false] When true, also update selectedChainageMeters.
+   *   Hover/tooltip callers must leave this false so river hover does not move selection.
+   */
+  function pick(raycaster, camera, maxDistM = 90, select = false) {
     if (!group.visible) return null;
     const hits = raycaster.intersectObjects([majorMesh, minorMesh], false);
     if (hits.length) {
@@ -374,8 +379,10 @@ export function createChainageLayer(dataset) {
       const list = h.object === majorMesh ? majorIndex : minorIndex;
       const p = list[h.instanceId];
       if (p) {
-        state.selectedChainageMeters = p.meters;
-        syncSelection();
+        if (select) {
+          state.selectedChainageMeters = p.meters;
+          syncSelection();
+        }
         return p;
       }
     }
@@ -385,8 +392,10 @@ export function createChainageLayer(dataset) {
       if (raycaster.ray.intersectPlane(plane, hit)) {
         const near = nearestChainage(hit.x, hit.z, points);
         if (near && near.dist <= maxDistM) {
-          state.selectedChainageMeters = near.meters;
-          syncSelection();
+          if (select) {
+            state.selectedChainageMeters = near.meters;
+            syncSelection();
+          }
           return near;
         }
       }

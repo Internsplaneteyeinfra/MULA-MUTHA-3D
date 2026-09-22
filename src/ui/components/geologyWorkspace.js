@@ -196,10 +196,10 @@ export function mountGeologyWorkspace(root) {
           <ul class="spectral-lithology-legend__list">
             ${LITHOLOGY_CLASSES.map(
               (c) => `
-              <li class="spectral-lithology-legend__row">
+              <li class="spectral-lithology-legend__row" title="${c.label}">
                 <span class="spectral-lithology-legend__swatch" style="background:${c.color}"></span>
-                <span class="spectral-lithology-legend__label">${c.label}</span>
                 <strong class="spectral-lithology-legend__pct">${c.pct}</strong>
+                <span class="spectral-lithology-legend__label">${c.label}</span>
               </li>`,
             ).join("")}
           </ul>
@@ -215,10 +215,10 @@ export function mountGeologyWorkspace(root) {
           <ul class="bank-erosion-legend__list">
             ${BANK_EROSION_CLASSES.map(
               (c) => `
-              <li class="bank-erosion-legend__row">
+              <li class="bank-erosion-legend__row" title="${c.label}">
                 <span class="bank-erosion-legend__swatch" style="background:${c.color}"></span>
-                <span class="bank-erosion-legend__label">${c.label}</span>
                 <strong class="bank-erosion-legend__pct">${c.pct}</strong>
+                <span class="bank-erosion-legend__label">${c.label}</span>
               </li>`,
             ).join("")}
           </ul>
@@ -502,7 +502,7 @@ export function mountGeologyWorkspace(root) {
     else if (moduleId === "bathymetry") {
       classes = BATHYMETRY_CLASSES.map((c, i) => ({ ...c, key: String(i + 1) }));
     }
-    focusTheme.showClasses(classes, "geology");
+    focusTheme.showClasses(classes, "geology", { legendOnly: true });
     positionUnderGeologyIcon();
   }
 

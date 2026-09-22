@@ -3,9 +3,10 @@ import { enterMapFocus, exitMapFocus } from "../mapFocus.js";
 
 /**
  * Land Use theme chrome:
- * - Top: class letter chips (F C B S W) — click to focus a class
+ * - Top: class chips — coverage % on chip, class name on hover
+ * - LULC / silt overlays: legend-only (no class click filter — one raster)
  * - Bottom: year / period stepper
- * - Back: clear class focus, or exit land-use focus mode entirely
+ * - Back: exit land-use focus
  */
 
 const LULC_CLASS_ORDER = [
@@ -15,6 +16,35 @@ const LULC_CLASS_ORDER = [
   { key: "S", match: /settle/i, color: "#C62828", label: "Settlements" },
   { key: "W", match: /water/i, color: "#2196F3", label: "Water Bodies" },
 ];
+
+const VEG_TYPE_ORDER = [
+  { key: "N", match: /non.?veg/i, color: "#A9A9A9", label: "Non-Vegetation" },
+  { key: "T", match: /^trees/i, color: "#228B22", label: "Trees" },
+  { key: "S", match: /shrub|scrub/i, color: "#9ACD32", label: "Shrub / Scrub" },
+  { key: "G", match: /grass|herb/i, color: "#90EE90", label: "Grass / Herbaceous" },
+  { key: "M", match: /mixed|diverse/i, color: "#8A2BE2", label: "Mixed / Diverse" },
+];
+
+const VEG_HEALTH_ORDER = [
+  { key: "P", match: /poor|stress/i, color: "#C62828", label: "Stressed / Poor" },
+  { key: "M", match: /moderate/i, color: "#F9A825", label: "Moderate" },
+  { key: "H", match: /healthy|^good/i, color: "#2E7D32", label: "Healthy" },
+  { key: "D", match: /dense|canopy/i, color: "#1B5E20", label: "Dense canopy" },
+];
+
+/** Layers that are a single draped raster — class chips are scale only. */
+const LEGEND_ONLY_LAYER_IDS = new Set([
+  "landuse_lulc",
+  "silt_classification",
+  "vegetation_extent",
+  "vegetation_health",
+]);
+
+function classOrderForLayer(layerId) {
+  if (layerId === "vegetation_extent") return VEG_TYPE_ORDER;
+  if (layerId === "vegetation_health") return VEG_HEALTH_ORDER;
+  return LULC_CLASS_ORDER;
+}
 
 /**
  * @param {HTMLElement} root
@@ -58,6 +88,8 @@ export function mountLandUseThemeHud(root, hooks = {}) {
   let activePeriod = null;
   let busy = false;
   let classItems = [];
+  let legendOnly = true;
+  let activeLayerId = null;
 
   function enterFocusMode() {
     enterMapFocus(root, "landuse");
@@ -68,15 +100,47 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     root.classList.remove("lu-theme-classes-open", "lu-theme-year-open");
   }
 
-  function letterForClass(c) {
+  function letterForClass(c, order) {
     const label = String(c?.label || "");
-    const hit = LULC_CLASS_ORDER.find((o) => o.match.test(label));
-    if (hit) return { ...hit, color: c?.color || hit.color, label: c?.label || hit.label };
+    const hit = order.find((o) => o.match.test(label));
+    if (hit) {
+      return {
+        ...hit,
+        color: c?.color || hit.color,
+        label: c?.label || hit.label,
+        pct: c?.pct || null,
+        range: c?.range || null,
+      };
+    }
     const first = label.trim().charAt(0).toUpperCase() || "?";
-    return { key: first, color: c?.color || "#888", label };
+    return {
+      key: first,
+      color: c?.color || "#888",
+      label,
+      pct: c?.pct || null,
+      range: c?.range || null,
+    };
+  }
+
+  function scaleDisplayText(c) {
+    const pct = String(c?.pct || "").trim();
+    if (pct) return pct;
+    const range = String(c?.range || "").trim();
+    if (range) return range;
+    const label = String(c?.label || "").trim();
+    if (/^[<>~]?\d/.test(label) || /\d+\s*[–\-m%]/.test(label)) return label;
+    return null;
   }
 
   function syncClassSelection() {
+    if (legendOnly) {
+      classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
+        btn.classList.remove("is-selected");
+        btn.removeAttribute("aria-pressed");
+      });
+      classesEl.classList.remove("has-selection");
+      return;
+    }
     const sel = state.landUseSelectedClass;
     classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
       const on = sel && btn.dataset.label === sel;
@@ -86,67 +150,89 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     classesEl.classList.toggle("has-selection", !!sel);
   }
 
-  function renderClasses(classes) {
+  function renderClasses(classes, opts = {}) {
     const list = Array.isArray(classes) ? classes : [];
+    legendOnly = opts.legendOnly !== false;
+    activeLayerId = opts.layerId || activeLayerId || null;
+    const order = classOrderForLayer(activeLayerId);
+
     if (!list.length) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
       classItems = [];
+      classesEl.classList.remove("is-numeric-scale", "is-legend-only");
       root.classList.remove("lu-theme-classes-open");
       return;
     }
 
     const ordered = [];
     const used = new Set();
-    for (const pref of LULC_CLASS_ORDER) {
+    for (const pref of order) {
       const found = list.find((c) => pref.match.test(String(c.label || "")));
       if (found) {
         ordered.push({
           ...pref,
           color: found.color || pref.color,
           label: found.label || pref.label,
+          pct: found.pct || null,
+          range: found.range || null,
         });
         used.add(found);
       }
     }
     for (const c of list) {
       if (used.has(c)) continue;
-      ordered.push(letterForClass(c));
+      ordered.push(letterForClass(c, order));
     }
     classItems = ordered;
 
+    // Always treat as numeric scale when we show coverage / range under swatches
+    const anyScale = ordered.some((c) => !!scaleDisplayText(c));
+    classesEl.classList.toggle("is-numeric-scale", anyScale || legendOnly);
+    classesEl.classList.toggle("is-legend-only", legendOnly);
+
+    state.landUseSelectedClass = null;
+
     classesEl.innerHTML = ordered
-      .map(
-        (c) => `
-      <button type="button" class="lu-theme-class" role="listitem"
+      .map((c) => {
+        const scaleText = scaleDisplayText(c) || "—";
+        const tip = `${c.label} · ${scaleText}`;
+        const tag = legendOnly ? "div" : "button";
+        const interactiveAttrs = legendOnly
+          ? `role="listitem" tabindex="0"`
+          : `type="button" role="listitem" aria-pressed="false"`;
+        return `
+      <${tag} class="lu-theme-class is-numeric${legendOnly ? " is-legend-chip" : ""}"
         data-label="${escapeAttr(c.label)}"
         style="--lu-class-color:${escapeAttr(c.color)}"
-        title="${escapeAttr(c.label)} — click to focus"
-        aria-label="${escapeAttr(c.label)}"
-        aria-pressed="false">
-        <span class="lu-theme-class-letter">${escapeHtml(c.key)}</span>
-        <span class="lu-theme-class-name">${escapeHtml(c.label)}</span>
-      </button>`,
-      )
+        title="${escapeAttr(tip)}"
+        aria-label="${escapeAttr(tip)}"
+        ${interactiveAttrs}>
+        <span class="lu-theme-class-letter" aria-hidden="true"></span>
+        <span class="lu-theme-class-name">${escapeHtml(scaleText)}</span>
+      </${tag}>`;
+      })
       .join("");
     classesEl.hidden = false;
     root.classList.add("lu-theme-classes-open");
 
-    classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const label = btn.dataset.label;
-        if (!label) return;
-        if (state.landUseSelectedClass === label) {
-          state.landUseSelectedClass = null;
-        } else {
-          state.landUseSelectedClass = label;
-        }
-        document.dispatchEvent(new CustomEvent("river-measure-clear"));
-        syncClassSelection();
+    if (!legendOnly) {
+      classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
+        btn.addEventListener("click", (e) => {
+          e.preventDefault();
+          e.stopPropagation();
+          const label = btn.dataset.label;
+          if (!label) return;
+          if (state.landUseSelectedClass === label) {
+            state.landUseSelectedClass = null;
+          } else {
+            state.landUseSelectedClass = label;
+          }
+          document.dispatchEvent(new CustomEvent("river-measure-clear"));
+          syncClassSelection();
+        });
       });
-    });
+    }
     syncClassSelection();
   }
 
@@ -157,7 +243,6 @@ export function mountLandUseThemeHud(root, hooks = {}) {
       const prev = idx > 0 ? years[idx - 1] : null;
       const next = idx >= 0 && idx < years.length - 1 ? years[idx + 1] : null;
 
-      // Same layout as Period: center = Year + value; sides = arrow-only.
       yearEl.classList.remove("is-period-only");
       yearEl.classList.add("is-period-nav");
       yearEl.innerHTML = `
@@ -190,7 +275,6 @@ export function mountLandUseThemeHud(root, hooks = {}) {
       const prevId = idx > 0 ? ids[idx - 1] : null;
       const nextId = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : null;
 
-      // Center = Period + Month Year; sides = arrow-only (no adjacent month text).
       yearEl.classList.remove("is-period-only");
       yearEl.classList.add("is-period-nav");
       yearEl.innerHTML = `
@@ -255,11 +339,8 @@ export function mountLandUseThemeHud(root, hooks = {}) {
 
   function handleBack() {
     document.dispatchEvent(new CustomEvent("river-measure-clear"));
-    if (state.landUseSelectedClass) {
-      state.landUseSelectedClass = null;
-      syncClassSelection();
-      return;
-    }
+    state.landUseSelectedClass = null;
+    syncClassSelection();
     exitFocusMode();
     hideChromeOnly();
     hooks.onBack?.();
@@ -279,7 +360,10 @@ export function mountLandUseThemeHud(root, hooks = {}) {
 
     enterFocusMode();
     backEl.hidden = false;
-    renderClasses(legend.classes || []);
+
+    const layerId = String(legend.layerId || "");
+    // Always legend-only — coverage % / names on hover; no class filter or selection
+    renderClasses(legend.classes || [], { legendOnly: true, layerId });
 
     if (Array.isArray(legend.years) && legend.years.length) {
       mode = "year";
@@ -314,8 +398,11 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     activeYear = null;
     activePeriod = null;
     classItems = [];
+    legendOnly = true;
+    activeLayerId = null;
     classesEl.hidden = true;
     classesEl.innerHTML = "";
+    classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
     yearEl.classList.remove("is-period-only", "is-period-nav");
     yearEl.hidden = true;
     yearEl.innerHTML = "";
@@ -349,13 +436,6 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     updatePeriod,
     isVisible: () => !classesEl.hidden || !yearEl.hidden,
   };
-}
-
-function shortPeriod(label) {
-  if (label == null) return "—";
-  const s = String(label);
-  if (s.length <= 8) return s;
-  return s.slice(0, 7) + "…";
 }
 
 const MONTH_NAMES = [

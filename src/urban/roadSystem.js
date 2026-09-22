@@ -42,8 +42,8 @@ const MEDIUM = /^(tertiary|residential|unclassified|living_street)$/;
 const PATH = /^(footway|path|cycleway|pedestrian|track)$/;
 
 /**
- * Terrain-following OSM roads: asphalt deck, shoulders, edge lines, dashed center.
- * Endpoint snapping + junction discs + bridge approach links for continuous alignment.
+ * Terrain-following OSM roads as continuous mitered ribbons (no box gaps at bends).
+ * Junction discs + bridge approach links keep intersections sealed.
  */
 export function createRoadSystem(dataset) {
   const group = new THREE.Group();
@@ -53,19 +53,17 @@ export function createRoadSystem(dataset) {
   if (!rawRoads.length) return group;
 
   const bridges = dataset.bridges || [];
-  // Mutate local copies so we can snap endpoints without touching the dataset permanently
   const roads = rawRoads.map((r) => ({
     ...r,
     vertices: (r.vertices || []).map((v) => ({ ...v })),
   }));
   snapRoadNetwork(roads, 12);
 
-  const asphaltSegs = [];
-  const shoulderSegs = [];
+  /** @type {Array<{pts: Array<{x:number,z:number,y:number}>, halfW:number, color:string, major:boolean, medium:boolean, pathLike:boolean, hw:string}>} */
+  const ribbons = [];
   const edgeSegs = [];
   const dashSegs = [];
   const junctionNodes = [];
-  /** Road tips used to stitch into bridges. */
   const roadTips = [];
   let skippedWater = 0;
 
@@ -83,134 +81,49 @@ export function createRoadSystem(dataset) {
     const deckW = w * widthScale;
     const color = ASPHALT[hw] || "#5a6068";
     const segW = pathLike ? Math.min(deckW, 2.8) : deckW;
+    const halfW = segW * 0.5;
 
-    const vertUsed = new Array(verts.length).fill(false);
-
-    for (let i = 1; i < verts.length; i++) {
-      const a = verts[i - 1];
-      const b = verts[i];
-      const mx = (a.x + b.x) * 0.5;
-      const mz = (a.z + b.z) * 0.5;
-      const bank = nearestHalf(mx, mz, stations);
-      // Only skip true mid-channel segments — keep bank approaches for bridge joins
-      const overWater = bank.lat < bank.half * 0.72;
-      if (overWater) {
-        skippedWater++;
-        continue;
+    // Build contiguous land runs (break over water / under bridge decks)
+    let run = [];
+    const flushRun = () => {
+      if (run.length >= 2) {
+        const densified = densifyRun(run, 14);
+        ribbons.push({
+          pts: densified,
+          halfW,
+          color,
+          major,
+          medium,
+          pathLike,
+          hw,
+        });
+        addMarkingsAlong(densified, halfW, major, medium, edgeSegs, dashSegs);
       }
-      // Skip only the span under an existing bridge deck (not the land approaches)
-      if (isUnderBridgeDeck(mx, mz, bridges, stations)) {
-        skippedWater++;
-        continue;
-      }
-
-      const dx = b.x - a.x;
-      const dz = b.z - a.z;
-      const len = Math.hypot(dx, dz);
-      if (len < 1.0) continue;
-
-      const y0 = terrainHeightAt(a.x, a.z, stations);
-      const y1 = terrainHeightAt(b.x, b.z, stations);
-      const y = Math.max(y0, y1) + 0.12;
-      const rot = Math.atan2(dx, dz);
-
-      // Stronger overlap so corners never show green wedges
-      const joinPad = Math.min(segW * 1.15, Math.max(1.8, len * 0.45));
-      const drawLen = len + joinPad;
-
-      asphaltSegs.push({
-        x: mx,
-        z: mz,
-        y,
-        len: drawLen,
-        w: segW,
-        rot,
-        highway: hw,
-        major,
-        medium,
-        pathLike,
-        color,
-      });
-      vertUsed[i - 1] = true;
-      vertUsed[i] = true;
-
-      if (major || medium) {
-        const shoulderW = major ? 0.55 : 0.35;
-        for (const side of [-1, 1]) {
-          const ox = Math.cos(rot) * side * (w * 0.5 + shoulderW * 0.45);
-          const oz = -Math.sin(rot) * side * (w * 0.5 + shoulderW * 0.45);
-          shoulderSegs.push({
-            x: mx + ox,
-            z: mz + oz,
-            y: y + 0.02,
-            len: drawLen * 0.96,
-            w: shoulderW,
-            rot,
-          });
-        }
-      }
-
-      if (major) {
-        for (const side of [-1, 1]) {
-          const ox = Math.cos(rot) * side * (w * 0.42);
-          const oz = -Math.sin(rot) * side * (w * 0.42);
-          edgeSegs.push({
-            x: mx + ox,
-            z: mz + oz,
-            y: y + 0.08,
-            len: len * 0.9,
-            w: 0.18,
-            rot,
-          });
-        }
-        if (len > 6) {
-          const dashLen = 2.8;
-          const gap = 2.2;
-          const n = Math.max(1, Math.floor(len / (dashLen + gap)));
-          const ux = dx / len;
-          const uz = dz / len;
-          const startX = a.x + ux * (gap * 0.5);
-          const startZ = a.z + uz * (gap * 0.5);
-          for (let d = 0; d < n; d++) {
-            const t = d * (dashLen + gap) + dashLen * 0.5;
-            if (t > len - 1) break;
-            dashSegs.push({
-              x: startX + ux * t,
-              z: startZ + uz * t,
-              y: y + 0.09,
-              len: Math.min(dashLen, len - t),
-              w: 0.22,
-              rot,
-            });
-          }
-        }
-      } else if (medium && len > 10) {
-        const dashLen = 2.2;
-        const gap = 3.5;
-        const n = Math.max(1, Math.floor(len / (dashLen + gap)));
-        const ux = dx / len;
-        const uz = dz / len;
-        for (let d = 0; d < n; d++) {
-          const t = d * (dashLen + gap) + dashLen * 0.5;
-          if (t > len - 1) break;
-          dashSegs.push({
-            x: a.x + ux * t,
-            z: a.z + uz * t,
-            y: y + 0.08,
-            len: Math.min(dashLen, len - t),
-            w: 0.14,
-            rot,
-          });
-        }
-      }
-    }
+      run = [];
+    };
 
     for (let i = 0; i < verts.length; i++) {
-      if (!vertUsed[i]) continue;
+      const v = verts[i];
+      const bank = nearestHalf(v.x, v.z, stations);
+      const overWater = bank.lat < bank.half * 0.72;
+      const underBridge = isUnderBridgeDeck(v.x, v.z, bridges, stations);
+      if (overWater || underBridge) {
+        if (overWater || underBridge) skippedWater++;
+        flushRun();
+        continue;
+      }
+      const y = terrainHeightAt(v.x, v.z, stations) + 0.14;
+      run.push({ x: v.x, z: v.z, y });
+    }
+    flushRun();
+
+    // Tips + junctions from land vertices
+    for (let i = 0; i < verts.length; i++) {
       const v = verts[i];
       const bank = nearestHalf(v.x, v.z, stations);
       if (bank.lat < bank.half * 0.72) continue;
-      const y = terrainHeightAt(v.x, v.z, stations) + 0.11;
+      if (isUnderBridgeDeck(v.x, v.z, bridges, stations)) continue;
+      const y = terrainHeightAt(v.x, v.z, stations) + 0.13;
       pushJunction(junctionNodes, { x: v.x, z: v.z, y, w: segW, color });
       if (i === 0 || i === verts.length - 1) {
         roadTips.push({ x: v.x, z: v.z, y, w: segW, color, major, medium });
@@ -218,50 +131,69 @@ export function createRoadSystem(dataset) {
     }
   }
 
-  // Stitch roads into bridge approaches so land asphalt meets the deck ramps
-  const approachLinks = linkRoadsToBridges(roadTips, bridges, stations, asphaltSegs, junctionNodes);
+  // Bridge approach ribbons (2-point strips)
+  const approachLinks = linkRoadsToBridges(roadTips, bridges, stations, ribbons, junctionNodes);
   mergeNearbyJunctions(junctionNodes, 18);
 
-  if (!asphaltSegs.length) return group;
+  if (!ribbons.length) return group;
+
+  // —— Continuous asphalt ribbons (merged, vertex-colored) ——
+  const asphaltGeo = buildMergedRibbons(ribbons, (r) => r.halfW, 0);
+  if (asphaltGeo) {
+    const asphaltMat = new THREE.MeshStandardMaterial({
+      color: "#ffffff",
+      roughness: 0.96,
+      metalness: 0.02,
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: -1,
+      polygonOffsetUnits: -1,
+    });
+    const asphalt = new THREE.Mesh(asphaltGeo, asphaltMat);
+    asphalt.name = "roadAsphalt";
+    asphalt.receiveShadow = true;
+    asphalt.castShadow = false;
+    asphalt.frustumCulled = false;
+    group.add(asphalt);
+  }
+
+  // —— Soft shoulders (slightly wider, lower) ——
+  const shoulderRibbons = ribbons
+    .filter((r) => r.major || r.medium)
+    .map((r) => ({
+      ...r,
+      halfW: r.halfW + (r.major ? 0.55 : 0.35),
+      color: "#a8a098",
+    }));
+  const shoulderGeo = buildMergedRibbons(shoulderRibbons, (r) => r.halfW, -0.04);
+  if (shoulderGeo) {
+    const shoulderMat = new THREE.MeshStandardMaterial({
+      color: "#ffffff",
+      roughness: 0.92,
+      metalness: 0.02,
+      vertexColors: true,
+      side: THREE.DoubleSide,
+      polygonOffset: true,
+      polygonOffsetFactor: 1,
+      polygonOffsetUnits: 1,
+    });
+    const shoulders = new THREE.Mesh(shoulderGeo, shoulderMat);
+    shoulders.name = "roadShoulders";
+    shoulders.receiveShadow = true;
+    shoulders.frustumCulled = false;
+    shoulders.renderOrder = -1;
+    group.add(shoulders);
+  }
 
   const unit = new THREE.BoxGeometry(1, 1, 1);
   unit.translate(0, 0.5, 0);
   const dummy = new THREE.Object3D();
   const color = new THREE.Color();
 
-  // —— Asphalt deck ——
-  const asphaltMat = new THREE.MeshStandardMaterial({
-    color: "#5c6268",
-    roughness: 0.96,
-    metalness: 0.02,
-    vertexColors: true,
-    polygonOffset: true,
-    polygonOffsetFactor: -1,
-    polygonOffsetUnits: -1,
-  });
-  const asphalt = new THREE.InstancedMesh(unit, asphaltMat, asphaltSegs.length);
-  asphalt.name = "roadAsphalt";
-  asphalt.receiveShadow = true;
-  asphalt.castShadow = false;
-  asphalt.frustumCulled = false;
-  for (let i = 0; i < asphaltSegs.length; i++) {
-    const s = asphaltSegs[i];
-    dummy.position.set(s.x, s.y, s.z);
-    dummy.rotation.set(0, s.rot, 0);
-    const h = s.major ? 0.22 : s.pathLike ? 0.08 : s.medium ? 0.14 : 0.11;
-    dummy.scale.set(s.w, h, s.len);
-    dummy.updateMatrix();
-    asphalt.setMatrixAt(i, dummy.matrix);
-    color.set(s.color);
-    asphalt.setColorAt(i, color);
-  }
-  asphalt.instanceMatrix.needsUpdate = true;
-  if (asphalt.instanceColor) asphalt.instanceColor.needsUpdate = true;
-  group.add(asphalt);
-
-  // —— Junction discs (fill corner / intersection gaps) ——
+  // —— Junction discs (seal intersections between different OSM ways) ——
   if (junctionNodes.length) {
-    const discGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 14);
+    const discGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
     discGeo.translate(0, 0.5, 0);
     const discMat = new THREE.MeshStandardMaterial({
       color: "#5c6268",
@@ -269,8 +201,8 @@ export function createRoadSystem(dataset) {
       metalness: 0.02,
       vertexColors: true,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
     const discs = new THREE.InstancedMesh(discGeo, discMat, junctionNodes.length);
     discs.name = "roadJunctions";
@@ -278,10 +210,11 @@ export function createRoadSystem(dataset) {
     discs.frustumCulled = false;
     for (let i = 0; i < junctionNodes.length; i++) {
       const n = junctionNodes[i];
-      dummy.position.set(n.x, n.y, n.z);
+      dummy.position.set(n.x, n.y + 0.01, n.z);
       dummy.rotation.set(0, 0, 0);
-      const d = Math.max(2.6, n.w * 1.25);
-      dummy.scale.set(d, 0.14, d);
+      // Slightly oversized so corner miters never flash green
+      const d = Math.max(3.2, n.w * 1.35);
+      dummy.scale.set(d, 0.16, d);
       dummy.updateMatrix();
       discs.setMatrixAt(i, dummy.matrix);
       color.set(n.color || "#5c6268");
@@ -290,32 +223,6 @@ export function createRoadSystem(dataset) {
     discs.instanceMatrix.needsUpdate = true;
     if (discs.instanceColor) discs.instanceColor.needsUpdate = true;
     group.add(discs);
-  }
-
-  // —— Shoulders ——
-  if (shoulderSegs.length) {
-    const shoulderMat = new THREE.MeshStandardMaterial({
-      color: "#a8a098",
-      roughness: 0.9,
-      metalness: 0.02,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
-    const shoulders = new THREE.InstancedMesh(unit, shoulderMat, shoulderSegs.length);
-    shoulders.name = "roadShoulders";
-    shoulders.receiveShadow = true;
-    shoulders.frustumCulled = false;
-    for (let i = 0; i < shoulderSegs.length; i++) {
-      const s = shoulderSegs[i];
-      dummy.position.set(s.x, s.y, s.z);
-      dummy.rotation.set(0, s.rot, 0);
-      dummy.scale.set(s.w, 0.14, s.len);
-      dummy.updateMatrix();
-      shoulders.setMatrixAt(i, dummy.matrix);
-    }
-    shoulders.instanceMatrix.needsUpdate = true;
-    group.add(shoulders);
   }
 
   // —— White edge lines ——
@@ -373,15 +280,196 @@ export function createRoadSystem(dataset) {
   }
 
   console.info("Roads", {
-    asphalt: asphaltSegs.length,
+    ribbons: ribbons.length,
     junctions: junctionNodes.length,
     bridgeLinks: approachLinks,
-    shoulders: shoulderSegs.length,
     edges: edgeSegs.length,
     dashes: dashSegs.length,
     skippedWater,
   });
   return group;
+}
+
+/** Insert points along long spans so terrain height follows smoothly. */
+function densifyRun(pts, maxStepM) {
+  if (pts.length < 2) return pts;
+  const out = [pts[0]];
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const len = Math.hypot(b.x - a.x, b.z - a.z);
+    const n = Math.max(1, Math.ceil(len / maxStepM));
+    for (let k = 1; k <= n; k++) {
+      const t = k / n;
+      out.push({
+        x: a.x + (b.x - a.x) * t,
+        z: a.z + (b.z - a.z) * t,
+        y: a.y + (b.y - a.y) * t,
+      });
+    }
+  }
+  return out;
+}
+
+/**
+ * Build one BufferGeometry from many ribbons with mitered left/right edges.
+ * @param {typeof ribbons} ribbons
+ * @param {(r: object) => number} halfFn
+ * @param {number} yBias
+ */
+function buildMergedRibbons(ribbons, halfFn, yBias = 0) {
+  const positions = [];
+  const colors = [];
+  const indices = [];
+  const c = new THREE.Color();
+
+  for (const r of ribbons) {
+    const pts = r.pts;
+    if (!pts || pts.length < 2) continue;
+    const halfW = halfFn(r);
+    c.set(r.color || "#5c6268");
+    const base = positions.length / 3;
+
+    const left = [];
+    const right = [];
+    for (let i = 0; i < pts.length; i++) {
+      const p = pts[i];
+      let tx;
+      let tz;
+      if (i === 0) {
+        tx = pts[1].x - p.x;
+        tz = pts[1].z - p.z;
+      } else if (i === pts.length - 1) {
+        tx = p.x - pts[i - 1].x;
+        tz = p.z - pts[i - 1].z;
+      } else {
+        const ax = p.x - pts[i - 1].x;
+        const az = p.z - pts[i - 1].z;
+        const bx = pts[i + 1].x - p.x;
+        const bz = pts[i + 1].z - p.z;
+        const al = Math.hypot(ax, az) || 1;
+        const bl = Math.hypot(bx, bz) || 1;
+        tx = ax / al + bx / bl;
+        tz = az / al + bz / bl;
+      }
+      const tl = Math.hypot(tx, tz) || 1;
+      tx /= tl;
+      tz /= tl;
+      // Left normal in XZ (perpendicular to tangent)
+      let nx = -tz;
+      let nz = tx;
+
+      // Miter at interior vertices so bends stay sealed
+      if (i > 0 && i < pts.length - 1) {
+        const ax = p.x - pts[i - 1].x;
+        const az = p.z - pts[i - 1].z;
+        const bx = pts[i + 1].x - p.x;
+        const bz = pts[i + 1].z - p.z;
+        const al = Math.hypot(ax, az) || 1;
+        const bl = Math.hypot(bx, bz) || 1;
+        const n1x = -az / al;
+        const n1z = ax / al;
+        const n2x = -bz / bl;
+        const n2z = bx / bl;
+        let mx = n1x + n2x;
+        let mz = n1z + n2z;
+        const ml = Math.hypot(mx, mz);
+        if (ml > 1e-5) {
+          mx /= ml;
+          mz /= ml;
+          const dot = mx * n1x + mz * n1z;
+          const miter = Math.abs(dot) > 0.2 ? 1 / dot : 1;
+          const miterClamp = Math.min(Math.abs(miter), 2.4) * Math.sign(miter || 1);
+          nx = mx;
+          nz = mz;
+          left.push({
+            x: p.x + nx * halfW * miterClamp,
+            z: p.z + nz * halfW * miterClamp,
+            y: p.y + yBias,
+          });
+          right.push({
+            x: p.x - nx * halfW * miterClamp,
+            z: p.z - nz * halfW * miterClamp,
+            y: p.y + yBias,
+          });
+          continue;
+        }
+      }
+
+      left.push({ x: p.x + nx * halfW, z: p.z + nz * halfW, y: p.y + yBias });
+      right.push({ x: p.x - nx * halfW, z: p.z - nz * halfW, y: p.y + yBias });
+    }
+
+    for (let i = 0; i < pts.length; i++) {
+      const L = left[i];
+      const R = right[i];
+      positions.push(L.x, L.y, L.z, R.x, R.y, R.z);
+      colors.push(c.r, c.g, c.b, c.r, c.g, c.b);
+    }
+    for (let i = 0; i < pts.length - 1; i++) {
+      const a = base + i * 2;
+      indices.push(a, a + 1, a + 2, a + 1, a + 3, a + 2);
+    }
+  }
+
+  if (!indices.length) return null;
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
+  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
+  geo.setIndex(indices);
+  geo.computeVertexNormals();
+  return geo;
+}
+
+function addMarkingsAlong(pts, halfW, major, medium, edgeSegs, dashSegs) {
+  if (!major && !medium) return;
+  for (let i = 1; i < pts.length; i++) {
+    const a = pts[i - 1];
+    const b = pts[i];
+    const dx = b.x - a.x;
+    const dz = b.z - a.z;
+    const len = Math.hypot(dx, dz);
+    if (len < 1.2) continue;
+    const mx = (a.x + b.x) * 0.5;
+    const mz = (a.z + b.z) * 0.5;
+    const y = Math.max(a.y, b.y) + 0.06;
+    const rot = Math.atan2(dx, dz);
+    const ux = dx / len;
+    const uz = dz / len;
+
+    if (major) {
+      for (const side of [-1, 1]) {
+        const ox = Math.cos(rot) * side * (halfW * 0.84);
+        const oz = -Math.sin(rot) * side * (halfW * 0.84);
+        edgeSegs.push({
+          x: mx + ox,
+          z: mz + oz,
+          y: y + 0.02,
+          len: len * 0.98,
+          w: 0.16,
+          rot,
+        });
+      }
+    }
+
+    if ((major && len > 4) || (medium && len > 8)) {
+      const dashLen = major ? 2.8 : 2.2;
+      const gap = major ? 2.0 : 3.2;
+      const n = Math.max(1, Math.floor(len / (dashLen + gap)));
+      for (let d = 0; d < n; d++) {
+        const t = d * (dashLen + gap) + dashLen * 0.5;
+        if (t > len - 0.8) break;
+        dashSegs.push({
+          x: a.x + ux * t,
+          z: a.z + uz * t,
+          y: y + 0.03,
+          len: Math.min(dashLen, len - t),
+          w: major ? 0.2 : 0.14,
+          rot,
+        });
+      }
+    }
+  }
 }
 
 /** Snap nearby OSM endpoints / T-junctions so segments share the same XZ. */
@@ -392,7 +480,6 @@ function snapRoadNetwork(roads, snapM) {
     if (!v || v.length < 2) continue;
     ends.push(v[0], v[v.length - 1]);
   }
-  // Endpoint ↔ endpoint
   for (let i = 0; i < ends.length; i++) {
     for (let j = i + 1; j < ends.length; j++) {
       const a = ends[i];
@@ -405,7 +492,6 @@ function snapRoadNetwork(roads, snapM) {
       a.z = b.z = z;
     }
   }
-  // Endpoint ↔ interior vertex (T-junctions)
   for (const end of ends) {
     let best = null;
     let bestD = snapM;
@@ -429,11 +515,10 @@ function snapRoadNetwork(roads, snapM) {
   }
 }
 
-/** True only for the elevated bridge span over water — not land approaches. */
 function isUnderBridgeDeck(x, z, bridges, stations) {
   if (!bridges?.length) return false;
   const bank = nearestHalf(x, z, stations);
-  if (bank.lat > bank.half * 0.95) return false; // on land → keep road
+  if (bank.lat > bank.half * 0.95) return false;
   for (const br of bridges) {
     const sx = br.start?.x;
     const sz = br.start?.z;
@@ -463,9 +548,9 @@ function closestOnSeg(px, pz, ax, az, bx, bz) {
 }
 
 /**
- * Add short asphalt links from nearest road tips to each bridge abutment / ramp toe.
+ * Short ribbons from road tips to bridge abutments / ramp toes.
  */
-function linkRoadsToBridges(tips, bridges, stations, asphaltSegs, junctionNodes) {
+function linkRoadsToBridges(tips, bridges, stations, ribbons, junctionNodes) {
   if (!bridges?.length || !tips?.length) return 0;
   let links = 0;
   for (const br of bridges) {
@@ -477,7 +562,6 @@ function linkRoadsToBridges(tips, bridges, stations, asphaltSegs, junctionNodes)
     for (const end of ends) {
       const ax = end.p.x;
       const az = end.p.z;
-      // Ramp toe sits ~28 m landward from abutment along bridge axis
       let dx = 0;
       let dz = 1;
       if (end.other && Number.isFinite(end.other.x)) {
@@ -505,29 +589,28 @@ function linkRoadsToBridges(tips, bridges, stations, asphaltSegs, junctionNodes)
           }
         }
         if (!best) continue;
-        const mx = (best.x + tgt.x) * 0.5;
-        const mz = (best.z + tgt.z) * 0.5;
-        const len = Math.hypot(best.x - tgt.x, best.z - tgt.z);
-        const y =
-          Math.max(best.y, terrainHeightAt(tgt.x, tgt.z, stations) + 0.12) + 0.02;
+        const y0 = best.y;
+        const y1 = terrainHeightAt(tgt.x, tgt.z, stations) + 0.14;
         const w = Math.max(best.w, Math.min(12, br.widthM || 8));
-        asphaltSegs.push({
-          x: mx,
-          z: mz,
-          y,
-          len: len + w * 0.6,
-          w,
-          rot: Math.atan2(tgt.x - best.x, tgt.z - best.z),
-          highway: "primary",
+        ribbons.push({
+          pts: densifyRun(
+            [
+              { x: best.x, z: best.z, y: y0 },
+              { x: tgt.x, z: tgt.z, y: y1 },
+            ],
+            10,
+          ),
+          halfW: w * 0.5,
+          color: best.color || "#505660",
           major: true,
           medium: false,
           pathLike: false,
-          color: best.color || "#505660",
+          hw: "primary",
         });
         pushJunction(junctionNodes, {
           x: tgt.x,
           z: tgt.z,
-          y,
+          y: y1,
           w,
           color: best.color || "#505660",
         });
@@ -545,7 +628,6 @@ function linkRoadsToBridges(tips, bridges, stations, asphaltSegs, junctionNodes)
   return links;
 }
 
-/** Add or merge a junction into the list (within 8 m). */
 function pushJunction(list, node) {
   for (const n of list) {
     if (Math.hypot(n.x - node.x, n.z - node.z) < 8) {
@@ -561,7 +643,6 @@ function pushJunction(list, node) {
   list.push({ ...node, _wSum: node.w, _count: 1 });
 }
 
-/** Second pass: pull nearby nodes from different OSM ways into one intersection. */
 function mergeNearbyJunctions(list, distM) {
   for (let i = 0; i < list.length; i++) {
     const a = list[i];

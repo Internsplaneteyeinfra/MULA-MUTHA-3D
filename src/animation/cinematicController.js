@@ -164,25 +164,28 @@ export function createCinematicController({
       return;
     }
 
-    // —— 4–8s: fishing-point flyover — close enough for screen-visible fish ——
+    // —— 4–8s: fishing-point flyover — continuous glide (no dead holds) ——
     if (t < 8) {
       const k = easeInOutCubic((t - 4) / 4);
       const picks = pickFishingBeats(fishingZones, stations, 0.06, 0.45, 2);
       if (picks.length) {
-        // Hold each point ~2s so jumps can complete on screen
-        const hold = k < 0.5 ? 0 : 1;
-        const focus = picks[Math.min(hold, picks.length - 1)];
-        const localK = hold === 0 ? k / 0.5 : (k - 0.5) / 0.5;
-        const nx = focus.flowX;
-        const nz = focus.flowZ;
+        const a = picks[0];
+        const b = picks[Math.min(1, picks.length - 1)];
+        const blend = easeInOutSine(k);
+        const focus = blend < 0.55 ? a : b;
+        const x = THREE.MathUtils.lerp(a.x, b.x, blend);
+        const z = THREE.MathUtils.lerp(a.z, b.z, blend);
+        const nx = THREE.MathUtils.lerp(a.flowX, b.flowX, blend);
+        const nz = THREE.MathUtils.lerp(a.flowZ, b.flowZ, blend);
         const fl = Math.hypot(nx, nz) || 1;
         const fx = nx / fl;
         const fz = nz / fl;
-        // ~10–12 m altitude, ~11–14 m back — FG fish at 6–12 m read as 40–100 px
-        const height = THREE.MathUtils.lerp(11.5, 9.5, Math.sin(localK * Math.PI));
-        const back = THREE.MathUtils.lerp(13, 11, localK);
-        outP.set(focus.x - fx * back, SURFACE_Y + height, focus.z - fz * back);
-        outL.set(focus.x + fx * 6, SURFACE_Y - 0.2, focus.z + fz * 6);
+        // Gentle altitude/dolly pulse keeps motion alive while fish stay readable
+        const pulse = Math.sin(blend * Math.PI);
+        const height = THREE.MathUtils.lerp(11.2, 9.4, pulse);
+        const back = THREE.MathUtils.lerp(12.8, 10.6, pulse);
+        outP.set(x - fx * back, SURFACE_Y + height, z - fz * back);
+        outL.set(x + fx * 6, SURFACE_Y - 0.2, z + fz * 6);
         setFlowUp(fx, fz);
         state.cinematicFishingPointFocus = { id: focus.id, x: focus.x, z: focus.z };
         return;
@@ -571,20 +574,21 @@ export function createCinematicController({
     // Underwater: tighter near plane so riverbed reads, but fish stay ≥4 m (exclusion)
     camera.near = state.cinematicUnderwater || (t >= 4 && t < 8) ? 0.4 : 1.2;
     camera.updateProjectionMatrix();
+    // Slightly snappier follow so scene changes never feel lagged/waiting
     const posRate = state.cinematicFishScene
-      ? 1.6
+      ? 2.2
       : t >= 4 && t < 8
-        ? 2.8
+        ? 3.6
         : state.cinematicUnderwater
-          ? 2.2
-          : 1.85;
+          ? 2.8
+          : 2.45;
     const rotRate = state.cinematicFishScene
-      ? 1.8
+      ? 2.4
       : t >= 4 && t < 8
-        ? 3.0
+        ? 3.8
         : state.cinematicUnderwater
-          ? 2.5
-          : 2.1;
+          ? 3.1
+          : 2.7;
     const posBlend = 1 - Math.exp(-dt * posRate);
     const rotBlend = 1 - Math.exp(-dt * rotRate);
     camera.position.lerp(pos, posBlend);

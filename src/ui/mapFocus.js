@@ -134,63 +134,86 @@ export function mountFocusThemeHud(root, hooks = {}) {
     return (s.charAt(0) || "?").toUpperCase();
   }
 
-  function showClasses(classes, focusKind, { extraHtml = "" } = {}) {
+  /** Prefer % / range text on the chip; keep human names for hover only. */
+  function scaleDisplayText(c) {
+    const pct = String(c?.pct || "").trim();
+    if (pct) return pct;
+    const range = String(c?.range || "").trim();
+    if (range) return range;
+    const label = String(c?.label || c?.id || "").trim();
+    // Already-numeric labels (bathymetry depths, silt volume ramp)
+    if (/^[<>~]?\d/.test(label) || /\d+\s*[–\-m%]/.test(label)) return label;
+    return null;
+  }
+
+  function showClasses(classes, focusKind, { extraHtml = "", legendOnly = false } = {}) {
     kind = focusKind;
     selectedLabel = null;
     state.landUseSelectedClass = null;
     enterMapFocus(root, focusKind);
     backEl.hidden = false;
 
+    // Geology / WQ / explicit legend: chips are scale only — no select / filter / dim
+    const noSelect =
+      legendOnly ||
+      focusKind === "geology" ||
+      focusKind === "waterquality" ||
+      focusKind === "landuse";
+
     const list = Array.isArray(classes) ? classes : [];
-    const numericScale = focusKind === "waterquality";
+    const preferScale =
+      focusKind === "waterquality" ||
+      focusKind === "geology" ||
+      focusKind === "landuse";
     if (!list.length) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
+      classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
       root.classList.remove("lu-theme-classes-open");
     } else {
-      classesEl.classList.toggle("is-numeric-scale", numericScale);
+      const anyScale = preferScale && list.some((c) => !!scaleDisplayText(c));
+      classesEl.classList.toggle("is-numeric-scale", anyScale || focusKind === "waterquality");
+      classesEl.classList.toggle("is-legend-only", noSelect);
+      classesEl.classList.remove("has-selection");
       classesEl.innerHTML = list
         .map((c) => {
-          // Keep semantic class name for filter matching; show numeric range under the swatch.
           const filterLabel = c.label || c.id || "—";
-          const rangeText = String(c.range || c.pct || "").trim();
-          const displayName =
-            numericScale && rangeText
-              ? rangeText
-              : filterLabel;
+          const scaleText = preferScale ? scaleDisplayText(c) : null;
+          const displayName = scaleText || (preferScale ? "" : filterLabel);
           const key = letterKey(filterLabel, c.key);
           const color = c.color || "#888";
-          const tip =
-            numericScale && rangeText
-              ? `${filterLabel} · ${rangeText}`
-              : rangeText
-                ? `${filterLabel} · ${rangeText}`
-                : filterLabel;
+          const tip = scaleText ? `${filterLabel} · ${scaleText}` : filterLabel;
+          const tag = noSelect ? "div" : "button";
+          const interactiveAttrs = noSelect
+            ? `role="listitem" tabindex="0"`
+            : `type="button" role="listitem" aria-pressed="false"`;
           return `
-          <button type="button" class="lu-theme-class${numericScale ? " is-numeric" : ""}" role="listitem"
+          <${tag} class="lu-theme-class${scaleText ? " is-numeric" : ""}${noSelect ? " is-legend-chip" : ""}"
             data-label="${escapeAttr(filterLabel)}"
             style="--lu-class-color:${escapeAttr(color)}"
             title="${escapeAttr(tip)}"
             aria-label="${escapeAttr(tip)}"
-            aria-pressed="false">
+            ${interactiveAttrs}>
             <span class="lu-theme-class-letter">${escapeHtml(key)}</span>
             <span class="lu-theme-class-name">${escapeHtml(displayName)}</span>
-          </button>`;
+          </${tag}>`;
         })
         .join("");
       classesEl.hidden = false;
       root.classList.add("lu-theme-classes-open");
-      classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
-        btn.addEventListener("click", (e) => {
-          e.preventDefault();
-          e.stopPropagation();
-          const label = btn.dataset.label;
-          selectedLabel = selectedLabel === label ? null : label;
-          document.dispatchEvent(new CustomEvent("river-measure-clear"));
-          syncSelection();
-          hooks.onClassSelect?.(selectedLabel);
+      if (!noSelect) {
+        classesEl.querySelectorAll(".lu-theme-class").forEach((btn) => {
+          btn.addEventListener("click", (e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const label = btn.dataset.label;
+            selectedLabel = selectedLabel === label ? null : label;
+            document.dispatchEvent(new CustomEvent("river-measure-clear"));
+            syncSelection();
+            hooks.onClassSelect?.(selectedLabel);
+          });
         });
-      });
+      }
     }
 
     if (extraHtml) {
@@ -205,11 +228,11 @@ export function mountFocusThemeHud(root, hooks = {}) {
 
   function handleBack() {
     document.dispatchEvent(new CustomEvent("river-measure-clear"));
+    // Never use selection as a two-step back — chips are legend-only for geology/WQ
     if (selectedLabel) {
       selectedLabel = null;
       syncSelection();
       hooks.onClassSelect?.(null);
-      return;
     }
     const k = kind;
     hide();
@@ -228,7 +251,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
     if (!k) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
-      classesEl.classList.remove("is-numeric-scale");
+      classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
       extraEl.hidden = true;
       extraEl.innerHTML = "";
       backEl.hidden = true;
@@ -239,7 +262,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
     state.landUseSelectedClass = null;
     classesEl.hidden = true;
     classesEl.innerHTML = "";
-    classesEl.classList.remove("is-numeric-scale");
+    classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
     extraEl.hidden = true;
     extraEl.innerHTML = "";
     backEl.hidden = true;

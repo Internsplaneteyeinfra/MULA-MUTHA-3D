@@ -1,5 +1,5 @@
   {
-    "version": 24,
+    "version": 25,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -359,7 +359,7 @@
         "east": 74.01249107,
         "west": 73.83580284
       },
-      "overlay": "/data/hydrology/vegetation/vegetation_type_overlay.png?v=18",
+      "overlay": "/data/hydrology/vegetation/vegetation_type_overlay.png?v=19",
       "meta": "/data/hydrology/vegetation/vegetation_type_meta.json",
       "source": "src/data/vegetation_type.kml",
       "opacity": 0.82,
@@ -368,7 +368,7 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Vegetation Type",
-      "legendSubtitle": "Study-area vegetation type overlay",
+      "legendSubtitle": "src/data/vegetation_type.kml",
       "legendClasses": [
         { "id": "non_vegetation", "label": "Non-Vegetation", "color": "#A9A9A9" },
         { "id": "trees", "label": "Trees", "color": "#228B22" },
@@ -390,7 +390,7 @@
         "east": 74.01249107,
         "west": 73.83580284
       },
-      "overlay": "/data/hydrology/vegetation/vegetation_health_overlay.png?v=18",
+      "overlay": "/data/hydrology/vegetation/vegetation_health_overlay.png?v=19",
       "meta": "/data/hydrology/vegetation/vegetation_health_meta.json",
       "source": "src/data/vegetation_health.kml",
       "opacity": 0.82,
@@ -399,7 +399,7 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Vegetation Health",
-      "legendSubtitle": "Study-area vegetation health overlay",
+      "legendSubtitle": "src/data/vegetation_health.kml",
       "legendClasses": [
         { "id": "poor", "label": "Stressed / Poor", "color": "#C62828" },
         { "id": "moderate", "label": "Moderate", "color": "#F9A825" },
