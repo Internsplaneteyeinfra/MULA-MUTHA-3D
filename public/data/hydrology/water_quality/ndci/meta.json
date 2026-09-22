@@ -1,16 +1,10 @@
 {
   "id": "water_quality_ndci",
-  "source": "Smoth kmls/NDCI_smoothed.kmz",
-  "sourceKmz": "NDCI_smoothed.kmz",
-  "bounds": {
-    "north": 18.5484187775,
-    "south": 18.519382832,
-    "east": 73.9940164533,
-    "west": 73.8537286515
-  },
-  "overlayWidth": 3556,
-  "overlayHeight": 736,
-  "overlayUrl": "/data/hydrology/water_quality/ndci/overlay.png",
-  "legendUrl": "/data/hydrology/water_quality/ndci/legend.png",
-  "smoothed": true
+  "name": "Chlorophyll-a",
+  "type": "kmlPolygons",
+  "data": "/data/hydrology/water_quality/NDCI.kml",
+  "source": "src/data/NDCI.kml",
+  "smoothed": false,
+  "classes": 2,
+  "unit": "ug/L"
 }

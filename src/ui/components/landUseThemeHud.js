@@ -156,22 +156,24 @@ export function mountLandUseThemeHud(root, hooks = {}) {
       const cur = years[idx] ?? activeYear;
       const prev = idx > 0 ? years[idx - 1] : null;
       const next = idx >= 0 && idx < years.length - 1 ? years[idx + 1] : null;
+
+      // Same layout as Period: center = Year + value; sides = arrow-only.
+      yearEl.classList.remove("is-period-only");
+      yearEl.classList.add("is-period-nav");
       yearEl.innerHTML = `
-        <button type="button" class="lu-theme-year-side" id="lu-year-prev"
+        <button type="button" class="lu-theme-period-arrow is-prev" id="lu-year-prev"
           ${prev == null ? "disabled" : ""} data-year="${prev ?? ""}"
-          aria-label="Previous year">
-          <span class="lu-theme-year-arrow" aria-hidden="true">←</span>
-          <span class="lu-theme-year-side-val">${prev ?? "—"}</span>
+          aria-label="Previous year" title="Previous year">
+          <span aria-hidden="true">←</span>
         </button>
         <div class="lu-theme-year-center">
           <span class="lu-theme-year-eyebrow">Year</span>
           <strong class="lu-theme-year-current">${cur ?? "—"}</strong>
         </div>
-        <button type="button" class="lu-theme-year-side" id="lu-year-next"
+        <button type="button" class="lu-theme-period-arrow is-next" id="lu-year-next"
           ${next == null ? "disabled" : ""} data-year="${next ?? ""}"
-          aria-label="Next year">
-          <span class="lu-theme-year-side-val">${next ?? "—"}</span>
-          <span class="lu-theme-year-arrow" aria-hidden="true">→</span>
+          aria-label="Next year" title="Next year">
+          <span aria-hidden="true">→</span>
         </button>
       `;
       yearEl.hidden = false;
@@ -182,29 +184,29 @@ export function mountLandUseThemeHud(root, hooks = {}) {
 
     if (mode === "period" && periods.length) {
       const ids = periods.map((p) => (typeof p === "object" ? p.id : p));
-      const labels = periods.map((p) => (typeof p === "object" ? p.label || p.id : p));
       const idx = Math.max(0, ids.findIndex((id) => String(id) === String(activePeriod)));
-      const curLabel = labels[idx] ?? String(ids[idx] ?? activePeriod);
+      const cur = periods[idx] ?? periods[0];
+      const curLabel = formatPeriodMonthYear(cur, activePeriod);
       const prevId = idx > 0 ? ids[idx - 1] : null;
       const nextId = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : null;
-      const prevLabel = idx > 0 ? labels[idx - 1] : null;
-      const nextLabel = idx >= 0 && idx < ids.length - 1 ? labels[idx + 1] : null;
+
+      // Center = Period + Month Year; sides = arrow-only (no adjacent month text).
+      yearEl.classList.remove("is-period-only");
+      yearEl.classList.add("is-period-nav");
       yearEl.innerHTML = `
-        <button type="button" class="lu-theme-year-side" id="lu-period-prev"
+        <button type="button" class="lu-theme-period-arrow is-prev" id="lu-period-prev"
           ${prevId == null ? "disabled" : ""} data-period="${escapeAttr(prevId ?? "")}"
-          aria-label="Previous period">
-          <span class="lu-theme-year-arrow" aria-hidden="true">←</span>
-          <span class="lu-theme-year-side-val">${escapeHtml(shortPeriod(prevLabel))}</span>
+          aria-label="Previous period" title="Previous month">
+          <span aria-hidden="true">←</span>
         </button>
         <div class="lu-theme-year-center">
           <span class="lu-theme-year-eyebrow">Period</span>
           <strong class="lu-theme-year-current">${escapeHtml(curLabel)}</strong>
         </div>
-        <button type="button" class="lu-theme-year-side" id="lu-period-next"
+        <button type="button" class="lu-theme-period-arrow is-next" id="lu-period-next"
           ${nextId == null ? "disabled" : ""} data-period="${escapeAttr(nextId ?? "")}"
-          aria-label="Next period">
-          <span class="lu-theme-year-side-val">${escapeHtml(shortPeriod(nextLabel))}</span>
-          <span class="lu-theme-year-arrow" aria-hidden="true">→</span>
+          aria-label="Next period" title="Next month">
+          <span aria-hidden="true">→</span>
         </button>
       `;
       yearEl.hidden = false;
@@ -213,6 +215,7 @@ export function mountLandUseThemeHud(root, hooks = {}) {
       return;
     }
 
+    yearEl.classList.remove("is-period-only", "is-period-nav");
     yearEl.hidden = true;
     yearEl.innerHTML = "";
     root.classList.remove("lu-theme-year-open");
@@ -313,6 +316,7 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     classItems = [];
     classesEl.hidden = true;
     classesEl.innerHTML = "";
+    yearEl.classList.remove("is-period-only", "is-period-nav");
     yearEl.hidden = true;
     yearEl.innerHTML = "";
     backEl.hidden = true;
@@ -352,6 +356,47 @@ function shortPeriod(label) {
   const s = String(label);
   if (s.length <= 8) return s;
   return s.slice(0, 7) + "…";
+}
+
+const MONTH_NAMES = [
+  "Jan",
+  "Feb",
+  "Mar",
+  "Apr",
+  "May",
+  "Jun",
+  "Jul",
+  "Aug",
+  "Sep",
+  "Oct",
+  "Nov",
+  "Dec",
+];
+
+/** Display "Jan 2026" from period object / id. */
+function formatPeriodMonthYear(period, fallbackId) {
+  if (period && typeof period === "object") {
+    const year = Number(period.year);
+    const month = Number(period.month);
+    if (Number.isFinite(year) && Number.isFinite(month) && month >= 1 && month <= 12) {
+      return `${MONTH_NAMES[month - 1]} ${year}`;
+    }
+    const fromId = parsePeriodId(period.id);
+    if (fromId) return fromId;
+    const label = String(period.label || "").trim();
+    if (label && Number.isFinite(year)) return `${label} ${year}`;
+    if (label) return label;
+  }
+  return parsePeriodId(period) || parsePeriodId(fallbackId) || String(fallbackId || period || "—");
+}
+
+function parsePeriodId(id) {
+  const m = String(id || "").match(/^(\d{4})-(\d{1,2})$/);
+  if (!m) return null;
+  const year = Number(m[1]);
+  const month = Number(m[2]);
+  if (!Number.isFinite(year) || month < 1 || month > 12) return null;
+  return `${MONTH_NAMES[month - 1]} ${year}`;
 }
 
 function escapeHtml(value) {

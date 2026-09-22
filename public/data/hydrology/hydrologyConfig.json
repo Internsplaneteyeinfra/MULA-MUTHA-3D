@@ -1,5 +1,5 @@
   {
-    "version": 17,
+    "version": 24,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -63,7 +63,7 @@
     },
     {
       "id": "water_quality_tss",
-      "name": "Turbidity / TSS",
+      "name": "TSS",
       "available": true,
       "type": "groundOverlay",
       "crs": "EPSG:4326",
@@ -73,19 +73,20 @@
         "east": 73.9941221551,
         "west": 73.853726256
       },
-      "overlay": "/data/hydrology/water_quality/tss/overlay.png?v=17",
-      "legend": "/data/hydrology/water_quality/tss/legend.png?v=17",
+      "overlay": "/data/hydrology/water_quality/tss/overlay.png",
+      "legend": "/data/hydrology/water_quality/tss/legend.png",
       "meta": "/data/hydrology/water_quality/tss/meta.json",
-      "source": "Smoth kmls/TSS_smoothed.kmz",
-      "opacity": 0.78,
-      "liftM": 0.5,
-      "gridSegments": 112,
-      "legendTitle": "Turbidity / TSS",
-      "legendSubtitle": "Smoothed continuous overlay",
+      "source": "src/data/TSS.kmz",
+      "opacity": 1,
+      "liftM": 0.55,
+      "gridSegments": 128,
+      "legendTitle": "TSS",
+      "legendSubtitle": "3 classes · mg/L · src/data/TSS.kmz",
+      "unit": "mg/L",
       "classes": [
-        { "id": "class_1", "kmlClass": "Class 1", "label": "Low TSS", "color": "#1E90FF", "range": "≤0.62" },
-        { "id": "class_2", "kmlClass": "Class 2", "label": "Medium", "color": "#E8B923", "range": "0.62–1.17" },
-        { "id": "class_3", "kmlClass": "Class 3", "label": "High", "color": "#E53935", "range": ">1.17" }
+        { "id": "low", "kmlClass": "Class 1", "label": "Low", "color": "#2ECC71", "range": "0–10 mg/L", "unit": "mg/L", "min": 0, "max": 10, "inclusiveMax": true },
+        { "id": "moderate", "kmlClass": "Class 2", "label": "Moderate", "color": "#F39C12", "range": "10–50 mg/L", "unit": "mg/L", "min": 10, "max": 50, "inclusiveMax": true },
+        { "id": "high", "kmlClass": "Class 3", "label": "High", "color": "#E74C3C", "range": ">50 mg/L", "unit": "mg/L", "min": 50, "max": null, "inclusiveMax": false }
       ],
       "renderType": "terrainDrapedTexture"
     },
@@ -109,30 +110,22 @@
     },
     {
       "id": "water_quality_ndci",
-      "name": "NDCI — Chlorophyll",
+      "name": "Chlorophyll-a",
       "available": true,
-      "type": "groundOverlay",
+      "type": "kmlPolygons",
       "crs": "EPSG:4326",
-      "bounds": {
-        "north": 18.5484187775,
-        "south": 18.519382832,
-        "east": 73.9940164533,
-        "west": 73.8537286515
-      },
-      "overlay": "/data/hydrology/water_quality/ndci/overlay.png?v=16",
-      "legend": "/data/hydrology/water_quality/ndci/legend.png?v=16",
-      "meta": "/data/hydrology/water_quality/ndci/meta.json",
-      "source": "Smoth kmls/NDCI_smoothed.kmz",
-      "opacity": 0.78,
-      "liftM": 0.5,
-      "gridSegments": 112,
-      "legendTitle": "NDCI — Chlorophyll",
-      "legendSubtitle": "Smoothed continuous overlay",
+      "data": "/data/hydrology/water_quality/NDCI.kml",
+      "source": "src/data/NDCI.kml",
+      "opacity": 0.88,
+      "liftM": 0.65,
+      "legendTitle": "Chlorophyll-a",
+      "legendSubtitle": "2 classes · µg/L · src/data/NDCI.kml",
+      "unit": "µg/L",
       "classes": [
-        { "id": "class_1", "kmlClass": "Class 1", "label": "Low chlorophyll", "color": "#B8E0C8", "range": "<0" },
-        { "id": "class_2", "kmlClass": "Class 2", "label": "High chlorophyll", "color": "#1B5E20", "range": "≥0" }
+        { "id": "low", "kmlClass": "Class 1", "label": "Low", "color": "#A5D6A7", "range": "0–2 µg/L", "unit": "µg/L", "min": 0, "max": 2, "inclusiveMax": true },
+        { "id": "high", "kmlClass": "Class 2", "label": "High", "color": "#1B5E20", "range": ">2 µg/L", "unit": "µg/L", "min": 2, "max": null, "inclusiveMax": false }
       ],
-      "renderType": "terrainDrapedTexture"
+      "renderType": "terrainDrapedPolygonsMergedByClass"
     },
     {
       "id": "water_quality_wst",
@@ -167,21 +160,22 @@
         "east": 73.9940952056,
         "west": 73.8527902114
       },
-      "overlay": "/data/hydrology/water_quality/salinity/overlay.png?v=16",
-      "legend": "/data/hydrology/water_quality/salinity/legend.png?v=16",
+      "overlay": "/data/hydrology/water_quality/salinity/overlay.png",
+      "legend": "/data/hydrology/water_quality/salinity/legend.png",
       "meta": "/data/hydrology/water_quality/salinity/meta.json",
-      "source": "Smoth kmls/salinity_smoothed.kmz",
-      "opacity": 0.78,
-      "liftM": 0.45,
-      "gridSegments": 112,
+      "source": "src/data/salinity.kmz",
+      "opacity": 1,
+      "liftM": 0.55,
+      "gridSegments": 128,
       "legendTitle": "Salinity",
-      "legendSubtitle": "Smoothed continuous overlay",
+      "legendSubtitle": "5 classes · ppt · src/data/salinity.kmz",
+      "unit": "ppt",
       "classes": [
-        { "id": "very_low", "label": "Very Low Salinity", "color": "#0000FF", "range": "-1.00 to -0.60" },
-        { "id": "low", "label": "Low Salinity", "color": "#00BFFF", "range": "-0.60 to -0.20" },
-        { "id": "moderate", "label": "Moderate Salinity", "color": "#00FF00", "range": "-0.20 to 0.20" },
-        { "id": "high", "label": "High Salinity", "color": "#FFFF00", "range": "0.20 to 0.60" },
-        { "id": "very_high", "label": "Very High Salinity", "color": "#FF0000", "range": "0.60 to 1.00" }
+        { "id": "very_low", "kmlClass": "Very Low Salinity", "label": "Very Low", "color": "#0000FF", "range": "0–0.5 ppt", "unit": "ppt", "min": 0, "max": 0.5, "inclusiveMax": false },
+        { "id": "low", "kmlClass": "Low Salinity", "label": "Low", "color": "#00BFFF", "range": "0.5–5 ppt", "unit": "ppt", "min": 0.5, "max": 5, "inclusiveMax": true },
+        { "id": "moderate", "kmlClass": "Moderate Salinity", "label": "Moderate", "color": "#00FF00", "range": "5–18 ppt", "unit": "ppt", "min": 5, "max": 18, "inclusiveMax": true },
+        { "id": "high", "kmlClass": "High Salinity", "label": "High", "color": "#FFFF00", "range": "18–30 ppt", "unit": "ppt", "min": 18, "max": 30, "inclusiveMax": true },
+        { "id": "very_high", "kmlClass": "Very High Salinity", "label": "Very High", "color": "#FF0000", "range": ">30 ppt", "unit": "ppt", "min": 30, "max": null, "inclusiveMax": false }
       ],
       "renderType": "terrainDrapedTexture"
     },
@@ -213,12 +207,13 @@
       "available": true,
       "type": "lulcYears",
       "crs": "EPSG:4326",
-      "defaultYear": 2026,
+      "defaultYear": 2025,
       "opacity": 0.82,
       "liftM": 0.45,
       "gridSegments": 112,
       "legendTitle": "LULC",
-      "legendSubtitle": "Mula–Mutha land cover",
+      "legendSubtitle": "Mula–Mutha land cover · LULC UPTO2025",
+      "source": "src/data/LULC UPTO2025",
       "legendClasses": [
         { "label": "Forest", "color": "#006400" },
         { "label": "Crop Land", "color": "#E6A23C" },
@@ -238,43 +233,43 @@
           "year": 2021,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2021/overlay.png",
+          "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2021.kmz",
           "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
         },
         {
           "year": 2022,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2022/overlay.png",
+          "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2022.kmz",
           "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
         },
         {
           "year": 2023,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2023/overlay.png",
+          "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2023.kmz",
           "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
         },
         {
           "year": 2024,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2024/overlay.png",
+          "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2024.kmz",
           "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
         },
         {
           "year": 2025,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2025/overlay.png",
+          "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2025.kmz",
           "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
         },
         {
           "year": 2026,
-          "type": "kmlPolygons",
-          "data": "/data/hydrology/lulc/2026/lulc_2026.kml",
-          "classes": [
-            { "id": "class_0", "kmlClass": "Class 0", "label": "Water Bodies", "color": "#2196F3" },
-            { "id": "class_1", "kmlClass": "Class 1", "label": "Settlements", "color": "#C62828" },
-            { "id": "class_2", "kmlClass": "Class 2", "label": "Forest", "color": "#006400" },
-            { "id": "class_3", "kmlClass": "Class 3", "label": "Crop Land", "color": "#E6A23C" },
-            { "id": "class_4", "kmlClass": "Class 4", "label": "Barren Land", "color": "#A9A9A9" }
-          ]
+          "type": "groundOverlay",
+          "overlay": "/data/hydrology/lulc/2026/overlay.png",
+          "source": "src/data/LULC UPTO2025/lulc_2026.kmz",
+          "bounds": { "north": 18.5616160663, "south": 18.5098917794, "east": 73.9961284727, "west": 73.8501433362 }
         }
       ],
       "renderType": "lulcYearOverlays"
@@ -290,7 +285,8 @@
       "liftM": 1.4,
       "gridSegments": 128,
       "legendTitle": "Silt Classification",
-      "legendSubtitle": "Discrete silt classes",
+      "legendSubtitle": "Discrete silt classes · Jan–Jul 2026 KMZ",
+      "source": "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
       "bounds": {
         "north": 18.547336008158936,
         "south": 18.520745875748997,
@@ -325,7 +321,8 @@
       "liftM": 1.5,
       "gridSegments": 128,
       "legendTitle": "Silt Volume Surface",
-      "legendSubtitle": "Fixed scale 0–94.31 · YlOrBr",
+      "legendSubtitle": "Volume surface · fixed 0–94.31 · Jan–Jul 2026 KMZ",
+      "source": "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
       "bounds": {
         "north": 18.547336008158936,
         "south": 18.520745875748997,
@@ -352,24 +349,64 @@
     },
     {
       "id": "vegetation_extent",
-      "name": "VEGETATION EXTENT",
+      "name": "VEGETATION TYPE",
       "available": true,
-      "type": "kmlPolygons",
+      "type": "groundOverlay",
       "crs": "EPSG:4326",
-      "data": "/data/hydrology/vegetation/vegetation_extent.geojson",
-      "source": "vegetation_type_study_area.kml",
-      "opacity": 0.72,
+      "bounds": {
+        "north": 18.56563988,
+        "south": 18.50179885,
+        "east": 74.01249107,
+        "west": 73.83580284
+      },
+      "overlay": "/data/hydrology/vegetation/vegetation_type_overlay.png?v=18",
+      "meta": "/data/hydrology/vegetation/vegetation_type_meta.json",
+      "source": "src/data/vegetation_type.kml",
+      "opacity": 0.82,
       "liftM": 1.1,
-      "legendTitle": "Vegetation Extent",
-      "legendSubtitle": "Study-area vegetation type polygons",
-      "classes": [
+      "gridSegments": 128,
+      "flipU": false,
+      "flipV": true,
+      "legendTitle": "Vegetation Type",
+      "legendSubtitle": "Study-area vegetation type overlay",
+      "legendClasses": [
         { "id": "non_vegetation", "label": "Non-Vegetation", "color": "#A9A9A9" },
         { "id": "trees", "label": "Trees", "color": "#228B22" },
         { "id": "shrub", "label": "Shrub / Scrub", "color": "#9ACD32" },
         { "id": "grass", "label": "Grass / Herbaceous", "color": "#90EE90" },
         { "id": "mixed", "label": "Mixed / Diverse", "color": "#8A2BE2" }
       ],
-      "renderType": "terrainDrapedPolygons"
+      "renderType": "terrainDrapedTexture"
+    },
+    {
+      "id": "vegetation_health",
+      "name": "VEGETATION HEALTH",
+      "available": true,
+      "type": "groundOverlay",
+      "crs": "EPSG:4326",
+      "bounds": {
+        "north": 18.56563988,
+        "south": 18.50179885,
+        "east": 74.01249107,
+        "west": 73.83580284
+      },
+      "overlay": "/data/hydrology/vegetation/vegetation_health_overlay.png?v=18",
+      "meta": "/data/hydrology/vegetation/vegetation_health_meta.json",
+      "source": "src/data/vegetation_health.kml",
+      "opacity": 0.82,
+      "liftM": 1.15,
+      "gridSegments": 128,
+      "flipU": false,
+      "flipV": true,
+      "legendTitle": "Vegetation Health",
+      "legendSubtitle": "Study-area vegetation health overlay",
+      "legendClasses": [
+        { "id": "poor", "label": "Stressed / Poor", "color": "#C62828" },
+        { "id": "moderate", "label": "Moderate", "color": "#F9A825" },
+        { "id": "good", "label": "Healthy", "color": "#2E7D32" },
+        { "id": "dense", "label": "Dense canopy", "color": "#1B5E20" }
+      ],
+      "renderType": "terrainDrapedTexture"
     },
     {
       "id": "aqi",

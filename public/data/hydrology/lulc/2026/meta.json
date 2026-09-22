@@ -1,0 +1,14 @@
+{
+  "year": 2026,
+  "name": "Smoothed classification overlay",
+  "type": "groundOverlay",
+  "bounds": {
+    "north": 18.5616160663,
+    "south": 18.5098917794,
+    "east": 73.9961284727,
+    "west": 73.8501433362
+  },
+  "classes": [],
+  "overlay": "/data/hydrology/lulc/2026/overlay.png",
+  "source": "src/data/LULC UPTO2025/lulc_2026.kmz"
+}

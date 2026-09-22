@@ -16,27 +16,44 @@ import { createPollutionGarbageLayer } from "./pollutionGarbageLayer.js";
 /** Bundled asset — Vite always serves this (public/data new files can 404 as HTML). */
 import bankErosionOverlayUrl from "../assets/hydrology/bank_erosion_overlay.png";
 import bankErosionLegendUrl from "../assets/hydrology/bank_erosion_legend.png";
+/** Chlorophyll-a polygons — exact copy of src/data/NDCI.kml */
+import ndciKmlUrl from "../assets/hydrology/NDCI.kml?url";
+/** Salinity ground overlay — exact extract of src/data/salinity.kmz */
+import salinityOverlayUrl from "../assets/hydrology/salinity_overlay.png";
+import salinityLegendUrl from "../assets/hydrology/salinity_legend.png";
+/** TSS ground overlay — exact extract of src/data/TSS.kmz */
+import tssOverlayUrl from "../assets/hydrology/tss_overlay.png";
+import tssLegendUrl from "../assets/hydrology/tss_legend.png";
 import { LITHOLOGY_CLASSES } from "../ui/components/geologyWorkspace.js";
 import {
   createBankErosionMaterial,
   updateBankErosionMaterial,
 } from "./hydrology/bankErosionMaterial.js";
+import {
+  classRepresentativeValue,
+  formatWqValue,
+  WQ_LAYER_SCHEMES,
+  CHLOROPHYLL_CLASSES,
+  SALINITY_CLASSES,
+  TSS_CLASSES,
+} from "../geo/waterQualityClasses.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
-const CONFIG_VERSION = 17;
+const CONFIG_VERSION = 24;
 
 const POLYGON_LAYER_IDS = new Set([
   "water_quality_ndwi",
   "water_quality_wst",
+  "water_quality_ndci",
   "landuse_lulc",
-  "vegetation_extent",
 ]);
 
 const DRAPED_CLASS_LAYER_IDS = new Set([
   "geology",
   "bank_erosion",
+  "vegetation_extent",
+  "vegetation_health",
   "salinity",
-  "water_quality_ndci",
   "water_quality_tss",
 ]);
 
@@ -136,8 +153,14 @@ const LULC_YEARS = [
   },
   {
     year: 2026,
-    type: "kmlPolygons",
-    data: "/data/hydrology/lulc/2026/lulc_2026.kml",
+    type: "groundOverlay",
+    overlay: "/data/hydrology/lulc/2026/overlay.png",
+    bounds: {
+      north: 18.5616160663,
+      south: 18.5098917794,
+      east: 73.9961284727,
+      west: 73.8501433362,
+    },
   },
 ];
 
@@ -188,8 +211,80 @@ const SILT_VOLUME_PERIODS = [
   { id: "2026-07", label: "Jul", year: 2026, month: 7, overlay: "/data/hydrology/silt/volume/2026-07/overlay.png", legend: "/data/hydrology/silt/volume/2026-07/legend.png" },
 ];
 
-/** Hardcoded fallbacks so Bank Erosion / Silt work even if an old config is cached. */
+/** Hardcoded fallbacks so Bank Erosion / Silt / Chlorophyll work even if an old config is cached. */
 const BUILTIN_LAYER_DEFS = {
+  water_quality_ndci: {
+    id: "water_quality_ndci",
+    name: "Chlorophyll-a",
+    available: true,
+    type: "kmlPolygons",
+    crs: "EPSG:4326",
+    data: ndciKmlUrl,
+    source: "src/data/NDCI.kml",
+    opacity: 0.88,
+    liftM: 0.65,
+    legendTitle: "Chlorophyll-a",
+    legendSubtitle: "2 classes · µg/L · src/data/NDCI.kml",
+    unit: "µg/L",
+    classes: CHLOROPHYLL_CLASSES,
+    renderType: "terrainDrapedPolygonsMergedByClass",
+  },
+  salinity: {
+    id: "salinity",
+    name: "SALINITY",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: {
+      north: 18.5621806682,
+      south: 18.509269898,
+      east: 73.9940952056,
+      west: 73.8527902114,
+    },
+    overlay: salinityOverlayUrl,
+    legend: salinityLegendUrl,
+    meta: "/data/hydrology/water_quality/salinity/meta.json",
+    source: "src/data/salinity.kmz",
+    opacity: 1,
+    gridSegments: 128,
+    liftM: 0.55,
+    flipU: false,
+    flipV: true,
+    legendTitle: "Salinity",
+    legendSubtitle: "5 classes · ppt · src/data/salinity.kmz",
+    unit: "ppt",
+    classes: SALINITY_CLASSES,
+    legendClasses: SALINITY_CLASSES,
+    renderType: "terrainDrapedTexture",
+  },
+  water_quality_tss: {
+    id: "water_quality_tss",
+    name: "TSS",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: {
+      north: 18.548421173,
+      south: 18.5193301309,
+      east: 73.9941221551,
+      west: 73.853726256,
+    },
+    overlay: tssOverlayUrl,
+    legend: tssLegendUrl,
+    meta: "/data/hydrology/water_quality/tss/meta.json",
+    source: "src/data/TSS.kmz",
+    opacity: 1,
+    gridSegments: 128,
+    liftM: 0.55,
+    flipU: false,
+    flipV: true,
+    legendTitle: "TSS",
+    legendSubtitle: "3 classes · mg/L · src/data/TSS.kmz",
+    unit: "mg/L",
+    classes: TSS_CLASSES,
+    legendClasses: TSS_CLASSES,
+    renderType: "terrainDrapedTexture",
+  },
   bank_erosion: {
     id: "bank_erosion",
     name: "BANK EROSION HOTSPOTS",
@@ -233,7 +328,8 @@ const BUILTIN_LAYER_DEFS = {
     liftM: 1.4,
     gridSegments: 128,
     legendTitle: "Silt Classification",
-    legendSubtitle: "Smoothed discrete classes (API).",
+    legendSubtitle: "Discrete silt classes · Jan–Jul 2026 KMZ",
+    source: "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
     bounds: SILT_CLASS_BOUNDS,
     classes: SILT_CLASS_CLASSES,
     periods: SILT_CLASS_PERIODS,
@@ -250,7 +346,8 @@ const BUILTIN_LAYER_DEFS = {
     liftM: 1.5,
     gridSegments: 128,
     legendTitle: "Silt Volume Surface",
-    legendSubtitle: "Smoothed volume surface · fixed 0–94.31",
+    legendSubtitle: "Volume surface · fixed 0–94.31 · Jan–Jul 2026 KMZ",
+    source: "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
     bounds: SILT_VOLUME_BOUNDS,
     classes: SILT_VOLUME_CLASSES,
     periods: SILT_VOLUME_PERIODS,
@@ -258,22 +355,67 @@ const BUILTIN_LAYER_DEFS = {
   },
   vegetation_extent: {
     id: "vegetation_extent",
-    name: "VEGETATION EXTENT",
+    name: "VEGETATION TYPE",
     available: true,
-    type: "kmlPolygons",
+    type: "groundOverlay",
     crs: "EPSG:4326",
-    data: "/data/hydrology/vegetation/vegetation_extent.geojson",
-    source: "vegetation_type_study_area.kml",
-    opacity: 0.72,
+    bounds: {
+      north: 18.56563988,
+      south: 18.50179885,
+      east: 74.01249107,
+      west: 73.83580284,
+    },
+    overlay: "/data/hydrology/vegetation/vegetation_type_overlay.png?v=18",
+    meta: "/data/hydrology/vegetation/vegetation_type_meta.json",
+    source: "src/data/vegetation_type.kml",
+    opacity: 0.82,
+    gridSegments: 128,
     liftM: 1.1,
-    legendTitle: "Vegetation Extent",
-    legendSubtitle: "Study-area vegetation type polygons",
-    classes: VEGETATION_EXTENT_CLASSES,
-    renderType: "terrainDrapedPolygons",
+    flipU: false,
+    flipV: true,
+    renderType: "terrainDrapedTexture",
+    legendTitle: "Vegetation Type",
+    legendSubtitle: "Study-area vegetation type overlay",
+    legendClasses: VEGETATION_EXTENT_CLASSES,
+  },
+  vegetation_health: {
+    id: "vegetation_health",
+    name: "VEGETATION HEALTH",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: {
+      north: 18.56563988,
+      south: 18.50179885,
+      east: 74.01249107,
+      west: 73.83580284,
+    },
+    overlay: "/data/hydrology/vegetation/vegetation_health_overlay.png?v=18",
+    meta: "/data/hydrology/vegetation/vegetation_health_meta.json",
+    source: "src/data/vegetation_health.kml",
+    opacity: 0.82,
+    gridSegments: 128,
+    liftM: 1.15,
+    flipU: false,
+    flipV: true,
+    renderType: "terrainDrapedTexture",
+    legendTitle: "Vegetation Health",
+    legendSubtitle: "Study-area vegetation health overlay",
+    legendClasses: [
+      { id: "poor", label: "Stressed / Poor", color: "#C62828" },
+      { id: "moderate", label: "Moderate", color: "#F9A825" },
+      { id: "good", label: "Healthy", color: "#2E7D32" },
+      { id: "dense", label: "Dense canopy", color: "#1B5E20" },
+    ],
   },
 };
 
 const CLASS_COLOR = {
+  Low: "#2ECC71",
+  Moderate: "#F39C12",
+  High: "#E74C3C",
+  "Very Low": "#0000FF",
+  "Very High": "#FF0000",
   "Very Low Salinity": "#0000FF",
   "Low Salinity": "#00BFFF",
   "Moderate Salinity": "#00FF00",
@@ -305,6 +447,8 @@ export function createHydrologyLayer(dataset) {
     landuse_lulc: { mesh: null, loaded: false, loading: null, sampler: null },
     silt_classification: { mesh: null, loaded: false, loading: null, sampler: null },
     silt_volume_surface: { mesh: null, loaded: false, loading: null, sampler: null },
+    salinity: { mesh: null, loaded: false, loading: null, sampler: null },
+    water_quality_tss: { mesh: null, loaded: false, loading: null, sampler: null },
   };
   /** @deprecated alias — keep older references working during loadGeology */
   const geology = drapedOverlays.geology;
@@ -332,7 +476,7 @@ export function createHydrologyLayer(dataset) {
     return polygonLayers[id];
   }
   /** @deprecated alias for pick / validate helpers */
-  const salinity = polygonSlot("salinity");
+  const salinity = drapedOverlays.salinity;
 
   function mergeBuiltinLayers(cfg) {
     if (!cfg || !Array.isArray(cfg.layers)) {
@@ -358,8 +502,18 @@ export function createHydrologyLayer(dataset) {
   function layerDef(id) {
     const fromConfig = config?.layers?.find((l) => l.id === id);
     const builtin = BUILTIN_LAYER_DEFS[id];
-    if (fromConfig && builtin) return { ...fromConfig, ...builtin };
-    return fromConfig || builtin || null;
+    let def = fromConfig && builtin ? { ...fromConfig, ...builtin } : fromConfig || builtin || null;
+    const scheme = WQ_LAYER_SCHEMES[id];
+    if (def && scheme) {
+      def = {
+        ...def,
+        classes: scheme.classes,
+        unit: scheme.unit,
+        legendTitle: scheme.title,
+        legendSubtitle: scheme.subtitle,
+      };
+    }
+    return def;
   }
 
   function clearActiveMeshes() {
@@ -398,7 +552,12 @@ export function createHydrologyLayer(dataset) {
     const slot = drapedOverlays[id];
     if (!slot) throw new Error(`No draped overlay slot for ${id}`);
 
-    const GEO_UV_VERSION = 17;
+    const GEO_UV_VERSION = CONFIG_VERSION;
+    // Wait out in-flight loads so year/period switches don't keep the previous overlay.
+    while (slot.loading) {
+      await slot.loading.catch(() => {});
+    }
+
     if (
       slot.loaded &&
       (slot.mesh?.userData?.geoUvVersion !== GEO_UV_VERSION ||
@@ -431,7 +590,6 @@ export function createHydrologyLayer(dataset) {
           id === "silt_classification" ||
           id === "silt_volume_surface" ||
           id === "salinity" ||
-          id === "water_quality_ndci" ||
           id === "water_quality_tss") &&
         !slot.sampler
       ) {
@@ -469,7 +627,9 @@ export function createHydrologyLayer(dataset) {
               ? Math.max(112, Number(def.gridSegments) || 144)
               : id === "landuse_lulc" ||
                   id === "silt_classification" ||
-                  id === "silt_volume_surface"
+                  id === "silt_volume_surface" ||
+                  id === "salinity" ||
+                  id === "water_quality_tss"
                 ? Math.max(96, Number(def.gridSegments) || 112)
                 : def.gridSegments,
         },
@@ -480,13 +640,19 @@ export function createHydrologyLayer(dataset) {
         south,
         stations,
         lift: id === "bank_erosion" ? Math.max(lift, 1.2) : lift,
-        opacity: id === "bank_erosion" ? 1 : opacity,
+        opacity:
+          id === "bank_erosion" || id === "salinity" || id === "water_quality_tss" ? 1 : opacity,
         version: GEO_UV_VERSION,
         // Classification: nearest keeps only legend class colors.
-        // Volume: linear softens the continuous ramp.
+        // Volume / continuous salinity/TSS ramp: linear softens.
         nearest: id === "landuse_lulc" || id === "silt_classification",
         highContrast:
-          id === "bank_erosion" || id === "silt_classification" || id === "silt_volume_surface",
+          id === "bank_erosion" ||
+          id === "landuse_lulc" ||
+          id === "silt_classification" ||
+          id === "silt_volume_surface" ||
+          id === "salinity" ||
+          id === "water_quality_tss",
         animateBankErosion: id === "bank_erosion",
       });
 
@@ -514,7 +680,6 @@ export function createHydrologyLayer(dataset) {
         id === "silt_classification" ||
         id === "silt_volume_surface" ||
         id === "salinity" ||
-        id === "water_quality_ndci" ||
         id === "water_quality_tss"
       ) {
         try {
@@ -524,11 +689,13 @@ export function createHydrologyLayer(dataset) {
           slot.sampler = null;
         }
       }
-      slot.loading = null;
-    })().catch((err) => {
-      slot.loading = null;
-      throw err;
-    });
+    })()
+      .catch((err) => {
+        throw err;
+      })
+      .finally(() => {
+        slot.loading = null;
+      });
 
     return slot.loading;
   }
@@ -574,13 +741,19 @@ export function createHydrologyLayer(dataset) {
       let rawFeatures = [];
 
       if (isKml) {
-        const res = await fetch(dataUrl, { signal: AbortSignal.timeout(90000) });
+        const fetchUrl = dataUrl.includes("?")
+          ? dataUrl
+          : `${dataUrl}?v=${CONFIG_VERSION}`;
+        const res = await fetch(fetchUrl, { signal: AbortSignal.timeout(90000), cache: "no-store" });
         if (!res.ok) throw new Error(`${id} KML unavailable (${res.status})`);
         const text = await res.text();
         if (/^\s*<!DOCTYPE html/i.test(text) || /^\s*<html/i.test(text)) {
           throw new Error(`${id} KML URL returned HTML — check public/data path`);
         }
         rawFeatures = parseClassedPolygonKml(text);
+        if (!rawFeatures.length) {
+          throw new Error(`${id}: no polygons parsed from ${dataUrl}`);
+        }
       } else {
         const res = await fetch(dataUrl, { signal: AbortSignal.timeout(60000) });
         if (!res.ok) throw new Error(`${id} data unavailable (${res.status})`);
@@ -651,6 +824,10 @@ export function createHydrologyLayer(dataset) {
           class: label,
           sourceClass: f.class_label || null,
           range: meta.range || buckets.get(label).range || null,
+          unit: meta.unit || def.unit || null,
+          value: meta.value ?? null,
+          valueText: meta.valueText || null,
+          metric: meta.metric || def.legendTitle || def.name || null,
           name: f.name || null,
           description: f.description || null,
           color: buckets.get(label).color || color,
@@ -674,16 +851,19 @@ export function createHydrologyLayer(dataset) {
         const mat = new THREE.MeshBasicMaterial({
           color: new THREE.Color(bucket.color),
           transparent: true,
-          opacity,
+          opacity: Math.min(1, Math.max(0.55, opacity)),
           depthWrite: false,
+          depthTest: false,
           side: THREE.DoubleSide,
           polygonOffset: true,
           polygonOffsetFactor: -2,
           polygonOffsetUnits: -2,
+          toneMapped: false,
         });
         const mesh = new THREE.Mesh(merged, mat);
         mesh.name = `${id}_${bucket.label.replace(/\s+/g, "_")}`;
-        mesh.renderOrder = 5;
+        mesh.renderOrder = id === "water_quality_ndci" || id === "water_quality_tss" || id === "salinity" ? 46 : 5;
+        mesh.frustumCulled = false;
         mesh.userData.hydrology = id;
         mesh.userData.class_label = bucket.label;
         mesh.userData.range = bucket.range;
@@ -757,10 +937,14 @@ export function createHydrologyLayer(dataset) {
         message: "No LULC years configured",
       };
     }
-    // Open on most recent unless caller is switching years
+    // Open on configured default (or most recent) unless caller is switching years
     if (!opts.keepSelection) {
+      const preferred = Number(def.defaultYear);
+      const preferredEntry = Number.isFinite(preferred)
+        ? years.find((e) => Number(e.year) === preferred)
+        : null;
       const latest = years[years.length - 1];
-      lulcYear = Number(latest.year);
+      lulcYear = Number((preferredEntry || latest).year);
     }
     const yearEntry = resolveLulcYearEntry(def, lulcYear) || years[years.length - 1];
     lulcYear = Number(yearEntry.year);
@@ -893,6 +1077,8 @@ export function createHydrologyLayer(dataset) {
       periods: periods.map((p) => ({
         id: p.id,
         label: p.label || p.id,
+        year: p.year,
+        month: p.month,
       })),
       activePeriod: period.id,
       layerId: "silt_classification",
@@ -1012,6 +1198,8 @@ export function createHydrologyLayer(dataset) {
       periods: periods.map((p) => ({
         id: p.id,
         label: p.label || p.id,
+        year: p.year,
+        month: p.month,
       })),
       activePeriod: period.id,
       layerId: "silt_volume_surface",
@@ -1166,13 +1354,15 @@ export function createHydrologyLayer(dataset) {
               type: "classes",
               title: def.legendTitle || def.name,
               subtitle: def.legendSubtitle || null,
+              layerId: id,
               classes: (def.legendClasses || def.classes).map((c) => ({
                 label: c.label,
                 color: c.color,
-                pct: c.pct || c.range,
+                range: c.range || null,
+                pct: c.pct || c.range || null,
               })),
             }
-          : { type: "image", url: def.legend, title: def.name };
+          : { type: "image", url: def.legend, title: def.name, layerId: id };
       return {
         ok: !!slot?.mesh,
         id,
@@ -1321,13 +1511,12 @@ export function createHydrologyLayer(dataset) {
     if (activeId === "geology") {
       return sampleGeologyAt(x, z);
     }
-    if (activeId === "salinity" || activeId === "water_quality_ndci" || activeId === "water_quality_tss") {
-      return sampleDrapedClassAt(activeId, x, z);
-    }
     if (
       activeId === "landuse_lulc" ||
       activeId === "silt_classification" ||
-      activeId === "silt_volume_surface"
+      activeId === "silt_volume_surface" ||
+      activeId === "salinity" ||
+      activeId === "water_quality_tss"
     ) {
       return sampleLandUseAt(x, z);
     }
@@ -1397,7 +1586,9 @@ export function createHydrologyLayer(dataset) {
     if (
       id !== "landuse_lulc" &&
       id !== "silt_classification" &&
-      id !== "silt_volume_surface"
+      id !== "silt_volume_surface" &&
+      id !== "salinity" &&
+      id !== "water_quality_tss"
     ) {
       return null;
     }
@@ -1407,6 +1598,13 @@ export function createHydrologyLayer(dataset) {
     const ll = localToLonLat(x, z);
     const hit = sampler.sampleLonLat(ll.lon, ll.lat);
     if (!hit) return null;
+    const scheme = WQ_LAYER_SCHEMES[id];
+    const schemeClass =
+      scheme?.classes?.find(
+        (c) =>
+          String(c.label).toLowerCase() === String(hit.class_label || hit.label || "").toLowerCase() ||
+          String(c.id).toLowerCase() === String(hit.id || "").toLowerCase(),
+      ) || null;
     return {
       ...hit,
       x,
@@ -1414,12 +1612,25 @@ export function createHydrologyLayer(dataset) {
       lon: ll.lon,
       lat: ll.lat,
       hydrology: id,
+      range: hit.range || hit.pct || schemeClass?.range || null,
+      unit: scheme?.unit || hit.unit || null,
+      metric: scheme?.metric || null,
+      value: hit.value ?? (schemeClass ? classRepresentativeValue(schemeClass) : null),
+      valueText:
+        hit.valueText ||
+        (schemeClass && scheme?.unit
+          ? formatWqValue(classRepresentativeValue(schemeClass), scheme.unit)
+          : null),
       layerTitle:
         id === "landuse_lulc"
           ? "LULC"
           : id === "silt_volume_surface"
             ? "SILT VOLUME"
-            : "SILT CLASS",
+            : id === "salinity"
+              ? "SALINITY"
+              : id === "water_quality_tss"
+                ? "TSS"
+                : "SILT CLASS",
     };
   }
 
@@ -2178,17 +2389,20 @@ function stripRange(name) {
 }
 
 /**
- * Map raw KML/GeoJSON class ("Class 1") → configured legend label/color/range.
+ * Map raw KML/GeoJSON class ("Class 1" / "Very Low Salinity") → configured legend label/color/range.
  */
 function resolveClassMeta(def, rawLabel, feature = null) {
   const raw = String(rawLabel || "Unknown").trim();
   const classes = def?.classes || [];
+  const stripped = stripRange(raw);
   const numM = raw.match(/^Class\s*(\d+)$/i);
   const classNum = numM ? Number(numM[1]) : null;
 
   let hit =
     classes.find((c) => c.kmlClass && String(c.kmlClass).toLowerCase() === raw.toLowerCase()) ||
+    classes.find((c) => c.kmlClass && String(c.kmlClass).toLowerCase() === stripped.toLowerCase()) ||
     classes.find((c) => c.label && String(c.label).toLowerCase() === raw.toLowerCase()) ||
+    classes.find((c) => c.label && String(c.label).toLowerCase() === stripped.toLowerCase()) ||
     classes.find((c) => c.id && String(c.id).toLowerCase() === raw.toLowerCase().replace(/\s+/g, "_")) ||
     null;
 
@@ -2199,23 +2413,40 @@ function resolveClassMeta(def, rawLabel, feature = null) {
       null;
   }
 
+  // Salinity KML: "Very Low Salinity" → scheme label "Very Low"
+  if (!hit && /salinity/i.test(stripped)) {
+    const short = stripped.replace(/\s*salinity\s*$/i, "").trim();
+    hit = classes.find((c) => String(c.label).toLowerCase() === short.toLowerCase()) || null;
+  }
+
   if (hit) {
+    const scheme = WQ_LAYER_SCHEMES[def?.id];
+    const unit = hit.unit || def?.unit || scheme?.unit || null;
+    const mid = classRepresentativeValue(hit);
     return {
       label: hit.label,
       color: normalizeHex(hit.color) || CLASS_COLOR[hit.label] || "#888888",
       range: hit.range || feature?.range || null,
+      unit,
+      value: mid,
+      valueText: mid != null && unit ? formatWqValue(mid, unit) : null,
+      metric: scheme?.metric || def?.legendTitle || def?.name || null,
     };
   }
 
   const color =
     CLASS_COLOR[raw] ||
-    CLASS_COLOR[stripRange(raw)] ||
+    CLASS_COLOR[stripped] ||
     normalizeHex(feature?.color) ||
     "#888888";
   return {
-    label: stripRange(raw) || raw,
+    label: stripped || raw,
     color,
     range: feature?.range || null,
+    unit: def?.unit || null,
+    value: null,
+    valueText: null,
+    metric: def?.legendTitle || def?.name || null,
   };
 }
 

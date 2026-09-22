@@ -186,21 +186,39 @@ export function createTooltip(root) {
           ? "SALINITY"
           : info.layerTitle ||
             ({
-              water_quality_tss: "Turbidity / TSS",
+              water_quality_tss: "TSS",
               water_quality_ndwi: "NDWI — Water Detection",
-              water_quality_ndci: "NDCI — Chlorophyll",
+              water_quality_ndci: "Chlorophyll-a",
               water_quality_wst: "WST — Temperature",
             }[info.layer] || "WATER QUALITY");
         const swatch = info.color
           ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${info.color};border:1px solid rgba(255,255,255,.35);margin-right:6px;vertical-align:middle"></span>`
           : "";
+        const unit = info.unit || "";
+        const isNumericWq =
+          info.hydrologySalinity ||
+          info.layer === "water_quality_tss" ||
+          info.layer === "water_quality_ndci";
+        const classDisplay = isNumericWq && info.range
+          ? info.range
+          : info.class_label || info.class || "—";
         el.innerHTML = `
           <h3>${title}</h3>
-          <div class="kv"><span class="k">Class</span><span class="v">${swatch}${info.class_label || info.class || "—"}</span></div>
-          ${info.range ? `<div class="kv"><span class="k">Range</span><span class="v">${info.range}</span></div>` : ""}
+          <div class="kv"><span class="k">${isNumericWq ? "Scale" : "Class"}</span><span class="v">${swatch}${classDisplay}</span></div>
+          ${!isNumericWq && info.range ? `<div class="kv"><span class="k">Range</span><span class="v">${info.range}</span></div>` : ""}
+          ${info.valueText ? `<div class="kv"><span class="k">Value</span><span class="v depth">${info.valueText}</span></div>` : ""}
+          ${unit && !info.range ? `<div class="kv"><span class="k">Unit</span><span class="v">${unit}</span></div>` : ""}
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
-          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.hydrologySalinity ? "NDSI model · terrain-draped" : "Classified overlay · hover class"}</em>
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${
+            info.hydrologySalinity
+              ? "Salinity scale · ppt"
+              : info.layer === "water_quality_tss"
+                ? "TSS scale · mg/L"
+                : info.layer === "water_quality_ndci"
+                  ? "Chlorophyll-a scale · µg/L"
+                  : "Classified overlay · hover class"
+          }</em>
         `;
         return;
       }

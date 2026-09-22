@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>Smoothed classification overlay</name>
+  <description><![CDATA[Auto-generated: pixel blocks smoothed into a continuous gradient raster, boundaries removed, opacity applied.]]></description>
+  <GroundOverlay>
+    <name>Smoothed classification overlay</name>
+    <description><![CDATA[Smoothed raster overlay: pixel blocks blurred into a
+continuous gradient, boundary/edges softened, opacity applied.]]></description>
+    <Icon>
+      <href>overlay.png</href>
+    </Icon>
+    <LatLonBox>
+      <north>18.5616160663</north>
+      <south>18.5098917794</south>
+      <east>73.9961284727</east>
+      <west>73.8501433362</west>
+    </LatLonBox>
+  </GroundOverlay>
+</Document>
+</kml>

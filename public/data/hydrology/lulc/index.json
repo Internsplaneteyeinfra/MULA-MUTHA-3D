@@ -3,6 +3,7 @@
     {
       "year": 2021,
       "name": "Mula-Mutha LULC 2021",
+      "type": "groundOverlay",
       "bounds": {
         "north": 18.56235850242967,
         "south": 18.509203857291638,
@@ -42,11 +43,12 @@
         }
       ],
       "overlay": "/data/hydrology/lulc/2021/overlay.png",
-      "source": "MulaMutha_LULC_2021.kmz"
+      "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2021.kmz"
     },
     {
       "year": 2022,
       "name": "Mula-Mutha LULC 2022",
+      "type": "groundOverlay",
       "bounds": {
         "north": 18.56235850242967,
         "south": 18.509203857291638,
@@ -86,11 +88,12 @@
         }
       ],
       "overlay": "/data/hydrology/lulc/2022/overlay.png",
-      "source": "MulaMutha_LULC_2022.kmz"
+      "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2022.kmz"
     },
     {
       "year": 2023,
       "name": "Mula-Mutha LULC 2023",
+      "type": "groundOverlay",
       "bounds": {
         "north": 18.56235850242967,
         "south": 18.509203857291638,
@@ -130,11 +133,12 @@
         }
       ],
       "overlay": "/data/hydrology/lulc/2023/overlay.png",
-      "source": "MulaMutha_LULC_2023.kmz"
+      "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2023.kmz"
     },
     {
       "year": 2024,
       "name": "Mula-Mutha LULC 2024",
+      "type": "groundOverlay",
       "bounds": {
         "north": 18.56235850242967,
         "south": 18.509203857291638,
@@ -174,11 +178,12 @@
         }
       ],
       "overlay": "/data/hydrology/lulc/2024/overlay.png",
-      "source": "MulaMutha_LULC_2024.kmz"
+      "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2024.kmz"
     },
     {
       "year": 2025,
       "name": "Mula-Mutha LULC 2025",
+      "type": "groundOverlay",
       "bounds": {
         "north": 18.56235850242967,
         "south": 18.509203857291638,
@@ -218,14 +223,21 @@
         }
       ],
       "overlay": "/data/hydrology/lulc/2025/overlay.png",
-      "source": "MulaMutha_LULC_2025.kmz"
+      "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2025.kmz"
     },
     {
       "year": 2026,
-      "name": "Mula-Mutha LULC 2026",
-      "type": "kmlPolygons",
-      "data": "/data/hydrology/lulc/2026/lulc_2026.kml",
-      "source": "lulc_2026.kml"
+      "name": "Smoothed classification overlay",
+      "type": "groundOverlay",
+      "bounds": {
+        "north": 18.5616160663,
+        "south": 18.5098917794,
+        "east": 73.9961284727,
+        "west": 73.8501433362
+      },
+      "classes": [],
+      "overlay": "/data/hydrology/lulc/2026/overlay.png",
+      "source": "src/data/LULC UPTO2025/lulc_2026.kmz"
     }
   ]
 }

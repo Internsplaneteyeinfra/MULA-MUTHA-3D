@@ -39,17 +39,17 @@ CLASS_FILES = {
     "2026-04": "Apr_2026_Silt_Classification.kmz",
     "2026-05": "May_2026_Silt_Classification.kmz",
     "2026-06": "Jun_2026_Silt_Classification.kmz",
-    "2026-07": "Jul_2026_Silt_Classification__1_.kmz",
+    "2026-07": "Jul_2026_Silt_Classification__1.kmz",
 }
 
 VOLUME_FILES = {
-    "2026-01": "Jan_2026_Silt_Volume_Surface__1_.kmz",
+    "2026-01": "Jan_2026_Silt_Volume_Surface__1.kmz",
     "2026-02": "Feb_2026_Silt_Volume_Surface.kmz",
     "2026-03": "Mar_2026_Silt_Volume_Surface.kmz",
     "2026-04": "Apr_2026_Silt_Volume_Surface.kmz",
     "2026-05": "May_2026_Silt_Volume_Surface.kmz",
     "2026-06": "Jun_2026_Silt_Volume_Surface.kmz",
-    "2026-07": "Jul_2026_Silt_Volume_Surface__1_.kmz",
+    "2026-07": "Jul_2026_Silt_Volume_Surface__1.kmz",
 }
 
 LATLON_RE = re.compile(

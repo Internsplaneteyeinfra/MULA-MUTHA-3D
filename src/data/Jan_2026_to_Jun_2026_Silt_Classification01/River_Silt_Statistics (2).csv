@@ -1,2 +1,0 @@
-system:index,End_Date,High_Silt_Area_km2,High_Silt_Percent,Low_Silt_Area_km2,Low_Silt_Percent,Max_Silt_Score,Mean_Silt_Score,Min_Silt_Score,Moderate_Silt_Area_km2,Moderate_Silt_Percent,Sentinel2_Image_Count,Start_Date,Very_High_Silt_Area_km2,Very_High_Silt_Percent,Water_Area_km2,.geo
-0,2026-08-01,0.2905530919494629,18.793518154895338,0.5663000427750831,36.62934737195181,1.0,0.39082073877281764,0.0,0.4607637462142047,29.803062054835767,3,2026-06-01,0.22841132705688477,14.774072418317063,1.5460282079956358,"{""type"":""MultiPoint"",""coordinates"":[]}"

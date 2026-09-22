@@ -1,0 +1,28 @@
+{
+  "layers": [
+    {
+      "id": "vegetation_type",
+      "source": "src/data/vegetation_type.kml",
+      "overlay": "/data/hydrology/vegetation/vegetation_type_overlay.png",
+      "bounds": {
+        "north": 18.56563988,
+        "south": 18.50179885,
+        "east": 74.01249107,
+        "west": 73.83580284
+      },
+      "bytes": 4814715
+    },
+    {
+      "id": "vegetation_health",
+      "source": "src/data/vegetation_health.kml",
+      "overlay": "/data/hydrology/vegetation/vegetation_health_overlay.png",
+      "bounds": {
+        "north": 18.56563988,
+        "south": 18.50179885,
+        "east": 74.01249107,
+        "west": 73.83580284
+      },
+      "bytes": 7125749
+    }
+  ]
+}

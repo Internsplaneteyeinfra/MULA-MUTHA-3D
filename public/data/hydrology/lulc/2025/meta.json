@@ -1,6 +1,7 @@
 {
   "year": 2025,
   "name": "Mula-Mutha LULC 2025",
+  "type": "groundOverlay",
   "bounds": {
     "north": 18.56235850242967,
     "south": 18.509203857291638,
@@ -40,5 +41,5 @@
     }
   ],
   "overlay": "/data/hydrology/lulc/2025/overlay.png",
-  "source": "MulaMutha_LULC_2025.kmz"
+  "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2025.kmz"
 }

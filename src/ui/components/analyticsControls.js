@@ -310,6 +310,7 @@ export function mountAnalyticsControls(root, dataset) {
       id === "landuse_lulc" ||
       id.startsWith("silt_") ||
       id === "vegetation_extent" ||
+      id === "vegetation_health" ||
       /lulc|land\s*use|silt|vegetation/i.test(String(leg.title || ""))
     );
   }

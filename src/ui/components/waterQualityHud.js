@@ -17,7 +17,7 @@ import { state } from "../../state.js";
 export const WATER_QUALITY_OPTIONS = [
   {
     id: "salinity",
-    tip: "Salinity",
+    tip: "Salinity (ppt)",
     icon: Pickaxe,
     tone: "wq-tone-salinity",
     layerId: "salinity",
@@ -25,7 +25,7 @@ export const WATER_QUALITY_OPTIONS = [
   },
   {
     id: "tss",
-    tip: "Turbidity / TSS",
+    tip: "TSS (mg/L)",
     icon: FlaskConical,
     tone: "wq-tone-tss",
     layerId: "water_quality_tss",
@@ -33,7 +33,7 @@ export const WATER_QUALITY_OPTIONS = [
   },
   {
     id: "ndci",
-    tip: "NDCI / Chlorophyll",
+    tip: "Chlorophyll-a (µg/L)",
     icon: Leaf,
     tone: "wq-tone-ndci",
     layerId: "water_quality_ndci",

@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+<Document>
+  <name>TSS</name>
+  <description><![CDATA[Continuous smoothed raster ground overlay generated with directional river gap filling, strict riverbank cutoff, and color ramp interpolation.]]></description>
+  <GroundOverlay>
+    <name>TSS</name>
+    <Icon><href>overlay.png</href></Icon>
+    <LatLonBox>
+      <north>18.5484211730</north>
+      <south>18.5193301309</south>
+      <east>73.9941221551</east>
+      <west>73.8537262560</west>
+    </LatLonBox>
+  </GroundOverlay>
+  <ScreenOverlay>
+    <name>Classification Legend</name>
+    <Icon>
+      <href>legend.png</href>
+    </Icon>
+    <overlayXY x="0.02" y="0.05" xunits="fraction" yunits="fraction"/>
+    <screenXY x="0.02" y="0.05" xunits="fraction" yunits="fraction"/>
+    <rotationXY x="0" y="0" xunits="fraction" yunits="fraction"/>
+    <size x="0" y="0" xunits="pixels" yunits="pixels"/>
+  </ScreenOverlay>
+</Document>
+</kml>

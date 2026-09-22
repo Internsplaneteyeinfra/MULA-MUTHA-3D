@@ -142,26 +142,39 @@ export function mountFocusThemeHud(root, hooks = {}) {
     backEl.hidden = false;
 
     const list = Array.isArray(classes) ? classes : [];
+    const numericScale = focusKind === "waterquality";
     if (!list.length) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
       root.classList.remove("lu-theme-classes-open");
     } else {
+      classesEl.classList.toggle("is-numeric-scale", numericScale);
       classesEl.innerHTML = list
         .map((c) => {
-          const label = c.label || c.id || "—";
-          const key = letterKey(label, c.key);
+          // Keep semantic class name for filter matching; show numeric range under the swatch.
+          const filterLabel = c.label || c.id || "—";
+          const rangeText = String(c.range || c.pct || "").trim();
+          const displayName =
+            numericScale && rangeText
+              ? rangeText
+              : filterLabel;
+          const key = letterKey(filterLabel, c.key);
           const color = c.color || "#888";
-          const pct = c.pct || c.range || "";
+          const tip =
+            numericScale && rangeText
+              ? `${filterLabel} · ${rangeText}`
+              : rangeText
+                ? `${filterLabel} · ${rangeText}`
+                : filterLabel;
           return `
-          <button type="button" class="lu-theme-class" role="listitem"
-            data-label="${escapeAttr(label)}"
+          <button type="button" class="lu-theme-class${numericScale ? " is-numeric" : ""}" role="listitem"
+            data-label="${escapeAttr(filterLabel)}"
             style="--lu-class-color:${escapeAttr(color)}"
-            title="${escapeAttr(label)}${pct ? ` · ${pct}` : ""}"
-            aria-label="${escapeAttr(label)}"
+            title="${escapeAttr(tip)}"
+            aria-label="${escapeAttr(tip)}"
             aria-pressed="false">
             <span class="lu-theme-class-letter">${escapeHtml(key)}</span>
-            <span class="lu-theme-class-name">${escapeHtml(label)}</span>
+            <span class="lu-theme-class-name">${escapeHtml(displayName)}</span>
           </button>`;
         })
         .join("");
@@ -215,6 +228,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
     if (!k) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
+      classesEl.classList.remove("is-numeric-scale");
       extraEl.hidden = true;
       extraEl.innerHTML = "";
       backEl.hidden = true;
@@ -225,6 +239,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
     state.landUseSelectedClass = null;
     classesEl.hidden = true;
     classesEl.innerHTML = "";
+    classesEl.classList.remove("is-numeric-scale");
     extraEl.hidden = true;
     extraEl.innerHTML = "";
     backEl.hidden = true;

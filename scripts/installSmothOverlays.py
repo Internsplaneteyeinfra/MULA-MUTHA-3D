@@ -19,7 +19,9 @@ SRC_DIR = ROOT / "src" / "data" / "Smoth kmls"
 HYDRO = ROOT / "public" / "data" / "hydrology"
 ASSETS = ROOT / "src" / "assets" / "hydrology"
 
-# Prefer non-duplicate bank erosion kmz
+# Prefer non-duplicate bank erosion kmz.
+# Chlorophyll / TSS / Salinity use polygon KMLs from src/data (NDCI.kml, TSS.kml, salinity.kml)
+# — do NOT install Smoth smoothed rasters for those layers.
 LAYERS = [
     {
         "id": "geology",
@@ -35,27 +37,6 @@ LAYERS = [
         "max_edge": 8192,
         "source": "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
         "also_assets": True,
-    },
-    {
-        "id": "water_quality_ndci",
-        "kmz": "NDCI_smoothed.kmz",
-        "out_dir": HYDRO / "water_quality" / "ndci",
-        "max_edge": 8192,
-        "source": "Smoth kmls/NDCI_smoothed.kmz",
-    },
-    {
-        "id": "water_quality_tss",
-        "kmz": "TSS_smoothed.kmz",
-        "out_dir": HYDRO / "water_quality" / "tss",
-        "max_edge": 8192,
-        "source": "Smoth kmls/TSS_smoothed.kmz",
-    },
-    {
-        "id": "salinity",
-        "kmz": "salinity_smoothed.kmz",
-        "out_dir": HYDRO / "water_quality" / "salinity",
-        "max_edge": 8192,
-        "source": "Smoth kmls/salinity_smoothed.kmz",
     },
 ]
 

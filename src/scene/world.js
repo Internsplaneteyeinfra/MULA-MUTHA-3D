@@ -598,6 +598,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
             hydroId === "silt_classification" ||
             hydroId === "silt_volume_surface" ||
             hydroId === "vegetation_extent" ||
+            hydroId === "vegetation_health" ||
             hydroId === "bank_erosion" ||
             hydroId === "geology" ||
             hydroId === "salinity" ||
@@ -640,6 +641,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydroId === "silt_classification" ||
       hydroId === "silt_volume_surface" ||
       hydroId === "vegetation_extent" ||
+      hydroId === "vegetation_health" ||
       hydroId === "bank_erosion" ||
       hydroId === "geology" ||
       hydroId === "salinity" ||
@@ -1005,7 +1007,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     /**
      * Land Use thematic layers (mutually exclusive with other hydrology overlays).
-     * vegetation_extent → local OSM vegetation polygons (+ optional JalNetra trees).
+     * vegetation_extent / vegetation_health → draped study-area overlays.
      * landuse_lulc → Mula–Mutha LULC overlays (2021–2026).
      * silt_classification / silt_volume_surface → monthly silt rasters (2026).
      */
@@ -1016,14 +1018,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.lithologyMode = false;
       document.getElementById("ui-root")?.classList.remove("bank-erosion-mode", "lithology-mode");
 
-      if (id === "vegetation_extent") {
-        // Hide API instance trees while polygon extent layer owns the HUD.
-        vegApiGroup.visible = false;
-        if (vegApiResult) vegApiResult.visible = false;
-        return this.showHydrologyLayer(id);
-      }
-
-      // Leaving vegetation — keep API trees off until explicitly re-enabled elsewhere
+      // Hide API instance trees while land-use hydrology overlays own the HUD.
       vegApiGroup.visible = false;
       if (vegApiResult) vegApiResult.visible = false;
 

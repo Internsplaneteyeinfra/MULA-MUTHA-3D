@@ -5,6 +5,7 @@ const base = process.env.VITE_BASE || "/";
 
 export default defineConfig({
   base,
+  assetsInclude: ["**/*.kml"],
   server: {
     host: true,
     port: 5176,
@@ -30,8 +31,11 @@ export default defineConfig({
       ignored: [
         "**/public/data/**/*.tif",
         "**/public/data/**/*.csv",
-        // Do NOT ignore *.kml / *.geojson — Vite then returns SPA HTML for newly added public assets
         "**/public/data/**/*.kmz",
+        // Extracted LULC/silt KML copies lock the Windows watcher (EBUSY crash).
+        // Files still serve from public/; only live-reload watch is skipped.
+        "**/public/data/hydrology/lulc/**",
+        "**/public/data/hydrology/silt/**",
         // Raw GIS dumps under src/data (often locked KMZ) — not imported by Vite
         "**/src/data/**",
         "**/*.kmz",
