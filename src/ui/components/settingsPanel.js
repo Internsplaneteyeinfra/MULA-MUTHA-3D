@@ -128,7 +128,7 @@ export function mountSettingsPanel(root) {
           </div>
           <button type="button" class="lp-action" id="layer-reset">${lucideHtml(RotateCcw, { size: 14 })}<span>Reset view</span></button>
           <button type="button" class="lp-action" id="layer-bath-cam">${lucideHtml(Waves, { size: 14 })}<span>Bathymetry view</span></button>
-          <button type="button" class="lp-action" id="layer-glass-demo">${lucideHtml(Sparkles, { size: 14 })}<span>Glassy water tour</span></button>
+          <button type="button" class="lp-action" id="layer-glass-tour">${lucideHtml(Sparkles, { size: 14 })}<span>Water tour</span></button>
           <button type="button" class="lp-action" id="layer-river-cinematic">${lucideHtml(Clapperboard, { size: 14 })}<span>River cinematic tour</span></button>
         </div>
       </details>
@@ -142,7 +142,7 @@ export function mountSettingsPanel(root) {
     const toolkit = root.querySelector("#glassy-toolkit");
     if (toolkit) toolkit.hidden = !event.target.checked;
   });
-  root.querySelector("#layer-glass-demo")?.addEventListener("click", () => {
+  root.querySelector("#layer-glass-tour")?.addEventListener("click", () => {
     window.__MM_SCENE__?.startGlassyTour?.();
   });
   return { panel };

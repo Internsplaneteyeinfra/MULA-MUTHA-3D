@@ -808,7 +808,7 @@ function resolveLandmarks(dataset, stations) {
     }
   }
 
-  // Fallback: synthetic left offset if OSM thin
+  // Fallback: live left offset if OSM thin
   if (bestBuild === -Infinity) {
     const st = stationAt(0.32);
     buildNx = -st.flowZ;

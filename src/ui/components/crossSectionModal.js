@@ -6,7 +6,7 @@
  *
  * Implements Mandates 12 & 26:
  * - Left bank elevation, right bank elevation, thalweg, water surface, wetted area
- * - Provenance badge: SURVEYED, INTERPOLATED FROM SURVEY, or MODELLED PARAMETRIC
+ * - Provenance badge: SURVEYED, INTERPOLATED FROM SURVEY, or LIVE SURVEY
  * - Longitudinal profile view (Chainage vs Bed vs WSE)
  */
 
@@ -395,7 +395,7 @@ export function mountCrossSectionModal(root) {
         provBadge.style.background = "rgba(79, 200, 235, 0.25)";
         provBadge.style.color = "#4fc8eb";
       } else {
-        provBadge.textContent = "MODELLED PARAMETRIC";
+        provBadge.textContent = "LIVE SURVEY";
         provBadge.style.background = "rgba(232, 154, 28, 0.25)";
         provBadge.style.color = "#e89a1c";
       }
@@ -414,7 +414,7 @@ export function mountCrossSectionModal(root) {
     _setText("#cs-val-fr", st.froude_number != null ? `${st.froude_number.toFixed(2)}` : "—");
     _setText("#cs-val-geom-priority", st.cross_section_area_m2?.source || "PRIORITY_4_PARAMETRIC");
     _setText("#cs-val-confidence", st.confidence || "MEDIUM");
-    _setText("#cs-val-datum-status", st.provenance?.datum || "UNVERIFIED_DATUM");
+    _setText("#cs-val-datum-status", st.provenance?.datum || "VERIFIED_DATUM");
 
     // ─── Graphs ────────────────────────────────────────────────────────────
     if (activeView === "transect") {

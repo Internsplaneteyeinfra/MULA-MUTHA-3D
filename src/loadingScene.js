@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { loadGltf } from "./utils/gltfLoader.js";
 
-const MODEL_URL = "/assets/butterfly.glb";
+const LIVE_URL = "/assets/butterfly.glb";
 
 export function createLoadingScene(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, alpha: true, antialias: true, powerPreference: "low-power" });
@@ -63,7 +63,7 @@ export function createLoadingScene(canvas) {
   let progress = 0;
   let last = performance.now();
 
-  loadGltf(MODEL_URL).then((gltf) => {
+  loadGltf(LIVE_URL).then((gltf) => {
     if (disposed) return;
     const model = gltf.scene;
     const bounds = new THREE.Box3().setFromObject(model);

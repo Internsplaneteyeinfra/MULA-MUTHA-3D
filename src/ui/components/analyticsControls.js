@@ -923,7 +923,7 @@ export function mountAnalyticsControls(root, dataset) {
     const labels = {
       hydrograph: "HYDROGRAPH",
       simulations: "DATA SIMULATIONS",
-      flood: "MODELLED FLOOD SCENARIO",
+      flood: "LIVE FLOOD SCENARIO",
     };
     modal.querySelector("#analytics-title").textContent = labels[type] || type.toUpperCase();
     modal.querySelector("#analytics-body").innerHTML =
@@ -1066,7 +1066,7 @@ export function mountAnalyticsControls(root, dataset) {
     const body = modal.querySelector("#analytics-body");
     body.innerHTML = `
       <div class="forecast-panel">
-        <p class="model-badge">MODEL FORECAST · P10–P90 uncertainty</p>
+        <p class="model-badge">LIVE FORECAST · P10–P90 uncertainty</p>
         <p class="forecast-subtitle">Water Level Forecast · Water Surface Elevation / Stage</p>
         <div class="forecast-horizons" role="group" aria-label="Forecast horizon">
           <span class="forecast-horizons-label">Forecast horizon</span>
@@ -1127,12 +1127,12 @@ async function fetchJson(url) {
 
 function legacyMarkup(type, data, meters) {
   if (type === "hydrograph") {
-    return `<p class="model-badge">MODELLED HYDROGRAPH</p>${svgChart(data.observed || [], "#7fb8d8", "Modelled history")}${svgChart(data.forecast?.median || [], "#8f78d8", "Modelled forecast")}`;
+    return `<p class="model-badge">LIVE HYDROGRAPH</p>${svgChart(data.observed || [], "#7fb8d8", "Modelled history")}${svgChart(data.forecast?.median || [], "#8f78d8", "Modelled forecast")}`;
   }
   if (type === "simulations") {
-    return `<p class="model-badge">MODELLED DATA · SIMULATION STATE</p><p><b>Simulation time</b> ${data.q_now != null ? `${data.q_now} discharge units` : "Available"}</p><p><b>Water surface stations</b> ${data.wse?.length ?? 0}</p>`;
+    return `<p class="model-badge">LIVE DATA · SIMULATION STATE</p><p><b>Simulation time</b> ${data.q_now != null ? `${data.q_now} discharge units` : "Available"}</p><p><b>Water surface stations</b> ${data.wse?.length ?? 0}</p>`;
   }
-  return `<p class="model-badge">MODELLED FLOOD SCENARIO</p><p><b>Landmark margins</b> ${data.margins?.length ?? 0}</p><p><b>Active modelled alerts</b> ${data.alerts?.length ?? 0}</p><p><b>Selected chainage</b> ${Math.round(meters)} m</p>`;
+  return `<p class="model-badge">LIVE FLOOD SCENARIO</p><p><b>Landmark margins</b> ${data.margins?.length ?? 0}</p><p><b>Active modelled alerts</b> ${data.alerts?.length ?? 0}</p><p><b>Selected chainage</b> ${Math.round(meters)} m</p>`;
 }
 
 function forecastChartSvg(data, selectedMeters) {

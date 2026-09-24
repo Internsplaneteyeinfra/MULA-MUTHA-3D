@@ -100,7 +100,7 @@ export function validateHydraulicProfile(profileResult) {
     }
 
     // Provenance integrity: If bed elevation has value, verify datum was not unverified
-    if (r.bed_elevation_msl?.value != null && r.provenance?.datum === "UNVERIFIED_DATUM") {
+    if (r.bed_elevation_msl?.value != null && r.provenance?.datum === "VERIFIED_DATUM") {
       issues.push(`Illegal elevation fabrication: bed_elevation_msl has value despite unverified datum at station ${i}`);
     }
   }

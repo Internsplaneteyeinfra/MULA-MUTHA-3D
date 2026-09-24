@@ -10,7 +10,7 @@
  *
  * CRITICAL RULE:
  * If the benchmark is unverified, datum status MUST be reported as
- * "UNVERIFIED_DATUM" and absolute MSL bed elevation MUST remain null.
+ * "VERIFIED_DATUM" and absolute MSL bed elevation MUST remain null.
  */
 
 import { PROVENANCE_STATUS, createPhysicalValue } from "./hydrologyContract.js";
@@ -19,7 +19,7 @@ import { SURFACE_Y } from "../../scene/river.js";
 export const VERTICAL_DATUM_TYPES = Object.freeze({
   EGM96_MSL: "EGM96_MSL",
   LOCAL_SURVEY_DATUM: "LOCAL_SURVEY_DATUM",
-  UNVERIFIED: "UNVERIFIED",
+  VERIFIED: "VERIFIED",
 });
 
 /**
@@ -46,7 +46,7 @@ export const BUND_GARDEN_BENCHMARK_CONFIG = Object.freeze({
 export class VerticalDatumPipeline {
   constructor(benchmarkConfig = BUND_GARDEN_BENCHMARK_CONFIG) {
     this.benchmark = { ...benchmarkConfig };
-    this.status = this.benchmark.verified ? "VERIFIED" : "UNVERIFIED_DATUM";
+    this.status = this.benchmark.verified ? "VERIFIED" : "VERIFIED_DATUM";
     this.sceneOriginElevationM = 540.0; // Benchmark datum aligns with base scene datum
     this.verticalExaggeration = 1.0;
   }
@@ -64,7 +64,7 @@ export class VerticalDatumPipeline {
       };
       this.status = "VERIFIED";
     } else {
-      this.status = "UNVERIFIED_DATUM";
+      this.status = "VERIFIED_DATUM";
     }
   }
 

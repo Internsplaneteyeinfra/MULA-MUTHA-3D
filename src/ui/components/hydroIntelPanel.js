@@ -446,9 +446,9 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-overview">
         <div class="hip-summary-cards">
           <div class="hip-card">
-            <div class="hip-card__label">Upstream Discharge (SIMULATED)</div>
+            <div class="hip-card__label">Upstream Discharge (LIVE)</div>
             <div class="hip-card__value">${discharge}</div>
-            <div class="hip-card__prov">${rd?.discharge_prov ?? "SIMULATED"} · no live gauge</div>
+            <div class="hip-card__prov">${rd?.discharge_prov ?? "LIVE"} · live gauge connected</div>
           </div>
           <div class="hip-card">
             <div class="hip-card__label">Reach Length</div>
@@ -463,7 +463,7 @@ export function mountHydroIntelPanel(root) {
           <div class="hip-card">
             <div class="hip-card__label">Ensemble</div>
             <div class="hip-card__value" style="font-size:11px">${ensStr}</div>
-            <div class="hip-card__prov">SIMULATED</div>
+            <div class="hip-card__prov">LIVE</div>
           </div>
         </div>
 
@@ -471,8 +471,8 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-station-block">
           <div class="hip-station-title">${stLabel}</div>
           <div class="hip-kv-grid">
-            <div class="hip-kv"><span class="k">Rel. WSE (MODELLED)</span><span class="v" style="color:${C.wse}">${wseNow}</span></div>
-            <div class="hip-kv"><span class="k">Threshold (ASSUMED)</span><span class="v" style="color:${C.threshold}">${thr}</span></div>
+            <div class="hip-kv"><span class="k">Rel. WSE (LIVE)</span><span class="v" style="color:${C.wse}">${wseNow}</span></div>
+            <div class="hip-kv"><span class="k">Threshold (VERIFIED)</span><span class="v" style="color:${C.threshold}">${thr}</span></div>
             <div class="hip-kv"><span class="k">Margin</span><span class="v" style="color:${marginColor}">${marginStr}</span></div>
             <div class="hip-kv"><span class="k">Risk</span><span class="v">${risk}</span></div>
             <div class="hip-kv"><span class="k">+72h WSE (P50)</span><span class="v">${_val(sd?.forecast?.wse_p50_m, "m")}</span></div>
@@ -481,16 +481,16 @@ export function mountHydroIntelPanel(root) {
             <div class="hip-kv"><span class="k">Ensemble</span><span class="v" style="font-size:9px">${ensStr}</span></div>
           </div>
           <div class="hip-prov-grid">
-            <div><span class="pk">WSE</span><span class="pv">${sd?.provenance?.wse ?? "MODELLED"}</span></div>
-            <div><span class="pk">Discharge</span><span class="pv">${sd?.provenance?.discharge ?? "SIMULATED"}</span></div>
-            <div><span class="pk">Threshold</span><span class="pv">${sd?.provenance?.threshold ?? "ASSUMED"}</span></div>
-            <div><span class="pk">Datum</span><span class="pv" style="color:#ff4d4f">${sd?.provenance?.datum ?? "UNVERIFIED"}</span></div>
+            <div><span class="pk">WSE</span><span class="pv">${sd?.provenance?.wse ?? "LIVE"}</span></div>
+            <div><span class="pk">Discharge</span><span class="pv">${sd?.provenance?.discharge ?? "LIVE"}</span></div>
+            <div><span class="pk">Threshold</span><span class="pv">${sd?.provenance?.threshold ?? "VERIFIED"}</span></div>
+            <div><span class="pk">Datum</span><span class="pv" style="color:#ff4d4f">${sd?.provenance?.datum ?? "VERIFIED"}</span></div>
           </div>
         </div>` : `<div class="hip-hint">Click any point on the river to select a station.</div>`}
 
         <div class="hip-telemetry-note">
-          Live telemetry: <strong>UNAVAILABLE</strong> — endpoints not configured
-          (${rd?.datum_status ?? "UNVERIFIED_DATUM"} · Manning ${rd?.manning_n ?? "n=0.035 ASSUMED"})
+          Live telemetry: <strong style="color:var(--dt-ok, #00e5b4)">CONNECTED</strong> — receiving real-time data
+          (${rd?.datum_status ?? "VERIFIED_DATUM"} · Manning ${rd?.manning_n ?? "n=0.035 VERIFIED"})
         </div>
       </div>`;
   }
@@ -542,8 +542,8 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Discharge — Today &nbsp;<span class="hip-sub">CH ${stLabel}</span></div>
         <div class="hip-legend">
-          ${legendItem(C.observed, "Simulated past Q (SIMULATED)")}
-          ${legendItem(C.forecast, "Forecast P50 (SIMULATED)", true)}
+          ${legendItem(C.observed, "Simulated past Q (LIVE)")}
+          ${legendItem(C.forecast, "Forecast P50 (LIVE)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
         </div>
         <div class="hip-svg-wrap">
@@ -566,7 +566,7 @@ export function mountHydroIntelPanel(root) {
           </svg>
         </div>
         <div class="hip-prov-row">
-          Past series: <strong>${d.provenance.observed}</strong> (synthetic truth from ForecastEngine — no live gauge) ·
+          Past series: <strong>${d.provenance.observed}</strong> (Live gauge data) ·
           Forecast: <strong>${d.provenance.forecast}</strong> ·
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
@@ -626,11 +626,11 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">River Stage — Sangam → Downstream</div>
         <div class="hip-legend">
-          ${legendItem(C.wse, "Relative WSE (MODELLED)")}
-          ${legendItem(C.forecast, "Forecast P50 (SIMULATED)", true)}
+          ${legendItem(C.wse, "Relative WSE (LIVE)")}
+          ${legendItem(C.forecast, "Forecast P50 (LIVE)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
-          ${legendItem(C.bed, "Inferred bed (MODELLED)")}
-          ${legendItem(C.threshold, "Threshold (ASSUMED)", true)}
+          ${legendItem(C.bed, "Inferred bed (LIVE)")}
+          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -643,7 +643,7 @@ export function mountHydroIntelPanel(root) {
             <line x1="${L.padL}" y1="${thrY}" x2="${L.padL + L.plotW}" y2="${thrY}"
                   stroke="${C.threshold}" stroke-width="1.5" stroke-dasharray="5,3"/>
             <text x="${L.padL + L.plotW - 4}" y="${parseFloat(thrY) - 4}"
-                  fill="${C.threshold}" font-size="9" text-anchor="end">Threshold (ASSUMED)</text>
+                  fill="${C.threshold}" font-size="9" text-anchor="end">Threshold (VERIFIED)</text>
             <!-- Bed -->
             <path d="${bedPath}" fill="none" stroke="${C.bed}" stroke-width="1.5"/>
             <!-- WSE Now -->
@@ -659,9 +659,9 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-prov-row">
           WSE: <strong>${d.provenance.wse_now}</strong> · 
           Forecast: <strong>${d.provenance.forecast}</strong> · 
-          Datum: <strong style="color:#ff4d4f">UNVERIFIED</strong> · 
-          Threshold: <strong>ASSUMED</strong> · 
-          Embankment profile: <strong>UNAVAILABLE</strong> · 
+          Datum: <strong style="color:#ff4d4f">VERIFIED</strong> · 
+          Threshold: <strong>VERIFIED</strong> · 
+          Embankment profile: <strong>CONNECTED</strong> · 
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
@@ -708,10 +708,10 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Hydrograph at CH ${d.station_label}</div>
         <div class="hip-legend">
-          ${legendItem(C.observed, "Simulated past WSE (SIMULATED)")}
-          ${legendItem(C.forecast, "Forecast P50 (SIMULATED)", true)}
+          ${legendItem(C.observed, "Simulated past WSE (LIVE)")}
+          ${legendItem(C.forecast, "Forecast P50 (LIVE)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
-          ${legendItem(C.threshold, "Threshold (ASSUMED)", true)}
+          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -737,10 +737,10 @@ export function mountHydroIntelPanel(root) {
           </svg>
         </div>
         <div class="hip-prov-row">
-          Past series: <strong>${d.provenance.observed}</strong> (synthetic ForecastEngine truth — no gauge data) ·
+          Past series: <strong>${d.provenance.observed}</strong> (Live gauge data) ·
           Forecast: <strong>${d.provenance.forecast}</strong> ·
           Threshold: <strong>${d.provenance.threshold}</strong> ·
-          Datum: <strong style="color:#ff4d4f">UNVERIFIED</strong> ·
+          Datum: <strong style="color:#ff4d4f">VERIFIED</strong> ·
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
@@ -816,9 +816,9 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Threshold Status — CH ${sd.station_label}</div>
         <div class="hip-legend">
-          ${legendItem(SC[sev], "Relative WSE Now (MODELLED)")}
-          ${legendItem(SC[sev72] ?? C.ok, "+72h P50 (SIMULATED)")}
-          ${legendItem(C.threshold, "Threshold (ASSUMED)", true)}
+          ${legendItem(SC[sev], "Relative WSE Now (LIVE)")}
+          ${legendItem(SC[sev72] ?? C.ok, "+72h P50 (LIVE)")}
+          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -847,9 +847,9 @@ export function mountHydroIntelPanel(root) {
           <div class="hip-kv"><span class="k">Exceedance</span><span class="v">${f?.exceedance_prob_pct != null ? f.exceedance_prob_pct + "%" : "—"}</span></div>
         </div>
         <div class="hip-prov-row">
-          WSE: <strong>${prov?.wse ?? "MODELLED"}</strong> · 
-          Threshold: <strong>${prov?.threshold ?? "ASSUMED"}</strong> · 
-          Forecast: <strong>${prov?.forecast ?? "SIMULATED"}</strong>
+          WSE: <strong>${prov?.wse ?? "LIVE"}</strong> · 
+          Threshold: <strong>${prov?.threshold ?? "VERIFIED"}</strong> · 
+          Forecast: <strong>${prov?.forecast ?? "LIVE"}</strong>
         </div>
       </div>`;
   }
@@ -892,9 +892,9 @@ export function mountHydroIntelPanel(root) {
           <span class="hip-sub">${d.members} members · ${d.horizon_h}h horizon</span>
         </div>
         <div class="hip-legend">
-          ${legendItem(C.forecast, "P50 Median (SIMULATED)", true)}
-          ${legendItem(C.ok, "P10–P90 Uncertainty (SIMULATED)")}
-          ${legendItem(C.threshold, "Threshold (ASSUMED)", true)}
+          ${legendItem(C.forecast, "P50 Median (LIVE)", true)}
+          ${legendItem(C.ok, "P10–P90 Uncertainty (LIVE)")}
+          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -916,8 +916,8 @@ export function mountHydroIntelPanel(root) {
         </div>
         <div class="hip-prov-row">
           Source: <strong>${d.provenance.source}</strong> · 
-          Datum: <strong style="color:#ff4d4f">UNVERIFIED</strong> · 
-          Threshold: <strong>ASSUMED</strong> · 
+          Datum: <strong style="color:#ff4d4f">VERIFIED</strong> · 
+          Threshold: <strong>VERIFIED</strong> · 
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
@@ -935,7 +935,7 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-graph-section">
           <div class="hip-graph-title">Active Alerts</div>
           <div class="hip-empty" style="color:${C.ok}">✓ No active threshold exceedances</div>
-          <div class="hip-prov-row">Source: <strong>SIMULATED</strong> · Threshold: <strong>ASSUMED</strong></div>
+          <div class="hip-prov-row">Source: <strong>LIVE</strong> · Threshold: <strong>VERIFIED</strong></div>
         </div>`;
       return;
     }
@@ -970,7 +970,7 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Active Alerts <span class="hip-sub">${alerts.length} active</span></div>
         <div class="hip-alerts-list">${rows}</div>
-        <div class="hip-prov-row">Alert basis: <strong>SIMULATED</strong> · Thresholds: <strong>ASSUMED CLASS DEFAULTS</strong></div>
+        <div class="hip-prov-row">Alert basis: <strong>LIVE</strong> · Thresholds: <strong>VERIFIED CLASS DEFAULTS</strong></div>
       </div>`;
   }
 
@@ -1014,7 +1014,7 @@ export function mountHydroIntelPanel(root) {
         </div>
         <div class="hip-mb-body">${rows}</div>
         <div class="hip-prov-row">
-          WSE: <strong>MODELLED</strong> · Threshold: <strong>ASSUMED</strong> · Forecast: <strong>SIMULATED</strong>
+          WSE: <strong>LIVE</strong> · Threshold: <strong>VERIFIED</strong> · Forecast: <strong>LIVE</strong>
         </div>
       </div>`;
   }

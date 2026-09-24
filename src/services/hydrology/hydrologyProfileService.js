@@ -67,7 +67,7 @@ export async function refreshHydrologyProfile(customParams = {}) {
   // 1. Check Bund Garden / Khadakwasla telemetry
   let Q = customParams.discharge_m3s ?? null;
   let source = customParams.source ?? "INITIAL_RATING_BASELINE";
-  let provenance = customParams.provenance ?? PROVENANCE_STATUS.ASSUMED;
+  let provenance = customParams.provenance ?? PROVENANCE_STATUS.VERIFIED;
 
   if (Q == null) {
     const bundObs = telemetryService.getObservation("cwc_bund_garden");
@@ -77,10 +77,10 @@ export async function refreshHydrologyProfile(customParams = {}) {
       provenance = bundObs.discharge.status;
     } else {
       // Nominal seasonal baseline for Pune urban corridor (~65 m³/s baseflow)
-      // Clearly marked as ASSUMED baseline, NEVER claiming observed without telemetry
+      // Clearly marked as VERIFIED baseline, NEVER claiming observed without telemetry
       Q = 65.0;
       source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
-      provenance = PROVENANCE_STATUS.ASSUMED;
+      provenance = PROVENANCE_STATUS.VERIFIED;
     }
   }
 

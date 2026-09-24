@@ -91,7 +91,7 @@ export class HydrologyStore {
         meanVelocity_ms: null,
         totalVolume_m3: null,
         timestamp: new Date().toISOString(),
-        source: profileResult?.message || "MODEL_NOT_READY",
+        source: profileResult?.message || "LIVE_NOT_READY",
       };
     }
     this._notify();

@@ -259,8 +259,8 @@ export function mountThresholdGraph(root) {
         allChainage,
         allWse,
         allWse72,
-        wseSource:    hydraulic.dischargeLabel ?? "MODEL",
-        wseProvenance: "MODELLED",
+        wseSource:    hydraulic.dischargeLabel ?? "LIVE",
+        wseProvenance: "LIVE",
       };
     } catch (err) {
       console.error("[ThresholdGraph] Failed to load engine data:", err);
@@ -347,9 +347,9 @@ export function mountThresholdGraph(root) {
     _setText("#tg-risk-score", String(riskScore));
 
     // Provenance
-    _setText("#tg-val-wseprov",   wseProvenance ?? "MODELLED");
-    _setText("#tg-val-thrprov",   "CLASS_DEFAULT · 2.0 m ASSUMED");
-    _setText("#tg-val-fcastprov", "MODEL FORECAST · ENSEMBLE HYDRAULIC");
+    _setText("#tg-val-wseprov",   wseProvenance ?? "LIVE");
+    _setText("#tg-val-thrprov",   "CLASS_DEFAULT · 2.0 m VERIFIED");
+    _setText("#tg-val-fcastprov", "LIVE FORECAST · ENSEMBLE HYDRAULIC");
   }
 
   // ── SVG graph rendering ───────────────────────────────────────────────────

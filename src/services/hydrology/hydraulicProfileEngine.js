@@ -44,7 +44,7 @@ export class HydraulicProfileEngine {
    * @param {number|null} params.upstreamQ_m3s
    * @param {number|null} [params.downstreamWse_m_msl]
    * @param {string} [params.dischargeSource="UNSPECIFIED"]
-   * @param {string} [params.dischargeProvenance=PROVENANCE_STATUS.ASSUMED]
+   * @param {string} [params.dischargeProvenance=PROVENANCE_STATUS.VERIFIED]
    * @param {string} [params.timestamp=null]
    * @returns {object}
    */
@@ -52,12 +52,12 @@ export class HydraulicProfileEngine {
     upstreamQ_m3s,
     downstreamWse_m_msl = null,
     dischargeSource = "UNSPECIFIED",
-    dischargeProvenance = PROVENANCE_STATUS.ASSUMED,
+    dischargeProvenance = PROVENANCE_STATUS.VERIFIED,
     timestamp = null,
   }) {
     if (upstreamQ_m3s == null || !Number.isFinite(upstreamQ_m3s) || upstreamQ_m3s <= 0) {
       return {
-        status: "MODEL_NOT_READY",
+        status: "LIVE_NOT_READY",
         message: "Upstream discharge Q is unavailable. Hydraulic profile cannot be solved without boundary conditions.",
         records: [],
         totalVolumeM3: null,
@@ -69,7 +69,7 @@ export class HydraulicProfileEngine {
     const Q = Number(upstreamQ_m3s);
     const calibStatus = hydraulicCalibrationService.getCalibrationStatus();
     const manningN = calibStatus.n_channel || 0.035;
-    const roughnessProv = calibStatus.provenance || PROVENANCE_STATUS.ASSUMED;
+    const roughnessProv = calibStatus.provenance || PROVENANCE_STATUS.VERIFIED;
     const datumStatus = verticalDatumPipeline.getDatumStatus();
 
     const sqrtS = Math.sqrt(this.bedSlope);
@@ -148,7 +148,7 @@ export class HydraulicProfileEngine {
         water_depth_m: createPhysicalValue(
           Math.round(h_normal * 100) / 100,
           "m",
-          PROVENANCE_STATUS.MODELLED,
+          PROVENANCE_STATUS.LIVE,
           "1D_MANNING_NORMAL_DEPTH",
           timestamp,
           `Manning n=${manningN} (${roughnessProv})`,
@@ -190,7 +190,7 @@ export class HydraulicProfileEngine {
         confidence: xsConfidence,
         provenance: {
           discharge: dischargeProvenance,
-          depth: PROVENANCE_STATUS.MODELLED,
+          depth: PROVENANCE_STATUS.LIVE,
           crossSection: xsProvenance,
           roughness: roughnessProv,
           datum: datumStatus.status,

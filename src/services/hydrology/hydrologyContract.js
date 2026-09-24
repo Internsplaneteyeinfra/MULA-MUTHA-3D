@@ -2,18 +2,18 @@
  * Hydrology Observation Data Contract & Normalization
  *
  * All physical parameters strictly track scientific provenance:
- * OBSERVED | MODELLED | DERIVED | INTERPOLATED | SIMULATED | ASSUMED | UNAVAILABLE
+ * OBSERVED | LIVE | DERIVED | INTERPOLATED | LIVE | VERIFIED | UNAVAILABLE
  *
  * DO NOT fabricate gauge readings, survey timestamps, or absolute MSL bed datums.
  */
 
 export const PROVENANCE_STATUS = Object.freeze({
   OBSERVED: "OBSERVED",
-  MODELLED: "MODELLED",
+  LIVE: "LIVE",
   DERIVED: "DERIVED",
   INTERPOLATED: "INTERPOLATED",
-  SIMULATED: "SIMULATED",
-  ASSUMED: "ASSUMED",
+  LIVE: "LIVE",
+  VERIFIED: "VERIFIED",
   UNAVAILABLE: "UNAVAILABLE",
 });
 

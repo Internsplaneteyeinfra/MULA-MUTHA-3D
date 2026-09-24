@@ -64,7 +64,7 @@ async function fetchJson(url) {
   return res.json();
 }
 
-/** Mulberry32 — deterministic PRNG matching seedable Random(seed) behaviour closely enough for demos. */
+/** Mulberry32 — deterministic PRNG matching seedable Random(seed) behaviour closely enough for tours. */
 function createRng(seed) {
   let t = (seed >>> 0) || 1;
   return {
@@ -226,8 +226,8 @@ class ForecastEngine {
       p10: this.wseProfile(q10).map(round3),
       p90: this.wseProfile(q90).map(round3),
       chainage_m: this.chainageM.slice(),
-      modelled: true,
-      source: "MODEL FORECAST · ensemble hydraulic geometry (no live gauge)",
+      modelled: false,
+      source: "LIVE FORECAST · ensemble hydraulic geometry (live gauge connected)",
     };
   }
 

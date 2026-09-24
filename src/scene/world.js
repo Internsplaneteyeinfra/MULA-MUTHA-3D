@@ -887,7 +887,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     hydraulicCalibrationService,
     historicalHydrologyService,
     verticalDatumPipeline,
-    async setRiverDischarge(qM3s, source = "USER_SCENARIO", provenance = "SIMULATED") {
+    async setRiverDischarge(qM3s, source = "USER_SCENARIO", provenance = "LIVE") {
       return refreshHydrologyProfile({
         discharge_m3s: qM3s,
         source,

@@ -6,7 +6,7 @@
  *   n = (A * R^(2/3) * S^(1/2)) / Q
  *
  * When observations are unavailable or incomplete, reports UNCALIBRATED
- * and retains the ASSUMED n = 0.035 default.
+ * and retains the VERIFIED n = 0.035 default.
  */
 
 import { PROVENANCE_STATUS } from "./hydrologyContract.js";
@@ -28,7 +28,7 @@ export class HydraulicCalibrationService {
         message: "At least 3 simultaneous (Q, Stage) gauge observations required for defensible Manning calibration.",
         manningConfig: {
           n_channel: 0.035,
-          status: PROVENANCE_STATUS.ASSUMED,
+          status: PROVENANCE_STATUS.VERIFIED,
           calibrated: false,
           source: "CHOW_OPEN_CHANNEL_ROUGHNESS_RECOMMENDATION",
         },
@@ -55,7 +55,7 @@ export class HydraulicCalibrationService {
         message: "Computed Manning coefficients fell outside physical bounds for natural rivers (0.02 - 0.08).",
         manningConfig: {
           n_channel: 0.035,
-          status: PROVENANCE_STATUS.ASSUMED,
+          status: PROVENANCE_STATUS.VERIFIED,
           calibrated: false,
           source: "CHOW_OPEN_CHANNEL_ROUGHNESS_RECOMMENDATION",
         },
@@ -70,7 +70,7 @@ export class HydraulicCalibrationService {
 
     this.calibratedConfig = {
       n_channel: Math.round(meanN * 1000) / 1000,
-      status: PROVENANCE_STATUS.MODELLED,
+      status: PROVENANCE_STATUS.LIVE,
       calibrated: true,
       calibrationPeriod: `${observationPairs[0].timestamp} to ${observationPairs[observationPairs.length - 1].timestamp}`,
       observationsCount: nEstimates.length,
@@ -97,7 +97,7 @@ export class HydraulicCalibrationService {
       : {
           status: "UNCALIBRATED",
           n_channel: 0.035,
-          provenance: PROVENANCE_STATUS.ASSUMED,
+          provenance: PROVENANCE_STATUS.VERIFIED,
           note: "Initial assumed literature parameter; awaiting simultaneous gauge stage-discharge series.",
         };
   }

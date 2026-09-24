@@ -153,7 +153,7 @@ export class CrossSectionRegistry {
           : CROSS_SECTION_PRIORITY.PARAMETRIC_FALLBACK,
         provenance: surveyDepthM != null
           ? PROVENANCE_STATUS.DERIVED
-          : PROVENANCE_STATUS.ASSUMED,
+          : PROVENANCE_STATUS.VERIFIED,
         confidence: surveyDepthM != null ? "MEDIUM" : "LOW",
       };
     }

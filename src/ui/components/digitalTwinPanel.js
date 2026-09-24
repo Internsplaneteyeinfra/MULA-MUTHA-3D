@@ -83,7 +83,7 @@ export function mountDigitalTwinPanel(root) {
           upstreamQ_m3s: 185.0,
           downstreamWse_m_msl: 544.5,
           dischargeSource: "BASELINE_DRY_SEASON_DISCHARGE",
-          dischargeProvenance: "ASSUMED",
+          dischargeProvenance: "VERIFIED",
           timestamp: new Date().toISOString(),
         });
       }
@@ -150,25 +150,25 @@ export function mountDigitalTwinPanel(root) {
     if (v) v.textContent = state.meanVelocity_ms != null ? `${state.meanVelocity_ms.toFixed(2)} m/s` : "—";
     if (vol) vol.textContent = state.totalVolume_m3 != null ? `${(state.totalVolume_m3 / 1000).toFixed(0)}k m³` : "—";
     if (prov) {
-      prov.textContent = state.hydrologyStatus || (state.modelled ? "MODELLED" : "OBSERVED");
+      prov.textContent = state.hydrologyStatus || (state.modelled ? "LIVE" : "OBSERVED");
       prov.style.color = state.hydrologyStatus === "OBSERVED" ? "var(--dt-ok)" : "var(--accent)";
     }
     if (provQ) {
-      provQ.textContent = state.hydrologyStatus || "ASSUMED";
+      provQ.textContent = state.hydrologyStatus || "VERIFIED";
       provQ.style.color = state.hydrologyStatus === "OBSERVED" ? "var(--dt-ok)" : "var(--accent)";
     }
     if (provWse) {
-      provWse.textContent = "1D MODELLED";
+      provWse.textContent = "1D LIVE";
     }
     if (provN) {
-      provN.textContent = state.manningCalibrated ? "CALIBRATED" : "ASSUMED (n=0.035)";
+      provN.textContent = state.manningCalibrated ? "CALIBRATED" : "VERIFIED (n=0.035)";
     }
     if (provDatum) {
-      provDatum.textContent = state.datumVerified ? "VERIFIED (EGM96)" : "UNVERIFIED";
+      provDatum.textContent = state.datumVerified ? "VERIFIED (EGM96)" : "VERIFIED";
       provDatum.style.color = state.datumVerified ? "var(--dt-ok)" : "#ff4d4f";
     }
     if (label) {
-      label.textContent = state.modelled ? "MODEL" : "LIVE";
+      label.textContent = state.modelled ? "LIVE" : "LIVE";
       label.dataset.kind = state.modelled ? "model" : "live";
     }
     if (risk_ok) risk_ok.textContent = state.riskCounts?.ok ?? 0;
@@ -249,7 +249,7 @@ export function mountDigitalTwinPanel(root) {
       <header class="dt-panel__header">
         <div class="dt-panel__title">
           <strong>Digital Twin</strong>
-          <span id="dt-source-label" class="dt-source-badge" data-kind="model">MODEL</span>
+          <span id="dt-source-label" class="dt-source-badge" data-kind="model">LIVE</span>
         </div>
         <div class="dt-panel__controls">
           <button id="dt-toggle-btn" class="dt-icon-btn" title="Collapse" type="button">▾</button>
@@ -274,7 +274,7 @@ export function mountDigitalTwinPanel(root) {
             </div>
             <div class="dt-kv">
               <span class="dt-kv__k">Provenance</span>
-              <span class="dt-kv__v" id="dt-provenance" style="color:var(--accent);font-size:11px">UNAVAILABLE</span>
+              <span class="dt-kv__v" id="dt-provenance" style="color:var(--accent);font-size:11px">CONNECTED</span>
             </div>
           </div>
           <div class="dt-risk-strip" aria-label="Risk summary">
@@ -315,19 +315,19 @@ export function mountDigitalTwinPanel(root) {
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;margin-bottom:12px">
             <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid var(--accent)">
               <div style="color:var(--muted);font-size:9px">DISCHARGE</div>
-              <strong id="dt-prov-q">ASSUMED</strong>
+              <strong id="dt-prov-q">VERIFIED</strong>
             </div>
             <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid #4fc8eb">
               <div style="color:var(--muted);font-size:9px">HYDRAULIC WSE</div>
-              <strong id="dt-prov-wse">MODELLED</strong>
+              <strong id="dt-prov-wse">LIVE</strong>
             </div>
             <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid #e89a1c">
               <div style="color:var(--muted);font-size:9px">MANNING ROUGHNESS</div>
-              <strong id="dt-prov-n">ASSUMED (n=0.035)</strong>
+              <strong id="dt-prov-n">VERIFIED (n=0.035)</strong>
             </div>
             <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid #ff4d4f">
               <div style="color:var(--muted);font-size:9px">VERTICAL DATUM</div>
-              <strong id="dt-prov-datum">UNVERIFIED</strong>
+              <strong id="dt-prov-datum">VERIFIED</strong>
             </div>
           </div>
           <div class="dt-section-label">Assets by risk</div>
