@@ -8,7 +8,7 @@ import {
   sampleReachAt,
 } from "../../services/bodCodService.js";
 import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
-import { mountWeatherDetailPanel } from "./weatherDetailPanel.js";
+import { mountWeatherOverview } from "../../weather/WeatherOverview.js";
 import { state } from "../../state.js";
 
 /**
@@ -55,7 +55,7 @@ export function mountWeatherWidget(root) {
   `;
   root.appendChild(el);
 
-  const detail = mountWeatherDetailPanel(root);
+  const detail = mountWeatherOverview(root);
   /** @type {{ lat?:number, lon?:number, label?:string } | null} */
   let lastPoint = null;
 

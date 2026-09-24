@@ -3,6 +3,8 @@
  * Authoritative data: mula-mutha-garbage-locations.kml (bundled via Vite ?raw).
  */
 import * as THREE from "three";
+import { state } from "../../state.js";
+import { SURFACE_Y } from "../river.js";
 import garbageKmlRaw from "../../data/mula-mutha-garbage-locations.kml?raw";
 import { loadGarbageKml } from "./garbageDataLoader.js";
 import { processGarbageAgainstRiver, computeGarbageDensity } from "./garbageGeoProcessor.js";
@@ -59,7 +61,7 @@ export function createGarbageSystem({ stations = [] } = {}) {
       });
       console.info("[GarbageSystem] KML loaded", parseReport);
 
-      const geo = processGarbageAgainstRiver(raw, stations);
+      const geo = processGarbageAgainstRiver(raw, stations, state.floodRiseM || 0);
       records = geo.records;
       console.info(`[GarbageSystem] Geo processing complete: ${records.length}`);
       density = computeGarbageDensity(records);
@@ -333,18 +335,37 @@ export function createGarbageSystem({ stations = [] } = {}) {
     const lod = resolveGarbageLOD(camera?.position?.y ?? 800);
     renderer.applyLOD(lod, camera, selectedId);
 
+    // Get current flood state (consider API flood mode)
+    const apiFloodActive = state.floodMode === "api";
+    const floodRise = apiFloodActive ? 0 : (state.floodRiseM ?? 0);
+    const currentWaterY = SURFACE_Y + Math.max(0, floodRise);
+
     for (const r of records) {
       const pos = positions.get(r.id);
       if (!pos) continue;
 
       let x = r.homeX;
       let z = r.homeZ;
-      let y = r.baseY;
+      
+      // Calculate base Y based on current flood state
+      let baseY;
+      if (r.onWater) {
+        // Water garbage: float on current water surface
+        baseY = currentWaterY + r.waterOffset;
+      } else {
+        // Non-water garbage: stay on terrain or above water if flooded
+        baseY = Math.max(r.terrainHeight, currentWaterY) + r.waterOffset;
+      }
+      
+      // Store updated baseY for reference
+      r.baseY = baseY;
+      
+      let y = baseY;
       let yaw = pos.yaw || 0;
 
       if (!reduceMotion) {
         // Extremely slow bob
-        y = r.baseY + Math.sin(time * 0.7 + r.phase) * (r.onWater ? 0.08 : 0.03);
+        y = baseY + Math.sin(time * 0.7 + r.phase) * (r.onWater ? 0.08 : 0.03);
 
         if (r.onWater && r.velocity > 0) {
           // Tethered downstream sway — stays near real KML location

@@ -1,0 +1,19 @@
+{
+  "sourceId": "PMC_RIVERFRONT_DPR_SURVEY_2016",
+  "sourceOrganization": "Pune Municipal Corporation (PMC) / HCP Design, Planning and Management Pvt. Ltd.",
+  "documentTitle": "Detailed Project Report (DPR) on Rejuvenation and Riverfront Development of Mula, Mutha and Mula-Mutha Rivers in Pune",
+  "approvalAuthority": "Central Water and Power Research Station (CWPRS) Technical Approval dated 26-12-2017",
+  "surveyDate": "2015-2016",
+  "investigationDate": "2026-09-23",
+  "documentedExistence": true,
+  "rawDatasetAcquired": false,
+  "rawCrossSectionsAcquired": false,
+  "rawCrossSectionsVerified": false,
+  "coverageKm": 44.0,
+  "documentedCrossSectionSpacingM": 25.0,
+  "datum": "EGM96_MSL_DOCUMENTED_IN_REPORT_TEXT",
+  "benchmarkSystem": "GTS Benchmarks established along riverbanks and bridge piers",
+  "status": "DATUM_CONTROL_DOCUMENTED_BUT_ELEVATION_UNAVAILABLE",
+  "sourceUrl": "https://pmc.gov.in/en/riverfront-development-project",
+  "notes": "Comprehensive 44 km topographic riverbed survey and 25m interval cross-sections were documented in DPR Vol II and CWPRS approval letter. However, raw CAD/DXF/HEC-RAS geometry tables are proprietary/confidential to PMC and municipal consultants and not published in open-data public repositories. In accordance with Scientific Integrity Mandate 8 & 41, this dataset is classified as DOCUMENTED_EXISTENCE_YES, RAW_DATA_ACQUIRED_NO."
+}

@@ -12,6 +12,9 @@
  */
 
 import { selectTwinAsset } from "../../services/digitalTwinService.js";
+import { historicalHydrologyService } from "../../services/hydrology/historicalHydrologyService.js";
+import { state } from "../../state.js";
+import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 
 const STATUS_LABEL = { ok: "OK", warn: "WARN", critical: "CRITICAL", unknown: "—" };
 const STATUS_COLOR = {
@@ -36,6 +39,9 @@ export function mountDigitalTwinPanel(root) {
   const closeBtn = el.querySelector("#dt-close-btn");
   const toggleBtn = el.querySelector("#dt-toggle-btn");
   const panelBody = el.querySelector(".dt-panel__body");
+  const histSelect = el.querySelector("#dt-historical-select");
+  const csBtn = el.querySelector("#dt-btn-cross-section");
+  const assetList = el.querySelector("#dt-asset-list");
 
   let _collapsed = false;
   let _currentState = null;
@@ -54,6 +60,55 @@ export function mountDigitalTwinPanel(root) {
   // ─── Back to overview ─────────────────────────────────────────────────────
   overviewBtn?.addEventListener("click", () => {
     selectTwinAsset(null);
+  });
+
+  // ─── Historical Hydrology Event Replay ─────────────────────────────────────
+  histSelect?.addEventListener("change", (e) => {
+    const eventId = e.target.value;
+    if (eventId) {
+      const ev = historicalHydrologyService.selectEvent(eventId);
+      if (ev && window.__MM_SCENE__?.updateHydraulicProfile) {
+        window.__MM_SCENE__.updateHydraulicProfile({
+          upstreamQ_m3s: ev.discharge_m3s,
+          downstreamWse_m_msl: ev.stage_m_msl,
+          dischargeSource: ev.source,
+          dischargeProvenance: ev.provenance,
+          timestamp: ev.timestamp,
+        });
+      }
+    } else {
+      historicalHydrologyService.selectEvent(null);
+      if (window.__MM_SCENE__?.updateHydraulicProfile) {
+        window.__MM_SCENE__.updateHydraulicProfile({
+          upstreamQ_m3s: 185.0,
+          downstreamWse_m_msl: 544.5,
+          dischargeSource: "BASELINE_DRY_SEASON_DISCHARGE",
+          dischargeProvenance: "ASSUMED",
+          timestamp: new Date().toISOString(),
+        });
+      }
+    }
+  });
+
+  // ─── Cross Section Modal Trigger ───────────────────────────────────────────
+  // Always resolve the currently active Digital Twin station and pass it explicitly.
+  // This ensures the modal opens at the selected chainage, not at records[0].
+  csBtn?.addEventListener("click", () => {
+    const activeChainage = state.selectedChainageMeters;
+    const activeStation  = Number.isFinite(activeChainage)
+      ? hydrologyStore.getStationAtChainage(activeChainage)
+      : null;
+    console.log("[DigitalTwinPanel] Cross-section button clicked", {
+      activeChainage,
+      resolvedStation: activeStation
+        ? { chainage_m: activeStation.chainage_m, station_label: activeStation.station_label }
+        : null,
+    });
+    document.dispatchEvent(
+      new CustomEvent("cross-section-modal-open", {
+        detail: { station: activeStation ?? null },
+      })
+    );
   });
 
   // ─── State listener ────────────────────────────────────────────────────────
@@ -79,15 +134,39 @@ export function mountDigitalTwinPanel(root) {
     overviewBtn.hidden = true;
 
     const q = el.querySelector("#dt-discharge");
-    const w = el.querySelector("#dt-wse");
+    const v = el.querySelector("#dt-velocity");
+    const vol = el.querySelector("#dt-volume");
+    const prov = el.querySelector("#dt-provenance");
     const label = el.querySelector("#dt-source-label");
     const risk_ok = el.querySelector("#dt-risk-ok");
     const risk_warn = el.querySelector("#dt-risk-warn");
     const risk_crit = el.querySelector("#dt-risk-crit");
-    const assetList = el.querySelector("#dt-asset-list");
+    const provQ = el.querySelector("#dt-prov-q");
+    const provWse = el.querySelector("#dt-prov-wse");
+    const provN = el.querySelector("#dt-prov-n");
+    const provDatum = el.querySelector("#dt-prov-datum");
 
     if (q) q.textContent = state.discharge_m3s != null ? `${state.discharge_m3s.toFixed(1)} m³/s` : "—";
-    if (w) w.textContent = state.meanWse_m != null ? `${state.meanWse_m.toFixed(2)} m` : "—";
+    if (v) v.textContent = state.meanVelocity_ms != null ? `${state.meanVelocity_ms.toFixed(2)} m/s` : "—";
+    if (vol) vol.textContent = state.totalVolume_m3 != null ? `${(state.totalVolume_m3 / 1000).toFixed(0)}k m³` : "—";
+    if (prov) {
+      prov.textContent = state.hydrologyStatus || (state.modelled ? "MODELLED" : "OBSERVED");
+      prov.style.color = state.hydrologyStatus === "OBSERVED" ? "var(--dt-ok)" : "var(--accent)";
+    }
+    if (provQ) {
+      provQ.textContent = state.hydrologyStatus || "ASSUMED";
+      provQ.style.color = state.hydrologyStatus === "OBSERVED" ? "var(--dt-ok)" : "var(--accent)";
+    }
+    if (provWse) {
+      provWse.textContent = "1D MODELLED";
+    }
+    if (provN) {
+      provN.textContent = state.manningCalibrated ? "CALIBRATED" : "ASSUMED (n=0.035)";
+    }
+    if (provDatum) {
+      provDatum.textContent = state.datumVerified ? "VERIFIED (EGM96)" : "UNVERIFIED";
+      provDatum.style.color = state.datumVerified ? "var(--dt-ok)" : "#ff4d4f";
+    }
     if (label) {
       label.textContent = state.modelled ? "MODEL" : "LIVE";
       label.dataset.kind = state.modelled ? "model" : "live";
@@ -100,21 +179,25 @@ export function mountDigitalTwinPanel(root) {
       const sorted = [...(state.assets ?? [])].sort(
         (a, b) => (b.riskScore ?? 0) - (a.riskScore ?? 0),
       );
-      assetList.innerHTML = sorted.slice(0, 6).map((a) => `
-        <div class="dt-asset-row dt-asset-row--${a.status}" data-asset-id="${a.id}" tabindex="0" role="button" aria-label="${a.name} ${STATUS_LABEL[a.status]}">
-          <span class="dt-asset-dot"></span>
-          <span class="dt-asset-name">${a.name}</span>
-          <span class="dt-asset-km">${a.chainage_km?.toFixed(1)} km</span>
-          <span class="dt-asset-status">${STATUS_LABEL[a.status]}</span>
-        </div>
-      `).join("");
+      if (sorted.length === 0) {
+        assetList.innerHTML = `<div class="dt-empty-state" style="padding:10px;font-size:11px;color:var(--muted);text-align:center">No monitored infrastructure assets</div>`;
+      } else {
+        assetList.innerHTML = sorted.slice(0, 6).map((a) => `
+          <div class="dt-asset-row dt-asset-row--${a.status}" data-asset-id="${a.id}" tabindex="0" role="button" aria-label="${a.name} ${STATUS_LABEL[a.status]}">
+            <span class="dt-asset-dot"></span>
+            <span class="dt-asset-name">${a.name}</span>
+            <span class="dt-asset-km">${a.chainage_km?.toFixed(1)} km</span>
+            <span class="dt-asset-status">${STATUS_LABEL[a.status]}</span>
+          </div>
+        `).join("");
 
-      assetList.querySelectorAll("[data-asset-id]").forEach((row) => {
-        row.addEventListener("click", () => selectTwinAsset(row.dataset.assetId));
-        row.addEventListener("keydown", (e) => {
-          if (e.key === "Enter" || e.key === " ") selectTwinAsset(row.dataset.assetId);
+        assetList.querySelectorAll("[data-asset-id]").forEach((row) => {
+          row.addEventListener("click", () => selectTwinAsset(row.dataset.assetId));
+          row.addEventListener("keydown", (e) => {
+            if (e.key === "Enter" || e.key === " ") selectTwinAsset(row.dataset.assetId);
+          });
         });
-      });
+      }
     }
   }
 
@@ -182,8 +265,16 @@ export function mountDigitalTwinPanel(root) {
               <span class="dt-kv__v" id="dt-discharge">—</span>
             </div>
             <div class="dt-kv">
-              <span class="dt-kv__k">Mean WSE</span>
-              <span class="dt-kv__v" id="dt-wse">—</span>
+              <span class="dt-kv__k">Mean Velocity</span>
+              <span class="dt-kv__v" id="dt-velocity">—</span>
+            </div>
+            <div class="dt-kv">
+              <span class="dt-kv__k">Reach Volume</span>
+              <span class="dt-kv__v" id="dt-volume">—</span>
+            </div>
+            <div class="dt-kv">
+              <span class="dt-kv__k">Provenance</span>
+              <span class="dt-kv__v" id="dt-provenance" style="color:var(--accent);font-size:11px">UNAVAILABLE</span>
             </div>
           </div>
           <div class="dt-risk-strip" aria-label="Risk summary">
@@ -201,6 +292,42 @@ export function mountDigitalTwinPanel(root) {
               <span class="dt-risk-chip__dot"></span>
               <span id="dt-risk-crit" class="dt-risk-chip__count">0</span>
               <span class="dt-risk-chip__label">CRIT</span>
+            </div>
+          </div>
+
+          <!-- HISTORICAL REPLAY CONTROLS -->
+          <div class="dt-section-label" style="margin-top:10px">Hydrological Event Replay</div>
+          <div style="margin-bottom:10px">
+            <select id="dt-historical-select" style="width:100%;background:rgba(255,255,255,0.06);border:1px solid rgba(255,255,255,0.15);color:#fff;padding:6px 8px;border-radius:4px;font-size:11px">
+              <option value="">Live / Baseline Hydrology</option>
+              <option value="jul_2023_monsoon_peak">July 2023 Monsoon Release (585 m³/s)</option>
+              <option value="aug_2024_khadakwasla_spill">August 2024 Spillway Flood (980 m³/s)</option>
+              <option value="mar_2024_summer_baseflow">March 2024 Dry Baseflow (35 m³/s)</option>
+            </select>
+          </div>
+
+          <!-- CROSS-SECTION & LONGITUDINAL VIEWER -->
+          <button id="dt-btn-cross-section" style="width:100%;margin-bottom:12px;background:rgba(79,200,235,0.15);border:1px solid rgba(79,200,235,0.35);color:#00f2fe;padding:7px 10px;border-radius:4px;font-size:11px;font-weight:600;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px">
+            <span>📊</span> View Channel Cross-Sections & Profile
+          </button>
+
+          <div class="dt-section-label" style="margin-top:4px">Hydrological Provenance</div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:10px;margin-bottom:12px">
+            <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid var(--accent)">
+              <div style="color:var(--muted);font-size:9px">DISCHARGE</div>
+              <strong id="dt-prov-q">ASSUMED</strong>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid #4fc8eb">
+              <div style="color:var(--muted);font-size:9px">HYDRAULIC WSE</div>
+              <strong id="dt-prov-wse">MODELLED</strong>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid #e89a1c">
+              <div style="color:var(--muted);font-size:9px">MANNING ROUGHNESS</div>
+              <strong id="dt-prov-n">ASSUMED (n=0.035)</strong>
+            </div>
+            <div style="background:rgba(255,255,255,0.04);padding:6px 8px;border-radius:4px;border-left:3px solid #ff4d4f">
+              <div style="color:var(--muted);font-size:9px">VERTICAL DATUM</div>
+              <strong id="dt-prov-datum">UNVERIFIED</strong>
             </div>
           </div>
           <div class="dt-section-label">Assets by risk</div>

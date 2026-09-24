@@ -105,6 +105,7 @@ export function createRiver(dataset) {
   bedGeo.setAttribute("colorLand", new THREE.Float32BufferAttribute(bedCol.slice(), 3));
   bedGeo.setAttribute("colorDepthView", new THREE.Float32BufferAttribute(depthViewCol, 3));
   bedGeo.setAttribute("aDepth", new THREE.Float32BufferAttribute(bath.depths, 1));
+  bedGeo.setAttribute("aAcross", new THREE.Float32BufferAttribute(bath.acrossU, 1));
   const cutCol = new Float32Array(n * 3);
   const cutShallow = new THREE.Color("#7eb8d8");
   const cutMid = new THREE.Color("#3d7aa8");
@@ -123,18 +124,17 @@ export function createRiver(dataset) {
   bedGeo.setAttribute("colorCut", new THREE.Float32BufferAttribute(cutCol, 3));
   bedGeo.setIndex(bath.indices);
   bedGeo.computeVertexNormals();
-  const bed = new THREE.Mesh(
-    bedGeo,
-    new THREE.MeshStandardMaterial({
-      vertexColors: true,
-      roughness: 0.92,
-      metalness: 0.04,
-      side: THREE.DoubleSide,
-      polygonOffset: true,
-      polygonOffsetFactor: 2,
-      polygonOffsetUnits: 2,
-    }),
-  );
+  const bedMat = new THREE.MeshStandardMaterial({
+    vertexColors: true,
+    roughness: 0.92,
+    metalness: 0.04,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: 2,
+    polygonOffsetUnits: 2,
+  });
+
+  const bed = new THREE.Mesh(bedGeo, bedMat);
   bed.name = "riverBed";
   bed.receiveShadow = true;
   bed.renderOrder = 1;
@@ -275,8 +275,9 @@ export function applyRiverLook(river, mode = "water") {
       else col.setXYZ(i, 0.35, 0.65, 0.72);
     }
     col.needsUpdate = true;
+    col.needsUpdate = true;
     child.material.transparent = look === "cutaway";
-    child.material.opacity = look === "cutaway" ? 0.86 : 1;
+    child.material.opacity = look === "cutaway" ? 0.86 : 1.0;
     child.material.needsUpdate = true;
   }
   // Base tint: depth mode must read as soil/rock, not water
@@ -291,32 +292,58 @@ export function applyRiverLook(river, mode = "water") {
   river.bed.material.needsUpdate = true;
 }
 
-export function applyExaggeration(river, dataset, exag, floodRiseM = 0) {
+export function applyExaggeration(river, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null) {
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
   const bed = river.bed.geometry.attributes.position;
   const rise = Math.max(0, Number(floodRiseM) || 0);
-  const floodY = SURFACE_Y + rise;
+  const cols = (bath.across || 40) + 1;
+  const nRows = Math.floor(bath.depths.length / cols);
+
   for (let i = 0; i < bath.depths.length; i++) {
     const d = bath.depths[i];
     const across = bath.acrossU?.[i] ?? 0.5;
-    pos.setY(i, floodY);
+    const row = Math.min(nRows - 1, Math.floor(i / cols));
+
+    // Station-specific physical WSE when available, falling back to SURFACE_Y + rise
+    let baseSurfaceY = SURFACE_Y;
+    if (waterSurfaceSceneY && Array.isArray(waterSurfaceSceneY) && waterSurfaceSceneY.length > row) {
+      baseSurfaceY = waterSurfaceSceneY[row];
+    }
+    const finalWaterY = baseSurfaceY + rise;
+
+    pos.setY(i, finalWaterY);
     bed.setY(i, bedElevation(d, dataset.minDepth, dataset.maxDepth, across, exag));
   }
   pos.needsUpdate = true;
   bed.needsUpdate = true;
   river.mesh.geometry.computeVertexNormals();
   river.bed.geometry.computeVertexNormals();
-  updateWalls(river.walls, bath, dataset, exag, rise);
+  updateWalls(river.walls, bath, dataset, exag, rise, waterSurfaceSceneY);
 }
 
-function updateWalls(group, bath, dataset, exag, floodRiseM = 0) {
+function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null) {
   const child = group.children[0];
   if (!child) return;
   const attr = child.geometry.attributes.position;
-  const wallTop = SURFACE_Y + Math.max(0, floodRiseM) - 0.08;
+  const cols = (bath.across || 40) + 1;
+  const nRows = Math.floor(bath.depths.length / cols);
+
   let i = 0;
   for (const [a, b] of bath.boundary) {
+    const rowA = Math.min(nRows - 1, Math.floor(a / cols));
+    const rowB = Math.min(nRows - 1, Math.floor(b / cols));
+
+    let surfaceYa = SURFACE_Y;
+    let surfaceYb = SURFACE_Y;
+    if (waterSurfaceSceneY && Array.isArray(waterSurfaceSceneY)) {
+      if (waterSurfaceSceneY.length > rowA) surfaceYa = waterSurfaceSceneY[rowA];
+      if (waterSurfaceSceneY.length > rowB) surfaceYb = waterSurfaceSceneY[rowB];
+    }
+
+    const wallTopA = surfaceYa + Math.max(0, floodRiseM) - 0.08;
+    const wallTopB = surfaceYb + Math.max(0, floodRiseM) - 0.08;
+
     const ya = bedElevation(
       bath.depths[a],
       dataset.minDepth,
@@ -332,9 +359,9 @@ function updateWalls(group, bath, dataset, exag, floodRiseM = 0) {
       exag,
     );
     attr.setY(i, ya);
-    attr.setY(i + 1, wallTop);
+    attr.setY(i + 1, wallTopA);
     attr.setY(i + 2, yb);
-    attr.setY(i + 3, wallTop);
+    attr.setY(i + 3, wallTopB);
     i += 4;
   }
   attr.needsUpdate = true;

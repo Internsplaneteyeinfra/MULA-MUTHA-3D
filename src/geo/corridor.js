@@ -76,6 +76,9 @@ export function buildCorridorFromKml(ringLocal, depthPoints, opts = {}) {
   // Tiny outward pad so triangles fully cover the KML face (no land peek-through)
   expandBanks(stations, 1.012);
 
+  // Natural edge smoothing that retains true bank width & DTM channel alignment
+  smoothBanks(stations, 8);
+
   assignTangents(stations);
 
   const chainage = [0];

@@ -164,6 +164,29 @@ function _computeState() {
     ? enriched.find((a) => a.id === _selectedAssetId) ?? null
     : null;
 
+  // Compute Volume and Velocity
+  let _totalVolume = 0;
+  let sumVel = 0;
+  let countCells = 0;
+  if (wse && bed && chainage_m && _engine.realWidthM) {
+    const reachQ = hydraulic.discharge_reach_m3s || q0;
+    for (let i = 0; i < wse.length - 1; i++) {
+      const depth = Math.max(0, wse[i] - bed[i]);
+      const w = _engine.realWidthM[i] || 1;
+      const area = depth * w;
+      const dx = chainage_m[i + 1] - chainage_m[i];
+      if (dx > 0) {
+        _totalVolume += area * dx;
+      }
+      if (area > 0) {
+        const qLocal = reachQ * _engine.localDischargeFactor(i);
+        sumVel += qLocal / area;
+        countCells++;
+      }
+    }
+  }
+  const _meanVelocity = countCells > 0 ? sumVel / countCells : 0;
+
   return {
     timestamp: Date.now(),
     assets: enriched,
@@ -173,6 +196,8 @@ function _computeState() {
     forecastHorizon: _forecastHorizon,
     discharge_m3s: round2(q0),
     meanWse_m: round2(wse && wse.length ? wse.reduce((s, v) => s + v, 0) / wse.length : 0),
+    meanVelocity_ms: round2(_meanVelocity),
+    totalVolume_m3: _totalVolume,
     dischargeSource: hydraulic.dischargeSource ?? "model",
     dischargeLabel: hydraulic.dischargeLabel ?? "MODEL",
     reachLenM: chainage_m?.length ? chainage_m[chainage_m.length - 1] : 0,

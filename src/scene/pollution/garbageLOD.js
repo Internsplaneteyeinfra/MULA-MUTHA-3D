@@ -1,6 +1,7 @@
 /**
  * Distance-based LOD for garbage visualization.
  * FAR → marker | MEDIUM → marker+debris | NEAR → full | VERY_NEAR → +effects
+ * Adjusted thresholds for better visibility at normal camera distances
  */
 
 export const LOD = {
@@ -18,20 +19,22 @@ export function resolveGarbageLOD(camY, distToTarget = Infinity) {
   const y = Number(camY) || 800;
   const d = Number(distToTarget) || Infinity;
   const score = Math.min(y, d * 0.85);
-  if (score > 700) return LOD.FAR;
-  if (score > 280) return LOD.MEDIUM;
-  if (score > 90) return LOD.NEAR;
+  // Adjusted thresholds for better garbage visibility
+  if (score > 900) return LOD.FAR;        // Increased from 700
+  if (score > 350) return LOD.MEDIUM;     // Increased from 280
+  if (score > 120) return LOD.NEAR;       // Increased from 90
   return LOD.VERY_NEAR;
 }
 
-/** Marker world-scale vs camera altitude — compact dots in overview. */
+/** Marker world-scale vs camera altitude — keep markers small. */
 export function markerScaleForCamera(camera) {
-  if (!camera) return 1.15;
+  if (!camera) return 0.8;
   const y = camera.position.y;
-  if (y < 100) return 0.85;
-  if (y < 250) return 1.05;
-  if (y < 450) return 1.45;
-  if (y < 800) return 2.1;
-  if (y < 1400) return 2.9;
-  return Math.min(5.2, y / 420);
+  // Adjusted scaling for better marker visibility while keeping them small
+  if (y < 120) return 0.7;    // Increased from 0.6
+  if (y < 280) return 0.8;    // Increased from 0.7
+  if (y < 500) return 1.0;    // Increased from 0.9
+  if (y < 900) return 1.3;    // Increased from 1.2
+  if (y < 1600) return 1.6;   // Increased from 1.5
+  return Math.min(2.8, y / 520); // Slightly increased maximum
 }

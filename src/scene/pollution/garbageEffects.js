@@ -9,9 +9,9 @@ export function createGarbageEffects() {
   root.name = "garbageEffects";
   root.frustumCulled = false;
 
-  const rippleGeo = new THREE.RingGeometry(1.2, 3.8, 24);
+  const rippleGeo = new THREE.RingGeometry(1.4, 4.0, 24); // Slightly larger for visibility
   rippleGeo.rotateX(-Math.PI / 2);
-  const particleGeo = new THREE.SphereGeometry(0.12, 6, 4);
+  const particleGeo = new THREE.SphereGeometry(0.15, 6, 4); // Slightly larger particles
 
   /** @type {{ record:object, ripple:THREE.Mesh, particles:THREE.Group, baseY:number }[]} */
   let items = [];

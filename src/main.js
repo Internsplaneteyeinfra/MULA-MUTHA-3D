@@ -1,5 +1,6 @@
 import "./style.css";
 import "./styles/gis-ui.css";
+import "./weather/weather.css";
 import "./styles/layers-panel.css";
 import { loadJourneyDataset } from "./geo/load.js";
 import { createWorld } from "./scene/world.js";

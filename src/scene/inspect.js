@@ -6,6 +6,7 @@ import { terrainHeightAt } from "./terrain.js";
 import { bedYAt, sampleDepthAt } from "../features/fishing/FishingZoneSystem.js";
 import { pickNullahAt } from "./drainageLayer.js";
 import { pickDepthZoneAt } from "./depthZonesLayer.js";
+import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
 
 export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset, tooltip, opts = {}) {
   const resolveCam = () => (typeof camera === "function" ? camera() : camera);
@@ -804,6 +805,82 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       chainage: ch?.label,
     };
 
+    // Check for physical hydraulic station record
+    const hydroStation = isRiver && ch?.meters != null ? hydrologyStore.getStationAtChainage(ch.meters) : null;
+
+    if (fromClick && isRiver && hydroStation) {
+      // ── Update canonical active chainage ─────────────────────────────────
+      // Dispatch chainage-select so state.selectedChainageMeters, the ruler,
+      // the step HUD, and every other subscriber stay in sync.
+      state.selectedChainageMeters = ch.meters;
+      document.dispatchEvent(
+        new CustomEvent("chainage-select", {
+          detail: { meters: ch.meters, focus: false, source: "river-click" },
+        }),
+      );
+
+      // ── Digital Twin smooth camera navigation ─────────────────────────────
+      // When Digital Twin mode is active, fly the camera smoothly along the
+      // river from the current position to the clicked chainage.
+      // Uses the existing goToChainageView() which drives a smooth inOutCubic
+      // tween of configurable duration — guaranteed to reach the exact target.
+      // Guards: cinematicActive, joiningStreamsMode, garbageSelectionActive
+      // are all checked inside goToChainageView / focusOnXZ so we do not
+      // need to duplicate them here.
+      const dtModeActive =
+        document.body.classList.contains("dt-mode-active") ||
+        document.getElementById("ui-root")?.classList.contains("dt-mode-active");
+      if (dtModeActive) {
+        console.log("[RiverSelection] DT mode active — smooth camera fly to", {
+          chainage_m: ch.meters,
+          stationLabel: hydroStation.station_label,
+        });
+        window.__MM_SCENE__?.goToChainageView?.(ch.meters);
+      }
+
+      // ── Notify threshold graph ────────────────────────────────────────────
+      // Dispatched BEFORE tooltip so the graph opens at the correct station.
+      console.log("[RiverSelection] CLICKED", {
+        worldPosition: { x, z },
+        chainage_m: ch.meters,
+        stationLabel: hydroStation.station_label,
+      });
+      document.dispatchEvent(
+        new CustomEvent("river-station-selected", {
+          detail: {
+            chainage_m:    ch.meters,
+            stationLabel:  hydroStation.station_label,
+            stationRecord: hydroStation,
+            worldPosition: { x, z },
+          },
+        }),
+      );
+
+      tooltip.show(e.clientX, e.clientY, {
+        hydrologyInspect: true,
+        chainageLabel: hydroStation.station_label,
+        lon: geo.lon,
+        lat: geo.lat,
+        widthM: hydroStation.width_m,
+        waterSurface: hydroStation.water_depth_m?.value != null ? (SURFACE_Y + (hydroStation.water_depth_m.value - 1.72)) : SURFACE_Y,
+        surveyDepthM: hydroStation.survey_depth_m?.value ?? depth,
+        dynamicDepthM: hydroStation.water_depth_m?.value ?? null,
+        bedElevationMsl: hydroStation.bed_elevation_msl?.value ?? null,
+        crossSectionAreaM2: hydroStation.cross_section_area_m2?.value ?? null,
+        hydraulicRadiusM: hydroStation.hydraulic_radius_m?.value ?? null,
+        dischargeM3s: hydroStation.discharge_m3s?.value ?? null,
+        velocityMs: hydroStation.velocity_ms?.value ?? null,
+        froudeNumber: hydroStation.froude_number ?? null,
+        status: hydroStation.discharge_m3s?.status ?? "MODELLED",
+        source: hydroStation.discharge_m3s?.source ?? "1D_HYDRAULIC_PROFILE",
+        confidence: hydroStation.confidence ?? "MEDIUM",
+        datumStatus: hydroStation.provenance?.datum ?? "UNVERIFIED_DATUM",
+        roughnessStatus: hydroStation.provenance?.roughness ?? "ASSUMED",
+        stationRecord: hydroStation,
+      });
+      return;
+    }
+
     if (!state.inspectMode && isRiver) {
       tooltip.show(e.clientX, e.clientY, {
         compact: true,
@@ -816,7 +893,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         waterSurface,
         riverbedElevation: riverbedY,
         flowDirection: flowDir,
-        flowSpeed,
+        flowSpeed: hydroStation?.velocity_ms?.value ?? flowSpeed,
         chainage: ch?.meters != null ? `${(ch.meters / 1000).toFixed(2)} km` : ch?.label,
         chainageM: ch?.meters,
       });
@@ -833,7 +910,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       northing: utm.northing,
       localX: x,
       localZ: z,
-      flowSpeed,
+      flowSpeed: hydroStation?.velocity_ms?.value ?? flowSpeed,
       minDepth: dataset.minDepth,
       maxDepth: dataset.maxDepth,
       color,

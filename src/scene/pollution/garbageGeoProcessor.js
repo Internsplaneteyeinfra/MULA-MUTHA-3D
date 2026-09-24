@@ -14,8 +14,9 @@ const NEAR_FACTOR = 2.5;
 /**
  * @param {object[]} records
  * @param {object[]} stations
+ * @param {number} floodRiseM - Current flood rise in meters (added to SURFACE_Y)
  */
-export function processGarbageAgainstRiver(records, stations = []) {
+export function processGarbageAgainstRiver(records, stations = [], floodRiseM = 0) {
   const out = [];
   let riverAssociated = 0;
   let nearRiver = 0;
@@ -66,7 +67,7 @@ export function processGarbageAgainstRiver(records, stations = []) {
 
     const onWater = associationStatus === "River";
     const terrainY = stations?.length ? terrainHeightAt(x, z, stations) : SURFACE_Y;
-    const waterY = SURFACE_Y;
+    const waterY = SURFACE_Y + Math.max(0, floodRiseM || 0);
     // On water → sit on water surface; near/outside → terrain (never invent river placement)
     const baseY = onWater ? waterY + 0.12 : Math.max(terrainY, waterY) + 0.2;
 
@@ -95,6 +96,11 @@ export function processGarbageAgainstRiver(records, stations = []) {
       phase,
       rotationSpeed,
       halfWidth,
+      // Store for dynamic flood updates:
+      // - For water garbage: fixed offset 0.12 above water surface
+      // - For non-water garbage: terrain height (won't change with flood)
+      terrainHeight: terrainY,
+      waterOffset: onWater ? 0.12 : 0.2, // Offset above reference surface
     });
   }
 

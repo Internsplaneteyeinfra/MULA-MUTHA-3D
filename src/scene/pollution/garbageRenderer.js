@@ -12,7 +12,7 @@ const AMBER_HOT = "#FFB347";
 const DEBRIS = "#8B7355";
 const PLASTIC = "#C4D4E0";
 const FOAM = "#F2EDE4";
-const STEM_H = 11;
+const STEM_H = 0.9; // Much shorter stem: 0.9m height
 
 export function createGarbageRenderer() {
   const root = new THREE.Group();
@@ -28,19 +28,19 @@ export function createGarbageRenderer() {
   densityGroup.visible = false;
   root.add(markers, debris, densityGroup);
 
-  // Compact ground glow (far / overview dots)
-  const discGeo = new THREE.CircleGeometry(2.4, 24);
+  // Very small ground indicator (far / overview dots)
+  const discGeo = new THREE.CircleGeometry(0.4, 12); // Much smaller: 0.4m radius
   discGeo.rotateX(-Math.PI / 2);
-  const rimGeo = new THREE.RingGeometry(2.2, 3.1, 24);
+  const rimGeo = new THREE.RingGeometry(0.35, 0.55, 16); // Much smaller
   rimGeo.rotateX(-Math.PI / 2);
-  const coreGeo = new THREE.CircleGeometry(0.85, 14);
+  const coreGeo = new THREE.CircleGeometry(0.15, 8); // Much smaller
   coreGeo.rotateX(-Math.PI / 2);
 
-  // Proposed beacon: thin stem + glowing orb (replaces flag)
-  const stemGeo = new THREE.CylinderGeometry(0.09, 0.14, STEM_H, 10);
-  const orbGeo = new THREE.SphereGeometry(0.95, 20, 16);
-  const orbHaloGeo = new THREE.SphereGeometry(1.55, 16, 12);
-  const glowDiscGeo = new THREE.CircleGeometry(2.8, 28);
+  // Very small site marker: tiny sphere + short thin stem
+  const stemGeo = new THREE.CylinderGeometry(0.008, 0.012, 0.9, 6); // Thin, short: 0.9m height
+  const orbGeo = new THREE.SphereGeometry(0.08, 12, 8); // Tiny sphere: 0.08m radius
+  const orbHaloGeo = new THREE.SphereGeometry(0.14, 8, 6); // Small halo
+  const glowDiscGeo = new THREE.CircleGeometry(0.35, 16); // Small ripple: 0.35m radius
   glowDiscGeo.rotateX(-Math.PI / 2);
 
   const fillMat = new THREE.MeshBasicMaterial({
@@ -76,13 +76,17 @@ export function createGarbageRenderer() {
     side: THREE.DoubleSide,
   });
 
-  const boxGeo = new THREE.BoxGeometry(1.4, 0.85, 1.05);
-  const bagGeo = new THREE.SphereGeometry(0.95, 12, 10);
-  bagGeo.scale(1.45, 0.72, 1.2);
-  const bottleGeo = new THREE.CylinderGeometry(0.22, 0.28, 1.35, 10);
-  const bottleCapGeo = new THREE.CylinderGeometry(0.16, 0.16, 0.18, 8);
-  const foamGeo = new THREE.BoxGeometry(1.1, 0.55, 0.85);
-  const crateGeo = new THREE.BoxGeometry(1.9, 1.05, 1.4);
+  // Realistic small debris geometries
+  const boxGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0); // Base unit cube, will be scaled down
+  const bagGeo = new THREE.SphereGeometry(1.0, 8, 6); // Base unit sphere, will be deformed
+  // Improved bottle geometry with neck
+  const bottleBodyGeo = new THREE.CylinderGeometry(0.18, 0.22, 0.85, 8); // Bottle body
+  const bottleNeckGeo = new THREE.CylinderGeometry(0.08, 0.12, 0.3, 6); // Bottle neck
+  const bottleCapGeo = new THREE.CylinderGeometry(0.07, 0.07, 0.08, 6); // Small cap
+  // Paper/newspaper geometry (irregular plane)
+  const paperGeo = new THREE.PlaneGeometry(1.0, 1.0, 1, 1); // Will be deformed
+  const foamGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0); // Base unit cube
+  const crateGeo = new THREE.BoxGeometry(1.0, 1.0, 1.0); // Base unit cube
 
   const debrisMat = new THREE.MeshStandardMaterial({
     color: DEBRIS,
@@ -109,12 +113,72 @@ export function createGarbageRenderer() {
     flatShading: true,
   });
   const accentMat = new THREE.MeshStandardMaterial({
-    color: AMBER,
-    roughness: 0.5,
+    color: "#D4A76A", // Light brown for wrappers/paper, NOT bright orange
+    roughness: 0.7,
+    metalness: 0.05,
+    flatShading: true,
+  });
+  
+  const wrapperMat = new THREE.MeshStandardMaterial({
+    color: "#E8D4B0", // Light beige for wrappers
+    roughness: 0.6,
     metalness: 0.1,
     flatShading: true,
-    emissive: AMBER,
-    emissiveIntensity: 0.22,
+  });
+  
+  // Paper materials
+  const paperWhiteMat = new THREE.MeshStandardMaterial({
+    color: "#F5F0E6", // Dirty white paper
+    roughness: 0.75,
+    metalness: 0.02,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  
+  const paperBeigeMat = new THREE.MeshStandardMaterial({
+    color: "#E8D8C0", // Beige/yellowed paper
+    roughness: 0.7,
+    metalness: 0.03,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  
+  const paperNewspaperMat = new THREE.MeshStandardMaterial({
+    color: "#E0D0B0", // Newspaper color
+    roughness: 0.8,
+    metalness: 0.01,
+    flatShading: true,
+    side: THREE.DoubleSide,
+  });
+  
+  // Cardboard material
+  const cardboardMat = new THREE.MeshStandardMaterial({
+    color: "#A09070", // Brown cardboard
+    roughness: 0.85,
+    metalness: 0.0,
+    flatShading: true,
+  });
+  
+  // Additional plastic colors for bottles
+  const plasticBlueMat = new THREE.MeshStandardMaterial({
+    color: "#B0C8E0", // Pale blue plastic
+    roughness: 0.45,
+    metalness: 0.1,
+    flatShading: true,
+  });
+  
+  const plasticGreenMat = new THREE.MeshStandardMaterial({
+    color: "#A0C0A0", // Pale green plastic
+    roughness: 0.4,
+    metalness: 0.08,
+    flatShading: true,
+  });
+  
+  const plasticGrayMat = new THREE.MeshStandardMaterial({
+    color: "#C0C0C0", // Gray plastic
+    roughness: 0.5,
+    metalness: 0.12,
+    flatShading: true,
   });
 
   const stemMat = new THREE.MeshBasicMaterial({
@@ -212,20 +276,20 @@ export function createGarbageRenderer() {
       marker.renderOrder = 42;
 
       const fill = new THREE.Mesh(discGeo, fillMat);
-      fill.position.y = 0.05;
+      fill.position.y = 0.02; // Lower
       fill.renderOrder = 43;
       const rim = new THREE.Mesh(rimGeo, rimMat);
-      rim.position.y = 0.04;
+      rim.position.y = 0.015; // Lower
       rim.renderOrder = 42;
       const core = new THREE.Mesh(coreGeo, coreMat);
-      core.position.y = 0.08;
+      core.position.y = 0.03; // Lower
       core.renderOrder = 44;
       marker.add(rim, fill, core);
 
       const title = siteDisplayName(r);
       const ch = siteChainageLabel(r);
       const label = makeSiteLabel(title, ch);
-      label.position.set(0, STEM_H + 3.2, 0);
+      label.position.set(0, STEM_H + 0.8, 0); // Much closer to marker
       label.visible = false;
       marker.add(label);
 
@@ -254,48 +318,208 @@ export function createGarbageRenderer() {
     }
   }
 
-  /** Waste pile — bottles, bags, foam, crates (proposed close-view look). */
+  /** Medium-sized scattered river debris - clearly visible pollution */
   function buildDebrisCluster(r) {
     const g = new THREE.Group();
     g.name = `garbageDebris_${r.id}`;
     g.userData.recordId = r.id;
-    const phase = r.phase || 0;
-    const n = 9 + (r.sourceIndex % 5);
-
-    const mound = new THREE.Mesh(bagGeo, bagMat);
-    mound.position.set(0, 0.5, 0);
-    mound.scale.set(2.6, 1.55, 2.35);
-    g.add(mound);
-
+    
+    // Determine number of debris items based on density level
+    // LOW: 4-7 objects, MEDIUM: 8-14 objects, HIGH: 15-24 objects
+    let minCount = 4, maxCount = 7; // LOW density
+    if (r.densityLevel === "MEDIUM") { minCount = 8; maxCount = 14; }
+    if (r.densityLevel === "HIGH") { minCount = 15; maxCount = 24; }
+    
+    // Add deterministic variation based on site ID
+    const seed = r.sourceIndex * 137;
+    const n = minCount + Math.floor((seed % 100) * 0.01 * (maxCount - minCount + 1));
+    
+    // Create medium-sized, clearly visible debris objects
     for (let k = 0; k < n; k++) {
-      const kind = k % 5;
+      const kind = (k + r.sourceIndex) % 10; // 10 different debris types (expanded from 8)
       let mesh;
+      const itemSeed = r.sourceIndex * 1000 + k * 37;
+      
+      // Base scale multiplier for all objects (1.5-2.0x increase)
+      const sizeMultiplier = 1.7 + (itemSeed % 100) * 0.003; // 1.7-2.0
+      
       if (kind === 0) {
-        mesh = new THREE.Mesh(crateGeo, debrisMat);
-      } else if (kind === 1) {
-        mesh = new THREE.Mesh(bagGeo, bagMat);
-      } else if (kind === 2) {
+        // Plastic bottle (realistic assembly) - increased visibility
         const bottle = new THREE.Group();
-        const body = new THREE.Mesh(bottleGeo, plasticMat);
+        const body = new THREE.Mesh(bottleBodyGeo, plasticBlueMat);
+        const neck = new THREE.Mesh(bottleNeckGeo, plasticGrayMat);
+        neck.position.y = 0.75; // Bottle neck height
         const cap = new THREE.Mesh(bottleCapGeo, accentMat);
-        cap.position.y = 0.75;
-        bottle.add(body, cap);
+        cap.position.y = 1.05; // Cap above neck
+        bottle.add(body, neck, cap);
         mesh = bottle;
+        const bottleScale = (0.25 + (itemSeed % 100) * 0.002) * sizeMultiplier; // 0.25-0.45m
+        mesh.scale.setScalar(bottleScale);
+      } else if (kind === 1) {
+        // Plastic bag (medium, flattened)
+        mesh = new THREE.Mesh(bagGeo, bagMat);
+        mesh.scale.set(
+          (0.35 + (itemSeed % 100) * 0.003) * sizeMultiplier,  // Width: 0.35-0.65
+          (0.18 + (itemSeed % 50) * 0.002) * sizeMultiplier,   // Height: 0.18-0.28
+          (0.30 + (itemSeed % 100) * 0.0025) * sizeMultiplier  // Depth: 0.30-0.55
+        );
+      } else if (kind === 2) {
+        // Small wrapper/packaging (thin, medium)
+        mesh = new THREE.Mesh(boxGeo, wrapperMat);
+        mesh.scale.set(
+          (0.18 + (itemSeed % 100) * 0.002) * sizeMultiplier,  // Width: 0.18-0.38
+          (0.08 + (itemSeed % 50) * 0.001) * sizeMultiplier,   // Height: 0.08-0.13
+          (0.22 + (itemSeed % 100) * 0.0015) * sizeMultiplier  // Depth: 0.22-0.37
+        );
       } else if (kind === 3) {
-        mesh = new THREE.Mesh(foamGeo, foamMat);
+        // Paper debris (crumpled, irregular) - NEW
+        mesh = new THREE.Mesh(paperGeo, paperWhiteMat);
+        // Apply deformation to create irregular shape
+        const positionAttr = mesh.geometry.attributes.position;
+        const vertexCount = positionAttr.count;
+        for (let v = 0; v < vertexCount; v++) {
+          const x = positionAttr.getX(v);
+          const y = positionAttr.getY(v);
+          const z = positionAttr.getZ(v);
+          
+          // Random noise for crumpled paper effect
+          const noiseX = Math.sin(x * 4.5 + itemSeed) * 0.1;
+          const noiseY = Math.cos(y * 3.2 + itemSeed * 0.5) * 0.15;
+          const noiseZ = Math.sin(z * 5.1 + itemSeed * 0.3) * 0.08;
+          
+          positionAttr.setX(v, x + noiseX);
+          positionAttr.setY(v, y + noiseY);
+          positionAttr.setZ(v, z + noiseZ);
+        }
+        positionAttr.needsUpdate = true;
+        mesh.geometry.computeVertexNormals();
+        
+        mesh.scale.set(
+          (0.20 + (itemSeed % 100) * 0.0025) * sizeMultiplier,  // Width: 0.20-0.45
+          (0.02 + (itemSeed % 30) * 0.0005) * sizeMultiplier,   // Height: 0.02-0.035
+          (0.25 + (itemSeed % 100) * 0.002) * sizeMultiplier    // Depth: 0.25-0.45
+        );
+      } else if (kind === 4) {
+        // Newspaper debris (yellowed, with subtle print marks) - NEW
+        mesh = new THREE.Mesh(paperGeo, paperNewspaperMat);
+        // Add some subtle text-like markings
+        const positionAttr = mesh.geometry.attributes.position;
+        const vertexCount = positionAttr.count;
+        for (let v = 0; v < vertexCount; v++) {
+          const x = positionAttr.getX(v);
+          const y = positionAttr.getY(v);
+          const z = positionAttr.getZ(v);
+          
+          // Create subtle linear pattern that looks like text lines
+          const linePattern = Math.sin(x * 8 + z * 4) * 0.04;
+          const crumple = Math.sin(x * 3.5 + z * 2.7 + itemSeed) * 0.06;
+          
+          positionAttr.setY(v, y + linePattern + crumple);
+        }
+        positionAttr.needsUpdate = true;
+        mesh.geometry.computeVertexNormals();
+        
+        mesh.scale.set(
+          (0.25 + (itemSeed % 100) * 0.003) * sizeMultiplier,  // Width: 0.25-0.55
+          (0.03 + (itemSeed % 30) * 0.0007) * sizeMultiplier,  // Height: 0.03-0.05
+          (0.30 + (itemSeed % 100) * 0.0025) * sizeMultiplier  // Depth: 0.30-0.55
+        );
+      } else if (kind === 5) {
+        // Cardboard/paperboard (thicker) - NEW
+        mesh = new THREE.Mesh(boxGeo, cardboardMat);
+        mesh.scale.set(
+          (0.18 + (itemSeed % 100) * 0.002) * sizeMultiplier,  // Width: 0.18-0.38
+          (0.12 + (itemSeed % 50) * 0.0015) * sizeMultiplier,  // Height: 0.12-0.195
+          (0.22 + (itemSeed % 100) * 0.0018) * sizeMultiplier  // Depth: 0.22-0.40
+        );
+      } else if (kind === 6) {
+        // Branch/twig (medium cylinder)
+        mesh = new THREE.Mesh(bottleBodyGeo, debrisMat);
+        mesh.scale.set(
+          (0.10 + (itemSeed % 50) * 0.0012) * sizeMultiplier,   // Radius: 0.10-0.16
+          (0.50 + (itemSeed % 100) * 0.006) * sizeMultiplier,   // Length: 0.50-1.10
+          (0.10 + (itemSeed % 50) * 0.0012) * sizeMultiplier    // Radius: 0.10-0.16
+        );
+      } else if (kind === 7) {
+        // Floating vegetation (medium)
+        mesh = new THREE.Mesh(bagGeo, bagMat);
+        mesh.material = new THREE.MeshStandardMaterial({
+          color: "#2a4c2a", // Dark muted green
+          roughness: 0.9,
+          metalness: 0.03,
+          flatShading: true,
+        });
+        mesh.scale.setScalar((0.30 + (itemSeed % 100) * 0.003) * sizeMultiplier); // 0.30-0.60
+      } else if (kind === 8) {
+        // Construction debris fragment (medium)
+        mesh = new THREE.Mesh(boxGeo, debrisMat);
+        mesh.scale.setScalar((0.22 + (itemSeed % 100) * 0.002) * sizeMultiplier); // 0.22-0.42
       } else {
-        mesh = new THREE.Mesh(boxGeo, accentMat);
+        // Mixed municipal debris (medium) - plastic container
+        mesh = new THREE.Mesh(foamGeo, foamMat);
+        mesh.scale.setScalar((0.25 + (itemSeed % 100) * 0.0025) * sizeMultiplier); // 0.25-0.50
       }
 
-      const a = (k / n) * Math.PI * 2 + phase;
-      const rad = 0.9 + (k % 5) * 0.48;
+      // Natural scattering - irregular organic patch, NOT circular
+      // Create irregular pollution patch shape
+      const patchSeedX = (itemSeed * 1.237) % 1;
+      const patchSeedZ = (itemSeed * 0.873) % 1;
+      
+      // Density-based patch size: LOW: 2-4m, MEDIUM: 4-7m, HIGH: 6-10m
+      let patchRadius = 2.0;
+      if (r.densityLevel === "MEDIUM") patchRadius = 3.5;
+      if (r.densityLevel === "HIGH") patchRadius = 5.0;
+      
+      // Create irregular organic distribution (not circular)
+      // Use noise-like pattern for more natural scattering
+      const noiseX = Math.sin(patchSeedX * 3.14) * Math.cos(patchSeedZ * 2.18);
+      const noiseZ = Math.cos(patchSeedX * 2.47) * Math.sin(patchSeedZ * 3.05);
+      
+      const offsetX = noiseX * patchRadius * (0.7 + patchSeedZ * 0.6);
+      const offsetZ = noiseZ * patchRadius * (0.7 + patchSeedX * 0.6);
+      
+      // Some objects closer, some farther for natural look
+      const distanceFactor = 0.6 + patchSeedX * 0.8;
+      const finalOffsetX = offsetX * distanceFactor;
+      const finalOffsetZ = offsetZ * distanceFactor;
+      
+      // Height variation for floating debris
+      const heightOffset = 0.18 + (patchSeedX * 0.15); // 0.18-0.33 (slightly higher for visibility)
+      
       mesh.position.set(
-        Math.cos(a) * rad,
-        0.4 + (k % 4) * 0.42,
-        Math.sin(a) * rad,
+        finalOffsetX,
+        heightOffset,
+        finalOffsetZ
       );
-      mesh.rotation.set(phase * 0.2 + k * 0.18, a * 0.9, phase * 0.12 + k * 0.08);
-      mesh.scale.setScalar(0.95 + (k % 3) * 0.22);
+      
+      // Natural rotation - varied (bottles mostly horizontal/diagonal)
+      const rotationScale = 0.8 + (itemSeed % 100) * 0.004; // 0.8-1.2 scale variation
+      
+      // Special rotation for bottles (more horizontal/angled)
+      if (kind === 0) {
+        // Bottles: mostly horizontal with slight tilt
+        const bottleTilt = (itemSeed * 0.015) % 0.45; // 0-0.45 radians tilt
+        mesh.rotation.set(
+          bottleTilt,  // Tilt forward/backward
+          (itemSeed * 0.06) % (Math.PI * 2),  // Random Y rotation
+          (itemSeed * 0.01) % 0.15  // Small Z tilt
+        );
+      } else if (kind === 3 || kind === 4 || kind === 5) {
+        // Paper/newspaper: mostly flat with some tilt
+        mesh.rotation.set(
+          Math.PI/2 + ((itemSeed * 0.008) % 0.3),  // Mostly flat (π/2) with small variation
+          (itemSeed * 0.06) % (Math.PI * 2),      // Random Y rotation
+          (itemSeed * 0.01) % 0.25                // Small Z tilt
+        );
+      } else {
+        // Other debris: varied rotations
+        mesh.rotation.set(
+          (itemSeed * 0.012) % 0.35 * rotationScale,  // Tilt X
+          (itemSeed * 0.06) % (Math.PI * 2),          // Random Y rotation
+          (itemSeed * 0.018) % 0.28 * rotationScale   // Tilt Z
+        );
+      }
+      
       mesh.traverse?.((c) => {
         if (c.isMesh) c.castShadow = false;
       });
@@ -303,7 +527,10 @@ export function createGarbageRenderer() {
       g.add(mesh);
     }
 
-    g.scale.setScalar(2.35);
+    // Moderate overall scale based on density
+    const densityScale = r.densityLevel === "HIGH" ? 1.0 : r.densityLevel === "MEDIUM" ? 0.9 : 0.8;
+    g.scale.setScalar(densityScale);
+    
     return g;
   }
 
@@ -313,7 +540,7 @@ export function createGarbageRenderer() {
     g.name = "garbageBeacon";
 
     const glow = new THREE.Mesh(glowDiscGeo, glowDiscMat);
-    glow.position.y = 0.06;
+    glow.position.y = 0.02; // Very low
     glow.renderOrder = 48;
 
     const stem = new THREE.Mesh(stemGeo, stemMat);
@@ -399,14 +626,22 @@ export function createGarbageRenderer() {
 
       const isSel = e.record.id === selected;
       e.marker.visible = true;
-      // Far overview: compact dots; selected slightly larger
-      const ringScale = boost * (isSel ? 0.7 : far ? 0.55 : 0.75);
+      // Far overview: small dots; selected slightly larger
+      const ringScale = boost * (isSel ? 0.9 : far ? 0.6 : 0.8);
       e.marker.scale.set(ringScale, ringScale, ringScale);
 
       if (e.debris) {
+        // Show debris at MEDIUM and closer distances for better visibility
         const showPile = isSel || (!far && (medium || lod === LOD.NEAR || lod === LOD.VERY_NEAR));
         e.debris.visible = showPile;
-        e.debris.scale.setScalar(isSel ? 3.1 : medium ? 1.7 : 2.3);
+        // Enhanced LOD scaling for better visibility: far: 0.9, medium: 1.0, near: 1.05-1.1, selected: 1.15 max
+        let scale = 1.0;
+        if (far) scale = 0.9;          // Increased from 0.85
+        else if (medium) scale = 1.0;  // Keep at 1.0
+        else if (lod === LOD.NEAR) scale = 1.05; // Increased
+        else if (lod === LOD.VERY_NEAR) scale = 1.1; // Increased
+        if (isSel) scale *= 1.15; // Selected: 15% larger max (from 10%)
+        e.debris.scale.setScalar(scale);
       }
 
       if (e.beacon) {
@@ -417,9 +652,9 @@ export function createGarbageRenderer() {
       if (e.label) {
         // Selected always shows proposed dark label; optional labelsEnabled for all
         e.label.visible = isSel || (labelsEnabled && !far);
-        const ls = THREE.MathUtils.clamp(camY * 0.012, 6, 16);
-        e.label.scale.set(ls * 1.55, ls * 0.42, 1);
-        e.label.position.y = STEM_H + 2.8 + Math.min(6, camY * 0.006);
+        const ls = THREE.MathUtils.clamp(camY * 0.008, 4, 12); // Smaller label scale
+        e.label.scale.set(ls * 1.2, ls * 0.35, 1); // Smaller label
+        e.label.position.y = STEM_H + 0.6 + Math.min(4, camY * 0.004); // Closer to marker
       }
     }
   }
@@ -458,8 +693,10 @@ export function createGarbageRenderer() {
       glowDiscGeo,
       boxGeo,
       bagGeo,
-      bottleGeo,
+      bottleBodyGeo,
+      bottleNeckGeo,
       bottleCapGeo,
+      paperGeo,
       foamGeo,
       crateGeo,
     ]) {
@@ -475,6 +712,14 @@ export function createGarbageRenderer() {
       bagMat,
       foamMat,
       accentMat,
+      wrapperMat,
+      paperWhiteMat,
+      paperBeigeMat,
+      paperNewspaperMat,
+      cardboardMat,
+      plasticBlueMat,
+      plasticGreenMat,
+      plasticGrayMat,
       stemMat,
       orbMat,
       orbHaloMat,

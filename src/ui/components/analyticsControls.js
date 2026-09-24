@@ -283,6 +283,8 @@ export function mountAnalyticsControls(root, dataset) {
     const dtModeBtn = document.querySelector("#dt-mode-toggle");
     if (dtPanel) dtPanel.hidden = true;
     if (dtDock) dtDock.hidden = true;
+    // Also close the Hydrology Intelligence Panel backdrop
+    window.__MM_HYDRO_INTEL__?.hide?.();
     uiRoot?.classList.remove("dt-mode-active");
     document.body.classList.remove("dt-mode-active");
     for (const btn of [dtBtn, dtModeBtn]) {
@@ -749,8 +751,12 @@ export function mountAnalyticsControls(root, dataset) {
         if (aqiHud.isOpen()) aqiHud.hide();
         clearHydroLegend();
         setActive("digital_twin");
+        // Open Hydrology Intelligence Panel
+        window.__MM_HYDRO_INTEL__?.show?.();
       } else {
         setActive(null);
+        // Close Hydrology Intelligence Panel
+        window.__MM_HYDRO_INTEL__?.hide?.();
       }
 
       if (dtPanel) dtPanel.hidden = !targetState;
@@ -944,14 +950,21 @@ export function mountAnalyticsControls(root, dataset) {
       uiRoot?.classList.contains("dt-mode-active") ||
       document.body.classList.contains("dt-mode-active");
     if (!dtOn) return;
-    const isDtPanel = event.target.closest("#dt-panel");
-    const isDtDock = event.target.closest("#twin-analytics-dock");
-    const isDtBtn =
+    const isDtPanel    = event.target.closest("#dt-panel");
+    const isDtDock     = event.target.closest("#twin-analytics-dock");
+    const isDtBtn      =
       event.target.closest("[data-analytics='digital_twin']") ||
       event.target.closest("#dt-mode-toggle");
-    const isDtAsset = event.target.closest(".dt-strip-node");
-    const isLeftStack = event.target.closest("#left-ui-stack");
-    if (!isDtPanel && !isDtDock && !isDtBtn && !isDtAsset && !isLeftStack) {
+    const isDtAsset    = event.target.closest(".dt-strip-node");
+    const isLeftStack  = event.target.closest("#left-ui-stack");
+    // Never close while the Hydrology Intelligence Panel is open —
+    // it has pointer-events:none on its backdrop so clicks fall through
+    // to this handler, but we must NOT interpret them as "click outside DT".
+    const isHydroPanel = event.target.closest("#hydro-intel-panel") ||
+                         event.target.closest("#hydro-intel-backdrop");
+    const isHydroOpen  = !!(window.__MM_HYDRO_INTEL__?.isOpen?.());
+    if (!isDtPanel && !isDtDock && !isDtBtn && !isDtAsset && !isLeftStack &&
+        !isHydroPanel && !isHydroOpen) {
       closeDigitalTwin();
     }
   });

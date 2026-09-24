@@ -21,6 +21,9 @@ import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
 import { mountDigitalTwinPanel } from "./components/digitalTwinPanel.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
+import { mountCrossSectionModal } from "./components/crossSectionModal.js";
+import { mountThresholdGraph } from "./components/thresholdGraph.js";
+import { mountHydroIntelPanel } from "./components/hydroIntelPanel.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
 import {
   runFloodSimulation,
@@ -250,17 +253,12 @@ export function createTooltip(root) {
             : "";
         el.innerHTML = `
           <h3>${info.riverMeasure ? "RIVER · MEASURE" : "RIVER · HOVER"}</h3>
-          <div class="kv"><span class="k">LAT</span><span class="v">${info.lat.toFixed(6)}° N</span></div>
-          <div class="kv"><span class="k">LON</span><span class="v">${info.lon.toFixed(6)}° E</span></div>
-          ${info.localX != null ? `<div class="kv"><span class="k">LOCAL X</span><span class="v">${info.localX.toFixed(1)} m</span></div>` : ""}
-          ${info.localZ != null ? `<div class="kv"><span class="k">LOCAL Y</span><span class="v">${info.localZ.toFixed(1)} m</span></div>` : ""}
-          ${info.landElevation != null ? `<div class="kv"><span class="k">TERRAIN</span><span class="v">${info.landElevation.toFixed(1)} m</span></div>` : ""}
+          <div class="kv"><span class="k">LAT / LON</span><span class="v">${info.lat.toFixed(6)}° N, ${info.lon.toFixed(6)}° E</span></div>
           ${info.waterSurface != null ? `<div class="kv"><span class="k">WATER</span><span class="v">${info.waterSurface.toFixed(1)} m</span></div>` : ""}
           ${info.riverbedElevation != null ? `<div class="kv"><span class="k">RIVERBED</span><span class="v">${info.riverbedElevation.toFixed(1)} m</span></div>` : ""}
           <div class="kv"><span class="k">DEPTH</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
           ${measureRows}
           ${info.flowDirection ? `<div class="kv"><span class="k">FLOW</span><span class="v">${info.flowDirection}${info.flowSpeed != null ? ` · ${info.flowSpeed.toFixed(1)} m/s` : ""}</span></div>` : ""}
-          ${info.chainage ? `<div class="kv"><span class="k">CHAINAGE</span><span class="v">${info.chainage}</span></div>` : ""}
         `;
         return;
       }
@@ -276,6 +274,69 @@ export function createTooltip(root) {
           <div class="kv"><span class="k">Species</span><span class="v">${info.species ?? info.genus ?? "—"}</span></div>
           <div class="kv"><span class="k">Building</span><span class="v">${info.building ?? "—"}</span></div>
         `;
+        return;
+      }
+      if (info.hydrologyInspect) {
+        el.innerHTML = `
+          <h3>MULA–MUTHA HYDROLOGY</h3>
+          <div class="kv"><span class="k">Chainage</span><span class="v depth">${info.chainageLabel ?? "—"}</span></div>
+          <div class="kv"><span class="k">Coordinates</span><span class="v">${info.lat.toFixed(6)}° N, ${info.lon.toFixed(6)}° E</span></div>
+          <div class="kv"><span class="k">River Width</span><span class="v">${info.widthM != null ? Number(info.widthM).toFixed(1) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Water Surface</span><span class="v">${info.waterSurface != null ? Number(info.waterSurface).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Survey Depth</span><span class="v depth">${info.surveyDepthM != null ? Number(info.surveyDepthM).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Dynamic Depth</span><span class="v">${info.dynamicDepthM != null ? Number(info.dynamicDepthM).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Bed Elevation</span><span class="v">${info.bedElevationMsl != null ? Number(info.bedElevationMsl).toFixed(2) + " m MSL" : "— (Unverified Datum)"}</span></div>
+          <div class="kv"><span class="k">Cross-Section Area</span><span class="v">${info.crossSectionAreaM2 != null ? Number(info.crossSectionAreaM2).toFixed(1) + " m²" : "—"}</span></div>
+          <div class="kv"><span class="k">Hydraulic Radius</span><span class="v">${info.hydraulicRadiusM != null ? Number(info.hydraulicRadiusM).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Discharge (Q)</span><span class="v">${info.dischargeM3s != null ? Number(info.dischargeM3s).toFixed(1) + " m³/s" : "—"}</span></div>
+          <div class="kv"><span class="k">Velocity (v)</span><span class="v">${info.velocityMs != null ? Number(info.velocityMs).toFixed(2) + " m/s" : "—"}</span></div>
+          <div class="kv"><span class="k">Froude (Fr)</span><span class="v">${info.froudeNumber != null ? Number(info.froudeNumber).toFixed(2) : "—"}</span></div>
+          <div class="kv"><span class="k">Provenance</span><span class="v" style="color:var(--accent);font-weight:600">${info.status ?? "UNAVAILABLE"}</span></div>
+          <div class="kv"><span class="k">Source</span><span class="v" style="font-size:10px">${info.source ?? "—"}</span></div>
+          <div class="kv"><span class="k">Confidence</span><span class="v">${info.confidence ?? "MEDIUM"}</span></div>
+          <button id="tip-cs-btn" style="margin-top:8px;width:100%;background:rgba(79,200,235,0.2);border:1px solid rgba(79,200,235,0.4);color:#00f2fe;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
+            📊 View Cross-Section Geometry
+          </button>
+          <button id="tip-tg-btn" style="margin-top:6px;width:100%;background:rgba(0,229,180,0.15);border:1px solid rgba(0,229,180,0.35);color:#00e5b4;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
+            📈 View Threshold Graph
+          </button>
+          <button id="tip-hi-btn" style="margin-top:6px;width:100%;background:rgba(255,195,0,0.12);border:1px solid rgba(255,195,0,0.3);color:#ffc300;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
+            🌊 Hydrology Intelligence Panel
+          </button>
+        `;
+        el.querySelector("#tip-cs-btn")?.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          window.__MM_CROSS_SECTION_MODAL__?.show?.(info.stationRecord);
+        });
+        el.querySelector("#tip-tg-btn")?.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          // Re-dispatch river-station-selected so the threshold graph opens
+          // at this exact station even if clicked from the tooltip.
+          document.dispatchEvent(
+            new CustomEvent("river-station-selected", {
+              detail: {
+                chainage_m:    info.stationRecord?.chainage_m,
+                stationLabel:  info.chainageLabel ?? info.stationRecord?.station_label,
+                stationRecord: info.stationRecord,
+                worldPosition: null,
+              },
+            })
+          );
+        });
+        el.querySelector("#tip-hi-btn")?.addEventListener("click", (ev) => {
+          ev.stopPropagation();
+          document.dispatchEvent(
+            new CustomEvent("river-station-selected", {
+              detail: {
+                chainage_m:    info.stationRecord?.chainage_m,
+                stationLabel:  info.chainageLabel ?? info.stationRecord?.station_label,
+                stationRecord: info.stationRecord,
+                worldPosition: null,
+              },
+            })
+          );
+          window.__MM_HYDRO_INTEL__?.show?.();
+        });
         return;
       }
       const swatch = info.color
@@ -405,6 +466,9 @@ export function mountUI(root, {
   // ─── Digital Twin HUD (same left stack as River Data / geology panels) ───
   const dtPanel = mountDigitalTwinPanel(leftStack);
   const dtDock = mountTwinAnalyticsDock(root);
+  const csModal = mountCrossSectionModal(root);
+  mountThresholdGraph(root);
+  mountHydroIntelPanel(root);
   // Start hidden — toggled from analytics nav [data-analytics=digital_twin]
   dtPanel.el.hidden = true;
   dtDock.el.hidden = true;
@@ -414,6 +478,7 @@ export function mountUI(root, {
     if (!e.target.closest("#dt-close-btn")) return;
     dtPanel.el.hidden = true;
     dtDock.el.hidden = true;
+    window.__MM_HYDRO_INTEL__?.hide?.();
     root.classList.remove("dt-mode-active");
     document.body.classList.remove("dt-mode-active");
     root.querySelectorAll("[data-analytics='digital_twin'], #dt-mode-toggle").forEach((btn) => {

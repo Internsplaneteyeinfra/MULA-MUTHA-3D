@@ -44,6 +44,13 @@ import { nearestStationU } from "./riverCamera.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
 import { initDigitalTwin } from "../services/digitalTwinService.js";
+import { initHydrologyProfileService, refreshHydrologyProfile } from "../services/hydrology/hydrologyProfileService.js";
+import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
+import { hydrologyTransform } from "../services/hydrology/hydrologyTransform.js";
+import { telemetryService } from "../services/hydrology/hydrologyTelemetryService.js";
+import { hydraulicCalibrationService } from "../services/hydrology/hydraulicCalibrationService.js";
+import { historicalHydrologyService } from "../services/hydrology/historicalHydrologyService.js";
+import { verticalDatumPipeline } from "../services/hydrology/verticalDatumPipeline.js";
 
 export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}) {
   const quality = createQualityProfile();
@@ -226,6 +233,46 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const assetMarkers = createAssetMarkers(scene, {
     getTerrainY: () => SURFACE_Y + 12,
   });
+
+  // Track station water surface scene Y values (1 per corridor station)
+  const corridorStationCount = dataset.corridor?.stations?.length || 720;
+  let targetStationWaterY = new Float32Array(corridorStationCount).fill(SURFACE_Y);
+  let currentStationWaterY = new Float32Array(corridorStationCount).fill(SURFACE_Y);
+  let lastWaterYChangeTime = performance.now();
+
+  // Bootstrap dedicated hydrology profile service
+  initHydrologyProfileService(dataset.chainage).then(() => {
+    console.info("[HydrologyProfileService] Ready with physical 1D hydraulic engine");
+  }).catch((err) => console.warn("[HydrologyProfileService] Init deferred:", err));
+
+  // Subscribe to hydrology store updates for water mesh & UI synchronization
+  hydrologyStore.subscribe(({ profile, summary }) => {
+    if (summary) {
+      state.discharge_m3s = summary.discharge_m3s;
+      state.meanVelocity_ms = summary.meanVelocity_ms;
+      state.totalVolume_m3 = summary.totalVolume_m3;
+      state.hydrologyStatus = summary.discharge_status;
+      // Flow speed in shader derived from physical velocity
+      if (summary.meanVelocity_ms != null && river.material?.uniforms?.uFlowSpeed) {
+        river.material.uniforms.uFlowSpeed.value = hydrologyTransform.velocityToShaderSpeed(summary.meanVelocity_ms);
+      }
+    }
+
+    if (profile?.records?.length) {
+      // Map hydraulic depth to each corridor station along the river
+      const cStations = dataset.corridor?.stations || [];
+      const newY = new Float32Array(corridorStationCount);
+      for (let s = 0; s < corridorStationCount; s++) {
+        const meters = cStations[s]?.along ?? (s * (16961.9 / corridorStationCount));
+        const rec = hydrologyStore.getStationAtChainage(meters);
+        const depth = rec?.water_depth_m?.value ?? 1.72;
+        newY[s] = hydrologyTransform.hydraulicDepthToSceneY(depth);
+      }
+      targetStationWaterY.set(newY);
+      lastWaterYChangeTime = performance.now();
+    }
+  });
+
   // Bootstrap the digital twin service and wire marker updates
   initDigitalTwin().then((twinState) => {
     if (twinState?.assets) assetMarkers.update(twinState.assets);
@@ -834,6 +881,49 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     floodSimLayer,
     climateImpactLayer,
     hydrologyLayer,
+    // Hydrology runtime systems
+    hydrologyStore,
+    telemetryService,
+    hydraulicCalibrationService,
+    historicalHydrologyService,
+    verticalDatumPipeline,
+    async setRiverDischarge(qM3s, source = "USER_SCENARIO", provenance = "SIMULATED") {
+      return refreshHydrologyProfile({
+        discharge_m3s: qM3s,
+        source,
+        provenance,
+      });
+    },
+    async updateHydraulicProfile({ upstreamQ_m3s, downstreamWse_m_msl, dischargeSource, dischargeProvenance, timestamp } = {}) {
+      return refreshHydrologyProfile({
+        discharge_m3s: upstreamQ_m3s,
+        source: dischargeSource,
+        provenance: dischargeProvenance,
+        timestamp,
+      });
+    },
+    async setHistoricalEvent(eventId) {
+      const ev = historicalHydrologyService.selectEvent(eventId);
+      if (!ev) return null;
+      return refreshHydrologyProfile({
+        discharge_m3s: ev.discharge_m3s,
+        source: ev.source,
+        provenance: ev.provenance,
+        timestamp: ev.timestamp,
+      });
+    },
+    setBenchmarkVerification(verified, verificationData = {}) {
+      verticalDatumPipeline.setVerification({ verified, ...verificationData });
+      state.datumVerified = !!verified;
+      return refreshHydrologyProfile();
+    },
+    calibrateManning(observationPairs) {
+      const res = hydraulicCalibrationService.calibrateManning(observationPairs);
+      if (res.status === "CALIBRATED") {
+        state.manningCalibrated = true;
+      }
+      return res;
+    },
     async showHydrologyLayer(id) {
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
@@ -1135,9 +1225,28 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           ? Math.min(420, Math.max(90, (startY - eyeH) * 0.22))
           : 0;
 
+      // ── Distance-proportional duration ───────────────────────────────────
+      // River-click fly: duration scales with chainage distance so short hops
+      // feel snappy and long ones feel cinematic.  Clamp to [0.65, 3.4] s.
+      // When arriving from 2D map, always use the longer 3.4 s descent.
+      let flyDur;
+      if (wasMap2d) {
+        flyDur = 3.4;
+      } else {
+        const fromM = state.selectedChainageMeters ?? m;
+        // Use 3D world distance if the current camera is already at eye level;
+        // fall back to chainage-metres distance for robustness.
+        const curP = cam.camera?.position;
+        const horizDist = curP
+          ? Math.hypot(p.x - curP.x, p.z - curP.z)
+          : Math.abs(m - fromM);
+        // ~1 s per 1 500 m of world distance, min 0.65 s, max 3.0 s
+        flyDur = Math.min(3.0, Math.max(0.65, horizDist / 1500));
+      }
+
       cam.focusOnXZ?.(p.x, p.z, {
         ...chainageCameraOptions(p, false),
-        dur: wasMap2d ? 3.4 : 2.6,
+        dur: flyDur,
         ease: "inOutCubic",
         transitLift: descentLift,
       });
@@ -1549,19 +1658,33 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           : waterOn
             ? "water"
             : "depth";
+      // Smooth visual transition for water surface elevation
+      let hasWaterYDiff = false;
+      const lerpSpeed = Math.min(1.0, dt * 2.5); // Smooth 1-2s transition
+      for (let s = 0; s < corridorStationCount; s++) {
+        const diff = targetStationWaterY[s] - currentStationWaterY[s];
+        if (Math.abs(diff) > 0.001) {
+          currentStationWaterY[s] += diff * lerpSpeed;
+          hasWaterYDiff = true;
+        } else {
+          currentStationWaterY[s] = targetStationWaterY[s];
+        }
+      }
+
       if (
         bedExag !== lastExag ||
         state.visualMode !== lastVisual ||
         floodRise !== lastFlood ||
         waterOn !== lastWaterOn ||
-        riverLook !== lastRiverLook
+        riverLook !== lastRiverLook ||
+        hasWaterYDiff
       ) {
         lastExag = bedExag;
         lastVisual = state.visualMode;
         lastFlood = floodRise;
         lastWaterOn = waterOn;
         lastRiverLook = riverLook;
-        applyExaggeration(river, dataset, bedExag, floodRise);
+        applyExaggeration(river, dataset, bedExag, floodRise, currentStationWaterY);
         if (!apiFloodActive) floodLayer.setFloodRise?.(floodRise);
         else {
           floodLayer.setFloodRise?.(0);
