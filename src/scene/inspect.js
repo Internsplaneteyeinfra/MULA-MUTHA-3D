@@ -25,6 +25,12 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   const getRawSurveyLayer = opts.getRawSurveyLayer;
   const riverWidthMeasure = opts.riverWidthMeasure;
   const distanceMeasure = opts.distanceMeasure;
+  const siltAreaTool = opts.siltAreaTool;
+  /** Pointer-down position — a click after a map pan is not a silt point. */
+  let downXY = null;
+  canvas.addEventListener("pointerdown", (e) => {
+    downXY = { x: e.clientX, y: e.clientY };
+  });
   const SURVEY_PICK_R2 = 14 * 14;
   /** After click, keep the compact card visible for ~5 seconds. */
   let stickySurveyPoint = null;
@@ -225,6 +231,23 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
 
     if (state.cinematicActive) {
       riverWidthMeasure?.hide?.();
+      return;
+    }
+
+    // 4-point silt area analysis — own clicks; never move camera / chainage; no hover work.
+    if (siltAreaTool?.isAccepting?.()) {
+      if (!fromClick) return;
+      e.preventDefault?.();
+      e.stopPropagation?.();
+      e.stopImmediatePropagation?.();
+      if (downXY && Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y) > 6) return;
+      const hotspot = siltAreaTool?.pickHotspot?.(raycaster);
+      if (hotspot) {
+        siltAreaTool.selectHotspot(hotspot.id);
+        return;
+      }
+      const { wx, wz } = pickWorldXZ();
+      if (wx != null && wz != null) siltAreaTool?.addPoint?.(wx, wz);
       return;
     }
 

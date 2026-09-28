@@ -165,21 +165,21 @@ const LULC_YEARS = [
   },
 ];
 
-const SILT_CLASS_BOUNDS = {
+export const SILT_CLASS_BOUNDS = {
   north: 18.5473360082,
   south: 18.5207458757,
   east: 73.9935113007,
   west: 73.8549012524,
 };
 
-const SILT_CLASS_CLASSES = [
+export const SILT_CLASS_CLASSES = [
   { id: "low", label: "Low", color: "#2ECC71" },
   { id: "moderate", label: "Moderate", color: "#A8E010" },
   { id: "high", label: "High", color: "#F39C12" },
   { id: "very_high", label: "Very High", color: "#E74C3C" },
 ];
 
-const SILT_CLASS_PERIODS = [
+export const SILT_CLASS_PERIODS = [
   { id: "2026-01", label: "Jan", year: 2026, month: 1, overlay: "/data/hydrology/silt/classification/2026-01/overlay.png", legend: "/data/hydrology/silt/classification/2026-01/legend.png" },
   { id: "2026-02", label: "Feb", year: 2026, month: 2, overlay: "/data/hydrology/silt/classification/2026-02/overlay.png", legend: "/data/hydrology/silt/classification/2026-02/legend.png" },
   { id: "2026-03", label: "Mar", year: 2026, month: 3, overlay: "/data/hydrology/silt/classification/2026-03/overlay.png", legend: "/data/hydrology/silt/classification/2026-03/legend.png" },
@@ -193,7 +193,7 @@ const SILT_CLASS_PERIODS = [
 const SILT_VOLUME_BOUNDS = { ...SILT_CLASS_BOUNDS };
 
 /** Continuous silt volume ramp (YlOrBr). `value` is the scale endpoint for hover sampling. */
-const SILT_VOLUME_MAX = 94.31;
+export const SILT_VOLUME_MAX = 94.31;
 const SILT_VOLUME_CLASSES = [
   { id: "v0", label: "0", color: "#FFFFD4", value: 0, range: "low" },
   { id: "v25", label: "~24", color: "#FED98E", value: SILT_VOLUME_MAX * 0.25, range: "" },
@@ -202,7 +202,7 @@ const SILT_VOLUME_CLASSES = [
   { id: "v100", label: "94.3", color: "#993404", value: SILT_VOLUME_MAX, range: "high" },
 ];
 
-const SILT_VOLUME_PERIODS = [
+export const SILT_VOLUME_PERIODS = [
   { id: "2026-01", label: "Jan", year: 2026, month: 1, overlay: "/data/hydrology/silt/volume/2026-01/overlay.png", legend: "/data/hydrology/silt/volume/2026-01/legend.png" },
   { id: "2026-02", label: "Feb", year: 2026, month: 2, overlay: "/data/hydrology/silt/volume/2026-02/overlay.png", legend: "/data/hydrology/silt/volume/2026-02/legend.png" },
   { id: "2026-03", label: "Mar", year: 2026, month: 3, overlay: "/data/hydrology/silt/volume/2026-03/overlay.png", legend: "/data/hydrology/silt/volume/2026-03/legend.png" },

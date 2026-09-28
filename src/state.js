@@ -165,6 +165,8 @@ export const state = {
   riverMeasureWidthOn: false,
   /** River Data → Measure: two-point distance mode (independent of depth/width). */
   distanceMeasureActive: false,
+  /** The one active 2D analysis: null | "salinity" | "erosion" | "silt". Drives 2D panel visibility. */
+  active2DAnalysis: null,
   cinematicActive: false,
   cinematicPaused: false,
   cinematicProgress: 0,

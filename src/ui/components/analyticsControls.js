@@ -4,7 +4,6 @@ import {
   Pickaxe,
   Sprout,
   Sun,
-  SunMedium,
   Activity,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
@@ -44,8 +43,7 @@ const NAV_ITEMS = [
   { icon: Droplets, tip: "Water Quality", type: "Water Quality", tone: "tone-droplet", badge: null },
   { icon: Pickaxe, tip: "Pollution", type: "Pollution", tone: "tone-drill", badge: null },
   { icon: Sprout, tip: "Land Use", type: "Land Use", tone: "tone-plant", badge: null },
-  { icon: Sun, tip: "Climate impact", type: "Climate impact", tone: "tone-sun", badge: null },
-  { icon: SunMedium, tip: "AQI", type: "AQI", tone: "tone-brightness", badge: null },
+  { icon: Sun, tip: "Climate & AQI", type: "Climate impact", tone: "tone-sun", badge: null },
 ];
 
 /**
@@ -208,6 +206,30 @@ export function mountAnalyticsControls(root, dataset) {
       return resolveAqiPoint(dataset, meters);
     },
   });
+  for (const hud of [climateImpactHud, aqiHud]) {
+    const baseHide = hud.hide;
+    hud.hide = () => {
+      baseHide();
+      syncClimateSwitch();
+    };
+  }
+
+  function closeClimateAqi() {
+    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    if (aqiHud.isOpen()) aqiHud.hide();
+  }
+
+  const climateSwitch = document.createElement("div");
+  climateSwitch.className = "climate-aqi-switch map-chrome";
+  climateSwitch.setAttribute("role", "tablist");
+  climateSwitch.setAttribute("aria-label", "Climate or AQI view");
+  climateSwitch.hidden = true;
+  climateSwitch.innerHTML =
+    `<button type="button" role="tab" data-climate-view="climate">Climate</button>` +
+    `<button type="button" role="tab" data-climate-view="aqi">AQI</button>`;
+  root.appendChild(climateSwitch);
+  /** Last Climate & AQI view — the sun button reopens it. */
+  let climateView = "climate";
 
   const modal = document.createElement("div");
   modal.className = "river-analysis-modal-backdrop";
@@ -300,7 +322,7 @@ export function mountAnalyticsControls(root, dataset) {
     closeLandUseHud();
     geology.close();
     if (bodCodHud.isVisible()) bodCodHud.hide();
-    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    closeClimateAqi();
     if (aqiHud.isOpen()) aqiHud.hide();
     closeDigitalTwin();
     clearHydroLegend();
@@ -382,7 +404,7 @@ export function mountAnalyticsControls(root, dataset) {
     if (opt?.id === "bod_cod") {
       geology.close();
       closeLandUseHud();
-      if (climateImpactHud.isOpen()) climateImpactHud.hide();
+      closeClimateAqi();
       hydroLegend.hidden = true;
       hydroLegend.innerHTML = "";
       landUseTheme.hide();
@@ -476,7 +498,7 @@ export function mountAnalyticsControls(root, dataset) {
     geology.close();
     closeModal();
     closeLandUseHud();
-    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    closeClimateAqi();
     clearHydroLegend();
     window.__MM_SCENE__?.hideHydrology?.();
     setActive("hydrology");
@@ -487,7 +509,7 @@ export function mountAnalyticsControls(root, dataset) {
     geology.close();
     closeModal();
     closeWaterQualityHud();
-    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    closeClimateAqi();
     clearHydroLegend();
     window.__MM_SCENE__?.hideHydrology?.();
     setActive("Land Use");
@@ -664,7 +686,7 @@ export function mountAnalyticsControls(root, dataset) {
     closeModal();
     closeWaterQualityHud();
     closeLandUseHud();
-    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    closeClimateAqi();
     clearHydroLegend();
     // Keep top Geology icon unselected — selection lives in the geology toolbar only.
     setActive(null);
@@ -747,7 +769,7 @@ export function mountAnalyticsControls(root, dataset) {
         closeLandUseHud();
         geology.close();
         if (bodCodHud.isVisible()) bodCodHud.hide();
-        if (climateImpactHud.isOpen()) climateImpactHud.hide();
+        closeClimateAqi();
         if (aqiHud.isOpen()) aqiHud.hide();
         clearHydroLegend();
         setActive("digital_twin");
@@ -830,7 +852,7 @@ export function mountAnalyticsControls(root, dataset) {
       closeLandUseHud();
       geology.close();
       closeModal();
-      if (climateImpactHud.isOpen()) climateImpactHud.hide();
+      closeClimateAqi();
       setActive("Pollution");
       (async () => {
         try {
@@ -866,51 +888,24 @@ export function mountAnalyticsControls(root, dataset) {
       return;
     }
 
-    // Climate impact (sun): RiverEye flood / surface-water heatmap periods
+    // Climate & AQI (sun): one button — reopens the last view; switch chip flips Climate ↔ AQI.
     if (type === "Climate impact") {
-      if (climateImpactHud.isOpen()) {
+      if (climateImpactHud.isOpen() || aqiHud.isOpen()) {
         closeAll();
+        syncClimateSwitch();
         return;
       }
-      closeWaterQualityHud();
-      closeLandUseHud();
-      geology.close();
-      closeModal();
-      if (bodCodHud.isVisible()) bodCodHud.hide();
-      if (aqiHud.isOpen()) aqiHud.hide();
-      clearHydroLegend();
-      window.__MM_SCENE__?.hideHydrology?.();
-      activeHydroId = "climate_impact";
-      setActive("Climate impact");
-      void climateImpactHud.show();
-      return;
-    }
-
-    // AQI (sun-medium): RiverEye live air quality
-    if (type === "AQI") {
-      if (aqiHud.isOpen()) {
-        closeAll();
-        return;
-      }
-      closeWaterQualityHud();
-      closeLandUseHud();
-      geology.close();
-      closeModal();
-      if (climateImpactHud.isOpen()) climateImpactHud.hide();
-      if (bodCodHud.isVisible()) bodCodHud.hide();
-      clearHydroLegend();
-      window.__MM_SCENE__?.hideHydrology?.();
-      activeHydroId = "aqi";
-      setActive("AQI");
-      void aqiHud.show();
+      if (climateView === "aqi") openAqiView();
+      else openClimateView();
       return;
     }
 
     closeWaterQualityHud();
     closeLandUseHud();
     geology.close();
-    if (climateImpactHud.isOpen()) climateImpactHud.hide();
+    closeClimateAqi();
     if (aqiHud.isOpen()) aqiHud.hide();
+    syncClimateSwitch();
     setActive(type);
     modal.hidden = false;
 
@@ -919,7 +914,74 @@ export function mountAnalyticsControls(root, dataset) {
       await openForecast();
       return;
     }
+    await openLegacy(type);
+  });
 
+  function openClimateView() {
+    climateView = "climate";
+    closeWaterQualityHud();
+    closeLandUseHud();
+    geology.close();
+    closeModal();
+    if (bodCodHud.isVisible()) bodCodHud.hide();
+    if (aqiHud.isOpen()) aqiHud.hide();
+    clearHydroLegend();
+    window.__MM_SCENE__?.hideHydrology?.();
+    activeHydroId = "climate_impact";
+    setActive("Climate impact");
+    void climateImpactHud.show();
+    syncClimateSwitch();
+  }
+
+  function openAqiView() {
+    climateView = "aqi";
+    closeWaterQualityHud();
+    closeLandUseHud();
+    geology.close();
+    closeModal();
+    closeClimateAqi();
+    if (bodCodHud.isVisible()) bodCodHud.hide();
+    clearHydroLegend();
+    window.__MM_SCENE__?.hideHydrology?.();
+    activeHydroId = "aqi";
+    setActive("Climate impact");
+    void aqiHud.show();
+    syncClimateSwitch();
+  }
+
+  function syncClimateSwitch() {
+    const climateOn = climateImpactHud.isOpen();
+    const aqiOn = aqiHud.isOpen();
+    climateSwitch.hidden = !(climateOn || aqiOn);
+    climateSwitch.querySelectorAll("[data-climate-view]").forEach((b) => {
+      const on = b.dataset.climateView === (aqiOn ? "aqi" : "climate");
+      b.classList.toggle("is-active", on);
+      b.setAttribute("aria-selected", on ? "true" : "false");
+    });
+    if (!climateOn && !aqiOn && activeType === "Climate impact") setActive(null);
+  }
+
+  climateSwitch.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-climate-view]");
+    if (!btn) return;
+    e.preventDefault();
+    e.stopPropagation();
+    if (btn.dataset.climateView === "aqi") {
+      if (!aqiHud.isOpen()) openAqiView();
+    } else if (!climateImpactHud.isOpen()) {
+      openClimateView();
+    }
+  });
+  // HUD Back buttons stop propagation — observe them in capture phase, sync after they hide.
+  document.addEventListener(
+    "click",
+    (e) => {
+      if (e.target.closest?.(".climate-impact-back, .aqi-back")) window.setTimeout(syncClimateSwitch, 0);
+    },
+    true,
+  );
+
+  async function openLegacy(type) {
     const labels = {
       hydrograph: "HYDROGRAPH",
       simulations: "DATA SIMULATIONS",
@@ -942,7 +1004,7 @@ export function mountAnalyticsControls(root, dataset) {
         <p class="analytics-unavailable">${escapeHtml(error.message || "Service unavailable")}</p>
         <p class="analytics-note">This modelled analytics endpoint is not available in the production build.</p>`;
     }
-  });
+  }
 
   document.addEventListener("click", (event) => {
     const uiRoot = document.getElementById("ui-root");

@@ -17,6 +17,7 @@ import { createCameraSystem } from "./cinematic.js";
 import { attachInspect } from "./inspect.js";
 import { createRiverWidthMeasure } from "./riverWidthMeasure.js";
 import { createDistanceMeasure } from "./distanceMeasure.js";
+import { createSiltAreaTool } from "./siltAreaTool.js";
 import { createFlowParticles } from "./flowParticles.js";
 import { createWaterEffects } from "./waterEffects.js";
 import { createRiverRain } from "./riverRain.js";
@@ -344,6 +345,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(riverWidthMeasure.group);
   const distanceMeasure = createDistanceMeasure(dataset);
   scene.add(distanceMeasure.group);
+  const siltAreaTool = createSiltAreaTool();
+  scene.add(siltAreaTool.group);
 
   attachInspect(canvas, getCamera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip, {
     getDrainageGroup: () => drainageLayer,
@@ -353,6 +356,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     getRawSurveyLayer: () => rawSurveyPoints,
     riverWidthMeasure,
     distanceMeasure,
+    siltAreaTool,
   });
 
   // Progressive load: core scene visible first (river + terrain + water)
@@ -1420,6 +1424,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     refreshRiverStationMeasure,
     setDistanceMeasureActive(on) {
       // Leaving depth/width 3D overlays so they don't compete with free pick.
+      if (on && siltAreaTool.isActive()) siltAreaTool.setActive(false);
       if (on) {
         state.riverMeasureDepthOn = false;
         state.riverMeasureWidthOn = false;
@@ -1438,6 +1443,31 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     getDistanceMeasureSnapshot() {
       return distanceMeasure.getSnapshot();
+    },
+    setSiltAnalysisActive(on) {
+      if (on && distanceMeasure.isActive()) {
+        distanceMeasure.setActive(false);
+        document.dispatchEvent(new CustomEvent("profile-analysis-exit"));
+      }
+      siltAreaTool.setActive(!!on);
+      return siltAreaTool.getSnapshot();
+    },
+    setSiltAnalysisSuspended(on) {
+      siltAreaTool.setSuspended(!!on);
+      return siltAreaTool.getSnapshot();
+    },
+    resetSiltAnalysis() {
+      siltAreaTool.reset();
+      return siltAreaTool.getSnapshot();
+    },
+    addSiltAnalysisPoint(x, z) {
+      return siltAreaTool.addPoint(x, z);
+    },
+    selectSiltHotspot(id) {
+      return siltAreaTool.selectHotspot(id);
+    },
+    getSiltAnalysisSnapshot() {
+      return siltAreaTool.getSnapshot();
     },
     setDistanceMeasureProfileCursor(sample) {
       distanceMeasure.setProfileCursor?.(sample);
@@ -1906,6 +1936,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       riverWidthMeasure.update?.(cam.camera);
       distanceMeasure.update?.(cam.camera);
+      siltAreaTool.update(cam.camera);
       assetMarkers.tick(dt);
       cinematic.update(dt);
       if (fishing) fishing.update(dt, cam.camera);

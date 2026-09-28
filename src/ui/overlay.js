@@ -14,6 +14,7 @@ import { mountSettingsPanel } from "./components/settingsPanel.js";
 import { mountWaterFlowControl } from "./components/waterFlowControl.js";
 import { mountChainageRuler } from "./components/chainageRuler.js";
 import { mountMap2dDataPanel } from "./components/map2dDataPanel.js";
+import { mountSiltAnalysisPanel } from "./components/siltAnalysisPanel.js";
 import { mountJoiningStreamsNav } from "./components/joiningStreamsNav.js";
 import { mountChainageStepHud } from "./components/chainageStepHud.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
@@ -761,17 +762,21 @@ export function mountUI(root, {
   const nav = mountNavigationControls(root, {
     onOverview: () => {
       map2dData?.leave();
+      siltAnalysis?.leave();
       onCamera("overview");
       nav.syncActive();
       // Keep overview clean — close chainage side panel (notes stay collapsed next open)
       chainPanel?.close?.();
     },
     onRiverSide: () => {
+      map2dData?.resume();
+      siltAnalysis?.resume();
       onCamera("aerial");
       nav.syncActive();
     },
     on3D: () => {
       map2dData?.leave();
+      siltAnalysis?.leave();
       // Return to the selected chainage (shared with 2D); 8+000 only when nothing is selected.
       window.__MM_SCENE__?.goToChainageView?.(state.selectedChainageMeters ?? 8000);
       nav.syncActive();
@@ -787,7 +792,8 @@ export function mountUI(root, {
   nav.setFloodPressed?.(state.showFloodBar);
 
   const chainRuler = mountChainageRuler(root, dataset);
-  const map2dData = mountMap2dDataPanel(leftStack);
+  const map2dData = mountMap2dDataPanel(leftStack, riverData);
+  const siltAnalysis = mountSiltAnalysisPanel(root, riverData, dataset);
   const chainStepHud = mountChainageStepHud(root, dataset);
   mountJoiningStreamsNav(root);
   chainPanel = mountChainagePanel(root, dataset);
@@ -1310,6 +1316,7 @@ export function mountUI(root, {
 
     chainRuler?.update?.();
     chainStepHud?.update?.();
+    siltAnalysis.update();
     map2dData.update();
     syncCamButtons();
     requestAnimationFrame(tickHud);
