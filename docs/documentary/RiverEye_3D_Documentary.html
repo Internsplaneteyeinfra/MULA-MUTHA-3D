@@ -212,7 +212,6 @@
     <tr><td>Alerts</td><td>Danger and warning cards, or "No active threshold exceedances".</td></tr>
     <tr><td>Margin Board</td><td>Every asset with chainage, risk bar, margin and chance of exceeding the limit.</td></tr>
   </table>
-  <figure><img src="hydro_intel.png" alt="Hydrology Intelligence" /><figcaption>Hydrology Intelligence panel inside the Digital Twin mode</figcaption></figure>
   <h3>Water Level Forecast</h3>
   <p>Shows the water surface along the river for the next 6, 12, 24, 48 or 72 hours with a median line and a P10–P90 range, so the user can see both the most likely level and the possible extremes.</p>
   <h3>River Cross-Section &amp; Hydraulic Profile</h3>
@@ -293,7 +292,7 @@
   <figure><img src="salinity.png" alt="Salinity" /><figcaption>Salinity draped across the river and banks — green is low, red is higher</figcaption></figure>
   <div class="case">
     <h4>Case study — Reading salinity and sediment</h4>
-    <p>The salinity layer shows the main channel in the green–yellow (very low to low) range with a red band of higher values in the central channel near the Sangam, where slower water and incoming drains meet. The TSS layer highlights reaches where suspended sediment rises above 50 mg/L after rain, and the Chlorophyll-a layer flags reaches above 2 µg/L where algae growth is likely.</p>
+    <p>At Bund Garden (CH 3+450), the salinity layer shows the banks and shallow edges in the green–yellow (very low to low) range, with a red band of higher values running down the central channel. In the same way, the TSS layer picks out reaches where suspended sediment is above 50 mg/L, and the Chlorophyll-a layer flags reaches above 2 µg/L, where algae growth is more likely. Hovering anywhere on the river gives the exact value and class for that point.</p>
   </div>
 </section>
 
@@ -321,7 +320,7 @@
   <figure><img src="bodcod.png" alt="BOD-COD" /><figcaption>BOD–COD view: reach card (left), accuracy measure (right), history slider above the chainage ruler</figcaption></figure>
   <div class="case">
     <h4>Case study — Organic pollution on 28 September 2026, 23:00</h4>
-    <p>The first reach (<b>0–2 km, near the Sangam</b>) was <b>Class D</b> with BOD <b>8.0 mg/L</b> (likely range 6.5–9.5) and COD <b>17.1 mg/L</b> (13.8–20.3) — suitable for fisheries but not for bathing. Across the whole river, the average BOD was <b>11.8 mg/L</b> and average COD <b>28.9 mg/L</b>. <b>All 9 of 9 reaches</b> were above the bathing limit of 3 mg/L, and the worst reach (R09) reached <b>17.2 mg/L BOD</b> (Class E). This shows organic pollution increasing downstream as city drains join the river.</p>
+    <p>The first reach (<b>0–2 km, near the Sangam</b>) was <b>Class D</b> with BOD <b>8.0 mg/L</b> (likely range 6.5–9.5) and COD <b>17.1 mg/L</b> (13.8–20.3) — suitable for fisheries but not for bathing. Across the whole river, the average BOD was <b>11.8 mg/L</b> and average COD <b>28.9 mg/L</b>. <b>All 9 of 9 reaches</b> were above the bathing limit of 3 mg/L, and the worst reach (R09) reached <b>17.2 mg/L BOD</b> (Class E). The reach tour and class ruler make it easy to see which stretches need the most attention.</p>
   </div>
 </section>
 
@@ -368,7 +367,7 @@
   </div>
   <div class="case">
     <h4>Case study — A river inside a growing city</h4>
-    <p>The LULC layer shows the river channel as water bodies surrounded almost entirely by <b>settlements</b> on both banks, with forest and crop land only in small patches. Stepping from <b>2021 to 2026</b> shows settlement area pressing closer to the banks. The Silt Classification layer, stepped month by month from <b>January to July 2026</b>, shows silt rising to High and Very High in slow-flowing reaches as the monsoon begins.</p>
+    <p>The LULC layer shows the river channel as water bodies surrounded almost entirely by <b>settlements</b> on both banks, with forest and crop land only in small patches. The Year stepper lets you compare every year from <b>2021 to 2026</b> to see how the land around the river has changed. The Silt Classification layer can be stepped month by month from <b>January to July 2026</b> to follow where silt builds up from Low to Very High through the dry season and into the monsoon.</p>
   </div>
 </section>
 
@@ -421,7 +420,7 @@
   <figure><img src="aqi.png" alt="AQI" /><figcaption>Live Air Quality at CH 0+000 (Sangam), 24-hour trend on 28 September 2026</figcaption></figure>
   <div class="case">
     <h4>Case study — A day of air quality at the Sangam</h4>
-    <p>On <b>28 September 2026</b> at CH 0+000, the AQI was about <b>70 (Moderate)</b> at midnight and dropped to about <b>55</b> in the early morning (04:00). As morning traffic built up it rose past <b>100</b> at 07:00 and stayed around <b>105–110 (Poor)</b> until 10:00, easing to about <b>95</b> by noon. PM2.5 and PM10 stayed low and steady, so the morning peak was driven mainly by traffic gases.</p>
+    <p>On <b>28 September 2026</b> at CH 0+000, the AQI was about <b>70 (Moderate)</b> at midnight and dropped to about <b>55</b> in the early morning (04:00). As morning traffic built up it rose past <b>100</b> at 07:00 and stayed around <b>105–110 (Poor)</b> until 10:00, easing to about <b>95</b> by noon. The PM2.5 and PM10 lines stayed low and steady through the day, while the overall AQI line carried the morning rise.</p>
   </div>
 </section>
 
@@ -533,10 +532,10 @@
     <tr><td>Hydrology</td><td>65 m³/s at Sangam with 1.69 m depth; water level falls from 535.4 m to 528.4 m over 16 km; 7 Normal, 1 Warning, 0 Critical locations.</td></tr>
     <tr><td>Event Replay</td><td>August 2024 peak of 980 m³/s — about 28 times the March 2024 dry-season flow — brought the river near bank-full.</td></tr>
     <tr><td>Geology</td><td>Silica-rich (34.1%) and basaltic (16.4%) ground; 83.1% of banks show no erosion; 60 drains join the river.</td></tr>
-    <tr><td>Water Quality</td><td>Salinity mostly very low to low; higher values near the Sangam confluence.</td></tr>
+    <tr><td>Water Quality</td><td>Salinity very low to low on the banks at Bund Garden, with higher values in the central channel.</td></tr>
     <tr><td>BOD–COD</td><td>All 9 reaches above the bathing limit; river average BOD 11.8 mg/L; worst reach 17.2 mg/L (Class E).</td></tr>
     <tr><td>Pollution</td><td>About 65 garbage sites across six river sides, 8 on the Sangam side alone.</td></tr>
-    <tr><td>Land Use</td><td>Settlements dominate both banks; silt rises to High/Very High as the monsoon starts.</td></tr>
+    <tr><td>Land Use</td><td>Settlements dominate both banks; land use comparable year by year from 2021 to 2026, silt month by month in 2026.</td></tr>
     <tr><td>Climate Impact</td><td>Flood peak of 69.67 ha on 3–15 July 2026; open water peaked at 169.93 ha in early August.</td></tr>
     <tr><td>Air Quality</td><td>AQI rose from about 55 (early morning) to 105–110 (Poor) during the morning at the Sangam.</td></tr>
     <tr><td>Fishing</td><td>9 fishing zones; L1 near the Sangam at 1.75 m depth with High activity.</td></tr>

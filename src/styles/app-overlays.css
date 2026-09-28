@@ -27,6 +27,15 @@
   stroke: #0b1a2e;
   stroke-width: 1.6;
 }
+.bridge-label-link,
+.bridge-label-dot {
+  opacity: 0;
+  transition: opacity 0.2s ease;
+}
+.bridge-label-link.is-visible,
+.bridge-label-dot.is-visible {
+  opacity: 1;
+}
 .bridge-label {
   position: absolute;
   top: 0;
@@ -43,10 +52,14 @@
   color: #fff;
   font-family: Inter, system-ui, sans-serif;
   visibility: hidden;
-  will-change: transform;
+  opacity: 0;
+  transition: opacity 0.2s ease, visibility 0s linear 0.2s;
+  will-change: transform, opacity;
 }
 .bridge-label.is-visible {
   visibility: visible;
+  opacity: 1;
+  transition: opacity 0.2s ease, visibility 0s;
 }
 .bridge-label__icon {
   display: inline-flex;

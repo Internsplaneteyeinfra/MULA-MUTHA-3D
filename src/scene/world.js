@@ -869,6 +869,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     river,
     atmosphericSky,
     riverRain,
+    bridgeLabelStates: () => bridgeLabels.items(),
     applyLiveWeather(weather) {
       atmosphericSky.applyLiveWeather?.(weather);
       riverRain.applyLiveWeather?.(weather);
