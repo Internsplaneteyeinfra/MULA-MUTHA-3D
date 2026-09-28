@@ -246,6 +246,12 @@ export function rawDtmElevationAt(x, z) {
   return Number.isFinite(y) ? y : null;
 }
 
+/** FABDEM elevation in metres (EGM2008 ≈ MSL) at a WGS84 point. */
+export function dtmElevationAtLonLat(lon, lat) {
+  const e = activeDtm?.sampleLonLat?.(lon, lat);
+  return Number.isFinite(e) ? e : null;
+}
+
 function nearest(x, z, stations) {
   let bestI = 0;
   let bestD = Infinity;

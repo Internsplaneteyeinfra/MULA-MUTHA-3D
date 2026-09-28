@@ -81,7 +81,7 @@ export const state = {
   vegetationMessage: "",
   showUrban: true,
   showBridges: true,
-  showBridgeNames: false,
+  showBridgeNames: true,
   /** Terrain / DTM is always on — not a Layers toggle. */
   showTerrain: true,
   /** Google Earth KML polygon + centerline (driven by Map Reference Grid). */

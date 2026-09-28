@@ -9,6 +9,7 @@ import { LineMaterial } from "three/examples/jsm/lines/LineMaterial.js";
 import { lonLatToLocal } from "../geo/geoReference.js";
 import { terrainHeightAt, rawDtmElevationAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
+import { applyDrapeDepth } from "./drapeDepth.js";
 
 const MAX_POINTS_PER_CLASS = 14000;
 const FLOOD_COLOR = new THREE.Color("#c2372a");
@@ -241,12 +242,11 @@ export function createClimateImpactLayer(dataset) {
       map: getHeatSprite(),
       transparent: true,
       opacity,
-      depthWrite: false,
-      depthTest: false,
       blending: THREE.AdditiveBlending,
       side: THREE.DoubleSide,
       toneMapped: false,
     });
+    applyDrapeDepth(mat);
     const mesh = new THREE.InstancedMesh(geo, mat, count);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();

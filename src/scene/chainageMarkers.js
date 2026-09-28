@@ -177,7 +177,7 @@ export function createChainageLayer(dataset) {
   domContainer.style.width = "100%";
   domContainer.style.height = "100%";
   domContainer.style.pointerEvents = "none";
-  domContainer.style.zIndex = "40";
+  domContainer.style.zIndex = "9";
   document.body.appendChild(domContainer);
 
   const destinationEls = [];
@@ -301,10 +301,8 @@ export function createChainageLayer(dataset) {
         let distText = "";
         let absDist = Infinity;
 
-        if (isOverview) {
-          shouldShow = true;
-          distText = formatStation(item.dest.chainage_m);
-        } else if (sel != null) {
+        // Overview landmark labels are placed by bridgeLabels.js (shared collision pass).
+        if (!isOverview && sel != null) {
           absDist = Math.abs(item.dest.chainage_m - sel);
           if (current && current.id === item.dest.id) {
             shouldShow = true;

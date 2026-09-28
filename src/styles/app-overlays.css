@@ -1,3 +1,105 @@
+/* ─── BRIDGE LABELS (screen-space, collision-placed) ─── */
+.bridge-label-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  /* Below #ui-root (z 10) so panels and modals always cover map labels. */
+  z-index: 9;
+  overflow: hidden;
+}
+.bridge-label-layer[hidden] {
+  display: none;
+}
+.bridge-label-links {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+}
+.bridge-label-link {
+  stroke: rgba(255, 255, 255, 0.92);
+  stroke-width: 1.4;
+  filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.7));
+}
+.bridge-label-dot {
+  fill: #fff;
+  stroke: #0b1a2e;
+  stroke-width: 1.6;
+}
+.bridge-label {
+  position: absolute;
+  top: 0;
+  left: 0;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 270px;
+  padding: 6px 12px 6px 9px;
+  border-radius: 7px;
+  background: rgba(8, 21, 40, 0.92);
+  border: 1px solid rgba(86, 196, 255, 0.7);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.45);
+  color: #fff;
+  font-family: Inter, system-ui, sans-serif;
+  visibility: hidden;
+  will-change: transform;
+}
+.bridge-label.is-visible {
+  visibility: visible;
+}
+.bridge-label__icon {
+  display: inline-flex;
+  flex: 0 0 auto;
+  color: #e6f4ff;
+}
+.bridge-label--landmark {
+  padding: 4px 10px 4px 7px;
+  gap: 6px;
+  border-color: rgba(86, 196, 255, 0.4);
+  background: rgba(8, 21, 40, 0.84);
+}
+.bridge-label--landmark .bridge-label__icon {
+  color: #46c8ff;
+}
+.bridge-label--landmark .bridge-label__text b {
+  font-size: 13px;
+  font-weight: 600;
+}
+.bridge-label--landmark .bridge-label__text small {
+  font-size: 11.5px;
+}
+.bridge-label__text {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  line-height: 1.2;
+}
+.bridge-label__text b {
+  font-size: 15px;
+  font-weight: 700;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.bridge-label__text small {
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #46c8ff;
+  font-variant-numeric: tabular-nums;
+}
+@media (max-width: 1024px) {
+  .bridge-label { max-width: 190px; padding: 5px 10px 5px 8px; gap: 6px; }
+  .bridge-label__text b { font-size: 13.5px; }
+  .bridge-label__text small { font-size: 11.5px; }
+}
+@media (max-width: 640px) {
+  .bridge-label { max-width: 150px; padding: 4px 8px 4px 6px; }
+  .bridge-label__icon svg { width: 14px; height: 14px; }
+  .bridge-label__text b { font-size: 12px; }
+  .bridge-label__text small { font-size: 10.5px; }
+}
+
 /* ─── CHAINAGE DESTINATION MARKERS ─── */
 .chainage-destination-marker,
 .chainage-current-marker {

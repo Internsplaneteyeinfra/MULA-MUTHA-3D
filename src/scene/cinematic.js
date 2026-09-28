@@ -383,7 +383,7 @@ export function createCameraSystem(canvas, dataset) {
       state.showVegetation = true;
       state.showOsmTrees = true;
       state.showBridges = true;
-      state.showBridgeNames = false;
+      state.showBridgeNames = true;
       state.showFish = true;
       state.showFishDebug = false;
       state.showChainage = true;

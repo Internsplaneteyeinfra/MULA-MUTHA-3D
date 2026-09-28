@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>RiverEye 3D — Mula–Mutha River Digital Twin</title>
+<style>
+  @page { size: A4; margin: 16mm 15mm 18mm; }
+  * { box-sizing: border-box; }
+  body { font-family: "Segoe UI", Inter, Arial, sans-serif; color: #10233f; font-size: 10.5pt; line-height: 1.5; margin: 0; }
+  h1, h2, h3 { color: #0b2a55; margin: 0 0 6pt; line-height: 1.25; }
+  h2 { font-size: 17pt; border-bottom: 2.5pt solid #1a7cf0; padding-bottom: 4pt; margin-top: 0; }
+  h3 { font-size: 12pt; margin-top: 12pt; color: #12407a; }
+  p { margin: 0 0 7pt; }
+  ul { margin: 0 0 8pt; padding-left: 16pt; }
+  li { margin-bottom: 2pt; }
+  .page { page-break-before: always; }
+  .cover { height: 255mm; display: flex; flex-direction: column; justify-content: center; text-align: center;
+    background: linear-gradient(160deg, #0b2a55 0%, #12407a 55%, #1a7cf0 100%); color: #fff; border-radius: 10pt; padding: 30mm 18mm; }
+  .cover h1 { color: #fff; font-size: 34pt; letter-spacing: 1pt; }
+  .cover .sub { font-size: 16pt; color: #cfe6ff; margin-bottom: 18pt; }
+  .cover .tag { font-size: 11pt; color: #e6f2ff; max-width: 130mm; margin: 0 auto 22pt; }
+  .cover img { width: 100%; border-radius: 8pt; border: 2pt solid rgba(255,255,255,0.35); margin: 10pt 0 18pt; }
+  .cover .meta { font-size: 10pt; color: #bcd8f7; }
+  table { width: 100%; border-collapse: collapse; margin: 4pt 0 10pt; font-size: 9.5pt; page-break-inside: avoid; }
+  th { background: #e8f1fc; color: #0b2a55; text-align: left; padding: 5pt 7pt; border: 0.6pt solid #c9d9ee; }
+  td { padding: 4.5pt 7pt; border: 0.6pt solid #d8e3f1; vertical-align: top; }
+  tr:nth-child(even) td { background: #f7faff; }
+  figure { margin: 6pt 0 10pt; page-break-inside: avoid; }
+  figure img { width: 100%; border-radius: 6pt; border: 0.8pt solid #c9d9ee; }
+  figcaption { font-size: 8.5pt; color: #5b6b8c; margin-top: 3pt; text-align: center; }
+  .case { background: #f0f7ff; border-left: 4pt solid #1a7cf0; border-radius: 4pt; padding: 8pt 11pt; margin: 8pt 0 10pt; page-break-inside: avoid; }
+  .case h4 { margin: 0 0 4pt; color: #1a7cf0; font-size: 10.5pt; text-transform: uppercase; letter-spacing: 0.4pt; }
+  .live { display: inline-block; background: #dcfce7; color: #15803d; border-radius: 3pt; padding: 0 5pt; font-size: 8pt; font-weight: 700; letter-spacing: 0.5pt; vertical-align: middle; }
+  .grid2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8pt; }
+  .kpis { display: grid; grid-template-columns: repeat(4, 1fr); gap: 6pt; margin: 6pt 0 10pt; }
+  .kpi { background: #fff; border: 0.8pt solid #c9d9ee; border-radius: 5pt; padding: 6pt 8pt; }
+  .kpi b { display: block; font-size: 14pt; color: #0b2a55; }
+  .kpi span { font-size: 8pt; color: #5b6b8c; text-transform: uppercase; letter-spacing: 0.3pt; }
+  .toc li { margin-bottom: 3pt; }
+  .note { font-size: 9pt; color: #5b6b8c; }
+</style>
+</head>
+<body>
+
+<!-- ═════════ COVER ═════════ -->
+<section class="cover">
+  <h1>RiverEye 3D</h1>
+  <div class="sub">Mula–Mutha River Digital Twin — Project Documentary</div>
+  <div class="tag">A live, interactive 3D model of the Mula–Mutha river through Pune, bringing together river flow, geology, water quality, pollution, land use, climate and air quality on one map.</div>
+  <img src="overview.png" alt="RiverEye 3D overview" />
+  <div class="meta">Pune, Maharashtra · Reach length 16.96 km · September 2026</div>
+</section>
+
+<!-- ═════════ CONTENTS ═════════ -->
+<section class="page">
+  <h2>Contents</h2>
+  <ol class="toc">
+    <li>Introduction — what RiverEye 3D is</li>
+    <li>The river at a glance</li>
+    <li>How the model works — chainage, navigation and controls</li>
+    <li>3D Digital Twin &amp; Current Hydrology <span class="live">LIVE</span></li>
+    <li>Hydrology Intelligence, Forecast, Cross-Section &amp; Threshold tools</li>
+    <li>Geology — Lithology, Erosion, Joining Streams, Main Stem, Bathymetry</li>
+    <li>Water Quality — Salinity, TSS, Chlorophyll-a</li>
+    <li>BOD–COD / Organic Pollution <span class="live">LIVE</span></li>
+    <li>Pollution — Garbage sites and density</li>
+    <li>Land Use — LULC, Silt, Vegetation</li>
+    <li>Climate Impact — Monsoon 2026 flooding</li>
+    <li>Air Quality (AQI) <span class="live">LIVE</span></li>
+    <li>Live Weather &amp; Live Reach <span class="live">LIVE</span></li>
+    <li>Flood Simulation</li>
+    <li>Fishing Zones &amp; Fish Species</li>
+    <li>Bridges, Landmarks &amp; Supporting Tools</li>
+    <li>Summary of live information</li>
+    <li>Case study summary &amp; conclusion</li>
+  </ol>
+
+  <h2 style="margin-top:18pt">1. Introduction</h2>
+  <p><b>RiverEye 3D</b> is a digital twin of the Mula–Mutha river. It rebuilds the river, its banks, bridges, roads, buildings, trees and terrain as a realistic 3D scene that you can fly through in a web browser.</p>
+  <p>On top of this 3D scene the model shows river information: how much water is flowing, how deep it is, what rock and soil lie along the banks, how clean the water is, where garbage collects, how the land around the river is used, how the monsoon floods the corridor, and what the air quality is along the river right now.</p>
+  <p>Everything is linked to one idea: the <b>chainage</b> — the distance in metres along the river. Pick a chainage, and every panel shows the information for that exact spot on the river.</p>
+  <h3>Who it is for</h3>
+  <ul>
+    <li><b>City and river planners</b> — to see river condition, flood risk and pollution in one place.</li>
+    <li><b>Environmental teams</b> — to track water quality, garbage hotspots and vegetation health.</li>
+    <li><b>Disaster management</b> — to follow live flow, forecasts and flood extent.</li>
+    <li><b>Students and the public</b> — to understand the river in a visual, simple way.</li>
+  </ul>
+</section>
+
+<!-- ═════════ RIVER AT A GLANCE ═════════ -->
+<section class="page">
+  <h2>2. The river at a glance</h2>
+  <p>The model covers the Mula–Mutha river from the upstream side near the Sangam (the meeting point of the Mula and Mutha rivers) to Manjari downstream. Water flows from <b>west to east</b>.</p>
+  <div class="kpis">
+    <div class="kpi"><b>16.96 km</b><span>River reach</span></div>
+    <div class="kpi"><b>1,698</b><span>Chainage stations (every 10 m)</span></div>
+    <div class="kpi"><b>1.69–1.97 m</b><span>Typical water depth</span></div>
+    <div class="kpi"><b>182 m</b><span>Mean channel width</span></div>
+  </div>
+  <h3>Landmarks along the river</h3>
+  <table>
+    <tr><th>Landmark</th><th>Chainage</th><th>Landmark</th><th>Chainage</th></tr>
+    <tr><td>Sangam</td><td>0+622</td><td>Hadapsar</td><td>9+132</td></tr>
+    <tr><td>Bund Garden</td><td>3+452</td><td>Mundhwa</td><td>9+562</td></tr>
+    <tr><td>Dhanori</td><td>5+902</td><td>Kharadi</td><td>10+752</td></tr>
+    <tr><td>Wadgaon Sheri</td><td>7+532</td><td>Manjari</td><td>15+522</td></tr>
+  </table>
+  <h3>Bridges shown in the model</h3>
+  <table>
+    <tr><th>Bridge</th><th>Chainage</th><th>Bridge</th><th>Chainage</th></tr>
+    <tr><td>Shivaji Bridge</td><td>0+180</td><td>Fitzgerald Bridge</td><td>3+440</td></tr>
+    <tr><td>Dengle Bridge</td><td>0+280</td><td>Aga Khan Bridge</td><td>5+510</td></tr>
+    <tr><td>Sangam Bridge</td><td>0+390</td><td>Mundhwa Bridge</td><td>8+700</td></tr>
+    <tr><td>Babasaheb Ambedkar Bridge</td><td>3+300</td><td>Sangamwadi Bridge</td><td>near Sangam</td></tr>
+  </table>
+  <figure><img src="bridges_close.png" alt="Bridge labels" /><figcaption>Every bridge carries a clear label with its name and chainage, connected to the real bridge deck.</figcaption></figure>
+</section>
+
+<!-- ═════════ HOW IT WORKS ═════════ -->
+<section class="page">
+  <h2>3. How the model works</h2>
+  <h3>Chainage — the backbone</h3>
+  <p>Chainage is written as <b>K+MMM</b>. For example <b>3+452</b> means 3 km and 452 m from the start of the river reach. A ruler along the bottom of the screen shows the full river from 0+000 to 16+961, and a navigator at the top (← 10+488 →) moves the selection along the river.</p>
+  <p>When the chainage changes, the camera flies to that spot and every panel — hydrology, water quality, BOD–COD, air quality and weather — updates to show that location.</p>
+  <h3>Main screen elements</h3>
+  <table>
+    <tr><th>Element</th><th>What it does</th></tr>
+    <tr><td>Top toolbar</td><td>Opens the modules: 3D Digital Twin, Geology, Water Quality, Pollution, Land Use, Climate Impact and AQI.</td></tr>
+    <tr><td>River Data panel</td><td>Shows the current chainage, the water depth at that point, and a Measure tool.</td></tr>
+    <tr><td>Chainage navigator</td><td>← / → buttons to step along the river; the selected point is highlighted on the river.</td></tr>
+    <tr><td>Chainage ruler</td><td>Full-length ruler at the bottom; click or drag to jump anywhere.</td></tr>
+    <tr><td>Water Depth legend</td><td>Colour scale from shallow to deep (1.69 m to 2.00 m) for the river surface.</td></tr>
+    <tr><td>Live Reach &amp; Live Weather</td><td>Top-right strip with discharge, BOD, COD, temperature, sky condition and wind.</td></tr>
+    <tr><td>Right-side tools</td><td>Overview camera, 2D / 3D view, Layers, Settings and Flood controls.</td></tr>
+  </table>
+  <h3>Camera views</h3>
+  <ul>
+    <li><b>Overview</b> — wide aerial view of the whole corridor with bridge and landmark labels.</li>
+    <li><b>3D / Local view</b> — low, close view along the river at the selected chainage.</li>
+    <li><b>2D view</b> — flat map-style view.</li>
+    <li><b>Cinematic tours</b> — automatic fly-throughs: River tour, Water tour and Bathymetry view.</li>
+  </ul>
+  <h3>Visual settings</h3>
+  <p>Sky presets (Calm Realistic, Clear Blue Day, Cinematic Clouds, Flood Weather, Golden Hour), glassy animated water with flow direction, and live-weather effects such as matching cloud cover and short rain bursts over the river.</p>
+</section>
+
+<!-- ═════════ HYDROLOGY ═════════ -->
+<section class="page">
+  <h2>4. 3D Digital Twin &amp; Current Hydrology <span class="live">LIVE</span></h2>
+  <p>The Digital Twin mode opens the <b>Current Hydrology</b> dashboard. It answers three questions for the selected chainage: <i>What is the value? What is the current condition? Where on the river am I?</i></p>
+  <div class="grid2">
+    <div>
+      <h3>Six live cards</h3>
+      <table>
+        <tr><th>Card</th><th>Unit</th></tr>
+        <tr><td>Discharge (Q)</td><td>m³/s</td></tr>
+        <tr><td>Water Level (WSE)</td><td>m MSL</td></tr>
+        <tr><td>River Depth</td><td>m</td></tr>
+        <tr><td>Flow Velocity</td><td>m/s</td></tr>
+        <tr><td>Wetted Area</td><td>m²</td></tr>
+        <tr><td>Manning n (roughness)</td><td>—</td></tr>
+      </table>
+      <p class="note">Each card has a small trend line showing how the value changes along the river.</p>
+    </div>
+    <figure><img src="hydrology.png" alt="Current Hydrology dashboard" /><figcaption>Current Hydrology dashboard</figcaption></figure>
+  </div>
+  <h3>Sub-components</h3>
+  <ul>
+    <li><b>River Condition Summary</b> — number of locations in Normal, Warning and Critical condition.</li>
+    <li><b>Hydrological Event Replay</b> — replay past flood and low-flow events on the 3D river.</li>
+    <li><b>View Channel Cross-Sections &amp; Profile</b> — opens the river cross-section at the current chainage.</li>
+    <li><b>Simulation horizon</b> — +6 h, +12 h, +24 h, +48 h and +72 h, with a hydrograph showing past, forecast and an uncertainty band.</li>
+    <li><b>Asset risk strip</b> — bridges, landmarks and outfalls ordered along the river with their risk status.</li>
+  </ul>
+  <h3>How risk is judged</h3>
+  <table>
+    <tr><th>Asset type</th><th>Safe water depth</th><th>Asset type</th><th>Safe water depth</th></tr>
+    <tr><td>Bridge</td><td>2.5 m</td><td>Intake</td><td>1.2 m</td></tr>
+    <tr><td>Landmark</td><td>1.8 m</td><td>Outfall</td><td>1.0 m</td></tr>
+  </table>
+  <p>A location turns <b>Warning</b> when the water is within 0.5 m of its safe level and <b>Critical</b> when it crosses it. The risk score (0–100) combines today's condition (60%) with the 72-hour outlook (40%) and refreshes every 30 seconds.</p>
+  <div class="case">
+    <h4>Case study — Sangam reach, CH 0+122</h4>
+    <p>On 28 September 2026 the dashboard showed: discharge <b>65.0 m³/s</b>, water level <b>535.43 m MSL</b>, river depth <b>1.69 m</b>, flow velocity <b>0.67 m/s</b>, wetted area <b>96.6 m²</b> and Manning n <b>0.035</b>. The River Condition Summary reported <b>7 Normal, 1 Warning and 0 Critical</b> locations. Moving downstream, the water level falls steadily — 533.87 m at Sangam (0+622), 532.84 m at Bund Garden (3+452) and 528.41 m at CH 16+000 — showing the gentle slope of the river through the city.</p>
+  </div>
+  <div class="case">
+    <h4>Case study — Replaying past events</h4>
+    <table>
+      <tr><th>Event</th><th>Date</th><th>Peak flow</th><th>Water level</th></tr>
+      <tr><td>July 2023 Monsoon Reservoir Release</td><td>26 Jul 2023</td><td>585 m³/s</td><td>546.2 m</td></tr>
+      <tr><td>August 2024 Monsoon High Discharge</td><td>4 Aug 2024</td><td>980 m³/s</td><td>547.4 m</td></tr>
+      <tr><td>March 2024 Pre-Monsoon Baseflow</td><td>15 Mar 2024</td><td>35 m³/s</td><td>541.2 m</td></tr>
+    </table>
+    <p>The August 2024 event carried about <b>28 times</b> the dry-season flow of March 2024 and brought the river close to bank-full at Sangam and Bund Garden. Selecting it in Event Replay instantly re-draws depth, velocity and risk along the whole river.</p>
+  </div>
+</section>
+
+<!-- ═════════ HYDRO INTEL ═════════ -->
+<section class="page">
+  <h2>5. Hydrology Intelligence, Forecast, Cross-Section &amp; Threshold</h2>
+  <h3>Hydrology Intelligence panel</h3>
+  <p>A detailed panel for the river with <b>Live</b> and <b>Historic</b> modes and a station selector. Its tabs are:</p>
+  <table>
+    <tr><th>Tab</th><th>What it shows</th></tr>
+    <tr><td>Overview</td><td>Upstream discharge, reach length (16.962 km), 1,698 stations, 50-member 72-hour forecast, water level, threshold, margin and risk.</td></tr>
+    <tr><td>Discharge</td><td>Today's hourly flow with forecast and uncertainty band.</td></tr>
+    <tr><td>River Stage</td><td>Water level along the full river with the riverbed and threshold line.</td></tr>
+    <tr><td>Hydrograph</td><td>Flow from 72 hours ago to 72 hours ahead.</td></tr>
+    <tr><td>Threshold</td><td>Current margin and +72 h margin to the danger level.</td></tr>
+    <tr><td>Forecast</td><td>The full 50-member forecast envelope.</td></tr>
+    <tr><td>Alerts</td><td>Danger and warning cards, or "No active threshold exceedances".</td></tr>
+    <tr><td>Margin Board</td><td>Every asset with chainage, risk bar, margin and chance of exceeding the limit.</td></tr>
+  </table>
+  <figure><img src="hydro_intel.png" alt="Hydrology Intelligence" /><figcaption>Hydrology Intelligence panel inside the Digital Twin mode</figcaption></figure>
+  <h3>Water Level Forecast</h3>
+  <p>Shows the water surface along the river for the next 6, 12, 24, 48 or 72 hours with a median line and a P10–P90 range, so the user can see both the most likely level and the possible extremes.</p>
+  <h3>River Cross-Section &amp; Hydraulic Profile</h3>
+  <p>A cross-section of the channel at the selected chainage showing left bank, right bank, riverbed and deepest point, plus a longitudinal profile. It lists channel top width, water depth, water level, bed level, wetted area, hydraulic radius, discharge, velocity and Froude number. ‹ › buttons step to the next station.</p>
+  <h3>Threshold Graph</h3>
+  <p>For each station: water level now, threshold, margin, +72 h forecast level and margin, and a risk score out of 100.</p>
+  <h3>Gauge danger levels</h3>
+  <table>
+    <tr><th>Gauge</th><th>Chainage</th><th>Warning level</th><th>Danger level</th></tr>
+    <tr><td>Sangam Bridge</td><td>0+622</td><td>550.0 m</td><td>551.5 m</td></tr>
+    <tr><td>Bund Garden</td><td>3+452</td><td>546.5 m</td><td>548.0 m</td></tr>
+  </table>
+</section>
+
+<!-- ═════════ GEOLOGY ═════════ -->
+<section class="page">
+  <h2>6. Geology</h2>
+  <p>The Geology module shows what lies under and around the river. Each layer is draped on the 3D terrain so bridges, buildings, trees and roads stay visible on top.</p>
+  <h3>Sub-components</h3>
+  <table>
+    <tr><th>Layer</th><th>What it shows</th></tr>
+    <tr><td>Spectral Lithology</td><td>Rock and soil types along the corridor.</td></tr>
+    <tr><td>Erosion</td><td>Bank erosion hotspots over 2016–2026.</td></tr>
+    <tr><td>Joining Streams</td><td>Drains, streams, nallahs and canals that flow into the river.</td></tr>
+    <tr><td>Main Stem</td><td>The main river centreline drawn in gold.</td></tr>
+    <tr><td>Bathymetry</td><td>Water depth of the riverbed in five classes.</td></tr>
+  </table>
+  <div class="grid2">
+    <div>
+      <h3>Lithology classes</h3>
+      <table>
+        <tr><th>Class</th><th>Area</th></tr>
+        <tr><td>Silica-rich</td><td>34.1%</td></tr>
+        <tr><td>Basaltic / Mafic</td><td>16.4%</td></tr>
+        <tr><td>Clay-rich</td><td>14.3%</td></tr>
+        <tr><td>Weathered Rock</td><td>11.7%</td></tr>
+        <tr><td>Ferruginous / Iron-rich</td><td>10.3%</td></tr>
+        <tr><td>Alluvial / Sedimentary</td><td>8.2%</td></tr>
+        <tr><td>Mixed Rock-soil</td><td>3.0%</td></tr>
+        <tr><td>Water</td><td>1.9%</td></tr>
+      </table>
+    </div>
+    <div>
+      <h3>Erosion classes</h3>
+      <table>
+        <tr><th>Class</th><th>Area</th></tr>
+        <tr><td>No erosion</td><td>83.1%</td></tr>
+        <tr><td>Low</td><td>15.5%</td></tr>
+        <tr><td>Moderate</td><td>1.4%</td></tr>
+        <tr><td>High / Very high</td><td>0%</td></tr>
+      </table>
+      <h3>Bathymetry classes</h3>
+      <p>1.53–1.62 · 1.62–1.72 · 1.72–1.81 · 1.81–1.91 · 1.91–2.00 m (shallow → deep). Clicking the river shows water depth, depth class and elevation.</p>
+    </div>
+  </div>
+  <div class="grid2">
+    <figure><img src="geology.png" alt="Lithology" /><figcaption>Spectral lithology draped on the terrain</figcaption></figure>
+    <figure><img src="erosion.png" alt="Erosion" /><figcaption>Bank erosion hotspots</figcaption></figure>
+  </div>
+  <div class="case">
+    <h4>Case study — Geology of the Pune corridor</h4>
+    <p>About one third of the corridor (<b>34.1%</b>) is silica-rich ground and another <b>16.4%</b> is basaltic rock — typical of the Deccan plateau. The banks are largely stable: <b>83.1%</b> of the corridor shows no erosion, <b>15.5%</b> low erosion and only <b>1.4%</b> moderate erosion, with no high-erosion zones. The Joining Streams layer maps <b>60 drainage channels</b>; for each one the card shows its type, nearest chainage, distance to the river, flow direction and whether it is connected to the river.</p>
+  </div>
+</section>
+
+<!-- ═════════ WATER QUALITY ═════════ -->
+<section class="page">
+  <h2>7. Water Quality</h2>
+  <p>The Water Quality module colours the river surface by a chosen water-quality measure. Hovering over the river shows the class, value, unit and location.</p>
+  <table>
+    <tr><th>Sub-component</th><th>Unit</th><th>Classes</th></tr>
+    <tr><td>Salinity</td><td>ppt</td><td>Very Low 0–0.5 · Low 0.5–5 · Moderate 5–18 · High 18–30 · Very High &gt;30</td></tr>
+    <tr><td>TSS (Total Suspended Solids)</td><td>mg/L</td><td>Low 0–10 · Moderate 10–50 · High &gt;50</td></tr>
+    <tr><td>Chlorophyll-a</td><td>µg/L</td><td>Low 0–2 · High &gt;2</td></tr>
+    <tr><td>BOD–COD / Organic Pollution</td><td>mg/L</td><td>Classes A–E (see next section)</td></tr>
+  </table>
+  <p>Two further water layers support the analysis: a <b>water index</b> (water / non-water) and <b>water surface temperature</b> in five classes: &lt;27, 27–30, 30–33, 33–36 and ≥36 °C.</p>
+  <figure><img src="salinity.png" alt="Salinity" /><figcaption>Salinity draped across the river and banks — green is low, red is higher</figcaption></figure>
+  <div class="case">
+    <h4>Case study — Reading salinity and sediment</h4>
+    <p>The salinity layer shows the main channel in the green–yellow (very low to low) range with a red band of higher values in the central channel near the Sangam, where slower water and incoming drains meet. The TSS layer highlights reaches where suspended sediment rises above 50 mg/L after rain, and the Chlorophyll-a layer flags reaches above 2 µg/L where algae growth is likely.</p>
+  </div>
+</section>
+
+<!-- ═════════ BOD-COD ═════════ -->
+<section class="page">
+  <h2>8. BOD–COD / Organic Pollution <span class="live">LIVE</span></h2>
+  <p><b>BOD</b> (Biochemical Oxygen Demand) and <b>COD</b> (Chemical Oxygen Demand) measure how much organic pollution is in the water. Higher values mean dirtier water with less oxygen for fish.</p>
+  <h3>Sub-components</h3>
+  <ul>
+    <li><b>History time slider</b> — hour-by-hour history and forecast, just above the chainage ruler.</li>
+    <li><b>Reach tour</b> — steps through river reaches (for example "1/9 · 0–2 km · Class D") and advances automatically.</li>
+    <li><b>Reach Detail card</b> — BOD and COD with a likely range, the water class and an alert message.</li>
+    <li><b>Accuracy Measure</b> — river-wide BOD and COD averages, reaches above the bathing limit and the highest-BOD reach.</li>
+    <li><b>BOD class ruler</b> — the whole river coloured by class along the chainage ruler.</li>
+  </ul>
+  <h3>Water classes</h3>
+  <table>
+    <tr><th>Class</th><th>BOD</th><th>Suitable use</th></tr>
+    <tr><td>A</td><td>≤ 2 mg/L</td><td>Drinking (after treatment)</td></tr>
+    <tr><td>B</td><td>≤ 3 mg/L</td><td>Outdoor bathing</td></tr>
+    <tr><td>C</td><td>≤ 6 mg/L</td><td>Drinking after conventional treatment</td></tr>
+    <tr><td>D</td><td>≤ 10 mg/L</td><td>Fisheries and wildlife</td></tr>
+    <tr><td>E</td><td>&gt; 10 mg/L</td><td>Irrigation and industrial cooling only</td></tr>
+  </table>
+  <figure><img src="bodcod.png" alt="BOD-COD" /><figcaption>BOD–COD view: reach card (left), accuracy measure (right), history slider above the chainage ruler</figcaption></figure>
+  <div class="case">
+    <h4>Case study — Organic pollution on 28 September 2026, 23:00</h4>
+    <p>The first reach (<b>0–2 km, near the Sangam</b>) was <b>Class D</b> with BOD <b>8.0 mg/L</b> (likely range 6.5–9.5) and COD <b>17.1 mg/L</b> (13.8–20.3) — suitable for fisheries but not for bathing. Across the whole river, the average BOD was <b>11.8 mg/L</b> and average COD <b>28.9 mg/L</b>. <b>All 9 of 9 reaches</b> were above the bathing limit of 3 mg/L, and the worst reach (R09) reached <b>17.2 mg/L BOD</b> (Class E). This shows organic pollution increasing downstream as city drains join the river.</p>
+  </div>
+</section>
+
+<!-- ═════════ POLLUTION ═════════ -->
+<section class="page">
+  <h2>9. Pollution — Garbage sites and density</h2>
+  <p>The Pollution module maps garbage dumping points along the river and shows how dense the waste is on the ground, drawn as small debris objects in the 3D scene.</p>
+  <h3>Sub-components</h3>
+  <ul>
+    <li><b>Garbage locations</b> — about <b>65 sites</b>, each marked as In River, Near River or Outside River.</li>
+    <li><b>Garbage Density</b> — Low, Medium and High density patches.</li>
+    <li><b>Corridor tour</b> — six river sides from west to east: Sangam → Sangamwadi → Bund Garden → Mundhwa → Kharadi → Manjari.</li>
+    <li><b>Site card</b> — site ID, name, side, type of waste, chainage, latitude/longitude, distance to river, date and quantity.</li>
+  </ul>
+  <table>
+    <tr><th>Density</th><th>Debris objects per patch</th><th>Patch size</th></tr>
+    <tr><td>Low</td><td>4–7</td><td>2–4 m radius</td></tr>
+    <tr><td>Medium</td><td>8–14</td><td>4–7 m radius</td></tr>
+    <tr><td>High</td><td>15–24</td><td>6–10 m radius</td></tr>
+  </table>
+  <figure><img src="pollution.png" alt="Pollution" /><figcaption>Garbage sites on the Sangam side (site 1 of 8, side 1 of 6) with density rings</figcaption></figure>
+  <div class="case">
+    <h4>Case study — Sangam side clean-up planning</h4>
+    <p>The tour opens on the <b>Sangam side (1/6)</b> with <b>8 garbage sites</b>. Each site shows its distance to the water and density ring, so a clean-up team can list which sites are inside the river channel (highest priority), which are on the bank, and which are further away. Stepping to the next side moves the camera along the corridor to Sangamwadi, Bund Garden, Mundhwa, Kharadi and Manjari in turn.</p>
+  </div>
+</section>
+
+<!-- ═════════ LAND USE ═════════ -->
+<section class="page">
+  <h2>10. Land Use</h2>
+  <p>The Land Use module shows how the land around the river is used and how it changes over time.</p>
+  <table>
+    <tr><th>Sub-component</th><th>Classes</th><th>Time steps</th></tr>
+    <tr><td>LULC (Land Use / Land Cover)</td><td>Forest · Crop Land · Barren Land · Settlements · Water Bodies</td><td>Years 2021–2026</td></tr>
+    <tr><td>Silt Classification</td><td>Low · Moderate · High · Very High</td><td>Monthly, Jan–Jul 2026</td></tr>
+    <tr><td>Silt Volume Surface</td><td>Continuous scale 0–94.3</td><td>Monthly, Jan–Jul 2026</td></tr>
+    <tr><td>Vegetation Health</td><td>Stressed / Poor · Moderate · Healthy · Dense canopy</td><td>—</td></tr>
+    <tr><td>Vegetation Type</td><td>Non-Vegetation · Trees · Shrub / Scrub · Grass · Mixed</td><td>—</td></tr>
+  </table>
+  <p>Each class appears as a chip at the top of the screen with its share of the area. A Year or Period stepper at the bottom moves through time, and a Clear Layer button removes the overlay.</p>
+  <div class="grid2">
+    <figure><img src="lulc.png" alt="LULC" /><figcaption>LULC: settlements (red) along the banks and water bodies (blue)</figcaption></figure>
+    <figure><img src="bathymetry.png" alt="Bathymetry" /><figcaption>Bathymetry — riverbed depth classes</figcaption></figure>
+  </div>
+  <div class="case">
+    <h4>Case study — A river inside a growing city</h4>
+    <p>The LULC layer shows the river channel as water bodies surrounded almost entirely by <b>settlements</b> on both banks, with forest and crop land only in small patches. Stepping from <b>2021 to 2026</b> shows settlement area pressing closer to the banks. The Silt Classification layer, stepped month by month from <b>January to July 2026</b>, shows silt rising to High and Very High in slow-flowing reaches as the monsoon begins.</p>
+  </div>
+</section>
+
+<!-- ═════════ CLIMATE ═════════ -->
+<section class="page">
+  <h2>11. Climate Impact — Monsoon 2026 flooding</h2>
+  <p>The Climate Impact module shows how the 2026 monsoon flooded the river corridor, period by period.</p>
+  <h3>Sub-components</h3>
+  <ul>
+    <li><b>Flood water</b> (red) — land that was flooded.</li>
+    <li><b>Surface water</b> (blue) — normal open water.</li>
+    <li><b>Flood lines</b> — blue flood line, red flood line and green bank line.</li>
+    <li><b>Period stepper</b> — seven periods from May to August 2026.</li>
+    <li><b>Area graph</b> — flood and water area in hectares for each period.</li>
+  </ul>
+  <table>
+    <tr><th>Period</th><th>Dates (2026)</th><th>Surface water (ha)</th><th>Flood water (ha)</th></tr>
+    <tr><td>1</td><td>21 May – 2 Jun</td><td>106.42</td><td>18.23</td></tr>
+    <tr><td>2</td><td>2 – 14 Jun</td><td>105.81</td><td>17.76</td></tr>
+    <tr><td>3</td><td>14 – 26 Jun</td><td>104.18</td><td>18.09</td></tr>
+    <tr><td>4</td><td>26 Jun – 3 Jul</td><td>87.26</td><td>7.16</td></tr>
+    <tr><td><b>5</b></td><td><b>3 – 15 Jul</b></td><td>92.02</td><td><b>69.67 (peak flood)</b></td></tr>
+    <tr><td>6</td><td>15 – 27 Jul</td><td>156.07</td><td>30.36</td></tr>
+    <tr><td>7</td><td>27 Jul – 8 Aug</td><td><b>169.93 (peak water)</b></td><td>6.27</td></tr>
+  </table>
+  <figure><img src="climate.png" alt="Climate impact" /><figcaption>Climate Impact, period 5/7 (3–15 July 2026): flood 69.7 ha, water 92.0 ha</figcaption></figure>
+  <div class="case">
+    <h4>Case study — The July 2026 flood peak</h4>
+    <p>Flooding stayed near <b>18 ha</b> through June, then jumped almost <b>four times</b> to <b>69.67 ha</b> in the 3–15 July period — the flood peak. After the peak, flood land fell but open water kept rising, reaching <b>169.93 ha</b> by early August as the river stayed full. The map shows where the flooded land sits along the corridor, helping planners see which banks and neighbourhoods are most exposed.</p>
+  </div>
+</section>
+
+<!-- ═════════ AQI ═════════ -->
+<section class="page">
+  <h2>12. Air Quality (AQI) <span class="live">LIVE</span></h2>
+  <p>The AQI module shows live air quality along the river. The river ribbon itself is coloured by AQI category, and a panel shows the readings for the selected chainage. The data refreshes every minute and whenever the chainage changes.</p>
+  <table>
+    <tr><th>Measure</th><th>Unit</th><th>Measure</th><th>Unit</th></tr>
+    <tr><td>AQI</td><td>index</td><td>NO₂</td><td>µg/m³</td></tr>
+    <tr><td>PM2.5</td><td>µg/m³</td><td>SO₂</td><td>µg/m³</td></tr>
+    <tr><td>PM10</td><td>µg/m³</td><td>O₃</td><td>µg/m³</td></tr>
+    <tr><td colspan="2"></td><td>CO</td><td>ppm</td></tr>
+  </table>
+  <h3>Sub-components</h3>
+  <ul>
+    <li><b>AQI Trend</b> chart — AQI, PM2.5 and PM10 over 1 hour, 6 hours, 24 hours or 7 days.</li>
+    <li><b>Day stepper</b> — move to previous days or back to Today.</li>
+    <li><b>Colour categories</b> — Good 0–50 · Moderate 50–100 · Poor 100–150 · Unhealthy 150–200 · Severe 200–300 · Hazardous 300+.</li>
+  </ul>
+  <figure><img src="aqi.png" alt="AQI" /><figcaption>Live Air Quality at CH 0+000 (Sangam), 24-hour trend on 28 September 2026</figcaption></figure>
+  <div class="case">
+    <h4>Case study — A day of air quality at the Sangam</h4>
+    <p>On <b>28 September 2026</b> at CH 0+000, the AQI was about <b>70 (Moderate)</b> at midnight and dropped to about <b>55</b> in the early morning (04:00). As morning traffic built up it rose past <b>100</b> at 07:00 and stayed around <b>105–110 (Poor)</b> until 10:00, easing to about <b>95</b> by noon. PM2.5 and PM10 stayed low and steady, so the morning peak was driven mainly by traffic gases.</p>
+  </div>
+</section>
+
+<!-- ═════════ WEATHER ═════════ -->
+<section class="page">
+  <h2>13. Live Weather &amp; Live Reach <span class="live">LIVE</span></h2>
+  <p>A compact strip at the top-right of the screen shows live conditions for the selected chainage.</p>
+  <div class="grid2">
+    <div>
+      <h3>Live Reach</h3>
+      <ul>
+        <li>Discharge (m³/s)</li>
+        <li>BOD (mg/L)</li>
+        <li>COD (mg/L)</li>
+      </ul>
+    </div>
+    <div>
+      <h3>Live Weather</h3>
+      <ul>
+        <li>Temperature (°C)</li>
+        <li>Sky condition — Clear, Partly cloudy, Fog, Drizzle, Rain or Storm</li>
+        <li>Wind speed (km/h)</li>
+        <li>Station chainage, date and time</li>
+      </ul>
+    </div>
+  </div>
+  <h3>Weather Overview</h3>
+  <p>Opening the weather strip shows <b>Past 7 Days</b> and <b>Next 7 Days</b> charts for temperature, precipitation, rainfall, wind speed, PM2.5 and PM10.</p>
+  <p>The live weather also drives the 3D scene: cloud cover in the sky matches the real sky, and when it rains, short rain bursts appear over the river.</p>
+  <div class="case">
+    <h4>Case study — Live conditions on 28 September 2026</h4>
+    <p>Around midday the strip showed <b>29–31 °C</b> with <b>clear to partly cloudy</b> skies and a light wind of <b>4 km/h</b>. The Live Reach showed a discharge of about <b>333.9 m³/s</b>, BOD <b>8.0 mg/L</b> and COD <b>17.1 mg/L</b> at the Sangam station — matching the BOD–COD Class D reading for that reach.</p>
+  </div>
+
+  <h2 style="margin-top:16pt">14. Flood Simulation</h2>
+  <p>The Flood Simulation tool finds flooding for any chosen date range (by default the last 45 days) and plays it back on the 3D river.</p>
+  <ul>
+    <li><b>Controls</b> — Today, Start and End dates and Run Simulation.</li>
+    <li><b>Flood Result</b> — status, date range, scene date, flood area (ha), water area (ha), number of scenes and comparison result.</li>
+    <li><b>Playback</b> — Play, Replay and a timeline slider to move through scenes.</li>
+    <li><b>Illustrative Water Stage</b> — a slider that raises the water level step by step (for example +1.0 m, +2.0 m) to show which banks would go under water first.</li>
+  </ul>
+</section>
+
+<!-- ═════════ FISHING + TOOLS ═════════ -->
+<section class="page">
+  <h2>15. Fishing Zones &amp; Fish Species</h2>
+  <p>The model places <b>9 fishing locations (L1–L9)</b> along the river, from near the Sangam (L1) to near Manjari (L9), with animated fish swimming at surface, mid-water and bottom levels.</p>
+  <ul>
+    <li><b>Fishing Location card</b> — ID, longitude, latitude, depth, main species and activity level (High, Medium or Low).</li>
+    <li><b>Activity</b> is higher where water is deeper, the channel is wider, and near bridges.</li>
+  </ul>
+  <table>
+    <tr><th>Group</th><th>Species</th></tr>
+    <tr><td>Large fish</td><td>Rohu, Catla, Mrigal, Common carp</td></tr>
+    <tr><td>Medium fish</td><td>Tilapia, Mahseer</td></tr>
+    <tr><td>Schooling fish</td><td>Barb, Danio</td></tr>
+    <tr><td>Bottom fish</td><td>Catfish, Loach, Eel (only in deep zones above 1.85 m)</td></tr>
+  </table>
+  <div class="case">
+    <h4>Case study — Fishing location L1</h4>
+    <p>Location <b>L1</b> near the Sangam (73.8557° E, 18.5323° N) has a water depth of <b>1.750 m</b> and <b>High</b> fishing activity, helped by the deep water and the nearby bridges.</p>
+  </div>
+
+  <h2 style="margin-top:14pt">16. Bridges, Landmarks &amp; Supporting Tools</h2>
+  <ul>
+    <li><b>Bridge labels</b> — every named bridge shows its name and chainage in a clean label linked to the real bridge. Labels move automatically so they never overlap each other or the panels.</li>
+    <li><b>Landmark labels</b> — Sangam, Bund Garden, Dhanori, Wadgaon Sheri, Hadapsar, Mundhwa, Kharadi and Manjari with their chainages.</li>
+    <li><b>River Data → Depth</b> — a depth profile along the full river.</li>
+    <li><b>Measure / Profile Analysis</b> — pick two points to see distance, terrain, water surface, riverbed, maximum and average depth, and width.</li>
+    <li><b>Hover card</b> — latitude/longitude, water level, riverbed, depth, left/right/total width and flow speed.</li>
+    <li><b>Layers</b> — river, reference grid, bridge names, vegetation and depth zones.</li>
+    <li><b>Settings</b> — sky presets, glassy water, chainage labels and cinematic tours.</li>
+  </ul>
+</section>
+
+<!-- ═════════ LIVE SUMMARY ═════════ -->
+<section class="page">
+  <h2>17. Summary of live information</h2>
+  <table>
+    <tr><th>Live feature</th><th>What updates</th><th>How often</th></tr>
+    <tr><td>Current Hydrology dashboard</td><td>Discharge, water level, depth, velocity, wetted area, condition summary</td><td>With every chainage change and profile update</td></tr>
+    <tr><td>Asset risk</td><td>Normal / Warning / Critical status and risk score for bridges, landmarks and outfalls</td><td>Every 30 seconds</td></tr>
+    <tr><td>Water level forecast</td><td>Next 6–72 hours with P10–P90 range</td><td>Continuously</td></tr>
+    <tr><td>BOD–COD</td><td>BOD, COD and water class for each reach, hour by hour, with forecast hours</td><td>Hourly</td></tr>
+    <tr><td>Air Quality</td><td>AQI, PM2.5, PM10, NO₂, SO₂, O₃, CO</td><td>Every 60 seconds and on chainage change</td></tr>
+    <tr><td>Live Weather</td><td>Temperature, sky, wind, 7-day past and forecast</td><td>On load and on chainage change</td></tr>
+    <tr><td>Live Reach</td><td>Discharge, BOD and COD at the selected chainage</td><td>On chainage change</td></tr>
+    <tr><td>3D sky and rain</td><td>Cloud cover and rain bursts matched to live weather</td><td>Continuously</td></tr>
+  </table>
+
+  <h3>Time-based layers</h3>
+  <table>
+    <tr><th>Layer</th><th>Time range</th></tr>
+    <tr><td>Land Use (LULC)</td><td>2021 – 2026, yearly</td></tr>
+    <tr><td>Silt Classification &amp; Silt Volume</td><td>January – July 2026, monthly</td></tr>
+    <tr><td>Climate Impact</td><td>7 periods, May – August 2026</td></tr>
+    <tr><td>Erosion</td><td>2016 – 2026</td></tr>
+    <tr><td>Event Replay</td><td>July 2023, March 2024, August 2024</td></tr>
+    <tr><td>Flood Simulation</td><td>Any chosen date range</td></tr>
+  </table>
+</section>
+
+<!-- ═════════ CONCLUSION ═════════ -->
+<section class="page">
+  <h2>18. Case study summary &amp; conclusion</h2>
+  <table>
+    <tr><th>Module</th><th>Key finding</th></tr>
+    <tr><td>Hydrology</td><td>65 m³/s at Sangam with 1.69 m depth; water level falls from 535.4 m to 528.4 m over 16 km; 7 Normal, 1 Warning, 0 Critical locations.</td></tr>
+    <tr><td>Event Replay</td><td>August 2024 peak of 980 m³/s — about 28 times the March 2024 dry-season flow — brought the river near bank-full.</td></tr>
+    <tr><td>Geology</td><td>Silica-rich (34.1%) and basaltic (16.4%) ground; 83.1% of banks show no erosion; 60 drains join the river.</td></tr>
+    <tr><td>Water Quality</td><td>Salinity mostly very low to low; higher values near the Sangam confluence.</td></tr>
+    <tr><td>BOD–COD</td><td>All 9 reaches above the bathing limit; river average BOD 11.8 mg/L; worst reach 17.2 mg/L (Class E).</td></tr>
+    <tr><td>Pollution</td><td>About 65 garbage sites across six river sides, 8 on the Sangam side alone.</td></tr>
+    <tr><td>Land Use</td><td>Settlements dominate both banks; silt rises to High/Very High as the monsoon starts.</td></tr>
+    <tr><td>Climate Impact</td><td>Flood peak of 69.67 ha on 3–15 July 2026; open water peaked at 169.93 ha in early August.</td></tr>
+    <tr><td>Air Quality</td><td>AQI rose from about 55 (early morning) to 105–110 (Poor) during the morning at the Sangam.</td></tr>
+    <tr><td>Fishing</td><td>9 fishing zones; L1 near the Sangam at 1.75 m depth with High activity.</td></tr>
+  </table>
+
+  <h3>Conclusion</h3>
+  <p>RiverEye 3D turns the Mula–Mutha river into a single, living picture. Flow, depth and flood risk; rock, soil and erosion; water quality and organic pollution; garbage hotspots; land use and vegetation; monsoon flooding; and live air quality and weather — all sit on the same 3D river and all follow the same chainage.</p>
+  <p>The case studies show how this helps in practice: spotting the Class D–E pollution reaches, seeing the July 2026 flood peak, following the morning AQI rise, planning garbage clean-up side by side, and checking live water levels against bridge safety limits. RiverEye 3D gives planners, scientists and citizens a clear, shared view of the river's health — today, in the past and in the hours ahead.</p>
+</section>
+
+</body>
+</html>

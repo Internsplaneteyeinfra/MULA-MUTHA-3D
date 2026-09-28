@@ -808,7 +808,7 @@ export function mountUI(root, {
 
   const depthMin = Number.isFinite(dataset.minDepth) ? dataset.minDepth : 0.5;
   const depthMax = Number.isFinite(dataset.maxDepth) ? dataset.maxDepth : 2.0;
-  const depthStep = (depthMax - depthMin) / 3;
+  const depthStep = (depthMax - depthMin) / 5;
 
   root.insertAdjacentHTML(
     "beforeend",
@@ -825,15 +825,12 @@ export function mountUI(root, {
   depthLegend.className = "depth-legend depth-legend--vertical depth-legend--corner";
   depthLegend.setAttribute("aria-label", "Water depth legend");
   depthLegend.innerHTML = `
-    <strong>WATER DEPTH</strong>
+    <strong>WATER DEPTH (m)</strong>
     <div class="depth-legend-body">
       <div class="depth-bar" aria-hidden="true"></div>
       <div class="depth-ticks">
         <span>Shallow</span>
-        <span>${depthMin.toFixed(2)}</span>
-        <span>${(depthMin + depthStep).toFixed(2)}</span>
-        <span>${(depthMin + depthStep * 2).toFixed(2)}</span>
-        <span>${depthMax.toFixed(2)}</span>
+        ${Array.from({ length: 6 }, (_, i) => `<span>${(depthMin + depthStep * i).toFixed(2)}</span>`).join("")}
         <span>Deep</span>
       </div>
     </div>
@@ -932,7 +929,7 @@ export function mountUI(root, {
       depthLegend.hidden = !showLegend;
       const title = depthLegend.querySelector("strong");
       if (title) {
-        title.textContent = state.showWater ? "WATER DEPTH" : "CHANNEL DEPTH";
+        title.textContent = state.showWater ? "WATER DEPTH (m)" : "CHANNEL DEPTH (m)";
       }
     }
   }

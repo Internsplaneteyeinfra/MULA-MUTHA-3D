@@ -1,5 +1,13 @@
 import * as THREE from "three";
 import { terrainHeightAt } from "../scene/terrain.js";
+import { OSM_ROADS_RENDER_ORDER } from "../scene/drapeDepth.js";
+
+/**
+ * Roads are flat on the DTM, below draped KML overlays. Drawing them in the
+ * transparent pass after the overlays keeps them visible on top of the
+ * overlay while terrain / buildings still occlude them via depth.
+ */
+const OSM_ROAD_DRAW = { transparent: true, opacity: 1, depthWrite: true };
 
 /** OSM highway → carriageway width (m). */
 const WIDTH_BY_CLASS = {
@@ -149,12 +157,14 @@ export function createRoadSystem(dataset) {
       polygonOffset: true,
       polygonOffsetFactor: -1,
       polygonOffsetUnits: -1,
+      ...OSM_ROAD_DRAW,
     });
     const asphalt = new THREE.Mesh(asphaltGeo, asphaltMat);
     asphalt.name = "roadAsphalt";
     asphalt.receiveShadow = true;
     asphalt.castShadow = false;
     asphalt.frustumCulled = false;
+    asphalt.renderOrder = OSM_ROADS_RENDER_ORDER + 1;
     group.add(asphalt);
   }
 
@@ -177,12 +187,13 @@ export function createRoadSystem(dataset) {
       polygonOffset: true,
       polygonOffsetFactor: 1,
       polygonOffsetUnits: 1,
+      ...OSM_ROAD_DRAW,
     });
     const shoulders = new THREE.Mesh(shoulderGeo, shoulderMat);
     shoulders.name = "roadShoulders";
     shoulders.receiveShadow = true;
     shoulders.frustumCulled = false;
-    shoulders.renderOrder = -1;
+    shoulders.renderOrder = OSM_ROADS_RENDER_ORDER;
     group.add(shoulders);
   }
 
@@ -201,10 +212,12 @@ export function createRoadSystem(dataset) {
       polygonOffset: true,
       polygonOffsetFactor: -3,
       polygonOffsetUnits: -3,
+      ...OSM_ROAD_DRAW,
     });
     const edges = new THREE.InstancedMesh(unit, edgeMat, edgeSegs.length);
     edges.name = "roadEdges";
     edges.frustumCulled = false;
+    edges.renderOrder = OSM_ROADS_RENDER_ORDER + 2;
     for (let i = 0; i < edgeSegs.length; i++) {
       const s = edgeSegs[i];
       dummy.position.set(s.x, s.y, s.z);
@@ -228,10 +241,12 @@ export function createRoadSystem(dataset) {
       polygonOffset: true,
       polygonOffsetFactor: -3,
       polygonOffsetUnits: -3,
+      ...OSM_ROAD_DRAW,
     });
     const dashes = new THREE.InstancedMesh(unit, dashMat, dashSegs.length);
     dashes.name = "roadDashes";
     dashes.frustumCulled = false;
+    dashes.renderOrder = OSM_ROADS_RENDER_ORDER + 2;
     for (let i = 0; i < dashSegs.length; i++) {
       const s = dashSegs[i];
       dummy.position.set(s.x, s.y, s.z);

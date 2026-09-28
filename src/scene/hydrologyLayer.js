@@ -12,6 +12,7 @@ import { parseClassedPolygonKml } from "../geo/kml.js";
 import { overlayBoxToLocalBounds } from "../utils/floodGeometry.js";
 import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
+import { applyDrapeDepth } from "./drapeDepth.js";
 import { createPollutionGarbageLayer } from "./pollutionGarbageLayer.js";
 /** Bundled asset — Vite always serves this (public/data new files can 404 as HTML). */
 import bankErosionOverlayUrl from "../assets/hydrology/bank_erosion_overlay.png";
@@ -864,14 +865,13 @@ export function createHydrologyLayer(dataset) {
           color: new THREE.Color(bucket.color),
           transparent: true,
           opacity: Math.min(1, Math.max(0.55, opacity)),
-          depthWrite: false,
-          depthTest: false,
           side: THREE.DoubleSide,
           polygonOffset: true,
           polygonOffsetFactor: -2,
           polygonOffsetUnits: -2,
           toneMapped: false,
         });
+        applyDrapeDepth(mat);
         const mesh = new THREE.Mesh(merged, mat);
         mesh.name = `${id}_${bucket.label.replace(/\s+/g, "_")}`;
         mesh.renderOrder = id === "water_quality_ndci" || id === "water_quality_tss" || id === "salinity" ? 46 : 5;
@@ -2328,11 +2328,10 @@ async function buildDrapedGridMesh({
         transparent: true,
         opacity: Math.min(1, Math.max(highContrast ? 1 : 0.85, opacity)),
         alphaTest: highContrast ? 0.08 : 0.02,
-        depthWrite: false,
-        depthTest: false,
         side: THREE.DoubleSide,
         toneMapped: false,
       });
+  applyDrapeDepth(mat);
   const mesh = new THREE.Mesh(draped, mat);
   mesh.name = `hydrology_${id}`;
   mesh.renderOrder = highContrast || animateBankErosion ? 48 : 18;
@@ -2394,12 +2393,11 @@ async function buildFlatGroundOverlayMesh({
     transparent: true,
     opacity: 1,
     alphaTest: 0.08,
-    depthWrite: false,
-    depthTest: false,
     side: THREE.DoubleSide,
     toneMapped: false,
     blending: THREE.NormalBlending,
   });
+  applyDrapeDepth(mat);
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = `hydrology_${id}`;
   mesh.renderOrder = 48;

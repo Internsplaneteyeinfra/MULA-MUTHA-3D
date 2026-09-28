@@ -3,6 +3,7 @@
  * Pulses hot classes gently; soft shimmer along the corridor.
  */
 import * as THREE from "three";
+import { applyDrapeDepth } from "../drapeDepth.js";
 
 const VERT = /* glsl */ `
 varying vec2 vUv;
@@ -56,11 +57,10 @@ export function createBankErosionMaterial(texture, opts = {}) {
     vertexShader: VERT,
     fragmentShader: FRAG,
     transparent: true,
-    depthWrite: false,
-    depthTest: false,
     side: THREE.DoubleSide,
     toneMapped: false,
   });
+  applyDrapeDepth(mat);
   mat.userData.bankErosionAnim = true;
   return mat;
 }

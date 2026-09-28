@@ -343,37 +343,12 @@ function mat(opts) {
   return m;
 }
 
-export function updateBridgeLabels(group, camera) {
-  if (!camera || !group?.visible) return;
-  const hideLabels = !!state.cinematicActive;
-  // B pin / names only in Overview (not Local 3D / Bathymetry / Follow)
-  const overviewOnly = state.cameraMode === "overview";
-  const showNames = !!state.showBridgeNames && overviewOnly;
-  const pos = new THREE.Vector3();
-  for (const item of group.userData.labels || []) {
-    if (item.showingNames !== showNames) {
-      item.showingNames = showNames;
-      paintBridgeLabel(item.label, showNames ? item.fullName || "Bridge" : "B", showNames);
-    }
-
-    pos.set(item.x, item.y, item.z);
-    const d = camera.position.distanceTo(pos);
-    const visible = overviewOnly && !hideLabels && d < 25000;
-    item.label.visible = visible;
-    if (item.pole) item.pole.visible = visible && d < 12000;
-    if (item.beacon) item.beacon.visible = visible && d < 12000;
-    if (!visible) continue;
-
-    const ls = showNames
-      ? THREE.MathUtils.clamp(d * 0.045, 35, 220)
-      : THREE.MathUtils.clamp(d * 0.028, 18, 90);
-    item.label.scale.set(showNames ? ls * 4.2 : ls * 1.15, showNames ? ls * 1.15 : ls * 1.15, 1);
-    const lift = THREE.MathUtils.clamp(camera.position.y * 0.08, 8, 120);
-    item.label.position.set(item.x, item.deckY + 18 + lift, item.z);
-
-    const ms = THREE.MathUtils.clamp(d / 380, 1.2, 18);
-    if (item.pole) item.pole.scale.set(ms * 0.55, ms * 0.5, ms * 0.55);
-    if (item.beacon) item.beacon.scale.setScalar(ms * 0.55);
+/** In-scene sprite pins are superseded by the screen-space layer in bridgeLabels.js. */
+export function updateBridgeLabels(group) {
+  for (const item of group?.userData?.labels || []) {
+    item.label.visible = false;
+    if (item.pole) item.pole.visible = false;
+    if (item.beacon) item.beacon.visible = false;
   }
 }
 

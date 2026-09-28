@@ -11,6 +11,7 @@ import { prefetchTreeAssets } from "./treeRegistry.js";
 import { fetchVegetationForAoi } from "../services/vegetationService.js";
 import { mountVegetationStatus } from "../ui/components/vegetationStatus.js";
 import { createBridges, updateBridgeLabels, updateBridgePiers } from "./bridges.js";
+import { createBridgeLabels } from "./bridgeLabels.js";
 import { createCameraSystem } from "./cinematic.js";
 import { attachInspect } from "./inspect.js";
 import { createRiverWidthMeasure } from "./riverWidthMeasure.js";
@@ -201,6 +202,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const chainage = createChainageLayer(dataset);
   const validation = createProjectionValidation(dataset);
   const bridges = createBridges(dataset);
+  const bridgeLabels = createBridgeLabels(bridges, dataset);
 
   scene.add(terrain.mesh);
   if (terrain.surround) scene.add(terrain.surround);
@@ -1764,8 +1766,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       bridges.visible = true;
       if (labelThrottle.ready(dt)) {
-        updateBridgeLabels(bridges, cam.camera);
+        updateBridgeLabels(bridges);
       }
+      bridgeLabels.update(cam.camera);
       validation.visible = state.showValidation || state.showOsmAlignment;
       terrain.outline.visible = state.showValidation;
       particles.mesh.visible = waterOn && state.flowVisibility > 0.05;

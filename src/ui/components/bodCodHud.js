@@ -29,12 +29,6 @@ export function mountBodCodHud(root, hooks = {}) {
   backEl.innerHTML = `<span class="lu-theme-back-arrow" aria-hidden="true">←</span><span>Back</span>`;
   root.appendChild(backEl);
 
-  const alertsEl = document.createElement("div");
-  alertsEl.className = "bod-cod-alerts map-chrome";
-  alertsEl.hidden = true;
-  alertsEl.setAttribute("aria-label", "BOD-COD alerts");
-  root.appendChild(alertsEl);
-
   const timeEl = document.createElement("div");
   timeEl.className = "bod-cod-time map-chrome";
   timeEl.hidden = true;
@@ -153,7 +147,6 @@ export function mountBodCodHud(root, hooks = {}) {
       }),
     );
     renderTime();
-    renderAlerts();
     renderTour();
     renderStrip();
     renderCard();
@@ -210,38 +203,22 @@ export function mountBodCodHud(root, hooks = {}) {
     slider?.addEventListener("input", () => {
       applyTime(Number(slider.value));
     });
+    placeTimeAboveRuler();
+    requestAnimationFrame(placeTimeAboveRuler);
   }
 
-  function renderAlerts() {
-    const date = snaps[0]?.sample?.date || timeline.dates[timeIndex] || data?.generated;
-    const list = alertsForDate(data, date);
-    if (!list.length) {
-      alertsEl.hidden = true;
-      alertsEl.innerHTML = "";
+  function placeTimeAboveRuler() {
+    const ruler = document.querySelector(".chainage-ruler");
+    const rect = ruler && !ruler.hidden ? ruler.getBoundingClientRect() : null;
+    if (!rect?.height) {
+      timeEl.style.removeProperty("--bod-time-bottom");
       return;
     }
-    alertsEl.innerHTML = `
-      <div class="bod-cod-alerts-head">
-        <span>Alert inbox</span>
-        <em>${list.length}</em>
-      </div>
-      <div class="bod-cod-alerts-track">
-        ${list
-          .slice(0, 4)
-          .map((a) => {
-            const tier = String(a.tier || "alert");
-            return `<article class="bod-cod-alert-card" data-tier="${escapeAttr(tier)}">
-              <header><strong>${escapeHtml(tier)}</strong>
-                <span>[${escapeHtml(a.basis || "—")}] ${escapeHtml(a.reach_id || "")}</span>
-              </header>
-              <p>${escapeHtml(cleanText(a.text || ""))}</p>
-            </article>`;
-          })
-          .join("")}
-      </div>
-    `;
-    alertsEl.hidden = false;
+    timeEl.style.setProperty("--bod-time-bottom", `${Math.round(window.innerHeight - rect.top + 8)}px`);
   }
+  window.addEventListener("resize", () => {
+    if (!timeEl.hidden) placeTimeAboveRuler();
+  });
 
   function renderTour() {
     const list = reaches();
@@ -512,8 +489,6 @@ export function mountBodCodHud(root, hooks = {}) {
     data = null;
     snaps = [];
     backEl.hidden = true;
-    alertsEl.hidden = true;
-    alertsEl.innerHTML = "";
     timeEl.hidden = true;
     timeEl.innerHTML = "";
     tourEl.hidden = true;

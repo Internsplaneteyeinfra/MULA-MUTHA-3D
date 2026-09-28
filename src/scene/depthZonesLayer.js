@@ -3,6 +3,7 @@ import { SURFACE_Y } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
 import { lonLatToLocal } from "../geo/geoReference.js";
 import { state } from "../state.js";
+import { applyDrapeDepth } from "./drapeDepth.js";
 
 /** Configurable lift above sampled terrain / water surface (meters). */
 export const GLASSY_WATER_LIFT_M = 0.55;
@@ -89,6 +90,7 @@ export function createDepthZonesLayer(dataset) {
     polygonOffsetFactor: -2,
     polygonOffsetUnits: -2,
   });
+  applyDrapeDepth(material);
 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.name = "bathymetryOverlay";
