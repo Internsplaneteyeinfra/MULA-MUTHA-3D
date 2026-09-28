@@ -23,6 +23,7 @@ import { mountDigitalTwinPanel } from "./components/digitalTwinPanel.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
 import { mountCrossSectionModal } from "./components/crossSectionModal.js";
 import { mountThresholdGraph } from "./components/thresholdGraph.js";
+import { isDigitalTwinActive } from "./dtMode.js";
 import { mountHydroIntelPanel } from "./components/hydroIntelPanel.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
 import {
@@ -226,20 +227,14 @@ export function createTooltip(root) {
         return;
       }
       if (info.depthZoneHover) {
-        const area =
-          info.areaM2 != null
-            ? `${Math.round(info.areaM2).toLocaleString()} m²`
-            : "—";
         el.innerHTML = `
-          <h3>💎 SELECTED WATER REGION</h3>
-          <div class="kv"><span class="k">Depth class</span><span class="v depth">${info.depthClass ?? "—"} m</span></div>
-          <div class="kv"><span class="k">Depth (mid)</span><span class="v">${info.depthMid != null ? Number(info.depthMid).toFixed(2) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Area</span><span class="v">${area}</span></div>
-          <div class="kv"><span class="k">Feature ID</span><span class="v">${info.featureId ?? "—"}</span></div>
+          <h3>💎 BATHYMETRY</h3>
+          <div class="kv"><span class="k">Water depth</span><span class="v depth">${info.depthMid != null ? Number(info.depthMid).toFixed(2) + " m" : "—"}</span></div>
+          <div class="kv"><span class="k">Depth class</span><span class="v">${info.depthClass ?? "—"} m</span></div>
           <div class="kv"><span class="k">Elevation</span><span class="v">${info.elevation != null ? Number(info.elevation).toFixed(1) + " m" : "—"}</span></div>
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
-          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">Real KML polygon · glassy viz only</em>
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">mula_mutha_depth_blueshade_smoothed.kmz · raster colour → depth</em>
         `;
         return;
       }
@@ -297,12 +292,13 @@ export function createTooltip(root) {
           <button id="tip-cs-btn" style="margin-top:8px;width:100%;background:rgba(79,200,235,0.2);border:1px solid rgba(79,200,235,0.4);color:#00f2fe;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
             📊 View Cross-Section Geometry
           </button>
+          ${isDigitalTwinActive() ? `
           <button id="tip-tg-btn" style="margin-top:6px;width:100%;background:rgba(0,229,180,0.15);border:1px solid rgba(0,229,180,0.35);color:#00e5b4;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
             📈 View Threshold Graph
           </button>
           <button id="tip-hi-btn" style="margin-top:6px;width:100%;background:rgba(255,195,0,0.12);border:1px solid rgba(255,195,0,0.3);color:#ffc300;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
             🌊 Hydrology Intelligence Panel
-          </button>
+          </button>` : ""}
         `;
         el.querySelector("#tip-cs-btn")?.addEventListener("click", (ev) => {
           ev.stopPropagation();
@@ -462,6 +458,14 @@ export function mountUI(root, {
     onResetOrientation: () => onResetOrientation?.(),
   });
   mountZoomControls(root, { onZoomIn, onZoomOut });
+
+  // Weather detail button lives in the right control stack, under the compass.
+  const weatherIconBtn = weather.el.querySelector("#weather-icon-btn");
+  const rightStack = root.querySelector(".gis-tools-stack");
+  if (weatherIconBtn && rightStack) {
+    weatherIconBtn.className = "map-ctrl-btn map-ctrl-btn--icon toolbar-button weather-tool-btn";
+    rightStack.insertBefore(weatherIconBtn, rightStack.querySelector(".gis-view-modes"));
+  }
 
   // ─── Digital Twin HUD (same left stack as River Data / geology panels) ───
   const dtPanel = mountDigitalTwinPanel(leftStack);
@@ -1042,9 +1046,8 @@ export function mountUI(root, {
         state.glassyRevealActive = true;
         window.__MM_SCENE__?.depthZonesLayer?.userData?.playReveal?.();
         const stats = window.__MM_SCENE__?.getDepthZonesStats?.();
-        const n = stats?.polygons || window.__MM_SCENE__?.dataset?.depthZones?.length || 0;
-        statsEl.textContent = n
-          ? `SURVEY / INTERPOLATED DEPTH · measured depth zones (${n} polygons · shared GPU shader)`
+        statsEl.textContent = stats?.raster
+          ? `BATHYMETRY · ${stats.depthRange[0].toFixed(2)}–${stats.depthRange[1].toFixed(2)} m · ${stats.source}`
           : "SURVEY / INTERPOLATED DEPTH · visualized by measured depth_m.";
       }
     }

@@ -125,6 +125,8 @@ export const state = {
   chainageLabelMode: "station",
   /** Selected chainage meters (click highlight). */
   selectedChainageMeters: null,
+  /** Last Open-Meteo reading published by the weather widget for the selected chainage. */
+  liveWeather: null,
   /** True while hovering the selected chainage (suppresses water-depth tip). */
   chainageTipActive: false,
   /** True while bank-erosion class card owns the map tooltip (sticky or hover). */

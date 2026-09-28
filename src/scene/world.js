@@ -1514,7 +1514,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         stats: mainStemLayer.userData?.stats || null,
       };
     },
-    /** Geology → Bathymetry: Jul 2026 depth-zone KML polygons */
+    /** Geology → Bathymetry: mula_mutha_depth_blueshade_smoothed.kmz raster */
     setBathymetry(on) {
       const active = !!on;
       state.bathymetryMode = active;

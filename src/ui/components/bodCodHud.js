@@ -42,26 +42,12 @@ export function mountBodCodHud(root, hooks = {}) {
   timeEl.setAttribute("aria-label", "BOD-COD time selection");
   root.appendChild(timeEl);
 
-  const classesEl = document.createElement("div");
-  classesEl.className = "bod-cod-classes map-chrome";
-  classesEl.hidden = true;
-  classesEl.setAttribute("role", "list");
-  classesEl.setAttribute("aria-label", "BOD water-use classes");
-  root.appendChild(classesEl);
-
   const tourEl = document.createElement("div");
   tourEl.className = "bod-cod-tour map-chrome";
   tourEl.hidden = true;
   tourEl.setAttribute("role", "group");
   tourEl.setAttribute("aria-label", "BOD-COD reach tour");
   root.appendChild(tourEl);
-
-  const stripEl = document.createElement("div");
-  stripEl.className = "bod-cod-strip map-chrome";
-  stripEl.hidden = true;
-  stripEl.setAttribute("role", "listbox");
-  stripEl.setAttribute("aria-label", "River end to end by class");
-  root.appendChild(stripEl);
 
   const cardEl = document.createElement("aside");
   cardEl.className = "bod-cod-card map-chrome";
@@ -80,7 +66,6 @@ export function mountBodCodHud(root, hooks = {}) {
   let timeIndex = 0;
   let reachIndex = 0;
   let busy = false;
-  let filterCls = null;
   let syncingFromHud = false;
   /** @type {ReturnType<typeof sampleAllReachesAt>} */
   let snaps = [];
@@ -117,8 +102,6 @@ export function mountBodCodHud(root, hooks = {}) {
     if (!list.length) return;
     // Wrap end → start so a parked session keeps producing fresh frames
     reachIndex = (reachIndex + 1) % list.length;
-    filterCls = null;
-    renderClasses();
     focusReach({ moveCamera: true, preferMeters: null });
   }
 
@@ -171,7 +154,6 @@ export function mountBodCodHud(root, hooks = {}) {
     );
     renderTime();
     renderAlerts();
-    renderClasses();
     renderTour();
     renderStrip();
     renderCard();
@@ -261,64 +243,6 @@ export function mountBodCodHud(root, hooks = {}) {
     alertsEl.hidden = false;
   }
 
-  function renderClasses() {
-    const colors = data?.class_colors || {};
-    const labels = data?.class_labels || {};
-    const edges = data?.bod_edges || [2, 3, 6, 10];
-    const order = ["A", "B", "C", "D", "E"];
-    const counts = Object.fromEntries(order.map((c) => [c, 0]));
-    for (const s of snaps) {
-      const cls = String(s.sample?.cls || "").toUpperCase();
-      if (counts[cls] != null) counts[cls] += 1;
-    }
-    const edgeTips = {
-      A: `≤ ${edges[0]} mg/L`,
-      B: `≤ ${edges[1]} mg/L`,
-      C: `≤ ${edges[2]} mg/L`,
-      D: `≤ ${edges[3]} mg/L`,
-      E: `> ${edges[3]} mg/L`,
-    };
-    classesEl.innerHTML = order
-      .map((cls) => {
-        const color = colors[cls] || "#888";
-        const tip = `${labels[cls] || cls} · ${edgeTips[cls] || ""}`;
-        const on = filterCls === cls ? " is-active" : "";
-        const n = counts[cls] || 0;
-        return `
-        <button type="button" class="bod-cod-class${on}" role="listitem"
-          data-cls="${cls}"
-          style="--bod-class-color:${escapeAttr(color)}"
-          title="${escapeAttr(cleanText(tip))}"
-          aria-pressed="${filterCls === cls ? "true" : "false"}"
-          aria-label="${escapeAttr(classShortLabel(cls, labels))}">
-          <span class="bod-cod-class-letter">${cls}</span>
-          <span class="bod-cod-class-name">${escapeHtml(classShortLabel(cls, labels))}</span>
-          ${n ? `<span class="bod-cod-class-count">${n}</span>` : ""}
-        </button>`;
-      })
-      .join("");
-    classesEl.hidden = false;
-    classesEl.querySelectorAll(".bod-cod-class").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const cls = btn.dataset.cls;
-        if (filterCls === cls) filterCls = null;
-        else {
-          filterCls = cls;
-          const idx = snaps.findIndex((s) => String(s.sample?.cls || "").toUpperCase() === cls);
-          if (idx >= 0) {
-            reachIndex = idx;
-            focusReach({ moveCamera: true, preferMeters: null });
-            return;
-          }
-        }
-        renderClasses();
-        renderStrip();
-      });
-    });
-  }
-
   function renderTour() {
     const list = reaches();
     const r = current();
@@ -364,61 +288,45 @@ export function mountBodCodHud(root, hooks = {}) {
     bumpIdleAdvance();
   }
 
+  /** Paint each reach's class onto the bottom chainage ruler. */
   function renderStrip() {
     const list = reaches();
-    if (!list.length) {
-      stripEl.hidden = true;
+    if (!visible || !list.length) {
+      clearRulerBands();
       return;
     }
     const colors = data?.class_colors || {};
-    const maxKm = Math.max(...list.map((r) => Number(r.km?.[1] ?? 0)), 1);
-    stripEl.innerHTML = `
-      <div class="bod-cod-strip-head">
-        <span>The river, end to end</span>
-        <em>${escapeHtml(cleanText(data?.river_name || "Mutha"))}</em>
-      </div>
-      <div class="bod-cod-strip-track" role="presentation">
-        ${list
-          .map((r, i) => {
-            const [a, b] = Array.isArray(r.km) ? r.km : [i * 2, i * 2 + 2];
-            const w = Math.max(2, ((Number(b) - Number(a)) / maxKm) * 100);
-            const sample = snaps[i]?.sample || sampleReachAt(r, timeIndex, data, timeline);
-            const cls = String(sample.cls || "NA").toUpperCase();
-            const color = colors[cls] || colors.NA || "#6B7A7F";
-            const style = supportStyle(sample.support);
-            const on = i === reachIndex ? " is-active" : "";
-            const dim = filterCls && filterCls !== cls ? " is-dim" : "";
-            return `<button type="button" class="bod-cod-seg is-${style}${on}${dim}" role="option"
-              data-idx="${i}" aria-selected="${i === reachIndex}"
-              style="--bod-class-color:${escapeAttr(color)}; flex-grow:${w.toFixed(2)}; flex-basis:0"
-              title="${escapeAttr(cleanText(r.name || r.id))} · Class ${cls} · ${style}"
-              aria-label="${escapeAttr(cleanText(r.name || r.id))}, class ${cls}"></button>`;
-          })
-          .join("")}
-      </div>
-      <div class="bod-cod-strip-legend">
-        <span class="is-observed">Observed</span>
-        <span class="is-prior">Prior</span>
-        <span class="is-forecast">Forecast</span>
-      </div>
-      <div class="bod-cod-strip-scale">
-        <span>0 km</span>
-        <span>${fmtKm(maxKm)} km</span>
-      </div>
-    `;
-    stripEl.hidden = false;
-    stripEl.querySelectorAll(".bod-cod-seg").forEach((btn) => {
-      btn.addEventListener("click", (e) => {
-        e.preventDefault();
-        e.stopPropagation();
-        const idx = Number(btn.dataset.idx);
-        if (!Number.isFinite(idx)) return;
-        reachIndex = idx;
-        filterCls = null;
-        renderClasses();
-        focusReach({ moveCamera: true, preferMeters: null });
-      });
+    const segments = list.map((r, i) => {
+      const [a, b] = Array.isArray(r.km) ? r.km : [i * 2, i * 2 + 2];
+      const sample = snaps[i]?.sample || sampleReachAt(r, timeIndex, data, timeline);
+      const cls = String(sample.cls || "NA").toUpperCase();
+      const style = supportStyle(sample.support);
+      return {
+        startM: Number(a) * 1000,
+        endM: Number(b) * 1000,
+        color: colors[cls] || colors.NA || "#6B7A7F",
+        style,
+        active: i === reachIndex,
+        title: `${cleanText(r.name || r.id)} · Class ${cls} · ${style}`,
+      };
     });
+    document.dispatchEvent(
+      new CustomEvent("chainage-bands", {
+        detail: {
+          title: `BOD class · ${cleanText(data?.river_name || "Mutha")}`,
+          legend: [
+            { label: "Observed", style: "observed" },
+            { label: "Prior", style: "prior" },
+            { label: "Forecast", style: "forecast" },
+          ],
+          segments,
+        },
+      }),
+    );
+  }
+
+  function clearRulerBands() {
+    document.dispatchEvent(new CustomEvent("chainage-bands", { detail: null }));
   }
 
   function renderCard() {
@@ -525,8 +433,6 @@ export function mountBodCodHud(root, hooks = {}) {
     if (!list.length) return;
     // Manual step wraps so Next at the end continues the tour
     reachIndex = (reachIndex + dir + list.length) % list.length;
-    filterCls = null;
-    renderClasses();
     focusReach({ moveCamera: true, preferMeters: null });
   }
 
@@ -542,8 +448,6 @@ export function mountBodCodHud(root, hooks = {}) {
       return;
     }
     reachIndex = idx;
-    filterCls = null;
-    renderClasses();
     focusReach({ moveCamera: false, preferMeters: m });
   }
 
@@ -569,7 +473,6 @@ export function mountBodCodHud(root, hooks = {}) {
     busy = true;
     try {
       visible = true;
-      filterCls = null;
       enterMapFocus(root, "bodcod");
       backEl.hidden = false;
       cardEl.innerHTML = `<p class="bod-cod-loading">Loading BOD / COD twin…</p>`;
@@ -608,18 +511,14 @@ export function mountBodCodHud(root, hooks = {}) {
     clearIdleAdvance();
     data = null;
     snaps = [];
-    filterCls = null;
     backEl.hidden = true;
     alertsEl.hidden = true;
     alertsEl.innerHTML = "";
     timeEl.hidden = true;
     timeEl.innerHTML = "";
-    classesEl.hidden = true;
-    classesEl.innerHTML = "";
     tourEl.hidden = true;
     tourEl.innerHTML = "";
-    stripEl.hidden = true;
-    stripEl.innerHTML = "";
+    clearRulerBands();
     cardEl.hidden = true;
     cardEl.innerHTML = "";
     accuracyEl.hidden = true;

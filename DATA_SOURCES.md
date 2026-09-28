@@ -13,7 +13,7 @@
 |-------|------|--------|
 | River corridor polygon | `public/data/Mula_MuthaAOI.kml` (same geometry as `mula_mutha_river.kml`) | Source of bank-to-bank boundary |
 | Bathymetry | `public/data/mula_mutha_water_depth.csv` from `mula_mutha_water_depth.xlsx` | latitude, longitude, depth_m |
-| Depth overlay (validation) | `mula_mutha_depth_2d` KMZ → `mula_mutha_depth_overlay.png` + LatLonBox | Visual check only |
+| Bathymetry (Geology → Bathymetry) | `src/data/mula_mutha_depth_blueshade_smoothed.kmz` → `public/data/bathymetry/` (overlay PNG + legend + LatLonBox) | 1.53–2.00 m colour ramp, click reads depth |
 | Bridges | `public/data/bridges.geojson` | OpenStreetMap ways |
 | Roads / buildings / parks | `public/data/osm_*.geojson` | OpenStreetMap via `scripts/fetchOsmMapApi.py` |
 | Fishing locations | `public/data/Fishing_Locations.kml` | KML placemark Points (L1–L9); fish module only |

@@ -189,41 +189,6 @@ export function createRoadSystem(dataset) {
   const unit = new THREE.BoxGeometry(1, 1, 1);
   unit.translate(0, 0.5, 0);
   const dummy = new THREE.Object3D();
-  const color = new THREE.Color();
-
-  // —— Junction discs (seal intersections between different OSM ways) ——
-  if (junctionNodes.length) {
-    const discGeo = new THREE.CylinderGeometry(0.5, 0.5, 1, 16);
-    discGeo.translate(0, 0.5, 0);
-    const discMat = new THREE.MeshStandardMaterial({
-      color: "#5c6268",
-      roughness: 0.96,
-      metalness: 0.02,
-      vertexColors: true,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
-    const discs = new THREE.InstancedMesh(discGeo, discMat, junctionNodes.length);
-    discs.name = "roadJunctions";
-    discs.receiveShadow = true;
-    discs.frustumCulled = false;
-    for (let i = 0; i < junctionNodes.length; i++) {
-      const n = junctionNodes[i];
-      dummy.position.set(n.x, n.y + 0.01, n.z);
-      dummy.rotation.set(0, 0, 0);
-      // Slightly oversized so corner miters never flash green
-      const d = Math.max(3.2, n.w * 1.35);
-      dummy.scale.set(d, 0.16, d);
-      dummy.updateMatrix();
-      discs.setMatrixAt(i, dummy.matrix);
-      color.set(n.color || "#5c6268");
-      discs.setColorAt(i, color);
-    }
-    discs.instanceMatrix.needsUpdate = true;
-    if (discs.instanceColor) discs.instanceColor.needsUpdate = true;
-    group.add(discs);
-  }
 
   // —— White edge lines ——
   if (edgeSegs.length) {

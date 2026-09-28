@@ -1,4 +1,4 @@
-import { parseKmlGeometry, parseChainageAnalysisKml, parseDrainageKml, parseDepthZonesKml } from "./kml.js";
+import { parseKmlGeometry, parseChainageAnalysisKml, parseDrainageKml } from "./kml.js";
 import { loadDepthCsv, loadRiverBoundaryCsv } from "./csv.js";
 import { lonLatToUtm } from "./projection.js";
 import { initGeoReference, getGeoReference, lonLatToLocal } from "./geoReference.js";
@@ -13,7 +13,6 @@ import { loadFabdemDtmWithTimeout } from "./dtm.js";
 import { parseFishingLocationsKml } from "../features/fishing/FishingLocationLoader.js";
 import fishingKmlRaw from "../features/fishing/Fishing_Locations.kml?raw";
 import drainageKmlRaw from "../data/drainage_network.kml?raw";
-import depthZonesKmlRaw from "../data/depth_zones_jul2026.kml?raw";
 import { buildFishingZones } from "../features/fishing/FishingZoneSystem.js";
 import { isLowMemoryDevice } from "../perf/quality.js";
 
@@ -29,13 +28,13 @@ export function kmlBoundsCenter(bbox) {
   };
 }
 
-/** KMZ GroundOverlay LatLonBox (mula_mutha_depth_2d.kmz). */
+/** KMZ GroundOverlay LatLonBox (mula_mutha_depth_blueshade_smoothed.kmz). */
 export const DEPTH_OVERLAY_BOX = {
   north: 18.54735962,
   south: 18.52083962,
   east: 73.99281512,
   west: 73.85517512,
-  url: "/data/mula_mutha_depth_overlay.png",
+  url: "/data/bathymetry/mula_mutha_depth_overlay.png",
 };
 
 export async function loadJourneyDataset({
@@ -230,9 +229,6 @@ export async function loadJourneyDataset({
   onProgress?.(0.9, "Loading drainage network…");
   const drainage = loadDrainageNetworkFromRaw(drainageKmlRaw);
 
-  onProgress?.(0.93, "Loading depth-zone polygons…");
-  const depthZones = loadDepthZonesFromRaw(depthZonesKmlRaw);
-
   const overlayCorners = overlayCornersLocal(frame);
 
   const report = buildValidationReport({
@@ -350,7 +346,6 @@ export async function loadJourneyDataset({
     fishingLocationsRaw,
     fishingZones,
     drainage,
-    depthZones,
     /** Call after first paint to load buildings/roads/trees (~12MB). */
     loadOsmLater: (options) => loadOsmContext(frame, corridor, options),
   };
@@ -367,43 +362,6 @@ async function loadNadiTwinProfiles() {
   } catch (error) {
     console.warn("NadiTwin profiles unavailable; using loaded KML/CSV data:", error.message);
     return null;
-  }
-}
-
-/** Parse bundled Jul 2026 depth-class polygons into shared local frame. */
-function loadDepthZonesFromRaw(text) {
-  try {
-    const raw = parseDepthZonesKml(text);
-    const out = raw.map((f) => ({
-      name: f.name,
-      description: f.description,
-      depthClass: f.depthClass,
-      depthMin: f.depthMin,
-      depthMax: f.depthMax,
-      depthMid: f.depthMid,
-      fillOpacity: f.fillOpacity,
-      areaM2: f.areaM2,
-      styleId: f.styleId,
-      vertices: f.coordinates.map((c) => {
-        const loc = lonLatToLocal(c.lon, c.lat);
-        return { lon: c.lon, lat: c.lat, x: loc.x, z: loc.z };
-      }),
-    }));
-    console.info("Depth zones KML loaded (bundled)", {
-      polygons: out.length,
-      sample: out[0]
-        ? {
-            class: out[0].depthClass,
-            opacity: out[0].fillOpacity,
-            pts: out[0].vertices.length,
-            xz: out[0].vertices[0],
-          }
-        : null,
-    });
-    return out;
-  } catch (err) {
-    console.warn("Depth zones unavailable:", err.message);
-    return [];
   }
 }
 

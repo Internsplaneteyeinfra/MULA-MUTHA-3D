@@ -234,12 +234,25 @@
   color: #7dd3fc;
 }
 
+/* Zoom sits beside the compass (left of it), vertically centred on it */
 .zoom-controls {
+  position: absolute;
+  top: 48px;
+  right: calc(50% + 56px);
+  transform: translateY(-50%);
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 4px;
-  margin-top: 2px;
+  margin: 0;
+}
+.weather-tool-btn {
+  width: 48px;
+  color: #86dded;
+}
+.weather-tool-btn svg {
+  width: 20px;
+  height: 20px;
 }
 .zoom-controls .map-ctrl-btn {
   width: 48px;
@@ -3346,8 +3359,8 @@
   right: max(14px, env(safe-area-inset-right));
   z-index: 19;
   display: grid;
-  /* icon | LIVE REACH | LIVE WEATHER | date/time — none of the text columns shrink */
-  grid-template-columns: auto max-content max-content max-content;
+  /* LIVE REACH | LIVE WEATHER | date/time — none of the text columns shrink */
+  grid-template-columns: max-content max-content max-content;
   align-items: center;
   column-gap: 14px;
   row-gap: 0;
@@ -3734,7 +3747,7 @@
   }
 }
 .weather-copy {
-  min-width: 11.5rem;
+  min-width: 0;
   width: max-content;
   max-width: 13.5rem;
   display: grid;
@@ -3886,7 +3899,7 @@
     max-width: min(210px, calc(100vw - 88px));
     height: auto;
     padding: 6px 8px;
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     column-gap: 6px;
     border-radius: 10px;
   }
@@ -4737,6 +4750,403 @@
   cursor: pointer;
 }
 .aqi-back { z-index: 30; }
+
+/* ── AQI bottom panel: header · 7 metric cards · live trend chart ─────── */
+#ui-root.gis-ui .aqi-panel {
+  left: 50%;
+  right: auto;
+  top: auto;
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 132px);
+  transform: translateX(-50%);
+  width: min(1180px, calc(100vw - 180px));
+  max-height: calc(100dvh - 300px);
+  padding: 14px 16px 12px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(10, 24, 38, 0.86), rgba(6, 16, 28, 0.88));
+  border: 1px solid rgba(148, 196, 255, 0.18);
+  box-shadow: 0 18px 44px rgba(0, 0, 0, 0.42), inset 0 1px 0 rgba(255, 255, 255, 0.06);
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+#ui-root.gis-ui .aqi-panel.is-loading { opacity: 0.9; }
+#ui-root.gis-ui .aqi-panel .aqi-classes { display: none !important; }
+
+.aqi-panel-body {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  min-width: 0;
+}
+.aqi-panel .aqi-ico { display: block; flex-shrink: 0; }
+
+/* Header */
+.aqi-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+.aqi-head-id {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+.aqi-head-icon {
+  display: grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.3);
+  flex-shrink: 0;
+}
+.aqi-head-copy { min-width: 0; }
+.aqi-head-title {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.aqi-head-title strong {
+  font: 750 17px/1.2 var(--font-ui);
+  color: #fff;
+  letter-spacing: 0.01em;
+}
+.aqi-live {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 700 10.5px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border: 1px solid rgba(74, 222, 128, 0.35);
+}
+.aqi-live i {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  box-shadow: 0 0 0 0 currentColor;
+  animation: aqi-live-pulse 1.8s ease-out infinite;
+}
+.aqi-live.is-history {
+  color: #fbbf24;
+  background: rgba(251, 191, 36, 0.12);
+  border-color: rgba(251, 191, 36, 0.35);
+}
+.aqi-live.is-history i { animation: none; }
+@keyframes aqi-live-pulse {
+  0% { box-shadow: 0 0 0 0 rgba(74, 222, 128, 0.6); }
+  100% { box-shadow: 0 0 0 7px rgba(74, 222, 128, 0); }
+}
+.aqi-head-loc {
+  margin-top: 3px;
+  font: 550 12px/1.3 var(--font-ui);
+  color: rgba(203, 221, 240, 0.82);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  font-variant-numeric: tabular-nums;
+}
+.aqi-head-loc .aqi-sep { margin: 0 6px; opacity: 0.45; }
+
+.aqi-head-tools {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+.aqi-stamp {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font: 600 12px/1 var(--font-ui);
+  color: rgba(203, 221, 240, 0.85);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.aqi-range {
+  display: inline-flex;
+  padding: 3px;
+  gap: 2px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+.aqi-range button {
+  min-width: 40px;
+  padding: 6px 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: rgba(214, 228, 244, 0.8);
+  font: 700 11.5px/1 var(--font-ui);
+  cursor: pointer;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+.aqi-range button:hover { background: rgba(255, 255, 255, 0.08); color: #fff; }
+.aqi-range button.is-active {
+  background: #2563eb;
+  color: #fff;
+  box-shadow: 0 2px 8px rgba(37, 99, 235, 0.45);
+}
+.aqi-expand {
+  display: grid;
+  place-items: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 9px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(226, 238, 250, 0.9);
+  cursor: pointer;
+  transition: background 0.15s ease;
+}
+.aqi-expand:hover { background: rgba(255, 255, 255, 0.14); color: #fff; }
+
+/* Metric cards */
+.aqi-cards {
+  display: grid;
+  grid-template-columns: 1.25fr repeat(6, minmax(0, 1fr));
+  gap: 10px;
+}
+.aqi-card {
+  --card-color: #4fc3f7;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 0;
+  margin: 0;
+  padding: 10px 12px 11px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.045);
+  color: #f4f8fb;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+  transition: border-color 0.15s ease, background 0.15s ease, transform 0.15s ease;
+}
+.aqi-card.is-static { cursor: default; }
+.aqi-card:not(.is-static):hover {
+  background: rgba(255, 255, 255, 0.08);
+  border-color: color-mix(in srgb, var(--card-color) 55%, transparent);
+  transform: translateY(-1px);
+}
+.aqi-card.is-selected {
+  border-color: var(--card-color);
+  background: color-mix(in srgb, var(--card-color) 12%, rgba(255, 255, 255, 0.04));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--card-color) 40%, transparent);
+}
+.aqi-card-top {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+}
+.aqi-card-icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: var(--card-color);
+  background: color-mix(in srgb, var(--card-color) 16%, transparent);
+  flex-shrink: 0;
+}
+.aqi-card-label {
+  font: 700 12px/1.1 var(--font-ui);
+  color: rgba(214, 228, 244, 0.9);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.aqi-card-main {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  min-width: 0;
+  flex-wrap: wrap;
+}
+.aqi-card-main b {
+  font: 800 22px/1 var(--font-ui);
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+.aqi-card-main small {
+  font: 600 11px/1 var(--font-ui);
+  color: rgba(190, 208, 228, 0.75);
+}
+.aqi-card--aqi .aqi-card-main b { font-size: 26px; }
+.aqi-card--aqi .aqi-cat-pill {
+  align-self: center;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font: 750 11px/1.1 var(--font-ui);
+  color: #fff;
+  background: var(--aqi-color);
+  border: 0;
+}
+.aqi-card-bar,
+.aqi-card-scale {
+  position: relative;
+  display: block;
+  height: 5px;
+  margin-top: auto;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.1);
+}
+.aqi-card-bar i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--card-color);
+  box-shadow: 0 0 8px color-mix(in srgb, var(--card-color) 60%, transparent);
+}
+.aqi-card-scale {
+  background: linear-gradient(90deg, #1c8a55 0%, #96700a 16.6%, #d2701a 33.3%, #c2372a 50%, #6d28d9 66.6%, #7f1d1d 100%);
+}
+.aqi-card-scale i {
+  position: absolute;
+  top: 50%;
+  width: 11px;
+  height: 11px;
+  border-radius: 50%;
+  background: #fff;
+  border: 2px solid #0b1726;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.6);
+}
+
+/* Trend */
+.aqi-trend {
+  padding: 10px 12px 6px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.035);
+  min-width: 0;
+}
+.aqi-trend-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+  margin-bottom: 4px;
+}
+.aqi-trend-head strong {
+  font: 750 13px/1.2 var(--font-ui);
+  color: #fff;
+}
+.aqi-trend-head strong em {
+  font-style: normal;
+  color: #4ade80;
+}
+.aqi-trend-head small {
+  font: 600 11px/1 var(--font-ui);
+  color: rgba(190, 208, 228, 0.7);
+}
+.aqi-legend {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+}
+.aqi-legend button {
+  --legend-color: #4fc3f7;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px 9px;
+  border-radius: 999px;
+  border: 1px solid transparent;
+  background: transparent;
+  color: rgba(214, 228, 244, 0.85);
+  font: 650 11.5px/1 var(--font-ui);
+  cursor: pointer;
+}
+.aqi-legend button i {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: var(--legend-color);
+}
+.aqi-legend button:hover { background: rgba(255, 255, 255, 0.07); }
+.aqi-legend button.is-selected {
+  color: #fff;
+  border-color: color-mix(in srgb, var(--legend-color) 55%, transparent);
+  background: color-mix(in srgb, var(--legend-color) 12%, transparent);
+}
+.aqi-chart {
+  position: relative;
+  width: 100%;
+  min-height: 150px;
+}
+.aqi-panel.is-expanded .aqi-chart { min-height: 250px; }
+.aqi-chart > .aqi-panel-status {
+  display: grid;
+  place-items: center;
+  min-height: 150px;
+}
+.aqi-panel .aqi-trend-svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+.aqi-trend-svg .aqi-grid {
+  stroke: rgba(255, 255, 255, 0.08);
+  stroke-width: 1;
+}
+.aqi-trend-svg .aqi-axis {
+  fill: rgba(190, 208, 228, 0.72);
+  font: 600 10px var(--font-ui);
+  font-variant-numeric: tabular-nums;
+}
+.aqi-panel .chart-tip {
+  background: rgba(10, 22, 36, 0.96);
+  border-color: rgba(148, 196, 255, 0.25);
+  color: #f4f8fb;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45);
+}
+.aqi-panel .chart-tip__row .lb { color: rgba(203, 221, 240, 0.8); }
+
+.aqi-status-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 6px 2px 2px;
+}
+
+@media (max-width: 1280px) {
+  .aqi-cards { grid-template-columns: repeat(4, minmax(0, 1fr)); }
+}
+@media (max-width: 900px) {
+  #ui-root.gis-ui .aqi-panel {
+    width: calc(100vw - 96px);
+  }
+  .aqi-head-tools { width: 100%; justify-content: space-between; }
+}
+@media (max-width: 720px) {
+  #ui-root.gis-ui .aqi-panel {
+    width: calc(100vw - 20px);
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 124px);
+    max-height: 52vh;
+    padding: 12px;
+  }
+  .aqi-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 8px; }
+  .aqi-card--aqi { grid-column: 1 / -1; }
+  .aqi-card-main b { font-size: 19px; }
+  .aqi-stamp { display: none; }
+  .aqi-legend { margin-left: 0; }
+}
 
 @media (max-width: 720px) {
   .aqi-panel {
@@ -7132,11 +7542,11 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    #87cefa 0%,
-    #4aa3e9 25%,
-    #216fcd 50%,
-    #103f96 75%,
-    #051448 100%
+    #abd5f8 0%,
+    #7d9fcc 28%,
+    #4e669f 57%,
+    #1e2d72 85%,
+    #06115b 100%
   );
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }
@@ -7529,7 +7939,7 @@
     font-size: 9px;
   }
   .weather-copy {
-    min-width: 11rem;
+    min-width: 0;
   }
   .analytics-controls,
   .top-navigation {
@@ -7542,7 +7952,7 @@
 
 @media (max-width: 1180px) {
   .weather-widget {
-    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-columns: minmax(0, 1fr);
     width: min(280px, calc(100vw - 160px));
     max-width: calc(100vw - 140px);
     column-gap: 8px;
@@ -7774,5 +8184,826 @@
   }
   .gis-ui .chainage-ruler {
     padding: 4px 8px 4px;
+  }
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   Right control column — one size for every control (weather, Overview,
+   VIEW, Layers, Settings, Flood, zoom). Scales with viewport height so the
+   column always fits; depth legend sits beside the column, never under it.
+   ═══════════════════════════════════════════════════════════════════ */
+#ui-root.gis-ui {
+  --ctrl-size: clamp(40px, 6.2vh, 58px);
+  --ctrl-gap: clamp(5px, 0.9vh, 9px);
+  --ctrl-right: max(14px, env(safe-area-inset-right));
+}
+#ui-root.gis-ui .gis-tools-stack {
+  right: var(--ctrl-right);
+  width: var(--ctrl-size);
+  gap: var(--ctrl-gap);
+}
+#ui-root.gis-ui .gis-view-modes {
+  gap: var(--ctrl-gap);
+  margin-top: 0;
+}
+#ui-root.gis-ui .gis-tools-stack .map-ctrl-btn--labeled,
+#ui-root.gis-ui .gis-tools-stack .weather-tool-btn,
+#ui-root.gis-ui .gis-tools-stack .view-toggle {
+  box-sizing: border-box;
+  width: var(--ctrl-size);
+  min-width: var(--ctrl-size);
+  max-width: var(--ctrl-size);
+  height: var(--ctrl-size);
+  min-height: var(--ctrl-size);
+  margin: 0;
+  border-radius: 10px;
+}
+#ui-root.gis-ui .gis-tools-stack .map-ctrl-btn--labeled {
+  padding: 4px 2px;
+  gap: 3px;
+}
+#ui-root.gis-ui .gis-tools-stack .map-ctrl-btn--labeled svg,
+#ui-root.gis-ui .gis-tools-stack .weather-tool-btn svg {
+  width: calc(var(--ctrl-size) * 0.36);
+  height: calc(var(--ctrl-size) * 0.36);
+}
+#ui-root.gis-ui .gis-tools-stack .map-ctrl-label {
+  font-size: clamp(9px, calc(var(--ctrl-size) * 0.2), 11.5px);
+  line-height: 1;
+  white-space: nowrap;
+}
+#ui-root.gis-ui .gis-tools-stack .view-toggle {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  padding: 4px 3px;
+}
+#ui-root.gis-ui .gis-tools-stack .view-toggle-title {
+  margin-bottom: 3px;
+  font-size: clamp(7px, calc(var(--ctrl-size) * 0.14), 8.5px);
+}
+#ui-root.gis-ui .gis-tools-stack .view-toggle-btn {
+  height: calc(var(--ctrl-size) * 0.42);
+  font-size: clamp(9px, calc(var(--ctrl-size) * 0.19), 11px);
+}
+#ui-root.gis-ui .zoom-controls .map-ctrl-btn {
+  width: var(--ctrl-size);
+  height: calc(var(--ctrl-size) * 0.76);
+}
+
+/* Depth legend: bottom-right, just left of the control column */
+#ui-root.gis-ui .depth-legend--corner {
+  right: calc(var(--ctrl-right) + var(--ctrl-size) + 12px);
+  bottom: max(72px, calc(env(safe-area-inset-bottom) + 58px));
+}
+#ui-root.gis-ui.layers-open .depth-legend--corner {
+  right: calc(16px + var(--layers-panel-w) + 14px + var(--ctrl-size) + 12px);
+}
+
+@media (max-width: 900px) {
+  #ui-root.gis-ui { --ctrl-size: clamp(40px, 6vh, 52px); --ctrl-right: 10px; }
+  #ui-root.gis-ui .depth-legend--corner { bottom: max(64px, calc(env(safe-area-inset-bottom) + 56px)); }
+}
+@media (max-width: 640px) {
+  #ui-root.gis-ui { --ctrl-size: clamp(38px, 5.6vh, 46px); --ctrl-gap: 5px; }
+  #ui-root.gis-ui .gis-ui .depth-legend .depth-bar,
+  #ui-root.gis-ui .depth-legend .depth-bar { min-height: 64px; }
+}
+@media (max-height: 640px) {
+  #ui-root.gis-ui { --ctrl-size: 38px; --ctrl-gap: 4px; }
+  #ui-root.gis-ui .gis-tools-stack .map-ctrl-label { display: none; }
+}
+/* ═══════════════════════════════════════════════════════════════════
+   Climate period stepper — compact centred glass pill
+   [← prev label]  PERIOD 3/8 · 3–15 Jul · dates  [next label →]
+   ═══════════════════════════════════════════════════════════════════ */
+#ui-root.gis-ui .climate-impact-year {
+  position: fixed;
+  left: 50% !important;
+  right: auto !important;
+  bottom: calc(max(16px, env(safe-area-inset-bottom)) + 72px);
+  transform: translateX(-50%) !important;
+  width: max-content !important;
+  min-width: 0 !important;
+  max-width: calc(100vw - 24px) !important;
+  display: inline-flex;
+  align-items: stretch;
+  justify-content: center;
+  gap: 6px;
+  padding: 6px;
+  border-radius: 16px;
+  background: rgba(8, 20, 30, 0.62);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.28);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+}
+#ui-root.gis-ui .climate-impact-year[hidden] { display: none !important; }
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-side {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  width: auto;
+  padding: 0 14px;
+  border-radius: 11px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
+  color: rgba(226, 240, 246, 0.9);
+  font: 650 12px/1 var(--font-ui);
+  white-space: nowrap;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease, color 150ms ease, transform 150ms ease;
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-side:hover:not(:disabled) {
+  background: rgba(79, 200, 235, 0.16);
+  border-color: rgba(79, 200, 235, 0.5);
+  color: #fff;
+  transform: translateY(-1px);
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-side:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-arrow {
+  font-size: 15px;
+  color: #7fe3f5;
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-side-val {
+  overflow: visible;
+  text-overflow: clip;
+  max-width: none;
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  min-width: 150px;
+  padding: 6px 18px;
+  border-radius: 11px;
+  background: rgba(79, 200, 235, 0.12);
+  border: 1px solid rgba(79, 200, 235, 0.32);
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-eyebrow {
+  font: 700 9px/1 var(--font-ui);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: rgba(170, 225, 240, 0.85);
+}
+#ui-root.gis-ui .climate-impact-year .ci-period-count {
+  font-style: normal;
+  margin-left: 4px;
+  padding: 1px 6px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.12);
+  color: #fff;
+  letter-spacing: 0.04em;
+}
+#ui-root.gis-ui .climate-impact-year .lu-theme-year-current {
+  font: 800 19px/1.1 var(--font-mono, ui-monospace, monospace);
+  color: #fff;
+  white-space: nowrap;
+}
+#ui-root.gis-ui .climate-impact-year .climate-impact-year-range {
+  margin-top: 0;
+  font: 600 10px/1.2 var(--font-ui);
+  color: rgba(200, 230, 240, 0.8);
+}
+@media (max-width: 640px) {
+  #ui-root.gis-ui .climate-impact-year {
+    bottom: calc(max(10px, env(safe-area-inset-bottom)) + 64px);
+    gap: 4px;
+    padding: 4px;
+  }
+  #ui-root.gis-ui .climate-impact-year .lu-theme-year-side { padding: 0 10px; }
+  #ui-root.gis-ui .climate-impact-year .lu-theme-year-side-val { display: none; }
+  #ui-root.gis-ui .climate-impact-year .lu-theme-year-center { min-width: 0; padding: 5px 12px; }
+  #ui-root.gis-ui .climate-impact-year .lu-theme-year-current { font-size: 16px; }
+}
+/* ── Chainage ruler class bands (BOD-COD reaches painted on the track) ── */
+.chainage-ruler-bands {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 23px;
+  height: 8px;
+  z-index: 4;
+  pointer-events: none;
+}
+.chainage-ruler-bands[hidden],
+.chainage-ruler-bands-head[hidden] { display: none !important; }
+.chainage-ruler-band {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: 3px;
+  box-sizing: border-box;
+  border-left: 1px solid rgba(6, 16, 24, 0.85);
+  background: var(--band-color);
+  opacity: 0.88;
+  transition: opacity 160ms ease, transform 160ms ease;
+}
+.chainage-ruler-band.is-prior {
+  background: repeating-linear-gradient(-45deg, var(--band-color) 0 4px, rgba(10, 20, 28, 0.55) 4px 6px);
+}
+.chainage-ruler-band.is-forecast {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px var(--band-color);
+}
+.chainage-ruler-band.is-active {
+  opacity: 1;
+  transform: scaleY(1.45);
+  box-shadow: 0 0 0 1.5px rgba(255, 255, 255, 0.9), 0 0 10px var(--band-color);
+  z-index: 1;
+}
+.chainage-ruler.has-bands .chainage-ruler-input::-webkit-slider-runnable-track { background: transparent; }
+.chainage-ruler.has-bands .chainage-ruler-input::-moz-range-track { background: transparent; }
+
+.chainage-ruler-bands-head {
+  position: absolute;
+  top: 4px;
+  right: 16px;
+  z-index: 3;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  font: 650 9.5px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+  color: rgba(214, 232, 240, 0.85);
+  white-space: nowrap;
+}
+.chainage-ruler-bands-head strong {
+  font-weight: 750;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #f0c36b;
+}
+.chainage-ruler-band-key {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+.chainage-ruler-band-key::before {
+  content: "";
+  width: 14px;
+  height: 6px;
+  border-radius: 2px;
+  background: #c8d6dd;
+}
+.chainage-ruler-band-key.is-prior::before {
+  background: repeating-linear-gradient(-45deg, #c8d6dd 0 3px, rgba(10, 20, 28, 0.7) 3px 5px);
+}
+.chainage-ruler-band-key.is-forecast::before {
+  background: transparent;
+  box-shadow: inset 0 0 0 1.5px #c8d6dd;
+}
+@media (max-width: 720px) {
+  .chainage-ruler-bands-head .chainage-ruler-band-key { display: none; }
+}
+/* ═══════════════════════════════════════════════════════════════════
+   Current Hydrology dashboard (#dt-panel.hyd-panel)
+   ═══════════════════════════════════════════════════════════════════ */
+#ui-root.gis-ui.dt-mode-active .left-ui-stack {
+  width: clamp(300px, 27vw, 440px);
+  max-width: calc(100vw - 20px);
+  top: clamp(96px, 13vh, 150px);
+  max-height: calc(100dvh - clamp(96px, 13vh, 150px) - 96px);
+  overflow: visible;
+}
+#ui-root.gis-ui .hyd-panel {
+  max-height: calc(100dvh - clamp(96px, 13vh, 150px) - 96px);
+  min-width: 0;
+  background: linear-gradient(165deg, rgba(10, 40, 56, 0.9), rgba(6, 26, 40, 0.88));
+  border: 1px solid rgba(120, 205, 230, 0.32);
+  color: #e6f5fb;
+  font-variant-numeric: tabular-nums;
+}
+#ui-root.gis-ui .hyd-panel.dt-panel--collapsed {
+  max-height: 50px;
+}
+#ui-root.gis-ui .hyd-panel .hyd-head {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: "title ctrl" "state state";
+  gap: 4px 8px;
+  padding: 10px 12px 8px;
+}
+#ui-root.gis-ui .hyd-head__title {
+  grid-area: title;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 13px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+#ui-root.gis-ui .hyd-head__title strong {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#ui-root.gis-ui .hyd-head__icon {
+  display: inline-grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  border-radius: 8px;
+  color: #5eead4;
+  background: rgba(94, 234, 212, 0.12);
+  flex: 0 0 auto;
+}
+#ui-root.gis-ui .hyd-panel .dt-panel__controls {
+  grid-area: ctrl;
+}
+#ui-root.gis-ui .hyd-head__state {
+  grid-area: state;
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 10px;
+  min-width: 0;
+}
+#ui-root.gis-ui .hyd-state {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  border: 1px solid rgba(148, 163, 184, 0.4);
+  color: #cbd5e1;
+  background: rgba(148, 163, 184, 0.12);
+}
+#ui-root.gis-ui .hyd-state i {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+#ui-root.gis-ui .hyd-state[data-kind="live"] {
+  color: #34d399;
+  border-color: rgba(52, 211, 153, 0.5);
+  background: rgba(52, 211, 153, 0.12);
+}
+#ui-root.gis-ui .hyd-state[data-kind="live"] i {
+  animation: hyd-pulse 1.6s ease-in-out infinite;
+}
+#ui-root.gis-ui .hyd-state[data-kind="replay"] {
+  color: #fbbf24;
+  border-color: rgba(251, 191, 36, 0.5);
+  background: rgba(251, 191, 36, 0.12);
+}
+#ui-root.gis-ui .hyd-state[data-kind="model"] {
+  color: #7dd3fc;
+  border-color: rgba(125, 211, 252, 0.45);
+  background: rgba(125, 211, 252, 0.1);
+}
+@keyframes hyd-pulse {
+  50% { opacity: 0.35; }
+}
+#ui-root.gis-ui .hyd-time {
+  font-size: 11px;
+  color: rgba(226, 240, 250, 0.72);
+}
+#ui-root.gis-ui .hyd-body {
+  container-type: inline-size;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 12px;
+  min-width: 0;
+}
+#ui-root.gis-ui .hyd-body > * {
+  min-width: 0;
+}
+
+/* Chainage selector */
+#ui-root.gis-ui .hyd-chainage {
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(94, 234, 212, 0.07);
+  border: 1px solid rgba(94, 234, 212, 0.22);
+}
+#ui-root.gis-ui .hyd-chainage__row {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+}
+#ui-root.gis-ui .hyd-chainage__center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 0;
+}
+#ui-root.gis-ui .hyd-eyebrow {
+  font-size: 9.5px;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: rgba(204, 238, 246, 0.7);
+}
+#ui-root.gis-ui #hyd-ch-label {
+  font-size: clamp(17px, 5cqi, 22px);
+  letter-spacing: 0.04em;
+  color: #f0fdfa;
+}
+#ui-root.gis-ui .hyd-step {
+  width: 32px;
+  height: 32px;
+  display: grid;
+  place-items: center;
+  border-radius: 9px;
+  border: 1px solid rgba(125, 211, 232, 0.4);
+  background: rgba(255, 255, 255, 0.06);
+  color: #e6f5fb;
+  cursor: pointer;
+}
+#ui-root.gis-ui .hyd-step:hover:not(:disabled) {
+  background: rgba(94, 234, 212, 0.18);
+}
+#ui-root.gis-ui .hyd-step:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+#ui-root.gis-ui .hyd-slider {
+  width: 100%;
+  margin: 10px 0 4px;
+  accent-color: #2dd4bf;
+  cursor: pointer;
+}
+#ui-root.gis-ui .hyd-chainage__ends {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  gap: 8px;
+  font-size: 10px;
+  color: rgba(204, 238, 246, 0.66);
+}
+#ui-root.gis-ui .hyd-chainage__meta {
+  text-align: center;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* Metric cards: 3 → 2 → 1 by panel width */
+#ui-root.gis-ui .hyd-metrics {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+@container (min-width: 330px) {
+  #ui-root.gis-ui .hyd-metrics {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container (max-width: 230px) {
+  #ui-root.gis-ui .hyd-metrics {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+#ui-root.gis-ui .hyd-card {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px 9px 8px;
+  border-radius: 11px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(148, 210, 232, 0.2);
+}
+#ui-root.gis-ui .hyd-card header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+#ui-root.gis-ui .hyd-card__icon {
+  color: #5eead4;
+  display: inline-flex;
+  flex: 0 0 auto;
+}
+#ui-root.gis-ui .hyd-card__label {
+  font-size: 9.5px;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: rgba(204, 238, 246, 0.78);
+  line-height: 1.2;
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+#ui-root.gis-ui .hyd-card__value {
+  display: flex;
+  align-items: baseline;
+  flex-wrap: wrap;
+  gap: 2px 4px;
+  min-width: 0;
+}
+#ui-root.gis-ui .hyd-card__value b {
+  font-size: clamp(17px, 5.4cqi, 22px);
+  color: #fff;
+  line-height: 1.1;
+}
+#ui-root.gis-ui .hyd-card__value small {
+  font-size: 10.5px;
+  color: rgba(204, 238, 246, 0.72);
+}
+#ui-root.gis-ui .hyd-card__ctx {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.3;
+  color: rgba(204, 238, 246, 0.66);
+  overflow-wrap: anywhere;
+  flex: 1 1 auto;
+}
+#ui-root.gis-ui .hyd-prov {
+  align-self: flex-start;
+  font-size: 8.5px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  padding: 1px 6px;
+  border-radius: 4px;
+  border: 1px solid currentColor;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+#ui-root.gis-ui .hyd-prov[data-prov="OBSERVED"] { color: #34d399; }
+#ui-root.gis-ui .hyd-prov[data-prov="MODELLED"] { color: #7dd3fc; }
+#ui-root.gis-ui .hyd-prov[data-prov="DERIVED"] { color: #a5b4fc; }
+#ui-root.gis-ui .hyd-prov[data-prov="INTERPOLATED"] { color: #fbbf24; }
+#ui-root.gis-ui .hyd-prov[data-prov="ASSUMED"] { color: #fb923c; }
+#ui-root.gis-ui .hyd-prov[data-prov="SCENARIO"] { color: #f0abfc; }
+#ui-root.gis-ui .hyd-prov[data-prov="UNAVAILABLE"] { color: #94a3b8; }
+
+/* Sections */
+#ui-root.gis-ui .hyd-section {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#ui-root.gis-ui .hyd-section__title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: rgba(204, 238, 246, 0.85);
+}
+#ui-root.gis-ui .hyd-note {
+  margin: 0;
+  font-size: 10px;
+  line-height: 1.35;
+  color: rgba(204, 238, 246, 0.6);
+}
+#ui-root.gis-ui .hyd-empty {
+  margin: 0;
+  padding: 10px;
+  font-size: 11px;
+  text-align: center;
+  color: rgba(204, 238, 246, 0.6);
+}
+#ui-root.gis-ui .hyd-chart {
+  position: relative;
+  width: 100%;
+  min-height: 132px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.18);
+  overflow: hidden;
+}
+#ui-root.gis-ui .hyd-chart-svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+#ui-root.gis-ui .hyd-grid {
+  stroke: rgba(255, 255, 255, 0.08);
+}
+#ui-root.gis-ui .hyd-axis {
+  font-size: 9px;
+  fill: rgba(204, 238, 246, 0.6);
+}
+#ui-root.gis-ui .hyd-marker {
+  stroke: #5eead4;
+  stroke-width: 1.5;
+  stroke-dasharray: 3 2;
+}
+#ui-root.gis-ui .hyd-marker-label {
+  font-size: 9.5px;
+  font-weight: 700;
+  fill: #5eead4;
+}
+#ui-root.gis-ui .hyd-panel .chart-tip {
+  background: rgba(8, 28, 40, 0.95);
+  color: #e6f5fb;
+  border-color: rgba(125, 211, 232, 0.4);
+}
+#ui-root.gis-ui .hyd-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px 12px;
+  font-size: 10px;
+  color: rgba(226, 240, 250, 0.8);
+}
+#ui-root.gis-ui .hyd-legend span::before {
+  content: "";
+  display: inline-block;
+  width: 12px;
+  height: 3px;
+  margin-right: 5px;
+  vertical-align: middle;
+  border-radius: 2px;
+  background: var(--c);
+}
+#ui-root.gis-ui .hyd-legend em {
+  font-style: normal;
+  font-size: 8.5px;
+  opacity: 0.65;
+}
+
+/* Condition summary */
+#ui-root.gis-ui .hyd-summary {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+#ui-root.gis-ui .hyd-cond {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 8px 4px;
+  border-radius: 10px;
+  border: 1px solid;
+  min-width: 0;
+}
+#ui-root.gis-ui .hyd-cond b { font-size: 20px; line-height: 1.1; }
+#ui-root.gis-ui .hyd-cond span { font-size: 10.5px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; }
+#ui-root.gis-ui .hyd-cond small { font-size: 9.5px; opacity: 0.7; }
+#ui-root.gis-ui .hyd-cond--ok { color: #34d399; border-color: rgba(52, 211, 153, 0.35); background: rgba(52, 211, 153, 0.08); }
+#ui-root.gis-ui .hyd-cond--warn { color: #fbbf24; border-color: rgba(251, 191, 36, 0.35); background: rgba(251, 191, 36, 0.08); }
+#ui-root.gis-ui .hyd-cond--critical { color: #f87171; border-color: rgba(248, 113, 113, 0.35); background: rgba(248, 113, 113, 0.08); }
+
+#ui-root.gis-ui .hyd-select {
+  width: 100%;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 8px;
+  border: 1px solid rgba(125, 211, 232, 0.35);
+  background: rgba(6, 26, 40, 0.9);
+  color: #e6f5fb;
+  font-size: 11.5px;
+}
+#ui-root.gis-ui .hyd-xs-btn {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: 1px solid rgba(94, 234, 212, 0.5);
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.28), rgba(14, 116, 144, 0.28));
+  color: #f0fdfa;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: left;
+  cursor: pointer;
+}
+#ui-root.gis-ui .hyd-xs-btn:hover {
+  background: linear-gradient(90deg, rgba(20, 184, 166, 0.42), rgba(14, 116, 144, 0.42));
+}
+
+/* Data details */
+#ui-root.gis-ui .hyd-details {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+@container (min-width: 330px) {
+  #ui-root.gis-ui .hyd-details {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+@container (max-width: 230px) {
+  #ui-root.gis-ui .hyd-details {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+#ui-root.gis-ui .hyd-detail {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+  padding: 7px 8px;
+  border-radius: 9px;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(148, 210, 232, 0.14);
+}
+#ui-root.gis-ui .hyd-detail__k { font-size: 9.5px; text-transform: uppercase; letter-spacing: 0.06em; color: rgba(204, 238, 246, 0.7); }
+#ui-root.gis-ui .hyd-detail__v { font-size: 13px; color: #fff; }
+#ui-root.gis-ui .hyd-detail__src { font-size: 9.5px; color: rgba(204, 238, 246, 0.58); overflow-wrap: anywhere; }
+
+/* Assets */
+#ui-root.gis-ui .hyd-assets {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+}
+#ui-root.gis-ui .hyd-asset {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto auto auto;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 7px 8px;
+  border-radius: 9px;
+  border: 1px solid rgba(148, 210, 232, 0.14);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e6f5fb;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+}
+#ui-root.gis-ui .hyd-asset:hover,
+#ui-root.gis-ui .hyd-asset:focus-visible {
+  background: rgba(94, 234, 212, 0.1);
+  border-color: rgba(94, 234, 212, 0.4);
+}
+#ui-root.gis-ui .hyd-asset__dot {
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #34d399;
+}
+#ui-root.gis-ui .hyd-asset--warn .hyd-asset__dot { background: #fbbf24; }
+#ui-root.gis-ui .hyd-asset--critical .hyd-asset__dot { background: #f87171; }
+#ui-root.gis-ui .hyd-asset__name {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  font-size: 11.5px;
+  font-weight: 600;
+  overflow-wrap: anywhere;
+}
+#ui-root.gis-ui .hyd-asset__name small,
+#ui-root.gis-ui .hyd-asset__val small {
+  font-size: 9.5px;
+  font-weight: 400;
+  color: rgba(204, 238, 246, 0.6);
+}
+#ui-root.gis-ui .hyd-asset__val {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 11px;
+  white-space: nowrap;
+}
+#ui-root.gis-ui .hyd-asset__status {
+  font-size: 9px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  color: #34d399;
+}
+#ui-root.gis-ui .hyd-asset--warn .hyd-asset__status { color: #fbbf24; }
+#ui-root.gis-ui .hyd-asset--critical .hyd-asset__status { color: #f87171; }
+#ui-root.gis-ui .hyd-asset__chev { display: inline-flex; opacity: 0.6; }
+@container (max-width: 300px) {
+  #ui-root.gis-ui .hyd-asset {
+    grid-template-columns: auto minmax(0, 1fr) auto;
+  }
+  #ui-root.gis-ui .hyd-asset__val,
+  #ui-root.gis-ui .hyd-asset__chev {
+    display: none;
+  }
+}
+
+@media (max-width: 1024px) and (min-width: 641px) {
+  #ui-root.gis-ui.dt-mode-active .left-ui-stack {
+    width: clamp(300px, 40vw, 400px);
+  }
+}
+@media (max-width: 640px) {
+  #ui-root.gis-ui.dt-mode-active .left-ui-stack {
+    left: 10px;
+    right: 10px;
+    width: auto;
+    max-width: none;
+    top: calc(max(8px, env(safe-area-inset-top)) + 96px);
+    max-height: calc(100dvh - 180px);
+  }
+  #ui-root.gis-ui .hyd-panel {
+    max-height: calc(100dvh - 180px);
+  }
+  body.dt-mode-active .chainage-destination-marker,
+  body.dt-mode-active .chainage-current-marker {
+    opacity: 0 !important;
   }
 }

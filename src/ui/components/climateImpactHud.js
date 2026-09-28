@@ -210,7 +210,7 @@ export function mountClimateImpactHud(root) {
         <span class="lu-theme-year-side-val">${escapeHtml(shortPeriod(prevLabel))}</span>
       </button>
       <div class="lu-theme-year-center">
-        <span class="lu-theme-year-eyebrow">Period</span>
+        <span class="lu-theme-year-eyebrow">Period <em class="ci-period-count">${idx + 1} / ${periods.length}</em></span>
         <strong class="lu-theme-year-current">${escapeHtml(curLabel)}</strong>
         ${range ? `<small class="climate-impact-year-range">${escapeHtml(range)}</small>` : ""}
       </div>
@@ -374,10 +374,7 @@ export function mountClimateImpactHud(root) {
 }
 
 function shortPeriod(label) {
-  if (label == null) return "—";
-  const s = String(label);
-  if (s.length <= 8) return s;
-  return `${s.slice(0, 7)}…`;
+  return label == null ? "—" : String(label);
 }
 
 function escapeHtml(value) {

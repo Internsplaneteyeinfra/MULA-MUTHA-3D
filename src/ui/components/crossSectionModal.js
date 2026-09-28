@@ -10,12 +10,26 @@
  * - Longitudinal profile view (Chainage vs Bed vs WSE)
  */
 
-import { X } from "lucide";
+import { ChevronLeft, ChevronRight, X } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 import { crossSectionRegistry, CROSS_SECTION_PRIORITY } from "../../services/hydrology/crossSectionRegistry.js";
 import { initHydrologyProfileService, refreshHydrologyProfile } from "../../services/hydrology/hydrologyProfileService.js";
 import { state } from "../../state.js";
+import { attachChartHover } from "../chartHover.js";
+
+// Light glass palette
+const CS = {
+  text: "#0f172a",
+  muted: "#475569",
+  axis: "rgba(15,23,42,0.4)",
+  grid: "rgba(15,23,42,0.09)",
+  wse: "#0284c7",
+  waterFill: "rgba(2,132,199,0.18)",
+  bed: "#a16207",
+  depth: "#0369a1",
+  active: "#ea580c",
+};
 
 export function mountCrossSectionModal(root) {
   const backdrop = document.createElement("div");
@@ -38,7 +52,11 @@ export function mountCrossSectionModal(root) {
     <div class="cs-modal__header">
       <div class="cs-modal__title-group">
         <h3 id="cs-modal-title" class="cs-modal__title">RIVER CROSS-SECTION &amp; HYDRAULIC PROFILE</h3>
-        <span id="cs-station-badge" class="cs-modal__badge">CH 0+000</span>
+        <span class="cs-station-nav">
+          <button id="cs-prev-station" class="cs-station-step" type="button" aria-label="Previous station">${lucideHtml(ChevronLeft, { size: 15 })}</button>
+          <span id="cs-station-badge" class="cs-modal__badge" aria-live="polite">CH 0+000</span>
+          <button id="cs-next-station" class="cs-station-step" type="button" aria-label="Next station">${lucideHtml(ChevronRight, { size: 15 })}</button>
+        </span>
         <span id="cs-provenance-badge" class="cs-modal__badge cs-modal__badge--prov">PARAMETRIC</span>
       </div>
       <button id="cs-close-btn" class="cs-modal__close-btn" aria-label="Close modal">${lucideHtml(X, { size: 18 })}</button>
@@ -177,6 +195,32 @@ export function mountCrossSectionModal(root) {
     if (currentStation) render();
   });
 
+  // ─── Event: follow the canonical chainage selection while open ────────────
+  document.addEventListener("chainage-select", (e) => {
+    if (!_isOpen) return;
+    const m = Number(e.detail?.meters ?? state.selectedChainageMeters);
+    if (!Number.isFinite(m)) return;
+    const next = hydrologyStore.getStationAtChainage(m);
+    if (!next || next === currentStation) return;
+    currentStation = next;
+    render();
+  });
+
+  function stepStation(dir) {
+    const records = hydrologyStore.getProfile()?.records || [];
+    if (!records.length || !currentStation) return;
+    const i = records.indexOf(currentStation);
+    const base = i >= 0 ? i : records.findIndex((r) => r.chainage_m >= (currentStation.chainage_m ?? 0));
+    const target = records[Math.max(0, Math.min(records.length - 1, base + dir))];
+    if (!target || target === currentStation) return;
+    state.selectedChainageMeters = target.chainage_m;
+    document.dispatchEvent(
+      new CustomEvent("chainage-select", { detail: { meters: target.chainage_m, focus: true, fromCrossSection: true } }),
+    );
+  }
+  modal.querySelector("#cs-prev-station")?.addEventListener("click", () => stepStation(-1));
+  modal.querySelector("#cs-next-station")?.addEventListener("click", () => stepStation(1));
+
   // ─── Event: open-from-anywhere via custom DOM event ───────────────────────
   document.addEventListener("cross-section-modal-open", (e) => {
     const stationArg = e.detail?.station ?? null;
@@ -228,7 +272,7 @@ export function mountCrossSectionModal(root) {
       "#cs-val-geom-priority", "#cs-val-confidence", "#cs-val-datum-status",
     ];
     fields.forEach((sel) => _setText(sel, "Loading…"));
-    if (svg) svg.innerHTML = `<text x="250" y="120" fill="rgba(255,255,255,0.4)" text-anchor="middle" font-size="13">Solving hydraulic profile…</text>`;
+    if (svg) svg.innerHTML = `<text x="250" y="120" fill="${CS.muted}" text-anchor="middle" font-size="13">Solving hydraulic profile…</text>`;
   }
 
   // ─── show() ──────────────────────────────────────────────────────────────
@@ -388,16 +432,16 @@ export function mountCrossSectionModal(root) {
     if (provBadge) {
       if (xsProv === "OBSERVED") {
         provBadge.textContent = "SURVEYED TRANSECT";
-        provBadge.style.background = "rgba(46, 213, 115, 0.25)";
-        provBadge.style.color = "#2ed573";
+        provBadge.style.background = "rgba(5, 150, 105, 0.14)";
+        provBadge.style.color = "#047857";
       } else if (xsProv === "INTERPOLATED") {
         provBadge.textContent = "INTERPOLATED FROM SURVEY";
-        provBadge.style.background = "rgba(79, 200, 235, 0.25)";
-        provBadge.style.color = "#4fc8eb";
+        provBadge.style.background = "rgba(2, 132, 199, 0.14)";
+        provBadge.style.color = "#0369a1";
       } else {
         provBadge.textContent = "LIVE SURVEY";
-        provBadge.style.background = "rgba(232, 154, 28, 0.25)";
-        provBadge.style.color = "#e89a1c";
+        provBadge.style.background = "rgba(234, 88, 12, 0.14)";
+        provBadge.style.color = "#c2410c";
       }
     }
 
@@ -445,204 +489,151 @@ export function mountCrossSectionModal(root) {
     const width = Math.max(10, Number(st.width_m) || 60);
     const depth = Math.max(0.1, st.water_depth_m?.value || 1.72);
 
-    // Padding: left/bottom enlarged to fit rotated Y label + X label
-    const padL = 56;   // Y-axis tick numbers + rotated label
-    const padR = 14;
-    const padT = 22;
-    const padB = 44;   // X-axis tick numbers + label
+    const L = { padL: 56, padR: 14, padT: 22, padB: 44 };
     const svgW = 500;
     const svgH = 240;
-    const plotW = svgW - padL - padR;
-    const plotH = svgH - padT - padB;
+    L.plotW = svgW - L.padL - L.padR;
+    L.plotH = svgH - L.padT - L.padB;
+    const { padL, padT, plotW, plotH } = L;
 
-    // Parabolic bed (schematic cross-section shape)
-    const steps = 30;
-    let bedPath = "";
-    for (let i = 0; i <= steps; i++) {
-      const u = i / steps;
-      const x = padL + u * plotW;
-      const normX = (u - 0.5) * 2;
-      const bedY = padT + plotH - (1 - normX * normX) * (plotH * 0.68);
-      bedPath += i === 0 ? `M ${x} ${bedY}` : ` L ${x} ${bedY}`;
-    }
+    // Relative elevation: water surface = 0 near the top, thalweg = −depth at the bottom.
+    const yTop = 0.25 * depth;
+    const scX = (d) => padL + (d / width) * plotW;
+    const scY = (v) => padT + ((yTop - v) / (yTop + depth)) * plotH;
+    const waterY = scY(0);
+    const bedAt = (d) => {
+      const n = (d / width - 0.5) * 2;
+      return -depth * (1 - n * n);
+    };
 
-    const waterY  = padT + plotH - plotH * 0.68;
-    const waterPath = `M ${padL} ${waterY} ` + bedPath.slice(2) + ` L ${padL + plotW} ${waterY} Z`;
+    const steps = 40;
+    const xs = Array.from({ length: steps + 1 }, (_, i) => (i / steps) * width);
+    const bedYs = xs.map(bedAt);
+    const bedPath = xs.map((d, i) => `${i ? "L" : "M"}${scX(d).toFixed(1)},${scY(bedYs[i]).toFixed(1)}`).join(" ");
+    const waterPath = `M${padL},${waterY} ${bedPath.replace(/^M/, "L")} L${padL + plotW},${waterY} Z`;
 
-    // X-axis ticks: 0 … width in 5 steps
-    const xTicks = [0, 0.25, 0.5, 0.75, 1.0].map((frac) => {
-      const px    = padL + frac * plotW;
-      const label = (frac * width).toFixed(0);
-      return `<line x1="${px}" y1="${padT + plotH}" x2="${px}" y2="${padT + plotH + 5}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
-              <text x="${px}" y="${padT + plotH + 15}" fill="rgba(255,255,255,0.5)" font-size="9" text-anchor="middle">${label}</text>`;
+    const xTicks = [0, 0.25, 0.5, 0.75, 1].map((f) => {
+      const px = padL + f * plotW;
+      return `<line x1="${px}" y1="${padT + plotH}" x2="${px}" y2="${padT + plotH + 5}" stroke="${CS.axis}"/>
+              <text x="${px}" y="${padT + plotH + 15}" fill="${CS.muted}" font-size="9" text-anchor="middle">${(f * width).toFixed(0)}</text>`;
     }).join("");
 
-    // Y-axis ticks: water surface = 0, mid = −depth/2, thalweg = −depth
-    const midDepthY = (waterY + padT + plotH) / 2;
-    const yTicks = [
-      { y: waterY,          label: "0" },
-      { y: midDepthY,       label: `−${(depth / 2).toFixed(1)}` },
-      { y: padT + plotH,    label: `−${depth.toFixed(1)}` },
-    ].map(({ y, label }) =>
-      `<line x1="${padL - 5}" y1="${y}" x2="${padL}" y2="${y}" stroke="rgba(255,255,255,0.3)" stroke-width="1"/>
-       <text x="${padL - 7}" y="${y + 3.5}" fill="rgba(255,255,255,0.5)" font-size="9" text-anchor="end">${label}</text>`
-    ).join("");
+    const yTicks = [0, -depth / 2, -depth].map((v) => {
+      const py = scY(v);
+      return `<line x1="${padL - 5}" y1="${py}" x2="${padL + plotW}" y2="${py}" stroke="${CS.grid}" stroke-dasharray="3,4"/>
+              <line x1="${padL - 5}" y1="${py}" x2="${padL}" y2="${py}" stroke="${CS.axis}"/>
+              <text x="${padL - 7}" y="${py + 3.5}" fill="${CS.muted}" font-size="9" text-anchor="end">${v === 0 ? "0" : `−${Math.abs(v).toFixed(2)}`}</text>`;
+    }).join("");
 
     const yCx = 11;
     const yCy = padT + plotH / 2;
-    const xCx = padL + plotW / 2;
-    const xCy = svgH - 3;
 
     svgEl.innerHTML = `
-      <!-- Axes frame -->
-      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
-      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
-
-      <!-- Grid lines -->
-      <line x1="${padL}" y1="${waterY}" x2="${padL + plotW}" y2="${waterY}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3,4"/>
-      <line x1="${padL}" y1="${midDepthY}" x2="${padL + plotW}" y2="${midDepthY}" stroke="rgba(255,255,255,0.04)" stroke-dasharray="3,4"/>
-
-      <!-- Water body -->
-      <path d="${waterPath}" fill="rgba(79,200,235,0.28)" stroke="#4fc8eb" stroke-width="1.5"/>
-
-      <!-- Water surface -->
-      <line x1="${padL}" y1="${waterY}" x2="${padL + plotW}" y2="${waterY}" stroke="#00f2fe" stroke-width="2"/>
-
-      <!-- River bed -->
-      <path d="${bedPath}" fill="none" stroke="#d4a373" stroke-width="2.5" stroke-linecap="round"/>
-
-      <!-- Bank dashes -->
-      <line x1="${padL}"          y1="${padT}" x2="${padL}"          y2="${waterY}" stroke="rgba(212,163,115,0.45)" stroke-width="1" stroke-dasharray="3,3"/>
-      <line x1="${padL + plotW}" y1="${padT}" x2="${padL + plotW}" y2="${waterY}" stroke="rgba(212,163,115,0.45)" stroke-width="1" stroke-dasharray="3,3"/>
-
-      <!-- Data annotations -->
-      <text x="${padL - 6}" y="${waterY - 4}" fill="#4fc8eb" font-size="10" text-anchor="end" font-weight="600">WSE</text>
-      <text x="${padL + plotW / 2}" y="${waterY - 6}" fill="#00f2fe" font-size="10" text-anchor="middle" font-weight="600">Water Depth: ${depth.toFixed(2)} m</text>
-      <text x="${padL + 6}" y="${padT + 12}" fill="rgba(212,163,115,0.85)" font-size="9" text-anchor="start">Left Bank</text>
-      <text x="${padL + plotW - 6}" y="${padT + 12}" fill="rgba(212,163,115,0.85)" font-size="9" text-anchor="end">Right Bank</text>
-      <text x="${padL + plotW / 2}" y="${padT + plotH - 5}" fill="#d4a373" font-size="9" text-anchor="middle">Riverbed / Thalweg</text>
-      <text x="${padL + plotW / 2}" y="${padT + plotH + 29}" fill="rgba(255,255,255,0.6)" font-size="9" text-anchor="middle">Width: ${width.toFixed(1)} m</text>
-
-      <!-- X-axis ticks -->
-      ${xTicks}
-
-      <!-- Y-axis ticks -->
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="${CS.axis}"/>
+      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="${CS.axis}"/>
       ${yTicks}
-
-      <!-- Y-axis label (rotated) -->
-      <text x="${yCx}" y="${yCy}" fill="rgba(255,255,255,0.48)" font-size="9" text-anchor="middle"
-            transform="rotate(-90,${yCx},${yCy})">Relative elevation / depth (m)</text>
-
-      <!-- X-axis label -->
-      <text x="${xCx}" y="${xCy}" fill="rgba(255,255,255,0.48)" font-size="9" text-anchor="middle">Cross-channel distance (m)</text>
+      <path d="${waterPath}" fill="${CS.waterFill}"/>
+      <line x1="${padL}" y1="${waterY}" x2="${padL + plotW}" y2="${waterY}" stroke="${CS.wse}" stroke-width="2"/>
+      <path d="${bedPath}" fill="none" stroke="${CS.bed}" stroke-width="2.5" stroke-linecap="round"/>
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${waterY}" stroke="${CS.bed}" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <line x1="${padL + plotW}" y1="${padT}" x2="${padL + plotW}" y2="${waterY}" stroke="${CS.bed}" stroke-width="1" stroke-dasharray="3,3" opacity="0.6"/>
+      <text x="${padL - 6}" y="${waterY - 4}" fill="${CS.wse}" font-size="10" text-anchor="end" font-weight="700">WSE</text>
+      <text x="${padL + plotW / 2}" y="${waterY - 6}" fill="${CS.wse}" font-size="10" text-anchor="middle" font-weight="700">Water Depth: ${depth.toFixed(2)} m</text>
+      <text x="${padL + 6}" y="${padT + 10}" fill="${CS.bed}" font-size="9" font-weight="600">Left Bank</text>
+      <text x="${padL + plotW - 6}" y="${padT + 10}" fill="${CS.bed}" font-size="9" text-anchor="end" font-weight="600">Right Bank</text>
+      <text x="${padL + plotW / 2}" y="${scY(-depth) - 6}" fill="${CS.bed}" font-size="9" text-anchor="middle" font-weight="700">Riverbed / Thalweg</text>
+      <text x="${padL + plotW / 2}" y="${padT + plotH + 29}" fill="${CS.text}" font-size="9" text-anchor="middle" font-weight="600">Width: ${width.toFixed(1)} m</text>
+      ${xTicks}
+      <text x="${yCx}" y="${yCy}" fill="${CS.muted}" font-size="9" text-anchor="middle" transform="rotate(-90,${yCx},${yCy})">Relative elevation / depth (m)</text>
+      <text x="${padL + plotW / 2}" y="${svgH - 3}" fill="${CS.muted}" font-size="9" text-anchor="middle">Cross-channel distance (m)</text>
     `;
+
+    attachChartHover(svgEl, {
+      L, xs, scX, scY, lineColor: CS.text,
+      fmtX: (d) => `${d.toFixed(1)} m from left bank`,
+      series: [
+        { label: "Water surface", color: CS.wse, ys: xs.map(() => 0), fmt: () => "0.00 m" },
+        { label: "Bed", color: CS.bed, ys: bedYs, fmt: (v) => `${v.toFixed(2)} m` },
+        { label: "Local depth", color: CS.depth, ys: bedYs, dot: false, fmt: (v) => `${Math.abs(v).toFixed(2)} m` },
+      ],
+    });
   }
 
   // ─── Longitudinal SVG ────────────────────────────────────────────────────
   function _renderLongitudinalSvg(svgEl, st) {
     const allRecords = hydrologyStore.getProfile()?.records || [];
     if (!allRecords.length) {
-      svgEl.innerHTML = `<text x="250" y="120" fill="white" text-anchor="middle">Longitudinal profile data loading…</text>`;
+      svgEl.innerHTML = `<text x="250" y="120" fill="${CS.muted}" text-anchor="middle">Longitudinal profile data loading…</text>`;
       return;
     }
 
-    // Padding: left/bottom enlarged for axis labels
-    const padL = 56;
-    const padR = 14;
-    const padT = 28;
-    const padB = 42;
+    const L = { padL: 56, padR: 14, padT: 28, padB: 42 };
     const svgW = 500;
     const svgH = 240;
-    const plotW = svgW - padL - padR;
-    const plotH = svgH - padT - padB;
+    L.plotW = svgW - L.padL - L.padR;
+    L.plotH = svgH - L.padT - L.padB;
+    const { padL, padT, plotW, plotH } = L;
     const maxCh = 16960;
-    const Y_RANGE = 22; // the plotted relative Y spans 0–22
+    const Y_RANGE = 22;
 
     const sampleRate = Math.max(1, Math.floor(allRecords.length / 80));
     const sampled = [];
     for (let i = 0; i < allRecords.length; i += sampleRate) sampled.push(allRecords[i]);
 
-    // Y-axis data:
-    //   wseRel  = 20 − u × 8            (schematic linear WSE slope, relative units)
-    //   bedRel  = wseRel − surveyDepth  (bed below WSE)
-    let bedLine = "";
-    let wseLine = "";
-    sampled.forEach((rec, idx) => {
-      const u      = (rec.chainage_m || 0) / maxCh;
-      const x      = padL + u * plotW;
-      const wseRel = 20 - u * 8;
-      const bedRel = wseRel - (rec.survey_depth_m?.value || 1.7);
-      const yWse   = padT + plotH - (wseRel / Y_RANGE) * plotH;
-      const yBed   = padT + plotH - (bedRel / Y_RANGE) * plotH;
-      if (idx === 0) {
-        wseLine += `M ${x} ${yWse}`;
-        bedLine += `M ${x} ${yBed}`;
-      } else {
-        wseLine += ` L ${x} ${yWse}`;
-        bedLine += ` L ${x} ${yBed}`;
-      }
-    });
+    // Schematic relative profile: WSE slopes 20 → 12, bed = WSE − surveyed depth.
+    const scX = (m) => padL + (m / maxCh) * plotW;
+    const scY = (v) => padT + plotH - (v / Y_RANGE) * plotH;
+    const xs = sampled.map((r) => r.chainage_m || 0);
+    const wseYs = xs.map((m) => 20 - (m / maxCh) * 8);
+    const depths = sampled.map((r) => r.survey_depth_m?.value || 1.7);
+    const bedYs = wseYs.map((w, i) => w - depths[i]);
+    const toPath = (ys) => xs.map((m, i) => `${i ? "L" : "M"}${scX(m).toFixed(1)},${scY(ys[i]).toFixed(1)}`).join(" ");
 
-    // Active chainage indicator — uses the CURRENT station (not records[0])
-    const currU    = (st.chainage_m || 0) / maxCh;
-    const currX    = padL + currU * plotW;
-    const currWse  = 20 - currU * 8;
-    const currY    = padT + plotH - (currWse / Y_RANGE) * plotH;
+    const currM = st.chainage_m || 0;
+    const currX = scX(currM);
+    const currY = scY(20 - (currM / maxCh) * 8);
 
-    // X-axis ticks at 0, 4, 8, 12, 16.96 km
     const xTicks = [0, 4, 8, 12, 16.96].map((km) => {
-      const px = padL + (km / 16.96) * plotW;
-      return `<line x1="${px}" y1="${padT + plotH}" x2="${px}" y2="${padT + plotH + 5}" stroke="rgba(255,255,255,0.28)" stroke-width="1"/>
-              <text x="${px}" y="${padT + plotH + 14}" fill="rgba(255,255,255,0.48)" font-size="9" text-anchor="middle">${km}</text>`;
+      const px = scX(km * 1000);
+      return `<line x1="${px}" y1="${padT + plotH}" x2="${px}" y2="${padT + plotH + 5}" stroke="${CS.axis}"/>
+              <text x="${px}" y="${padT + plotH + 14}" fill="${CS.muted}" font-size="9" text-anchor="middle">${km}</text>`;
     }).join("");
 
-    // Y-axis ticks at relative values 2, 8, 14, 20
-    const yTicks = [20, 14, 8, 2].map((relVal) => {
-      const py = padT + plotH - (relVal / Y_RANGE) * plotH;
-      if (py < padT - 2 || py > padT + plotH + 2) return "";
-      return `<line x1="${padL - 5}" y1="${py}" x2="${padL + plotW}" y2="${py}" stroke="rgba(255,255,255,0.05)" stroke-dasharray="3,4"/>
-              <line x1="${padL - 5}" y1="${py}" x2="${padL}" y2="${py}" stroke="rgba(255,255,255,0.28)" stroke-width="1"/>
-              <text x="${padL - 7}" y="${py + 3.5}" fill="rgba(255,255,255,0.48)" font-size="9" text-anchor="end">${relVal}</text>`;
+    const yTicks = [20, 14, 8, 2].map((v) => {
+      const py = scY(v);
+      return `<line x1="${padL - 5}" y1="${py}" x2="${padL + plotW}" y2="${py}" stroke="${CS.grid}" stroke-dasharray="3,4"/>
+              <line x1="${padL - 5}" y1="${py}" x2="${padL}" y2="${py}" stroke="${CS.axis}"/>
+              <text x="${padL - 7}" y="${py + 3.5}" fill="${CS.muted}" font-size="9" text-anchor="end">${v}</text>`;
     }).join("");
 
     const yCx = 11;
     const yCy = padT + plotH / 2;
-    const xCx = padL + plotW / 2;
-    const xCy = svgH - 3;
 
     svgEl.innerHTML = `
-      <!-- Axes frame -->
-      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
-      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="rgba(255,255,255,0.22)" stroke-width="1"/>
-
-      <!-- Y-axis ticks + grid -->
+      <line x1="${padL}" y1="${padT}" x2="${padL}" y2="${padT + plotH}" stroke="${CS.axis}"/>
+      <line x1="${padL}" y1="${padT + plotH}" x2="${padL + plotW}" y2="${padT + plotH}" stroke="${CS.axis}"/>
       ${yTicks}
-
-      <!-- Bed profile -->
-      <path d="${bedLine}" fill="none" stroke="#d4a373" stroke-width="2.5"/>
-
-      <!-- Water surface profile -->
-      <path d="${wseLine}" fill="none" stroke="#00f2fe" stroke-width="2"/>
-
-      <!-- Active chainage indicator at CURRENT station -->
-      <line x1="${currX}" y1="${padT}" x2="${currX}" y2="${padT + plotH}" stroke="#e89a1c" stroke-width="2" stroke-dasharray="4,4"/>
-      <circle cx="${currX}" cy="${currY}" r="4" fill="#e89a1c"/>
-      <text x="${currX}" y="${padT - 8}" fill="#e89a1c" font-size="10" text-anchor="middle" font-weight="600">${st.station_label || ""}</text>
-
-      <!-- X-axis ticks -->
+      <path d="${toPath(bedYs)}" fill="none" stroke="${CS.bed}" stroke-width="2.5"/>
+      <path d="${toPath(wseYs)}" fill="none" stroke="${CS.wse}" stroke-width="2"/>
+      <line x1="${currX}" y1="${padT}" x2="${currX}" y2="${padT + plotH}" stroke="${CS.active}" stroke-width="2" stroke-dasharray="4,4"/>
+      <circle cx="${currX}" cy="${currY}" r="4" fill="${CS.active}" stroke="#fff" stroke-width="1.5"/>
+      <text x="${currX}" y="${padT - 8}" fill="${CS.active}" font-size="10" text-anchor="middle" font-weight="700">${st.station_label || ""}</text>
       ${xTicks}
-
-      <!-- Legend -->
-      <text x="${padL + 6}" y="${padT + 14}" fill="#00f2fe" font-size="9">― Water Surface Slope</text>
-      <text x="${padL + 6}" y="${padT + 26}" fill="#d4a373" font-size="9">― Riverbed Profile</text>
-
-      <!-- Y-axis label (rotated) -->
-      <text x="${yCx}" y="${yCy}" fill="rgba(255,255,255,0.48)" font-size="9" text-anchor="middle"
-            transform="rotate(-90,${yCx},${yCy})">Relative elevation (m)</text>
-
-      <!-- X-axis label -->
-      <text x="${xCx}" y="${xCy}" fill="rgba(255,255,255,0.48)" font-size="9" text-anchor="middle">Chainage (km)</text>
+      <text x="${padL + 6}" y="${padT + 14}" fill="${CS.wse}" font-size="9" font-weight="700">― Water Surface Slope</text>
+      <text x="${padL + 6}" y="${padT + 26}" fill="${CS.bed}" font-size="9" font-weight="700">― Riverbed Profile</text>
+      <text x="${yCx}" y="${yCy}" fill="${CS.muted}" font-size="9" text-anchor="middle" transform="rotate(-90,${yCx},${yCy})">Relative elevation (m)</text>
+      <text x="${padL + plotW / 2}" y="${svgH - 3}" fill="${CS.muted}" font-size="9" text-anchor="middle">Chainage (km)</text>
     `;
+
+    attachChartHover(svgEl, {
+      L, xs, scX, scY, lineColor: CS.text,
+      fmtX: (m) => `CH ${Math.floor(m / 1000)}+${String(Math.round(m % 1000)).padStart(3, "0")}`,
+      series: [
+        { label: "Water surface", color: CS.wse, ys: wseYs, fmt: (v) => `${v.toFixed(2)} m` },
+        { label: "Riverbed", color: CS.bed, ys: bedYs, fmt: (v) => `${v.toFixed(2)} m` },
+        { label: "Depth", color: CS.depth, ys: bedYs, dot: false, fmt: (_, i) => `${depths[i].toFixed(2)} m` },
+      ],
+    });
   }
 
   // ─── Styles ──────────────────────────────────────────────────────────────
@@ -654,21 +645,24 @@ export function mountCrossSectionModal(root) {
       .cross-section-backdrop {
         position: fixed;
         inset: 0;
-        background: rgba(4, 9, 20, 0.72);
-        backdrop-filter: blur(8px);
+        background: rgba(15, 23, 42, 0.22);
+        backdrop-filter: blur(2px);
+        -webkit-backdrop-filter: blur(2px);
         display: flex;
         align-items: center;
         justify-content: center;
         z-index: 9999;
       }
       .cross-section-modal {
-        width: 820px;
+        width: 860px;
         max-width: 95vw;
-        background: rgba(14, 23, 38, 0.94);
-        border: 1px solid rgba(79, 200, 235, 0.28);
-        border-radius: 10px;
-        box-shadow: 0 16px 40px rgba(0,0,0,0.6);
-        color: #e2e8f0;
+        background: rgba(255, 255, 255, 0.78);
+        backdrop-filter: blur(20px) saturate(1.4);
+        -webkit-backdrop-filter: blur(20px) saturate(1.4);
+        border: 1px solid rgba(255, 255, 255, 0.85);
+        border-radius: 14px;
+        box-shadow: 0 24px 60px rgba(15, 23, 42, 0.28), inset 0 1px 0 rgba(255, 255, 255, 0.9);
+        color: #0f172a;
         overflow: hidden;
         display: flex;
         flex-direction: column;
@@ -678,107 +672,106 @@ export function mountCrossSectionModal(root) {
         align-items: center;
         justify-content: space-between;
         padding: 14px 20px;
-        border-bottom: 1px solid rgba(255,255,255,0.08);
+        background: rgba(255, 255, 255, 0.55);
+        border-bottom: 1px solid rgba(15, 23, 42, 0.08);
       }
-      .cs-modal__title-group {
-        display: flex;
-        align-items: center;
-        gap: 10px;
+      .cs-modal__title-group { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
+      .cs-station-nav { display: inline-flex; align-items: center; gap: 4px; }
+      .cs-station-step {
+        width: 26px; height: 26px; display: grid; place-items: center;
+        border-radius: 7px; border: 1px solid rgba(15, 23, 42, 0.18);
+        background: rgba(255, 255, 255, 0.7); color: #0f172a; cursor: pointer;
       }
+      .cs-station-step:hover { background: #fff; border-color: rgba(14, 116, 144, 0.5); }
       .cs-modal__title {
         margin: 0;
-        font-size: 13px;
+        font-size: 14px;
         letter-spacing: 0.08em;
-        font-weight: 700;
-        color: #f8fafc;
+        font-weight: 800;
+        color: #0f172a;
       }
       .cs-modal__badge {
-        padding: 2px 7px;
-        border-radius: 4px;
-        font-size: 10px;
+        padding: 3px 9px;
+        border-radius: 999px;
+        font-size: 10.5px;
         font-weight: 700;
-        background: rgba(255,255,255,0.08);
+        background: rgba(15, 23, 42, 0.07);
+        color: #334155;
       }
       .cs-modal__close-btn {
         background: none;
         border: none;
-        color: #94a3b8;
+        color: #475569;
         cursor: pointer;
-        padding: 4px;
-        border-radius: 4px;
+        padding: 5px;
+        border-radius: 6px;
+        transition: background 0.15s, color 0.15s;
       }
-      .cs-modal__close-btn:hover {
-        color: #fff;
-        background: rgba(255,255,255,0.1);
-      }
+      .cs-modal__close-btn:hover { color: #0f172a; background: rgba(15, 23, 42, 0.08); }
       .cs-modal__body {
         display: grid;
-        grid-template-columns: 1fr 260px;
+        grid-template-columns: 1fr 270px;
         padding: 16px 20px 20px;
         gap: 20px;
       }
-      .cs-view-tabs {
-        display: flex;
-        gap: 8px;
-        margin-bottom: 12px;
-      }
+      .cs-view-tabs { display: flex; gap: 8px; margin-bottom: 12px; }
       .cs-tab {
-        background: rgba(255,255,255,0.05);
-        border: 1px solid rgba(255,255,255,0.1);
-        color: #94a3b8;
-        padding: 6px 14px;
-        font-size: 11px;
-        border-radius: 4px;
-        cursor: pointer;
-        transition: all 0.2s;
-      }
-      .cs-tab.active {
-        background: rgba(79, 200, 235, 0.2);
-        border-color: #4fc8eb;
-        color: #00f2fe;
+        background: rgba(255, 255, 255, 0.7);
+        border: 1px solid rgba(15, 23, 42, 0.14);
+        color: #334155;
+        padding: 7px 14px;
+        font-size: 12px;
         font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
       }
+      .cs-tab:hover:not(.active) {
+        background: #fff;
+        border-color: rgba(2, 132, 199, 0.5);
+        box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.1);
+      }
+      .cs-tab.active { background: #0284c7; border-color: #0284c7; color: #fff; }
       .cs-svg-wrapper {
-        background: rgba(0, 0, 0, 0.4);
-        border: 1px solid rgba(255,255,255,0.06);
-        border-radius: 6px;
+        position: relative;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(15, 23, 42, 0.1);
+        border-radius: 10px;
         padding: 10px;
       }
-      .cs-svg {
-        width: 100%;
-        height: 230px;
-      }
+      .cs-svg { width: 100%; height: 250px; display: block; }
+      .cs-svg text { font-weight: 500; }
       .cs-modal__metrics-sidebar {
-        background: rgba(255,255,255,0.03);
-        border-radius: 6px;
+        background: rgba(255, 255, 255, 0.72);
+        border: 1px solid rgba(15, 23, 42, 0.09);
+        border-radius: 10px;
         padding: 12px 14px;
-        font-size: 11px;
+        font-size: 12px;
       }
       .cs-metrics-title {
-        margin: 0 0 10px 0;
-        font-size: 11px;
-        color: #94a3b8;
-        letter-spacing: 0.05em;
+        margin: 0 0 8px 0;
+        font-size: 11.5px;
+        font-weight: 800;
+        color: #0369a1;
+        letter-spacing: 0.06em;
       }
       .cs-metric-row {
         display: flex;
         justify-content: space-between;
-        margin-bottom: 6px;
+        align-items: baseline;
+        gap: 10px;
+        padding: 4px 6px;
+        margin: 0 -6px 1px;
+        border-radius: 6px;
+        transition: background 0.12s;
       }
-      .cs-metric-row .k {
-        color: #64748b;
-      }
-      .cs-metric-row .v {
-        font-weight: 600;
-        color: #f1f5f9;
-      }
-      .cs-metric-row .v.depth {
-        color: #4fc8eb;
-      }
-      .cs-divider {
-        height: 1px;
-        background: rgba(255,255,255,0.08);
-        margin: 10px 0;
+      .cs-metric-row:hover { background: rgba(2, 132, 199, 0.08); }
+      .cs-metric-row .k { color: #475569; flex-shrink: 0; }
+      .cs-metric-row .v { font-weight: 700; color: #0f172a; text-align: right; word-break: break-word; }
+      .cs-metric-row .v.depth { color: #0284c7; }
+      .cs-divider { height: 1px; background: rgba(15, 23, 42, 0.08); margin: 10px 0; }
+      @media (max-width: 760px) {
+        .cs-modal__body { grid-template-columns: 1fr; }
       }
     `;
     document.head.appendChild(style);

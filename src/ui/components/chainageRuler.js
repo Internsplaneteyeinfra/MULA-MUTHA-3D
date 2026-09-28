@@ -43,9 +43,11 @@ export function mountChainageRuler(root, dataset) {
     .join("");
 
   el.innerHTML = `
+    <div class="chainage-ruler-bands-head" id="chainage-ruler-bands-head" hidden></div>
     <div class="chainage-ruler-row">
       <div class="chainage-ruler-track chainage-slider" role="list">
         <div class="chainage-ruler-line" aria-hidden="true"></div>
+        <div class="chainage-ruler-bands" id="chainage-ruler-bands" aria-hidden="true" hidden></div>
         <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="${intervalM}" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
         ${ticksHtml}
         <div class="chainage-ruler-current" id="chainage-ruler-current" hidden></div>
@@ -181,9 +183,51 @@ export function mountChainageRuler(root, dataset) {
     }
   }
 
+  const bandsEl = el.querySelector("#chainage-ruler-bands");
+  const bandsHeadEl = el.querySelector("#chainage-ruler-bands-head");
+
+  /**
+   * Class bands drawn along the track (e.g. BOD-COD reaches).
+   * detail: { title?, legend?: [{ label, style }], segments: [{ startM, endM, color, style?, active?, title? }] } | null
+   */
+  function onBands(e) {
+    const d = e.detail;
+    const segs = d?.segments || [];
+    if (!segs.length) {
+      bandsEl.hidden = true;
+      bandsEl.innerHTML = "";
+      bandsHeadEl.hidden = true;
+      bandsHeadEl.innerHTML = "";
+      el.classList.remove("has-bands");
+      return;
+    }
+    const span = Math.max(1, maxM - minM);
+    bandsEl.innerHTML = segs
+      .map((s) => {
+        const a = Math.max(minM, Math.min(maxM, Number(s.startM)));
+        const b = Math.max(minM, Math.min(maxM, Number(s.endM)));
+        if (!(b > a)) return "";
+        const left = ((a - minM) / span) * 100;
+        const width = ((b - a) / span) * 100;
+        return `<span class="chainage-ruler-band is-${escapeAttr(s.style || "observed")}${s.active ? " is-active" : ""}"
+          style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%;--band-color:${escapeAttr(s.color || "#6b7a7f")}"
+          title="${escapeAttr(s.title || "")}"></span>`;
+      })
+      .join("");
+    bandsEl.hidden = false;
+    const legend = (d.legend || [])
+      .map((l) => `<span class="chainage-ruler-band-key is-${escapeAttr(l.style)}">${escapeAttr(l.label)}</span>`)
+      .join("");
+    bandsHeadEl.innerHTML = `${d.title ? `<strong>${escapeAttr(d.title)}</strong>` : ""}${legend}`;
+    bandsHeadEl.hidden = !d.title && !legend;
+    el.classList.add("has-bands");
+  }
+  document.addEventListener("chainage-bands", onBands);
+
   function dispose() {
     window.cancelAnimationFrame(inputRaf);
     window.clearTimeout(dragDispatchTimer);
+    document.removeEventListener("chainage-bands", onBands);
     el.remove();
   }
 
@@ -211,6 +255,15 @@ function pickRulerStations(points) {
   }
 
   return [...byM.values()].sort((a, b) => a.meters - b.meters);
+}
+
+function escapeAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function formatRulerLabel(p) {

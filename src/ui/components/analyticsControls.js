@@ -963,8 +963,9 @@ export function mountAnalyticsControls(root, dataset) {
     const isHydroPanel = event.target.closest("#hydro-intel-panel") ||
                          event.target.closest("#hydro-intel-backdrop");
     const isHydroOpen  = !!(window.__MM_HYDRO_INTEL__?.isOpen?.());
+    const isCrossSection = event.target.closest("#cross-section-backdrop");
     if (!isDtPanel && !isDtDock && !isDtBtn && !isDtAsset && !isLeftStack &&
-        !isHydroPanel && !isHydroOpen) {
+        !isHydroPanel && !isHydroOpen && !isCrossSection) {
       closeDigitalTwin();
     }
   });

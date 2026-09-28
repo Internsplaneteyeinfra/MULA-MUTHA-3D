@@ -32,6 +32,8 @@
 import { X } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
+import { isDigitalTwinActive, onDigitalTwinExit } from "../dtMode.js";
+import { attachChartHover } from "../chartHover.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 import { initDigitalTwin } from "../../services/digitalTwinService.js";
 import {
@@ -52,19 +54,21 @@ import {
 } from "../../services/hydrology/digitalTwinApi.js";
 
 // ── Palette (matches project theme) ─────────────────────────────────────────
+// Tuned for the light frosted-glass panel: saturated, dark enough for contrast.
 const C = {
-  ok:       "#00e5b4",
-  warn:     "#ffc300",
-  critical: "#ff3d57",
-  wse:      "#4fc8eb",
-  forecast: "#00f2fe",
-  p10p90:   "rgba(0,229,180,0.18)",
-  bed:      "#d4a373",
-  threshold:"#ff3d57",
-  observed: "#fff",
-  muted:    "rgba(255,255,255,0.45)",
-  gridLine: "rgba(255,255,255,0.06)",
-  axis:     "rgba(255,255,255,0.22)",
+  ok:       "#059669",
+  warn:     "#d97706",
+  critical: "#dc2626",
+  wse:      "#0284c7",
+  forecast: "#7c3aed",
+  p10p90:   "rgba(5,150,105,0.16)",
+  bed:      "#a16207",
+  threshold:"#dc2626",
+  observed: "#0f172a",
+  muted:    "#475569",
+  gridLine: "rgba(15,23,42,0.09)",
+  axis:     "rgba(15,23,42,0.4)",
+  active:   "#ea580c",
 };
 
 // ── SVG layout helpers ───────────────────────────────────────────────────────
@@ -135,6 +139,11 @@ function yLabel(L, text) {
 function legendItem(color, label, dash = false) {
   const dashAttr = dash ? ` stroke-dasharray="5,3"` : "";
   return `<svg width="22" height="10" style="vertical-align:middle;margin-right:4px"><line x1="0" y1="5" x2="22" y2="5" stroke="${color}" stroke-width="2"${dashAttr}/></svg><span style="color:${color};font-size:9px;margin-right:10px">${label}</span>`;
+}
+
+/** Nulls for the part of a combined x-axis where a series has no data. */
+function padSeries(before, ys, after = 0) {
+  return [...Array(before).fill(null), ...ys, ...Array(after).fill(null)];
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
@@ -324,7 +333,7 @@ export function mountHydroIntelPanel(root) {
   // River click: open/update with clicked station
   document.addEventListener("river-station-selected", (e) => {
     const { chainage_m, stationLabel } = e.detail ?? {};
-    if (chainage_m == null) return;
+    if (chainage_m == null || !isDigitalTwinActive()) return;
     _currentChainage = chainage_m;
     // Sync station dropdown if it matches a landmark
     _syncDropdown(chainage_m);
@@ -553,7 +562,7 @@ export function mountHydroIntelPanel(root) {
             ${xTickSvg}
             <!-- Now line -->
             <line x1="${nowX}" y1="${L.padT}" x2="${nowX}" y2="${L.padT + L.plotH}"
-                  stroke="rgba(255,255,255,0.3)" stroke-dasharray="4,4"/>
+                  stroke="${C.axis}" stroke-dasharray="4,4"/>
             <text x="${parseFloat(nowX) + 4}" y="${L.padT + 10}" fill="${C.muted}" font-size="9">NOW</text>
             <!-- P10-P90 band -->
             <path d="${band}" fill="${C.p10p90}"/>
@@ -571,6 +580,19 @@ export function mountHydroIntelPanel(root) {
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
+
+    const nObs = d.observed.hours.length;
+    const nFc = d.forecast.hours.length;
+    attachChartHover(contentArea.querySelector(".hip-svg-wrap svg"), {
+      L, xs: allHours, scX, scY, unit: "m³/s", decimals: 1,
+      fmtX: (h) => (h <= 0 ? d.observed.labels?.[d.observed.hours.indexOf(h)] ?? `${h}h` : `+${h}h`),
+      series: [
+        { label: "Past Q", color: C.observed, ys: padSeries(0, d.observed.q, nFc) },
+        { label: "Forecast P50", color: C.forecast, ys: padSeries(nObs, d.forecast.q50) },
+        { label: "P90", color: C.ok, ys: padSeries(nObs, d.forecast.q90), dot: false },
+        { label: "P10", color: C.ok, ys: padSeries(nObs, d.forecast.q10), dot: false },
+      ],
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -608,9 +630,9 @@ export function mountHydroIntelPanel(root) {
       const ax = scX(_currentChainage / 1000).toFixed(1);
       activeMkr = `
         <line x1="${ax}" y1="${L.padT}" x2="${ax}" y2="${L.padT + L.plotH}"
-              stroke="#e89a1c" stroke-width="2" stroke-dasharray="4,4"/>
-        <circle cx="${ax}" cy="${scY(d.wse_now[Math.round((_currentChainage / maxCh) * (d.wse_now.length - 1))] ?? yMin).toFixed(1)}" r="4" fill="#e89a1c"/>
-        <text x="${ax}" y="${L.padT - 8}" fill="#e89a1c" font-size="9" text-anchor="middle" font-weight="600">
+              stroke="${C.active}" stroke-width="2" stroke-dasharray="4,4"/>
+        <circle cx="${ax}" cy="${scY(d.wse_now[Math.round((_currentChainage / maxCh) * (d.wse_now.length - 1))] ?? yMin).toFixed(1)}" r="4" fill="${C.active}"/>
+        <text x="${ax}" y="${L.padT - 8}" fill="${C.active}" font-size="9" text-anchor="middle" font-weight="600">
           CH ${_fmt(_currentChainage)}
         </text>`;
     }
@@ -665,6 +687,19 @@ export function mountHydroIntelPanel(root) {
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
+
+    attachChartHover(contentArea.querySelector(".hip-svg-wrap svg"), {
+      L, xs: chKm, scX, scY, unit: "m", decimals: 3,
+      fmtX: (km) => `CH ${_fmt(km * 1000)}`,
+      series: [
+        { label: "WSE now", color: C.wse, ys: d.wse_now },
+        { label: "Forecast P50", color: C.forecast, ys: d.forecast_p50 },
+        { label: "P90", color: C.ok, ys: d.forecast_p90, dot: false },
+        { label: "P10", color: C.ok, ys: d.forecast_p10, dot: false },
+        { label: "Bed", color: C.bed, ys: d.bed },
+        { label: "Threshold", color: C.threshold, ys: chKm.map(() => DEFAULT_THRESHOLD_M), dot: false },
+      ],
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -720,7 +755,7 @@ export function mountHydroIntelPanel(root) {
             ${xTkSvg}
             <!-- Now divider -->
             <line x1="${nowX}" y1="${L.padT}" x2="${nowX}" y2="${L.padT + L.plotH}"
-                  stroke="rgba(255,255,255,0.3)" stroke-dasharray="4,4"/>
+                  stroke="${C.axis}" stroke-dasharray="4,4"/>
             <!-- P10-P90 band -->
             <path d="${band}" fill="${C.p10p90}"/>
             <!-- Threshold -->
@@ -744,6 +779,20 @@ export function mountHydroIntelPanel(root) {
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
+
+    const nObs = d.observed.hours.length;
+    const nFc = d.forecast.hours.length;
+    attachChartHover(contentArea.querySelector(".hip-svg-wrap svg"), {
+      L, xs: allH, scX, scY, unit: "m", decimals: 3,
+      fmtX: (h) => (h === 0 ? "NOW" : `${h > 0 ? "+" : ""}${h}h`),
+      series: [
+        { label: "Past WSE", color: C.observed, ys: padSeries(0, d.observed.wse, nFc) },
+        { label: "Forecast P50", color: C.forecast, ys: padSeries(nObs, d.forecast.p50) },
+        { label: "P90", color: C.ok, ys: padSeries(nObs, d.forecast.p90), dot: false },
+        { label: "P10", color: C.ok, ys: padSeries(nObs, d.forecast.p10), dot: false },
+        { label: "Threshold", color: C.threshold, ys: allH.map(() => d.threshold_m), dot: false },
+      ],
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -785,7 +834,7 @@ export function mountHydroIntelPanel(root) {
     const bar1 = wseNow != null ? `
       <rect x="${startX}" y="${scY(Math.max(0, wseNow)).toFixed(1)}"
             width="${barW}" height="${(parseFloat(baseY) - scY(Math.max(0, wseNow))).toFixed(1)}"
-            fill="${SC[sev]}" opacity="0.75" rx="2"/>
+            fill="${SC[sev]}" opacity="0.75" rx="2" class="hip-bar"><title>WSE now: ${wseNow.toFixed(3)} m · Threshold ${thr.toFixed(2)} m</title></rect>
       <text x="${startX + barW / 2}" y="${scY(Math.max(0, wseNow)) - 4}"
             fill="${SC[sev]}" font-size="10" text-anchor="middle" font-weight="600">${wseNow.toFixed(3)} m</text>
       <text x="${startX + barW / 2}" y="${L.padT + L.plotH + 16}"
@@ -796,7 +845,7 @@ export function mountHydroIntelPanel(root) {
     const bar2 = wse72 != null ? `
       <rect x="${bar2x}" y="${scY(Math.max(0, wse72)).toFixed(1)}"
             width="${barW}" height="${(parseFloat(baseY) - scY(Math.max(0, wse72))).toFixed(1)}"
-            fill="${SC[sev72]}" opacity="0.55" rx="2"/>
+            fill="${SC[sev72]}" opacity="0.55" rx="2" class="hip-bar"><title>+72h P50: ${wse72.toFixed(3)} m · Threshold ${thr.toFixed(2)} m</title></rect>
       <text x="${bar2x + barW / 2}" y="${scY(Math.max(0, wse72)) - 4}"
             fill="${SC[sev72]}" font-size="10" text-anchor="middle" font-weight="600">${wse72.toFixed(3)} m</text>
       <text x="${bar2x + barW / 2}" y="${L.padT + L.plotH + 16}"
@@ -808,7 +857,7 @@ export function mountHydroIntelPanel(root) {
     const annMid  = wseNow != null ? ((parseFloat(annWSEY) + parseFloat(thrY)) / 2).toFixed(1) : null;
     const marginAnn = wseNow != null ? `
       <line x1="${annX}" y1="${thrY}" x2="${annX}" y2="${annWSEY}"
-            stroke="rgba(255,255,255,0.3)" stroke-dasharray="2,2"/>
+            stroke="${C.axis}" stroke-dasharray="2,2"/>
       <text x="${annX + 6}" y="${annMid}"
             fill="${C.muted}" font-size="9">${margin >= 0 ? "+" : ""}${(margin ?? 0).toFixed(3)} m</text>` : "";
 
@@ -921,6 +970,17 @@ export function mountHydroIntelPanel(root) {
           <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
+
+    attachChartHover(contentArea.querySelector(".hip-svg-wrap svg"), {
+      L, xs: d.hours, scX, scY, unit: "m", decimals: 3,
+      fmtX: (h) => `+${h}h`,
+      series: [
+        { label: "P50 median", color: C.forecast, ys: d.p50 },
+        { label: "P90", color: C.ok, ys: d.p90 },
+        { label: "P10", color: C.ok, ys: d.p10 },
+        { label: "Threshold", color: C.threshold, ys: d.hours.map(() => DEFAULT_THRESHOLD_M), dot: false },
+      ],
+    });
   }
 
   // ─────────────────────────────────────────────────────────────────────────
@@ -1169,51 +1229,43 @@ body.hydro-intel-open .chainage-current-marker {
    left-ui-stack (left), or any map control.
 ───────────────────────────────────────────────────────────────────── */
 
-/* Backdrop — full-screen dim when open.
-   pointer-events: auto so the flex layout, centering and scroll work correctly.
-   No click-to-close is attached to the backdrop — only X button and ESC close it.
-   The analyticsControls click-outside guard is exempted when isHydroOpen. */
+/* Backdrop — light dim so the map stays visible behind the glass card.
+   No click-to-close — only X button and ESC close it. */
 .hydro-intel-backdrop {
   position: fixed;
   inset: 0;
-  background: rgba(4, 9, 20, 0.55);
-  backdrop-filter: blur(3px);
-  -webkit-backdrop-filter: blur(3px);
+  background: rgba(15, 23, 42, 0.22);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
   z-index: 9000;
   display: flex;
   align-items: flex-start;
   justify-content: center;
-  /* Push panel below analytics nav bar (≈58px) + safe-area + breathing room */
-  padding-top: calc(max(14px, env(safe-area-inset-top)) + 74px);
-  padding-bottom: 16px;
-  padding-left: 16px;
-  padding-right: 16px;
+  padding: calc(max(14px, env(safe-area-inset-top)) + 74px) 16px 16px;
   box-sizing: border-box;
   overflow-y: auto;
   pointer-events: auto;
 }
 .hydro-intel-backdrop[hidden] { display: none !important; }
 
-/* Panel card itself */
+/* Panel — frosted translucent white */
 .hydro-intel-panel {
   pointer-events: auto;
-}
-
-/* Panel — centered card, never wider than viewport minus right tools */
-.hydro-intel-panel {
   position: relative;
   width: min(1120px, calc(100vw - 96px));
   max-height: calc(100vh - max(14px, env(safe-area-inset-top)) - 90px);
-  background: rgba(8, 15, 26, 0.97);
-  border: 1px solid rgba(79, 200, 235, 0.22);
-  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.78);
+  backdrop-filter: blur(20px) saturate(1.4);
+  -webkit-backdrop-filter: blur(20px) saturate(1.4);
+  border: 1px solid rgba(255, 255, 255, 0.85);
+  border-radius: 14px;
   box-shadow:
-    0 24px 60px rgba(0, 0, 0, 0.7),
-    0 0 0 1px rgba(79, 200, 235, 0.06);
+    0 24px 60px rgba(15, 23, 42, 0.28),
+    inset 0 1px 0 rgba(255, 255, 255, 0.9);
   display: flex;
   flex-direction: column;
-  color: #e2e8f0;
-  font-size: 11px;
+  color: #0f172a;
+  font-size: 12px;
   overflow: hidden;
   flex-shrink: 0;
   box-sizing: border-box;
@@ -1221,15 +1273,15 @@ body.hydro-intel-open .chainage-current-marker {
 
 /* ── Header ── */
 .hip-header {
-  background: rgba(0, 0, 0, 0.35);
-  border-bottom: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(255, 255, 255, 0.55);
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
   flex-shrink: 0;
 }
 .hip-header-top {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px 6px;
+  padding: 12px 18px 6px;
   gap: 8px;
   min-width: 0;
 }
@@ -1242,123 +1294,119 @@ body.hydro-intel-open .chainage-current-marker {
   flex-wrap: wrap;
 }
 .hip-main-title {
-  font-size: 11px;
-  font-weight: 700;
+  font-size: 13px;
+  font-weight: 800;
   letter-spacing: 0.08em;
-  color: #f8fafc;
+  color: #0f172a;
   white-space: nowrap;
 }
 .hip-badge {
-  padding: 2px 7px;
-  border-radius: 4px;
-  font-size: 9px;
+  padding: 3px 8px;
+  border-radius: 999px;
+  font-size: 10px;
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.07);
-  color: #94a3b8;
+  background: rgba(15, 23, 42, 0.07);
+  color: #334155;
   white-space: nowrap;
 }
 .hip-badge--status {
-  background: rgba(0, 229, 180, 0.14);
-  color: #00e5b4;
+  background: rgba(5, 150, 105, 0.14);
+  color: #047857;
 }
 .hip-close-btn {
   background: none;
   border: none;
-  color: #94a3b8;
+  color: #475569;
   cursor: pointer;
-  padding: 4px;
-  border-radius: 4px;
+  padding: 5px;
+  border-radius: 6px;
   flex-shrink: 0;
   line-height: 1;
+  transition: background 0.15s, color 0.15s;
 }
-.hip-close-btn:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
+.hip-close-btn:hover { color: #0f172a; background: rgba(15, 23, 42, 0.08); }
 
 /* ── Controls row ── */
 .hip-controls-row {
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 6px 16px;
+  padding: 6px 18px 8px;
   flex-wrap: wrap;
   min-width: 0;
 }
 .hip-mode-btns {
   display: flex;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 4px;
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  border-radius: 6px;
   overflow: hidden;
   flex-shrink: 0;
+  background: rgba(255, 255, 255, 0.6);
 }
 .hip-mode-btn {
-  background: rgba(255, 255, 255, 0.04);
+  background: transparent;
   border: none;
-  color: #64748b;
-  padding: 4px 10px;
-  font-size: 10px;
+  color: #475569;
+  padding: 5px 12px;
+  font-size: 11px;
   font-weight: 700;
   cursor: pointer;
   letter-spacing: 0.05em;
+  transition: background 0.15s, color 0.15s;
 }
-.hip-mode-btn.active { background: rgba(79, 200, 235, 0.18); color: #00f2fe; }
+.hip-mode-btn:hover:not(.active) { background: rgba(2, 132, 199, 0.08); color: #0f172a; }
+.hip-mode-btn.active { background: #0284c7; color: #fff; }
 .hip-select {
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  color: #e2e8f0;
-  padding: 4px 8px;
-  border-radius: 4px;
-  font-size: 10px;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(15, 23, 42, 0.14);
+  color: #0f172a;
+  padding: 5px 8px;
+  border-radius: 6px;
+  font-size: 11px;
   min-width: 0;
   flex: 1;
   max-width: 240px;
 }
-.hip-hist-wrap { flex: 1; min-width: 0; max-width: 220px; }
+.hip-hist-wrap { flex: 1; min-width: 0; max-width: 240px; }
 
-/* ── Custom dark-glass dropdowns ── */
+/* ── Custom dropdowns ── */
 .hip-custom-select {
   position: relative;
   flex: 1;
   min-width: 150px;
-  max-width: 240px;
+  max-width: 260px;
   user-select: none;
 }
-.hip-custom-select--station {
-  min-width: 190px;
-}
+.hip-custom-select--station { min-width: 200px; }
 .hip-custom-select__trigger {
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 6px;
-  padding: 5px 10px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px solid rgba(255, 255, 255, 0.14);
-  border-radius: 6px;
-  color: #c8d8e8;
-  font-size: 10px;
-  font-weight: 500;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.75);
+  border: 1px solid rgba(15, 23, 42, 0.16);
+  border-radius: 8px;
+  color: #0f172a;
+  font-size: 11px;
+  font-weight: 600;
   cursor: pointer;
-  transition: border-color 0.15s, background 0.15s;
+  transition: border-color 0.15s, background 0.15s, box-shadow 0.15s;
   white-space: nowrap;
   overflow: hidden;
 }
 .hip-custom-select__trigger:hover {
-  background: rgba(255, 255, 255, 0.1);
-  border-color: rgba(79, 200, 235, 0.4);
-  color: #e2e8f0;
+  background: #fff;
+  border-color: rgba(2, 132, 199, 0.55);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.12);
 }
 .hip-custom-select--open .hip-custom-select__trigger {
-  background: rgba(79, 200, 235, 0.1);
-  border-color: rgba(79, 200, 235, 0.5);
-  color: #00f2fe;
+  background: #fff;
+  border-color: #0284c7;
+  color: #0369a1;
 }
-.hip-custom-select--open .hip-custom-select__trigger svg {
-  transform: rotate(180deg);
-}
-.hip-custom-select__trigger svg {
-  transition: transform 0.2s;
-  opacity: 0.7;
-  color: #94a3b8;
-}
+.hip-custom-select--open .hip-custom-select__trigger svg { transform: rotate(180deg); }
+.hip-custom-select__trigger svg { transition: transform 0.2s; color: #475569; }
 .hip-custom-select__trigger span {
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1371,279 +1419,283 @@ body.hydro-intel-open .chainage-current-marker {
   left: 0;
   right: 0;
   min-width: 220px;
-  background: rgba(10, 18, 32, 0.98);
-  border: 1px solid rgba(79, 200, 235, 0.28);
-  border-radius: 8px;
-  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.7);
+  background: rgba(255, 255, 255, 0.97);
+  border: 1px solid rgba(15, 23, 42, 0.12);
+  border-radius: 10px;
+  box-shadow: 0 14px 32px rgba(15, 23, 42, 0.2);
   z-index: 99999;
-  overflow: hidden;
   max-height: 260px;
   overflow-y: auto;
   scrollbar-width: thin;
-  scrollbar-color: rgba(79,200,235,0.3) transparent;
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
+  scrollbar-color: rgba(15, 23, 42, 0.25) transparent;
 }
-.hip-custom-select__menu::-webkit-scrollbar { width: 4px; }
-.hip-custom-select__menu::-webkit-scrollbar-thumb {
-  background: rgba(79,200,235,0.3);
-  border-radius: 2px;
-}
+.hip-custom-select__menu::-webkit-scrollbar { width: 5px; }
+.hip-custom-select__menu::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.25); border-radius: 3px; }
 .hip-dd-item {
   padding: 8px 14px;
-  font-size: 11px;
-  color: #94a3b8;
+  font-size: 12px;
+  color: #1e293b;
   cursor: pointer;
   transition: background 0.12s, color 0.12s;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
 }
-.hip-dd-item:hover {
-  background: rgba(79, 200, 235, 0.12);
-  color: #e2e8f0;
-}
-.hip-dd-item.active {
-  background: rgba(79, 200, 235, 0.18);
-  color: #00f2fe;
-  font-weight: 600;
-}
-.hip-dd-item--placeholder {
-  color: #475569;
-  font-style: italic;
-  font-size: 10px;
-}
-.hip-dd-item--placeholder:hover {
-  background: transparent;
-  color: #475569;
-}
+.hip-dd-item:hover { background: rgba(2, 132, 199, 0.1); color: #0369a1; }
+.hip-dd-item.active { background: rgba(2, 132, 199, 0.16); color: #0369a1; font-weight: 700; }
+.hip-dd-item--placeholder { color: #64748b; font-style: italic; font-size: 11px; }
+.hip-dd-item--placeholder:hover { background: transparent; color: #64748b; }
 
-/* ── Tabs — single scrollable row ── */
+/* ── Tabs ── */
 .hip-tabs {
   display: flex;
-  gap: 0;
-  padding: 0 8px;
+  gap: 2px;
+  padding: 0 10px;
   overflow-x: auto;
   scrollbar-width: none;
-  border-top: 1px solid rgba(255, 255, 255, 0.04);
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
 }
 .hip-tabs::-webkit-scrollbar { display: none; }
 .hip-tab {
   background: none;
   border: none;
   border-bottom: 2px solid transparent;
-  color: #64748b;
-  padding: 7px 11px;
-  font-size: 9.5px;
-  font-weight: 600;
+  color: #475569;
+  padding: 9px 12px;
+  font-size: 10.5px;
+  font-weight: 700;
   cursor: pointer;
   white-space: nowrap;
-  letter-spacing: 0.04em;
-  transition: color 0.15s, border-color 0.15s;
+  letter-spacing: 0.05em;
+  transition: color 0.15s, border-color 0.15s, background 0.15s;
   flex-shrink: 0;
+  border-radius: 6px 6px 0 0;
 }
-.hip-tab.active { color: #00f2fe; border-bottom-color: #00f2fe; }
-.hip-tab:hover:not(.active) { color: #94a3b8; }
+.hip-tab:hover:not(.active) { color: #0f172a; background: rgba(15, 23, 42, 0.05); }
+.hip-tab.active { color: #0369a1; border-bottom-color: #0284c7; }
 
 /* ── Content area ── */
 .hip-content {
   flex: 1;
   overflow-y: auto;
-  padding: 14px 16px;
+  padding: 16px 18px;
   scrollbar-width: thin;
-  scrollbar-color: rgba(255, 255, 255, 0.15) transparent;
+  scrollbar-color: rgba(15, 23, 42, 0.25) transparent;
   min-height: 0;
 }
-.hip-content::-webkit-scrollbar { width: 5px; }
-.hip-content::-webkit-scrollbar-thumb {
-  background: rgba(255, 255, 255, 0.15);
-  border-radius: 3px;
-}
+.hip-content::-webkit-scrollbar { width: 6px; }
+.hip-content::-webkit-scrollbar-thumb { background: rgba(15, 23, 42, 0.22); border-radius: 3px; }
 .hip-loading, .hip-hint, .hip-error, .hip-empty {
-  color: rgba(255, 255, 255, 0.4);
-  font-size: 12px;
+  color: #475569;
+  font-size: 13px;
   padding: 32px 0;
   text-align: center;
 }
-.hip-error { color: #ff3d57; }
-.hip-empty { color: #00e5b4; }
+.hip-error { color: #dc2626; }
+.hip-empty { color: #047857; }
 
 /* ── Graph section ── */
-.hip-graph-section { display: flex; flex-direction: column; gap: 8px; }
+.hip-graph-section { display: flex; flex-direction: column; gap: 10px; }
 .hip-graph-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #f1f5f9;
-  letter-spacing: 0.04em;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0f172a;
+  letter-spacing: 0.03em;
 }
-.hip-sub { font-size: 9px; font-weight: 400; color: #64748b; margin-left: 6px; }
+.hip-sub { font-size: 11px; font-weight: 500; color: #475569; margin-left: 6px; }
 .hip-legend {
   display: flex;
   flex-wrap: wrap;
-  gap: 2px;
+  gap: 4px;
   align-items: center;
-  row-gap: 4px;
+  row-gap: 6px;
 }
+.hip-legend span { font-size: 11px !important; font-weight: 600; }
 .hip-svg-wrap {
-  background: rgba(0, 0, 0, 0.4);
-  border: 1px solid rgba(255, 255, 255, 0.06);
-  border-radius: 6px;
-  padding: 6px;
+  position: relative;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
+  padding: 8px;
+  box-shadow: inset 0 1px 2px rgba(15, 23, 42, 0.04);
 }
-.hip-prov-row {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.35);
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
-  padding-top: 6px;
-  margin-top: 4px;
-  line-height: 1.6;
-}
+.hip-svg-wrap svg text { font-weight: 500; }
+.hip-bar { cursor: pointer; transition: opacity 0.15s; }
+.hip-bar:hover { opacity: 1 !important; }
 
-/* ── Overview cards — 4 columns on wide screens ── */
+/* Chart hover tooltip */
+.hip-prov-row {
+  font-size: 10.5px;
+  color: #475569;
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
+  padding-top: 8px;
+  margin-top: 2px;
+  line-height: 1.7;
+}
+.hip-prov-row strong { color: #0f172a; }
+
+/* ── Overview cards ── */
 .hip-summary-cards {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 8px;
+  gap: 10px;
   margin-bottom: 12px;
 }
 @media (max-width: 860px) {
   .hip-summary-cards { grid-template-columns: 1fr 1fr; }
 }
 .hip-card {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
-  padding: 9px 12px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.09);
+  border-radius: 10px;
+  padding: 10px 14px;
   min-width: 0;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
 }
-.hip-card__label { font-size: 9px; color: #64748b; letter-spacing: 0.04em; }
-.hip-card__value { font-size: 13px; font-weight: 700; color: #f1f5f9; margin: 3px 0 2px; }
-.hip-card__prov { font-size: 8px; color: #e89a1c; }
+.hip-card:hover {
+  transform: translateY(-1px);
+  border-color: rgba(2, 132, 199, 0.35);
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1);
+}
+.hip-card__label { font-size: 10.5px; color: #475569; font-weight: 600; letter-spacing: 0.03em; }
+.hip-card__value { font-size: 17px; font-weight: 800; color: #0f172a; margin: 4px 0 2px; }
+.hip-card__prov { font-size: 9.5px; font-weight: 700; color: ${C.active}; }
 
 /* ── Station block ── */
 .hip-station-block {
-  background: rgba(79, 200, 235, 0.05);
-  border: 1px solid rgba(79, 200, 235, 0.15);
-  border-radius: 6px;
-  padding: 10px 12px;
+  background: rgba(2, 132, 199, 0.07);
+  border: 1px solid rgba(2, 132, 199, 0.22);
+  border-radius: 10px;
+  padding: 12px 14px;
   margin-bottom: 10px;
 }
 .hip-station-title {
-  font-size: 12px;
-  font-weight: 700;
-  color: #00f2fe;
-  letter-spacing: 0.06em;
+  font-size: 14px;
+  font-weight: 800;
+  color: #0369a1;
+  letter-spacing: 0.05em;
   margin-bottom: 8px;
 }
 .hip-kv-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
-  gap: 5px;
+  gap: 4px 18px;
 }
 @media (max-width: 860px) {
   .hip-kv-grid { grid-template-columns: 1fr 1fr; }
 }
-.hip-kv { display: flex; justify-content: space-between; min-width: 0; }
-.hip-kv .k { color: #64748b; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-.hip-kv .v { font-weight: 600; color: #f1f5f9; white-space: nowrap; }
+.hip-kv {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 0.12s;
+}
+.hip-kv:hover { background: rgba(15, 23, 42, 0.05); }
+.hip-kv .k { color: #475569; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.hip-kv .v { font-weight: 700; color: #0f172a; white-space: nowrap; }
 .hip-prov-grid {
   display: grid;
   grid-template-columns: repeat(4, 1fr);
   gap: 4px;
   margin-top: 8px;
   padding-top: 8px;
-  border-top: 1px solid rgba(255, 255, 255, 0.07);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
 }
 @media (max-width: 860px) {
   .hip-prov-grid { grid-template-columns: 1fr 1fr; }
 }
-.hip-prov-grid .pk { color: #475569; font-size: 9px; }
-.hip-prov-grid .pv { color: #e89a1c; font-size: 9px; font-weight: 600; margin-left: 4px; }
+.hip-prov-grid .pk { color: #475569; font-size: 10.5px; }
+.hip-prov-grid .pv { color: ${C.active}; font-size: 10.5px; font-weight: 700; margin-left: 4px; }
 .hip-telemetry-note {
-  font-size: 9px;
-  color: rgba(255, 255, 255, 0.3);
-  padding: 6px 8px;
-  background: rgba(255, 61, 87, 0.06);
-  border-radius: 4px;
-  border: 1px solid rgba(255, 61, 87, 0.15);
+  font-size: 10.5px;
+  color: #334155;
+  padding: 7px 10px;
+  background: rgba(220, 38, 38, 0.06);
+  border-radius: 8px;
+  border: 1px solid rgba(220, 38, 38, 0.18);
   margin-top: 8px;
 }
 
 /* ── Risk bar ── */
-.hip-risk-strip { display: flex; align-items: center; gap: 8px; margin-top: 6px; }
+.hip-risk-strip { display: flex; align-items: center; gap: 8px; margin-top: 6px; color: #334155; }
 .hip-risk-bar {
   flex: 1;
-  height: 6px;
-  background: rgba(255, 255, 255, 0.08);
-  border-radius: 3px;
+  height: 7px;
+  background: rgba(15, 23, 42, 0.08);
+  border-radius: 4px;
   overflow: hidden;
 }
 .hip-risk-fill {
   height: 100%;
-  border-radius: 3px;
-  background: #00e5b4;
+  border-radius: 4px;
+  background: #059669;
   transition: width 0.4s;
 }
-.hip-risk-fill[data-status="warn"]     { background: #ffc300; }
-.hip-risk-fill[data-status="critical"] { background: #ff3d57; }
+.hip-risk-fill[data-status="warn"]     { background: #d97706; }
+.hip-risk-fill[data-status="critical"] { background: #dc2626; }
 
 /* ── Alerts ── */
 .hip-alerts-list { display: flex; flex-direction: column; gap: 8px; }
 .hip-alert {
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.72);
+  border: 1px solid rgba(15, 23, 42, 0.1);
+  border-radius: 10px;
   padding: 10px 12px;
+  transition: box-shadow 0.15s;
 }
-.hip-alert[data-severity="DANGER"]  { border-color: rgba(255, 61, 87, 0.35); }
-.hip-alert[data-severity="WARNING"] { border-color: rgba(255, 195, 0, 0.3); }
+.hip-alert:hover { box-shadow: 0 8px 20px rgba(15, 23, 42, 0.1); }
+.hip-alert[data-severity="DANGER"]  { border-color: rgba(220, 38, 38, 0.4); }
+.hip-alert[data-severity="WARNING"] { border-color: rgba(217, 119, 6, 0.4); }
 .hip-alert__header { display: flex; align-items: center; gap: 8px; margin-bottom: 8px; flex-wrap: wrap; }
-.hip-alert__badge { padding: 2px 8px; border-radius: 3px; font-size: 9px; font-weight: 700; }
-.hip-alert__name { font-weight: 700; color: #f1f5f9; }
-.hip-alert__ch { font-size: 9px; color: #64748b; margin-left: auto; }
+.hip-alert__badge { padding: 2px 8px; border-radius: 4px; font-size: 10px; font-weight: 800; }
+.hip-alert__name { font-weight: 800; color: #0f172a; }
+.hip-alert__ch { font-size: 10.5px; color: #475569; margin-left: auto; }
 .hip-alert__body { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; }
 .hip-alert__prov {
-  font-size: 8px;
-  color: rgba(255, 255, 255, 0.3);
+  font-size: 10px;
+  color: #475569;
   margin-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-top: 1px solid rgba(15, 23, 42, 0.08);
   padding-top: 4px;
 }
 
 /* ── Margin Board ── */
 .hip-mb-header, .hip-mb-row {
   display: grid;
-  grid-template-columns: 110px 64px 1fr 64px 52px 58px 40px;
+  grid-template-columns: 130px 70px 1fr 70px 56px 64px 44px;
   align-items: center;
-  gap: 6px;
-  padding: 5px 0;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
-  font-size: 10px;
+  gap: 8px;
+  padding: 6px 8px;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.07);
+  font-size: 11.5px;
 }
+.hip-mb-row { border-radius: 6px; transition: background 0.12s; }
+.hip-mb-row:hover { background: rgba(2, 132, 199, 0.08); }
 .hip-mb-header {
-  font-size: 9px;
+  font-size: 10.5px;
   color: #475569;
-  font-weight: 700;
+  font-weight: 800;
   letter-spacing: 0.04em;
-  padding-bottom: 6px;
 }
-.hip-mb-name { font-weight: 600; color: #f1f5f9; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.hip-mb-ch { color: #64748b; font-size: 9px; }
-.hip-mb-bar { height: 5px; background: rgba(255,255,255,0.07); border-radius: 3px; overflow: hidden; }
-.hip-mb-fill { height: 100%; background: #00e5b4; border-radius: 3px; transition: width 0.3s; }
-.hip-mb-fill[data-status="warn"]     { background: #ffc300; }
-.hip-mb-fill[data-status="critical"] { background: #ff3d57; }
-.hip-mb-margin { font-weight: 700; }
-.hip-mb-fcast, .hip-mb-prob, .hip-mb-risk { color: #64748b; text-align: right; }
+.hip-mb-name { font-weight: 700; color: #0f172a; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.hip-mb-ch { color: #475569; font-size: 10.5px; }
+.hip-mb-bar { height: 6px; background: rgba(15, 23, 42, 0.08); border-radius: 3px; overflow: hidden; }
+.hip-mb-fill { height: 100%; background: #059669; border-radius: 3px; transition: width 0.3s; }
+.hip-mb-fill[data-status="warn"]     { background: #d97706; }
+.hip-mb-fill[data-status="critical"] { background: #dc2626; }
+.hip-mb-margin { font-weight: 800; }
+.hip-mb-fcast, .hip-mb-prob, .hip-mb-risk { color: #334155; text-align: right; }
 
-/* ── Responsive breakpoints ── */
+/* ── Responsive ── */
 @media (max-width: 900px) {
   .hydro-intel-panel { width: calc(100vw - 40px); }
-  .hip-tab { padding: 6px 8px; font-size: 9px; }
+  .hip-tab { padding: 7px 9px; font-size: 10px; }
   .hip-mb-header, .hip-mb-row {
-    grid-template-columns: 90px 54px 1fr 54px 44px;
+    grid-template-columns: 100px 58px 1fr 58px 48px;
   }
-  /* Hide the last two columns on small screens */
   .hip-mb-prob, .hip-mb-risk,
   .hip-mb-header span:nth-child(6),
   .hip-mb-header span:nth-child(7) { display: none; }
@@ -1658,6 +1710,7 @@ body.hydro-intel-open .chainage-current-marker {
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
+  onDigitalTwinExit(() => { if (!backdrop.hidden) hide(); });
   window.__MM_HYDRO_INTEL__ = { show, hide, isOpen: () => !backdrop.hidden };
 
   return { show, hide, el: backdrop, isOpen: () => !backdrop.hidden };

@@ -133,13 +133,13 @@ export const BANK_EROSION_CLASSES = [
   { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%" },
 ];
 
-/** Exact Jul 2026 depth-class ramp (shallow → deep). */
+/** Depth ramp of mula_mutha_depth_blueshade_smoothed.kmz (shallow → deep). */
 export const BATHYMETRY_CLASSES = [
-  { id: "1.5-1.6", label: "1.5–1.6 m", color: "#87CEFA" },
-  { id: "1.6-1.7", label: "1.6–1.7 m", color: "#4AA3E9" },
-  { id: "1.7-1.8", label: "1.7–1.8 m", color: "#216FCD" },
-  { id: "1.8-1.9", label: "1.8–1.9 m", color: "#103F96" },
-  { id: "1.9-2.0", label: "1.9–2.0 m", color: "#051448" },
+  { id: "1.53-1.62", label: "1.53–1.62 m", color: "#ABD5F8" },
+  { id: "1.62-1.72", label: "1.62–1.72 m", color: "#86A9D4" },
+  { id: "1.72-1.81", label: "1.72–1.81 m", color: "#5A74AA" },
+  { id: "1.81-1.91", label: "1.81–1.91 m", color: "#2F4282" },
+  { id: "1.91-2.00", label: "1.91–2.00 m", color: "#06115B" },
 ];
 
 /**
@@ -255,9 +255,9 @@ export function mountGeologyWorkspace(root) {
         <aside class="bathymetry-legend geo-field-note geo-field-note--bathy" aria-label="Bathymetry depth classes">
           <header class="geo-field-note__head">
             <strong>Bathymetry</strong>
-            <small>Jul 2026 depth zones</small>
+            <small>Water depth · smoothed survey</small>
           </header>
-          <div class="bathy-sounding" role="img" aria-label="Depth scale from 1.5 to 2.0 metres">
+          <div class="bathy-sounding" role="img" aria-label="Depth scale from 1.53 to 2.00 metres">
             <div class="bathy-sounding__bar" aria-hidden="true"></div>
             <div class="bathy-sounding__ticks">
               ${BATHYMETRY_CLASSES.map((c) => `<span>${c.label.replace(" m", "")}</span>`).join("")}
@@ -267,7 +267,7 @@ export function mountGeologyWorkspace(root) {
               <span>Deeper</span>
             </div>
           </div>
-          <p class="geo-field-note__hint">Click a coloured patch on the river to read its depth class.</p>
+          <p class="geo-field-note__hint">Click anywhere on the blue river to read its water depth.</p>
         </aside>
       </section>
     </div>

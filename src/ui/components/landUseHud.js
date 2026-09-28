@@ -133,7 +133,7 @@ export function mountLandUseHud(root, hooks = {}) {
       return;
     }
     const r = btn.getBoundingClientRect();
-    wrap.style.left = `${Math.round(r.left + r.width / 2)}px`;
+    wrap.style.left = "50%";
     wrap.style.top = `${Math.round(r.bottom + 22)}px`;
     wrap.style.transform = "translateX(-50%)";
   }

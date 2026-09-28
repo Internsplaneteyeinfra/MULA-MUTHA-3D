@@ -110,12 +110,130 @@ export function mountChainageStepHud(root, dataset) {
 
     prevBtn.disabled = idx <= 0;
     nextBtn.disabled = idx < 0 || idx >= points.length - 1;
+    scheduleLayout();
   }
+
+  // Top icon rows change height per mode (labels, numeric scales, wrapping),
+  // so fixed CSS offsets collide. Sit just below whatever is actually visible.
+  const SUB_ROW_SELECTORS = [
+    ".lu-theme-classes",
+    ".lu-hud",
+    ".wq-hud",
+    ".geology-workspace",
+    ".focus-theme-classes",
+    ".climate-impact-classes",
+    ".aqi-classes",
+    ".bod-cod-classes",
+  ];
+  const TOP_ROW_SELECTORS = [".analytics-controls", ".top-navigation", ...SUB_ROW_SELECTORS];
+  const GAP_PX = 10;
+
+  function isVisible(node) {
+    if (!node || node === el || node.hidden) return false;
+    if (!node.getClientRects().length) return false;
+    const cs = getComputedStyle(node);
+    return cs.display !== "none" && cs.visibility !== "hidden";
+  }
+
+  const NAV_SELECTORS = [".analytics-controls", ".top-navigation"];
+  const SUB_ROW_GAP_PX = 6;
+
+  function visibleTopRects(selectors) {
+    const rects = [];
+    for (const sel of selectors) {
+      for (const node of document.querySelectorAll(sel)) {
+        ro?.observe(node);
+        if (!isVisible(node)) continue;
+        const r = node.getBoundingClientRect();
+        if (r.bottom <= 0 || r.top > window.innerHeight * 0.5) continue;
+        rects.push(r);
+      }
+    }
+    return rects;
+  }
+
+  function layoutSubRows() {
+    const navRects = visibleTopRects(NAV_SELECTORS);
+    for (const row of document.querySelectorAll(SUB_ROW_SELECTORS.join(","))) {
+      if (row.closest(".aqi-panel")) continue;
+      ro?.observe(row);
+      if (!isVisible(row)) continue;
+      const rr = row.getBoundingClientRect();
+      let navBottom = 0;
+      for (const r of navRects) {
+        if (r.right < rr.left || r.left > rr.right) continue;
+        navBottom = Math.max(navBottom, r.bottom);
+      }
+      const next = navBottom > 0 ? `${Math.round(navBottom + SUB_ROW_GAP_PX)}px` : "";
+      if (row.dataset.stackTop === next) continue;
+      row.dataset.stackTop = next;
+      if (next) row.style.setProperty("top", next, "important");
+      else row.style.removeProperty("top");
+    }
+  }
+
+  function layout() {
+    layoutSubRows();
+    if (el.hidden) return;
+    const hudW = el.offsetWidth || 260;
+    const cx = window.innerWidth / 2;
+    const hudLeft = cx - hudW / 2 - 8;
+    const hudRight = cx + hudW / 2 + 8;
+    let bottom = 0;
+    for (const sel of TOP_ROW_SELECTORS) {
+      for (const node of document.querySelectorAll(sel)) {
+        if (node.closest(".aqi-panel")) continue;
+        ro?.observe(node);
+        if (!isVisible(node)) continue;
+        const r = node.getBoundingClientRect();
+        if (r.bottom <= 0 || r.top > window.innerHeight * 0.5) continue;
+        if (r.right < hudLeft || r.left > hudRight) continue;
+        bottom = Math.max(bottom, r.bottom);
+      }
+    }
+    const nextTop = bottom > 0 ? `${Math.round(bottom + GAP_PX)}px` : "";
+    if (nextTop === lastTop) return;
+    lastTop = nextTop;
+    if (nextTop) el.style.setProperty("top", nextTop, "important");
+    else el.style.removeProperty("top");
+  }
+  let lastTop = null;
+
+  let layoutRaf = 0;
+  function scheduleLayout() {
+    if (layoutRaf) return;
+    layoutRaf = requestAnimationFrame(() => {
+      layoutRaf = 0;
+      layout();
+    });
+  }
+
+  const uiRoot = document.getElementById("ui-root") || root;
+  const mo = new MutationObserver(scheduleLayout);
+  mo.observe(uiRoot, {
+    subtree: true,
+    childList: true,
+    attributes: true,
+    attributeFilter: ["class", "hidden"],
+  });
+  const ro = typeof ResizeObserver !== "undefined" ? new ResizeObserver(scheduleLayout) : null;
+  ro?.observe(el);
+  window.addEventListener("resize", scheduleLayout);
+  document.addEventListener("transitionend", scheduleLayout, true);
+  document.addEventListener("animationend", scheduleLayout, true);
+  const pollId = setInterval(scheduleLayout, 400);
 
   document.addEventListener("chainage-select", update);
 
   function dispose() {
     document.removeEventListener("chainage-select", update);
+    window.removeEventListener("resize", scheduleLayout);
+    document.removeEventListener("transitionend", scheduleLayout, true);
+    document.removeEventListener("animationend", scheduleLayout, true);
+    clearInterval(pollId);
+    mo.disconnect();
+    ro?.disconnect();
+    cancelAnimationFrame(layoutRaf);
     el.remove();
   }
 

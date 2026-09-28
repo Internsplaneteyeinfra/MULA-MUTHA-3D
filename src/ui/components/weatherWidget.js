@@ -194,6 +194,9 @@ export function mountWeatherWidget(root) {
       dischargeEl.textContent = formatMetricNumber(q, 1);
       if (dischargeUnitEl) dischargeUnitEl.hidden = !Number.isFinite(q);
       dischargeEl.title = `Live discharge at chainage ${Math.round(meters)} m`;
+      document.dispatchEvent(
+        new CustomEvent("chainage-discharge", { detail: { meters, q } }),
+      );
     } catch (err) {
       if (serial !== dischargeSerial) return;
       console.warn("[weather-q]", err?.message || err);
@@ -242,9 +245,13 @@ export function mountWeatherWidget(root) {
         lastSuccessful = time.textContent;
         weatherAvailable = true;
         window.__MM_SCENE__?.applyLiveWeather?.(weather);
+        state.liveWeather = { ...weather, fetchedAt: new Date().toISOString(), label: point?.label ?? null };
+        document.dispatchEvent(new CustomEvent("chainage-weather", { detail: state.liveWeather }));
       } catch (error) {
         if (error?.name === "AbortError" || serial !== requestSerial) return;
         weatherAvailable = false;
+        state.liveWeather = { error: error?.message || "Weather unavailable", label: point?.label ?? null };
+        document.dispatchEvent(new CustomEvent("chainage-weather", { detail: state.liveWeather }));
         temperature.textContent = "— °C";
         condition.textContent = "Weather unavailable";
         wind.textContent = "Wind —";

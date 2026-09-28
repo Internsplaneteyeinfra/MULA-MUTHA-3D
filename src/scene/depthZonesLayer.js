@@ -1,154 +1,107 @@
 import * as THREE from "three";
-import { mergeGeometries } from "three/examples/jsm/utils/BufferGeometryUtils.js";
 import { SURFACE_Y } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
-import { createGlassyWaterMaterial, setGlassyMode } from "./glassyWaterMaterial.js";
+import { lonLatToLocal } from "../geo/geoReference.js";
 import { state } from "../state.js";
 
 /** Configurable lift above sampled terrain / water surface (meters). */
 export const GLASSY_WATER_LIFT_M = 0.55;
 
 /**
- * Cinematic glassy depth-zone layer from Jul 2026 KML polygons.
- * Real lon/lat → local frame unchanged; one shared shader; animate uTime only.
+ * Bathymetry GroundOverlay from src/data/mula_mutha_depth_blueshade_smoothed.kmz
+ * (extracted to public/data/bathymetry/). LatLonBox copied from its doc.kml.
+ */
+export const BATHYMETRY_OVERLAY = {
+  url: "/data/bathymetry/mula_mutha_depth_overlay.png",
+  legendUrl: "/data/bathymetry/depth_legend.png",
+  north: 18.54735962,
+  south: 18.52083962,
+  east: 73.99281512,
+  west: 73.85517512,
+  minDepth: 1.53,
+  maxDepth: 2.0,
+};
+
+/** Legend ramp sampled from the KMZ depth_legend.png, shallow → deep. */
+export const BATHYMETRY_RAMP = [
+  "#abd5f8", "#95bbe3", "#7d9fcc", "#6582b6", "#4e669f", "#364a89", "#1e2d72", "#06115b",
+];
+
+const PICK_MIN_ALPHA = 40;
+const GRID_SEG_X = 420;
+const GRID_SEG_Z = 84;
+
+/**
+ * Raster bathymetry layer — KMZ image draped just above the river surface.
+ * Exposes the same userData API the old depth-zone polygon layer did.
  */
 export function createDepthZonesLayer(dataset) {
   const group = new THREE.Group();
   group.name = "depthZones";
   group.visible = false;
 
-  const zones = dataset.depthZones || [];
   const stations = dataset.corridor?.stations || [];
-  if (!zones.length) {
-    group.userData.stats = { polygons: 0, classes: 0 };
-    group.userData.update = () => {};
-    group.userData.setSelected = () => {};
-    group.userData.setVisible = () => {};
-    group.userData.playReveal = () => {};
-    return group;
-  }
+  const box = BATHYMETRY_OVERLAY;
 
-  const minD = Math.min(...zones.map((z) => z.depthMin ?? 1.5));
-  const maxD = Math.max(...zones.map((z) => z.depthMax ?? 2.0));
+  const geometry = buildDrapedGrid(box, stations);
+  const texture = new THREE.TextureLoader().load(`${box.url}?v=blueshade`, (tex) => {
+    pixels = readPixels(tex.image);
+  });
+  texture.colorSpace = THREE.SRGBColorSpace;
+  texture.anisotropy = 8;
+  texture.minFilter = THREE.LinearMipmapLinearFilter;
+  texture.magFilter = THREE.LinearFilter;
 
-  const material = createGlassyWaterMaterial({
-    minDepth: minD,
-    maxDepth: maxD,
-    opacity: state.glassyWaterOpacity ?? 0.82,
-    flowSpeed: state.glassyFlowSpeed ?? 0.45,
+  const material = new THREE.ShaderMaterial({
+    uniforms: {
+      uMap: { value: texture },
+      uOpacity: { value: 1 },
+      uReveal: { value: 1 },
+      uHighlight: { value: 0 },
+    },
+    vertexShader: /* glsl */ `
+      varying vec2 vUv;
+      void main() {
+        vUv = uv;
+        gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0);
+      }`,
+    fragmentShader: /* glsl */ `
+      uniform sampler2D uMap;
+      uniform float uOpacity;
+      uniform float uReveal;
+      uniform float uHighlight;
+      varying vec2 vUv;
+      void main() {
+        vec4 c = texture2D(uMap, vUv);
+        // KMZ alpha peaks ~0.7 — lift it so the depth ramp reads over the water.
+        float a = clamp(c.a * 1.45, 0.0, 1.0);
+        if (a < 0.02) discard;
+        float edge = uReveal * 1.08;
+        float mask = 1.0 - smoothstep(edge - 0.08, edge, vUv.x);
+        vec3 col = c.rgb * (1.0 + uHighlight * 0.25);
+        gl_FragColor = vec4(col, a * uOpacity * mask);
+        #include <colorspace_fragment>
+      }`,
+    transparent: true,
+    depthWrite: false,
+    side: THREE.DoubleSide,
+    polygonOffset: true,
+    polygonOffsetFactor: -2,
+    polygonOffsetUnits: -2,
   });
 
-  /** @type {Map<string, { geos: THREE.BufferGeometry[], meta: object[] }>} */
-  const buckets = new Map();
-  const classCounts = new Map();
-  const featureIndex = [];
-  let built = 0;
-  let skipped = 0;
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = "bathymetryOverlay";
+  mesh.renderOrder = 8;
+  mesh.frustumCulled = false;
+  group.add(mesh);
 
-  for (let zi = 0; zi < zones.length; zi++) {
-    const z = zones[zi];
-    const verts = sanitizeRing(z.vertices);
-    if (!verts || verts.length < 3) {
-      skipped += 1;
-      continue;
-    }
-    const geo = polygonToTerrainGeometry(verts, stations, z.depthMid ?? 1.7, z.fillOpacity ?? 0.55);
-    if (!geo) {
-      skipped += 1;
-      continue;
-    }
-    built += 1;
-
-    const cls = z.depthClass || "1.5-1.6";
-    if (!buckets.has(cls)) buckets.set(cls, { geos: [], meta: [] });
-    buckets.get(cls).geos.push(geo);
-    buckets.get(cls).meta.push(z);
-    classCounts.set(cls, (classCounts.get(cls) || 0) + 1);
-
-    let cx = 0;
-    let cz = 0;
-    for (const v of verts) {
-      cx += v.x;
-      cz += v.z;
-    }
-    cx /= verts.length;
-    cz /= verts.length;
-    featureIndex.push({
-      id: zi,
-      depthClass: cls,
-      depthMin: z.depthMin,
-      depthMax: z.depthMax,
-      depthMid: z.depthMid,
-      areaM2: z.areaM2,
-      fillOpacity: z.fillOpacity,
-      name: z.name,
-      description: z.description,
-      lon: verts[0]?.lon,
-      lat: verts[0]?.lat,
-      x: cx,
-      z: cz,
-      vertices: verts,
-    });
-  }
-
-  const meshes = [];
-  for (const [cls, bucket] of buckets) {
-    if (!bucket.geos.length) continue;
-    let merged;
-    try {
-      merged = mergeGeometries(bucket.geos, false);
-    } catch {
-      merged = null;
-    }
-    for (const g of bucket.geos) g.dispose();
-    if (!merged) continue;
-
-    const mesh = new THREE.Mesh(merged, material);
-    mesh.name = `glassyDepth_${cls}`;
-    mesh.renderOrder = 8;
-    mesh.frustumCulled = false;
-    mesh.userData.depthClass = cls;
-    mesh.userData.pickable = true;
-    group.add(mesh);
-    meshes.push(mesh);
-  }
-
-  const particles = createGlassParticles(featureIndex, stations);
-  group.add(particles.points);
-
-  // Soft outline for data-analysis mode
-  const outlineGroup = new THREE.Group();
-  outlineGroup.name = "depthZoneOutlines";
-  outlineGroup.visible = false;
-  for (const f of featureIndex) {
-    if (!f.vertices?.length) continue;
-    const pts = f.vertices.map(
-      (v) => new THREE.Vector3(v.x, waterYAt(v.x, v.z, stations) + 0.06, v.z),
-    );
-    if (pts.length > 1) pts.push(pts[0].clone());
-    const line = new THREE.Line(
-      new THREE.BufferGeometry().setFromPoints(pts),
-      new THREE.LineBasicMaterial({
-        color: 0xa8e8ff,
-        transparent: true,
-        opacity: 0.7,
-        depthWrite: false,
-        depthTest: false,
-      }),
-    );
-    line.renderOrder = 9;
-    outlineGroup.add(line);
-  }
-  group.add(outlineGroup);
-
-  let revealT = 0;
-  let selectedId = null;
   const selectRing = new THREE.Mesh(
     new THREE.RingGeometry(4, 6.5, 40),
     new THREE.MeshBasicMaterial({
       color: 0xb8f0ff,
       transparent: true,
-      opacity: 0.65,
+      opacity: 0.75,
       side: THREE.DoubleSide,
       depthWrite: false,
       depthTest: false,
@@ -159,25 +112,27 @@ export function createDepthZonesLayer(dataset) {
   selectRing.renderOrder = 10;
   group.add(selectRing);
 
+  /** @type {{ data: Uint8ClampedArray, width: number, height: number } | null} */
+  let pixels = null;
+  let revealT = 1;
+
   group.userData.stats = {
-    polygons: zones.length,
-    built,
-    skipped,
-    classes: classCounts.size,
-    byClass: Object.fromEntries(classCounts),
-    glassy: true,
+    source: "mula_mutha_depth_blueshade_smoothed.kmz",
+    raster: true,
+    polygons: 0,
+    built: 1,
+    classes: BATHYMETRY_RAMP.length,
+    depthRange: [box.minDepth, box.maxDepth],
   };
-  group.userData.featureIndex = featureIndex;
   group.userData.material = material;
-  group.userData.meshes = meshes;
+  group.userData.meshes = [mesh];
 
   group.userData.setVisible = (on) => {
     group.visible = !!on;
   };
 
   group.userData.setSelected = (feat) => {
-    selectedId = feat?.id ?? null;
-    material.uniforms.uHighlight.value = feat ? 0.55 : 0;
+    material.uniforms.uHighlight.value = feat ? 1 : 0;
     if (feat) {
       selectRing.visible = true;
       selectRing.position.set(feat.x, waterYAt(feat.x, feat.z, stations) + 0.5, feat.z);
@@ -191,184 +146,148 @@ export function createDepthZonesLayer(dataset) {
     material.uniforms.uReveal.value = 0;
   };
 
-  group.userData.update = (dt) => {
-    if (!group.visible) return;
-    const t = state.elapsed || 0;
-    material.uniforms.uTime.value = t;
-    material.uniforms.uFlowSpeed.value = state.glassyFlowSpeed ?? 0.45;
-    material.uniforms.uOpacity.value = state.glassyWaterOpacity ?? 0.82;
-    setGlassyMode(material, state.glassyVizMode === "data" ? "data" : "cinematic");
-    outlineGroup.visible = state.glassyVizMode === "data" || !!state.bathymetryMode;
-    particles.points.visible = !!(
-      state.glassyAnimatedFlow &&
-      state.glassyVizMode !== "data" &&
-      !state.bathymetryMode
-    );
-
-    // Reveal phase when layer turns on
-    if (state.glassyRevealActive) {
-      revealT = Math.min(1, revealT + dt * 0.35);
-      material.uniforms.uReveal.value = revealT;
-      if (revealT >= 1) state.glassyRevealActive = false;
-    } else if (material.uniforms.uReveal.value < 1) {
-      material.uniforms.uReveal.value = 1;
-    }
-
-    if (particles.points.visible) particles.update(dt, t);
+  /** Depth (m) at a local XZ point, read from the KMZ raster colour. */
+  group.userData.sampleAt = (x, z) => {
+    if (!pixels || !dataset.frame?.toLonLat) return null;
+    const { lon, lat } = dataset.frame.toLonLat(x, z);
+    const u = (lon - box.west) / (box.east - box.west);
+    const v = (box.north - lat) / (box.north - box.south);
+    if (u < 0 || u > 1 || v < 0 || v > 1) return null;
+    const px = Math.min(pixels.width - 1, Math.floor(u * pixels.width));
+    const py = Math.min(pixels.height - 1, Math.floor(v * pixels.height));
+    const i = (py * pixels.width + px) * 4;
+    const d = pixels.data;
+    if (d[i + 3] < PICK_MIN_ALPHA) return null;
+    const depth = colorToDepth(d[i], d[i + 1], d[i + 2], box.minDepth, box.maxDepth);
+    return { depth, lon, lat };
   };
 
-  console.info("Glassy depth zones layer", group.userData.stats);
+  group.userData.update = (dt) => {
+    if (!group.visible) return;
+    material.uniforms.uOpacity.value = Math.max(0.55, state.glassyWaterOpacity ?? 0.9);
+    if (state.glassyRevealActive || revealT < 1) {
+      revealT = Math.min(1, revealT + dt * 0.45);
+      material.uniforms.uReveal.value = revealT;
+      if (revealT >= 1) state.glassyRevealActive = false;
+    }
+  };
+
+  console.info("Bathymetry raster layer (KMZ)", group.userData.stats);
   return group;
 }
 
-/** Point-in-polygon pick for depth features (XZ). */
+/** Pick the bathymetry depth under a local XZ point. */
 export function pickDepthZoneAt(group, x, z) {
-  const feats = group?.userData?.featureIndex;
-  if (!feats?.length) return null;
-  let best = null;
-  let bestD = Infinity;
-  for (const f of feats) {
-    if (!pointInPolyXZ(x, z, f.vertices)) continue;
-    const d = (f.x - x) ** 2 + (f.z - z) ** 2;
-    if (d < bestD) {
-      bestD = d;
-      best = f;
-    }
-  }
-  return best;
+  const hit = group?.userData?.sampleAt?.(x, z);
+  if (!hit) return null;
+  const { minDepth, maxDepth } = BATHYMETRY_OVERLAY;
+  const n = BATHYMETRY_RAMP.length - 1;
+  const step = (maxDepth - minDepth) / n;
+  const k = Math.min(n - 1, Math.max(0, Math.floor((hit.depth - minDepth) / step)));
+  const lo = minDepth + k * step;
+  const hi = lo + step;
+  return {
+    id: `bathy-${Math.round(x)}-${Math.round(z)}`,
+    name: "Bathymetry (KMZ raster)",
+    depthClass: `${lo.toFixed(2)}–${hi.toFixed(2)}`,
+    depthMin: lo,
+    depthMax: hi,
+    depthMid: hit.depth,
+    x,
+    z,
+    lon: hit.lon,
+    lat: hit.lat,
+  };
 }
 
-function polygonToTerrainGeometry(verts, stations, depthMid, fillOpacity) {
-  try {
-    const shape = new THREE.Shape();
-    shape.moveTo(verts[0].x, -verts[0].z);
-    for (let i = 1; i < verts.length; i++) {
-      shape.lineTo(verts[i].x, -verts[i].z);
+function buildDrapedGrid(box, stations) {
+  const nx = GRID_SEG_X;
+  const nz = GRID_SEG_Z;
+  const count = (nx + 1) * (nz + 1);
+  const pos = new Float32Array(count * 3);
+  const uv = new Float32Array(count * 2);
+  let p = 0;
+  let q = 0;
+  for (let j = 0; j <= nz; j++) {
+    const v = j / nz;
+    const lat = box.south + v * (box.north - box.south);
+    for (let i = 0; i <= nx; i++) {
+      const u = i / nx;
+      const lon = box.west + u * (box.east - box.west);
+      const loc = lonLatToLocal(lon, lat);
+      pos[p++] = loc.x;
+      pos[p++] = waterYAt(loc.x, loc.z, stations);
+      pos[p++] = loc.z;
+      uv[q++] = u;
+      uv[q++] = v;
     }
-    shape.closePath();
-    const geo = new THREE.ShapeGeometry(shape);
-    geo.rotateX(-Math.PI / 2);
+  }
+  const idx = [];
+  for (let j = 0; j < nz; j++) {
+    for (let i = 0; i < nx; i++) {
+      const a = j * (nx + 1) + i;
+      const b = a + 1;
+      const c = a + nx + 1;
+      const d = c + 1;
+      idx.push(a, b, c, b, d, c);
+    }
+  }
+  const geo = new THREE.BufferGeometry();
+  geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("uv", new THREE.BufferAttribute(uv, 2));
+  geo.setIndex(idx);
+  return geo;
+}
 
-    const pos = geo.attributes.position;
-    const n = pos.count;
-    if (n < 3) {
-      geo.dispose();
-      return null;
-    }
-    const depths = new Float32Array(n);
-    const opacities = new Float32Array(n);
-    // Floor KML fragment opacity so tiny patches still read in Geology mode
-    const opac = Math.max(0.42, Math.min(1, fillOpacity));
-    for (let i = 0; i < n; i++) {
-      const x = pos.getX(i);
-      const z = pos.getZ(i);
-      const y = waterYAt(x, z, stations);
-      pos.setY(i, y);
-      depths[i] = depthMid;
-      opacities[i] = opac;
-    }
-    pos.needsUpdate = true;
-    geo.setAttribute("aDepth", new THREE.BufferAttribute(depths, 1));
-    geo.setAttribute("aOpacity", new THREE.BufferAttribute(opacities, 1));
-    geo.computeVertexNormals();
-    return geo;
-  } catch {
+function readPixels(image) {
+  try {
+    const canvas = document.createElement("canvas");
+    canvas.width = image.width;
+    canvas.height = image.height;
+    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    ctx.drawImage(image, 0, 0);
+    const { data } = ctx.getImageData(0, 0, image.width, image.height);
+    return { data, width: image.width, height: image.height };
+  } catch (err) {
+    console.warn("[bathymetry] pixel read failed", err?.message || err);
     return null;
   }
 }
 
-/** Drop duplicate closing vertex + near-duplicate consecutive points. */
-function sanitizeRing(verts) {
-  if (!verts?.length) return null;
-  const out = [];
-  for (const v of verts) {
-    if (!Number.isFinite(v?.x) || !Number.isFinite(v?.z)) continue;
-    const prev = out[out.length - 1];
-    if (prev && Math.hypot(prev.x - v.x, prev.z - v.z) < 0.05) continue;
-    out.push(v);
+const RAMP_RGB = BATHYMETRY_RAMP.map((h) => [
+  parseInt(h.slice(1, 3), 16),
+  parseInt(h.slice(3, 5), 16),
+  parseInt(h.slice(5, 7), 16),
+]);
+
+/** Project an RGB colour onto the legend ramp → depth in metres. */
+function colorToDepth(r, g, b, minDepth, maxDepth) {
+  let best = 0;
+  let bestD = Infinity;
+  const steps = 64;
+  for (let s = 0; s <= steps; s++) {
+    const t = s / steps;
+    const f = t * (RAMP_RGB.length - 1);
+    const k = Math.min(RAMP_RGB.length - 2, Math.floor(f));
+    const w = f - k;
+    const c0 = RAMP_RGB[k];
+    const c1 = RAMP_RGB[k + 1];
+    const dr = c0[0] + (c1[0] - c0[0]) * w - r;
+    const dg = c0[1] + (c1[1] - c0[1]) * w - g;
+    const db = c0[2] + (c1[2] - c0[2]) * w - b;
+    const d = dr * dr + dg * dg + db * db;
+    if (d < bestD) {
+      bestD = d;
+      best = t;
+    }
   }
-  if (out.length > 2) {
-    const a = out[0];
-    const b = out[out.length - 1];
-    if (Math.hypot(a.x - b.x, a.z - b.z) < 0.05) out.pop();
-  }
-  return out.length >= 3 ? out : null;
+  return minDepth + best * (maxDepth - minDepth);
 }
 
 function waterYAt(x, z, stations) {
   if (stations?.length) {
     const ty = terrainHeightAt(x, z, stations);
-    // Sit clearly above river surface so depth classes stay readable
     return Math.max(ty, SURFACE_Y) + GLASSY_WATER_LIFT_M;
   }
   return SURFACE_Y + GLASSY_WATER_LIFT_M;
-}
-
-function pointInPolyXZ(x, z, verts) {
-  if (!verts || verts.length < 3) return false;
-  let inside = false;
-  for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
-    const xi = verts[i].x;
-    const zi = verts[i].z;
-    const xj = verts[j].x;
-    const zj = verts[j].z;
-    const intersect = zi > z !== zj > z && x < ((xj - xi) * (z - zi)) / (zj - zi + 1e-12) + xi;
-    if (intersect) inside = !inside;
-  }
-  return inside;
-}
-
-function createGlassParticles(features, stations) {
-  const maxN = Math.min(220, Math.max(40, features.length * 2));
-  const positions = new Float32Array(maxN * 3);
-  const seeds = new Float32Array(maxN);
-  const anchors = [];
-
-  for (let i = 0; i < maxN; i++) {
-    const f = features[i % features.length];
-    const ang = Math.random() * Math.PI * 2;
-    const r = 2 + Math.random() * 8;
-    const x = f.x + Math.cos(ang) * r;
-    const z = f.z + Math.sin(ang) * r;
-    const y = waterYAt(x, z, stations) + 0.15;
-    positions[i * 3] = x;
-    positions[i * 3 + 1] = y;
-    positions[i * 3 + 2] = z;
-    seeds[i] = Math.random();
-    anchors.push({ x: f.x, z: f.z, seed: seeds[i] });
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.BufferAttribute(positions, 3));
-  const mat = new THREE.PointsMaterial({
-    color: 0xb8f4ff,
-    size: 1.8,
-    transparent: true,
-    opacity: 0.35,
-    depthWrite: false,
-    sizeAttenuation: true,
-  });
-  const points = new THREE.Points(geo, mat);
-  points.name = "glassyParticles";
-  points.renderOrder = 5;
-  points.frustumCulled = false;
-
-  function update(dt, time) {
-    const pos = geo.attributes.position;
-    const speed = (state.glassyFlowSpeed ?? 0.45) * 4.5;
-    for (let i = 0; i < maxN; i++) {
-      const a = anchors[i];
-      const phase = time * speed * (0.4 + a.seed) + a.seed * 20;
-      const ox = Math.sin(phase) * 6 + Math.cos(phase * 0.37) * 2;
-      const oz = Math.cos(phase * 0.85) * 5;
-      const x = a.x + ox;
-      const z = a.z + oz;
-      pos.setXYZ(i, x, waterYAt(x, z, stations) + 0.12 + Math.sin(phase) * 0.08, z);
-      // Fade cycle via material opacity already global; drift seed for variety
-    }
-    pos.needsUpdate = true;
-    mat.opacity = 0.22 + 0.12 * Math.sin(time * 0.7);
-  }
-
-  return { points, update };
 }

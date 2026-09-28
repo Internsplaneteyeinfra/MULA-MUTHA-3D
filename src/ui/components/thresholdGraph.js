@@ -21,6 +21,7 @@
 import { X } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { getForecastEngine } from "../../services/forecastService.js";
+import { isDigitalTwinActive, onDigitalTwinExit } from "../dtMode.js";
 
 // ── Threshold constants (mirrors digitalTwinService.js THRESHOLD_BY_CLASS) ──
 const THRESHOLD_DEFAULT_M = 2.0; // default for arbitrary river chainage
@@ -145,7 +146,7 @@ export function mountThresholdGraph(root) {
   // This is the ONLY event that opens the graph.
   document.addEventListener("river-station-selected", (e) => {
     const { chainage_m, stationLabel, stationRecord, worldPosition } = e.detail ?? {};
-    if (chainage_m == null) return;
+    if (chainage_m == null || !isDigitalTwinActive()) return;
 
     console.log("[RiverSelection] ACTIVE STATION", {
       chainage_m,
@@ -784,6 +785,7 @@ export function mountThresholdGraph(root) {
   }
 
   // ── Expose ────────────────────────────────────────────────────────────────
+  onDigitalTwinExit(() => { if (_isOpen) hide(); });
   window.__MM_THRESHOLD_GRAPH__ = { hide, isOpen: () => _isOpen };
 
   return { hide, isOpen: () => _isOpen };
