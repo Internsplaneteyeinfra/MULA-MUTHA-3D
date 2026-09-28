@@ -28,6 +28,7 @@ const SLOTS = [
 ];
 const SVG_NS = "http://www.w3.org/2000/svg";
 const BRIDGE_ICON = `<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M2 16h20"/><path d="M6 16V7M18 16V7"/><path d="M2 11c2 0 4-4 4-4s3 6 6 6 6-6 6-6 2 4 4 4"/><path d="M9 16v-3M12 16v-3M15 16v-3"/></svg>`;
+const LEAF_ICON = `<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="1.9" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 20c0-9 6-15 15-15 0 9-6 15-15 15z"/><path d="M5 20l8-8"/></svg>`;
 const PIN_ICON = `<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 22s7-6.2 7-12a7 7 0 1 0-14 0c0 5.8 7 12 7 12z"/><circle cx="12" cy="10" r="2.5"/></svg>`;
 
 /**
@@ -47,10 +48,11 @@ export function createBridgeLabels(bridgesGroup, dataset) {
   const chainage = [...(dataset.chainage || [])].sort((a, b) => (a.meters ?? 0) - (b.meters ?? 0));
   const items = [];
 
-  function addItem(kind, name, meters, world) {
+  function addItem(kind, name, meters, world, probe = null) {
     const el = document.createElement("div");
     el.className = `bridge-label bridge-label--${kind}`;
-    el.innerHTML = `<span class="bridge-label__icon">${kind === "bridge" ? BRIDGE_ICON : PIN_ICON}</span>
+    const icon = kind === "bridge" ? BRIDGE_ICON : kind === "riparian" ? LEAF_ICON : PIN_ICON;
+    el.innerHTML = `<span class="bridge-label__icon">${icon}</span>
       <span class="bridge-label__text"><b></b>${meters != null ? "<small></small>" : ""}</span>`;
     el.querySelector("b").textContent = name;
     if (meters != null) el.querySelector("small").textContent = metersToStation(meters);
@@ -63,7 +65,7 @@ export function createBridgeLabels(bridgesGroup, dataset) {
     dot.setAttribute("r", kind === "bridge" ? "4" : "3.2");
     svg.append(link, dot);
 
-    items.push({ kind, name, meters, world, el, link, dot, w: 0, h: 0, slot: 0, shown: false, near: false, dist: Infinity });
+    items.push({ kind, name, meters, world, probe, el, link, dot, w: 0, h: 0, slot: 0, shown: false, near: false, dist: Infinity });
   }
 
   const seen = new Set();
@@ -116,7 +118,10 @@ export function createBridgeLabels(bridgesGroup, dataset) {
   function bridgeDistance(it, camera) {
     const p = camera?.position;
     if (p && Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z)) {
-      return p.distanceTo(it.world);
+      if (!it.probe) return p.distanceTo(it.world);
+      let best = Infinity;
+      for (const q of it.probe) best = Math.min(best, Math.hypot(p.x - q.x, p.y - it.world.y, p.z - q.z));
+      return best;
     }
     const sel = state.selectedChainageMeters;
     if (sel != null && it.meters != null) return Math.abs(sel - it.meters);
@@ -133,16 +138,16 @@ export function createBridgeLabels(bridgesGroup, dataset) {
   function update(camera) {
     const vw = window.innerWidth;
     const vh = window.innerHeight;
-    const enabled = !!camera && bridgesGroup.visible && !state.cinematicActive &&
-      state.showBridges !== false && state.showBridgeNames !== false;
+    const enabled = !!camera && !state.cinematicActive;
+    const bridgesOn = bridgesGroup.visible && state.showBridges !== false && state.showBridgeNames !== false;
     layer.hidden = !enabled;
-    if (!enabled) {
-      for (const it of items) {
+    for (const it of items) {
+      if (!enabled || (it.kind !== "riparian" && !bridgesOn)) {
         hide(it);
         it.near = false;
       }
-      return;
     }
+    if (!enabled) return;
 
     if (sizeDirty) {
       for (const it of items) {
@@ -162,6 +167,7 @@ export function createBridgeLabels(bridgesGroup, dataset) {
     const maxDist = Math.min(MAX_DIST_M, Math.max(MIN_RANGE_M, camera.position.y * RANGE_PER_HEIGHT));
     const cands = [];
     for (const it of items) {
+      if (it.kind !== "riparian" && !bridgesOn) continue;
       if (it.kind === "landmark" ? !overview : !updateProximity(it, camera)) {
         hide(it);
         continue;
@@ -184,7 +190,7 @@ export function createBridgeLabels(bridgesGroup, dataset) {
     const links = [];
     for (const c of cands) {
       const { it, ax, ay } = c;
-      const isBridge = it.kind === "bridge";
+      const isBridge = it.kind !== "landmark";
       if (!it.w || insideAny(ax, ay, obstacles) || (!isBridge && landmarksShown >= maxLandmarks)) {
         hide(it);
         continue;
@@ -242,8 +248,16 @@ export function createBridgeLabels(bridgesGroup, dataset) {
     }
   }
 
+  /** Proximity label for an area; distance is measured to the nearest of its probe points. */
+  function addArea(name, world, probe) {
+    const near = nearestChainage(world.x, world.z, chainage);
+    addItem("riparian", name, near?.meters ?? null, world, probe);
+    sizeDirty = true;
+  }
+
   return {
     update,
+    addArea,
     items: () => items.map(({ kind, name, meters, shown, near, dist }) => ({ kind, name, meters, shown, near, dist })),
   };
 }

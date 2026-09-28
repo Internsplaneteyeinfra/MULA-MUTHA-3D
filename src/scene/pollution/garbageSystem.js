@@ -13,6 +13,37 @@ import { createGarbageEffects } from "./garbageEffects.js";
 import { resolveGarbageLOD } from "./garbageLOD.js";
 import { computeGarbageCameraPose } from "./garbageCamera.js";
 import { buildPollutionSides } from "./pollutionSides.js";
+import { renderedTerrainHeightAt } from "../terrain.js";
+
+/**
+ * Rest sites on the terrain that is actually drawn: where the rendered ground
+ * rises above the water, a site sits on that ground instead of under it.
+ */
+function groundSitesOnRenderedTerrain(root, records) {
+  let top = root;
+  while (top.parent) top = top.parent;
+  const terrain = top.getObjectByName?.("terrain");
+  if (!terrain) return 0;
+  let lifted = 0;
+  for (const r of records) {
+    let y = -Infinity;
+    for (const [dx, dz] of [[0, 0], [3, 0], [-3, 0], [0, 3], [0, -3]]) {
+      const h = renderedTerrainHeightAt(terrain, r.homeX + dx, r.homeZ + dz);
+      if (Number.isFinite(h)) y = Math.max(y, h);
+    }
+    if (!Number.isFinite(y)) continue;
+    const buried = r.onWater ? y > SURFACE_Y + 0.3 : y > r.terrainHeight;
+    if (!buried) continue;
+    r.terrainHeight = Math.max(y, r.onWater ? -Infinity : r.terrainHeight);
+    r.onWater = false;
+    r.velocity = 0;
+    r.waterOffset = 0.2;
+    r.baseY = Math.max(r.terrainHeight, SURFACE_Y) + r.waterOffset;
+    r.y = r.baseY;
+    lifted += 1;
+  }
+  return lifted;
+}
 
 /**
  * @param {{ stations?: object[] }} [opts]
@@ -63,7 +94,8 @@ export function createGarbageSystem({ stations = [] } = {}) {
 
       const geo = processGarbageAgainstRiver(raw, stations, state.floodRiseM || 0);
       records = geo.records;
-      console.info(`[GarbageSystem] Geo processing complete: ${records.length}`);
+      const lifted = groundSitesOnRenderedTerrain(root, records);
+      console.info(`[GarbageSystem] Geo processing complete: ${records.length}`, { liftedToRenderedTerrain: lifted });
       density = computeGarbageDensity(records);
       // Stamp density class onto each site so labels / filters can use it
       const levelById = new Map();

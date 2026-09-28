@@ -5,6 +5,15 @@
  */
 import * as THREE from "three";
 import { LOD, markerScaleForCamera } from "./garbageLOD.js";
+import { loadGarbageModel } from "./garbageModels.js";
+
+/** Scanned pile footprint per density class (metres, largest horizontal extent). */
+const PILE_FOOTPRINT_M = { LOW: 4, MEDIUM: 6, HIGH: 8 };
+/** Piles grow with camera distance (up to MAX) so they stay readable from aerial views. */
+const PILE_BOOST_REF_M = 160;
+const PILE_BOOST_MAX = 2.4;
+/** Share of a floating pile that sits below the water line. */
+const PILE_WATER_SINK = 0.35;
 
 const AMBER = "#E89A1C";
 const AMBER_LIGHT = "#FFE08A";
@@ -263,9 +272,12 @@ export function createGarbageRenderer() {
     syncVisibility();
   }
 
+  let buildToken = 0;
+
   function build(records) {
     clear();
     entries = [];
+    const token = ++buildToken;
 
     for (let i = 0; i < records.length; i++) {
       const r = records[i];
@@ -314,8 +326,56 @@ export function createGarbageRenderer() {
         baseY: r.baseY,
         fill,
         label,
+        models: null,
       });
     }
+    attachScannedPiles(token);
+  }
+
+  /**
+   * Swap each site's procedural debris for the scanned trash pile; HIGH-density
+   * sites also get the e-waste scan (shown up close). Procedural debris stays if loading fails.
+   */
+  async function attachScannedPiles(token) {
+    const [trash, ewaste] = await Promise.allSettled([loadGarbageModel("trash"), loadGarbageModel("ewaste")]);
+    if (token !== buildToken) return;
+    if (trash.status !== "fulfilled") {
+      console.warn("[GarbageRenderer] trash pile GLB unavailable — keeping procedural debris", trash.reason?.message || trash.reason);
+      return;
+    }
+    const ew = ewaste.status === "fulfilled" ? ewaste.value : null;
+    if (!ew) console.warn("[GarbageRenderer] e-waste GLB unavailable", ewaste.reason?.message || ewaste.reason);
+
+    const place = (proto, r, footprintM, yawSeed) => {
+      const mesh = new THREE.Mesh(proto.geometry, proto.material);
+      const s = footprintM / Math.max(0.1, proto.footprint);
+      mesh.scale.setScalar(s);
+      mesh.rotation.y = (yawSeed * 2.399963) % (Math.PI * 2);
+      mesh.position.y = r.onWater ? -proto.height * s * PILE_WATER_SINK : -0.05;
+      mesh.castShadow = false;
+      mesh.receiveShadow = true;
+      return mesh;
+    };
+
+    for (const e of entries) {
+      const r = e.record;
+      const level = String(r.densityLevel || "LOW").toUpperCase();
+      const footprint = PILE_FOOTPRINT_M[level] || PILE_FOOTPRINT_M.LOW;
+      const seed = (r.sourceIndex ?? 0) + 1;
+      const trashMesh = place(trash.value, r, footprint, seed);
+      const ewasteMesh = ew && level === "HIGH" ? place(ew, r, footprint, seed + 3) : null;
+      e.debris.clear();
+      e.debris.add(trashMesh);
+      if (ewasteMesh) {
+        ewasteMesh.visible = false;
+        e.debris.add(ewasteMesh);
+      }
+      e.models = { trash: trashMesh, ewaste: ewasteMesh };
+    }
+    console.info("[GarbageRenderer] scanned piles placed", {
+      sites: entries.length,
+      ewaste: entries.filter((e) => e.models?.ewaste).length,
+    });
   }
 
   /** Medium-sized scattered river debris - clearly visible pollution */
@@ -641,6 +701,15 @@ export function createGarbageRenderer() {
         else if (lod === LOD.NEAR) scale = 1.05; // Increased
         else if (lod === LOD.VERY_NEAR) scale = 1.1; // Increased
         if (isSel) scale *= 1.15; // Selected: 15% larger max (from 10%)
+        if (e.models && camera) {
+          const dist = camera.position.distanceTo(e.debris.position);
+          scale *= THREE.MathUtils.clamp(dist / PILE_BOOST_REF_M, 1, PILE_BOOST_MAX);
+          if (e.models.ewaste) {
+            const close = isSel || lod === LOD.NEAR || lod === LOD.VERY_NEAR;
+            e.models.ewaste.visible = close;
+            e.models.trash.visible = !close;
+          }
+        }
         e.debris.scale.setScalar(scale);
       }
 

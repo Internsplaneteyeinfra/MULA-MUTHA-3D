@@ -82,6 +82,18 @@
 .bridge-label--landmark .bridge-label__text small {
   font-size: 11.5px;
 }
+.bridge-label--riparian {
+  border-color: rgba(120, 214, 120, 0.75);
+  background: rgba(10, 30, 18, 0.9);
+}
+.bridge-label--riparian .bridge-label__icon {
+  color: #8ee08e;
+}
+.bridge-label--riparian .bridge-label__text b {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+}
 .bridge-label__text {
   display: flex;
   flex-direction: column;

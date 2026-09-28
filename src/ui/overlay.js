@@ -13,6 +13,7 @@ import { mountLayersPanel } from "./components/layersPanel.js";
 import { mountSettingsPanel } from "./components/settingsPanel.js";
 import { mountWaterFlowControl } from "./components/waterFlowControl.js";
 import { mountChainageRuler } from "./components/chainageRuler.js";
+import { mountMap2dDataPanel } from "./components/map2dDataPanel.js";
 import { mountJoiningStreamsNav } from "./components/joiningStreamsNav.js";
 import { mountChainageStepHud } from "./components/chainageStepHud.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
@@ -759,6 +760,7 @@ export function mountUI(root, {
   let chainPanel = null;
   const nav = mountNavigationControls(root, {
     onOverview: () => {
+      map2dData?.leave();
       onCamera("overview");
       nav.syncActive();
       // Keep overview clean — close chainage side panel (notes stay collapsed next open)
@@ -769,8 +771,9 @@ export function mountUI(root, {
       nav.syncActive();
     },
     on3D: () => {
-      // Always land on chainage 8+000 with a smooth fly-in.
-      window.__MM_SCENE__?.goToChainageView?.(8000);
+      map2dData?.leave();
+      // Return to the selected chainage (shared with 2D); 8+000 only when nothing is selected.
+      window.__MM_SCENE__?.goToChainageView?.(state.selectedChainageMeters ?? 8000);
       nav.syncActive();
     },
     onLayersToggle: () => toggleLayers(),
@@ -784,6 +787,7 @@ export function mountUI(root, {
   nav.setFloodPressed?.(state.showFloodBar);
 
   const chainRuler = mountChainageRuler(root, dataset);
+  const map2dData = mountMap2dDataPanel(leftStack);
   const chainStepHud = mountChainageStepHud(root, dataset);
   mountJoiningStreamsNav(root);
   chainPanel = mountChainagePanel(root, dataset);
@@ -796,6 +800,8 @@ export function mountUI(root, {
   }
 
   document.addEventListener("chainage-select", (event) => {
+    const m = Number(event.detail?.meters);
+    if (event.detail?.meters != null && Number.isFinite(m)) state.selectedChainageMeters = m;
     syncSelectedChainage(event.detail?.meters);
     chainRuler.update?.();
     chainStepHud.update?.();
@@ -1304,6 +1310,7 @@ export function mountUI(root, {
 
     chainRuler?.update?.();
     chainStepHud?.update?.();
+    map2dData.update();
     syncCamButtons();
     requestAnimationFrame(tickHud);
   }

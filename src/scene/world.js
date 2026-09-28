@@ -7,6 +7,7 @@ import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
 import { createVegetationApiLayer } from "./vegetationApiLayer.js";
 import { createPermanentVegetationTypeTrees } from "./vegetationTypeGrowLayer.js";
+import { createRiparianVegetationLayer, RIPARIAN_LABEL_MIN_M2 } from "./riparianVegetationLayer.js";
 import { prefetchTreeAssets } from "./treeRegistry.js";
 import { fetchVegetationForAoi } from "../services/vegetationService.js";
 import { mountVegetationStatus } from "../ui/components/vegetationStatus.js";
@@ -373,6 +374,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   vegTypeGrowGroup.name = "vegetationTypePermanent";
   scene.add(vegTypeGrowGroup);
 
+  /** Tree-covered islands / riparian bars inside the river polygon (Vegetation Type raster, Trees class). */
+  let riparianLayer = null;
+  async function loadRiparianVegetation() {
+    const qNow = quality.get();
+    const layer = await createRiparianVegetationLayer(dataset, {
+      maxTrees: qNow.tier === "low" ? 1200 : 2600,
+      castShadow: !!qNow.treeShadows,
+    });
+    riparianLayer = layer;
+    layer.userData.syncToWater(river.mesh, lastFlood);
+    scene.add(layer);
+    for (const c of layer.userData.clusters) {
+      if (c.areaM2 >= RIPARIAN_LABEL_MIN_M2) bridgeLabels.addArea("RIPARIAN / VEGETATED AREA", c.anchor, c.probe);
+    }
+  }
+
   const fishGroup = new THREE.Group();
   fishGroup.name = "fishPending";
   scene.add(fishGroup);
@@ -464,6 +481,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       // Permanent trees from project vegetation_type.kml overlay (always on)
       loadPermanentVegetationTypeTrees().catch((err) =>
         console.warn("Permanent vegetation type trees:", err?.message || err),
+      );
+      loadRiparianVegetation().catch((err) =>
+        console.warn("[riparian] vegetation unavailable:", err?.message || err),
       );
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
@@ -603,7 +623,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   // Eye-level corridor (reference screenshot): low boat height, nearly flat look.
   // Height 16 / back 55 / ahead 180 / lookY ≈ eye → horizon mid-frame, marker mid-foreground.
-  // Chainage steps/ruler snap instantly — keep river view, no fly/arc animation.
+  // Ruler drags snap; discrete chainage picks glide along the river (see chainFlight).
   function chainageCameraOptions(_point, dragging = false) {
     return {
       cameraHeight: 16,
@@ -617,6 +637,70 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       ease: "outCubic",
       dragging: !!dragging,
     };
+  }
+
+  /**
+   * River glide for discrete chainage picks (ticks, prev/next, step arrows):
+   * the camera travels along the centerline — downstream when moving forward,
+   * reversing upstream when moving back — instead of snapping.
+   */
+  const CHAIN_FLIGHT_MIN_S = 0.5;
+  const CHAIN_FLIGHT_MAX_S = 4.5;
+  const CHAIN_FLIGHT_M_PER_S = 1800;
+  /** Camera must already be at eye level near the river to glide; otherwise fly in directly. */
+  const CHAIN_FLIGHT_NEAR_M = 260;
+  const CHAIN_FLIGHT_MAX_EYE_Y = 90;
+  let chainFlight = null;
+  let chainFocusM = null;
+
+  function cancelChainFlight() {
+    chainFlight = null;
+  }
+  canvas.addEventListener("pointerdown", cancelChainFlight, { passive: true });
+  canvas.addEventListener("wheel", cancelChainFlight, { passive: true });
+
+  function cameraNearChainage(meters) {
+    const p = interpolateChainage(dataset.chainage, meters);
+    const c = cam.camera?.position;
+    if (!p || p.x == null || !c) return false;
+    return c.y < CHAIN_FLIGHT_MAX_EYE_Y && Math.hypot(c.x - p.x, c.z - p.z) < CHAIN_FLIGHT_NEAR_M;
+  }
+
+  function startChainFlight(toM) {
+    const fromM = chainFlight ? chainFlight.currentM : chainFocusM;
+    const dist = Math.abs(toM - fromM);
+    chainFlight = {
+      fromM,
+      toM,
+      currentM: fromM,
+      t: 0,
+      dur: THREE.MathUtils.clamp(CHAIN_FLIGHT_MIN_S + dist / CHAIN_FLIGHT_M_PER_S, CHAIN_FLIGHT_MIN_S, CHAIN_FLIGHT_MAX_S),
+      lift: Math.min(12, dist * 0.004),
+    };
+  }
+
+  function stepChainFlight(dt) {
+    const f = chainFlight;
+    if (!f) return;
+    if (state.cinematicActive || isMap2DMode()) {
+      chainFlight = null;
+      return;
+    }
+    f.t = Math.min(1, f.t + dt / f.dur);
+    const k = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2;
+    f.currentM = f.fromM + (f.toM - f.fromM) * k;
+    chainFocusM = f.currentM;
+    const p = interpolateChainage(dataset.chainage, f.currentM);
+    if (p?.x != null) {
+      cam.focusOnXZ?.(p.x, p.z, {
+        ...chainageCameraOptions(p, true),
+        cameraHeight: 16 + Math.sin(Math.PI * k) * f.lift,
+      });
+    }
+    if (f.t >= 1) {
+      chainFlight = null;
+      chainFocusM = f.toM;
+    }
   }
 
   // Chainage camera movement is UI-only (bottom ruler + top ± arrows).
@@ -663,7 +747,26 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const p = interpolateChainage(dataset.chainage, m);
     if (!p || p.x == null) return;
     const dragging = !!e.detail?.dragging;
-    cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
+    if (isMap2DMode()) {
+      cancelChainFlight();
+      chainFocusM = p.meters;
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 0.6 });
+      return;
+    }
+    const glideFrom = chainFlight ? chainFlight.currentM : chainFocusM;
+    if (dragging || glideFrom == null || Math.abs(p.meters - glideFrom) < 1) {
+      cancelChainFlight();
+      chainFocusM = p.meters;
+      cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
+      return;
+    }
+    if (!chainFlight && !cameraNearChainage(glideFrom)) {
+      // Camera is off the river (overview / orbit): fly in directly, then glide next time.
+      chainFocusM = p.meters;
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, false), dur: 1.2, ease: "inOutCubic", transitLift: undefined });
+      return;
+    }
+    startChainFlight(p.meters);
   });
 
   let lastChainMoveTime = 0;
@@ -784,6 +887,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const initialChainage = dataset.chainage?.[0];
   if (initialChainage?.x != null && initialChainage?.z != null) {
     state.selectedChainageMeters = initialChainage.meters;
+    chainFocusM = initialChainage.meters;
     cam.focusOnXZ(initialChainage.x, initialChainage.z, {
       ...chainageCameraOptions(initialChainage),
       dur: 0.9,
@@ -870,6 +974,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     atmosphericSky,
     riverRain,
     bridgeLabelStates: () => bridgeLabels.items(),
+    riparianAreas: () => (riparianLayer?.userData.clusters || []).map((c) => ({
+      areaM2: c.areaM2, x: c.anchor.x, z: c.anchor.z, waterOffset: c.waterOffset,
+    })),
     applyLiveWeather(weather) {
       atmosphericSky.applyLiveWeather?.(weather);
       riverRain.applyLiveWeather?.(weather);
@@ -1217,6 +1324,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const p = interpolateChainage(chain, m);
       if (!p || p.x == null) return;
       state.selectedChainageMeters = p.meters;
+      cancelChainFlight();
+      chainFocusM = p.meters;
       state.showChainage = true;
       state.showChainageLabels = false;
 
@@ -1278,6 +1387,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const p = interpolateChainage(chain, m);
       if (!p || p.x == null) return;
       state.selectedChainageMeters = p.meters;
+      cancelChainFlight();
+      chainFocusM = p.meters;
       cam.focusOnXZ?.(p.x, p.z, {
         cameraHeight: 26,
         cameraDistance: 92,
@@ -1688,6 +1799,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         lastWaterOn = waterOn;
         lastRiverLook = riverLook;
         applyExaggeration(river, dataset, bedExag, floodRise, currentStationWaterY);
+        riparianLayer?.userData.syncToWater(river.mesh, floodRise);
         if (!apiFloodActive) floodLayer.setFloodRise?.(floodRise);
         else {
           floodLayer.setFloodRise?.(0);
@@ -1797,7 +1909,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       assetMarkers.tick(dt);
       cinematic.update(dt);
       if (fishing) fishing.update(dt, cam.camera);
-      if (!cinematic.isActive()) cam.update(dt);
+      if (!cinematic.isActive()) {
+        stepChainFlight(dt);
+        cam.update(dt);
+      }
       const h = cam.camera.position.y;
       if (isMap2DMode() && !state.cinematicActive) {
         // True 2D GIS view — no fog, haze, or atmospheric wash

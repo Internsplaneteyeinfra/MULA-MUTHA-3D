@@ -8826,3 +8826,408 @@
     opacity: 0 !important;
   }
 }
+
+/* ═══════════════════════════════════════════════════════════════════
+   Premium bottom chainage navigator (#chainage-ruler.cr-premium)
+   [‹ CHAINAGE 0+370 · 370 m ›] ━━━━━●━━━━━━━━━━━━━━━  (ticks below)
+   Footprint ≈ old ruler (~90 px) so panels stacked above keep clear.
+   ═══════════════════════════════════════════════════════════════════ */
+#ui-root.gis-ui {
+  --cr-bottom: max(10px, env(safe-area-inset-bottom));
+  --cr-height: 80px;
+  --cr-cyan: #22d3ee;
+  --cr-cyan-soft: rgba(34, 211, 238, 0.55);
+}
+#ui-root.gis-ui .chainage-ruler.cr-premium {
+  position: fixed;
+  left: 50%;
+  bottom: var(--cr-bottom);
+  transform: translateX(-50%);
+  width: calc(100vw - 48px);
+  padding: 0;
+  margin: 0;
+  z-index: 12;
+}
+#ui-root.gis-ui .chainage-ruler.cr-premium[hidden] { display: none !important; }
+#ui-root.gis-ui .cr-premium .cr-shell {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-sizing: border-box;
+  height: var(--cr-height);
+  padding: 0;
+  border: none;
+  background: transparent;
+  box-shadow: none;
+  color: #fff;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.85), 0 0 8px rgba(0, 0, 0, 0.45);
+  font-family: var(--font-ui, Inter, system-ui, sans-serif);
+}
+
+/* —— Readout: ‹  CHAINAGE / 0+370 / 370 m  › —— */
+#ui-root.gis-ui .cr-premium .cr-readout {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding-right: 14px;
+  border-right: 1px solid rgba(100, 220, 255, 0.25);
+  height: 100%;
+}
+#ui-root.gis-ui .cr-premium .cr-readout-text {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  min-width: 92px;
+  line-height: 1.1;
+}
+#ui-root.gis-ui .cr-premium .cr-kicker {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.18em;
+  color: rgba(125, 222, 255, 0.9);
+}
+#ui-root.gis-ui .cr-premium .cr-value {
+  font-size: 24px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9), 0 0 14px rgba(34, 211, 238, 0.45);
+}
+#ui-root.gis-ui .cr-premium .cr-meters {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: rgba(200, 228, 242, 0.78);
+  font-variant-numeric: tabular-nums;
+}
+#ui-root.gis-ui .cr-premium .cr-step {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  border-radius: 50%;
+  border: 1px solid rgba(100, 220, 255, 0.5);
+  background: rgba(10, 40, 70, 0.25);
+  color: var(--cr-cyan);
+  cursor: pointer;
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  transition: background 150ms ease, box-shadow 150ms ease, color 150ms ease;
+}
+#ui-root.gis-ui .cr-premium .cr-step:hover,
+#ui-root.gis-ui .cr-premium .cr-step:focus-visible {
+  background: rgba(34, 211, 238, 0.24);
+  color: #e9fdff;
+  box-shadow: 0 0 12px rgba(34, 211, 238, 0.45);
+  outline: none;
+}
+
+/* —— Track —— */
+#ui-root.gis-ui .cr-premium .chainage-ruler-track {
+  position: relative;
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 72px;
+  margin: 0 28px;
+  overflow: visible;
+}
+#ui-root.gis-ui .cr-premium .cr-rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 32px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.45);
+  box-shadow: 0 0 3px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+#ui-root.gis-ui .cr-premium .cr-fill {
+  height: 100%;
+  width: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #0ea5e9, var(--cr-cyan));
+  box-shadow: 0 0 10px rgba(34, 211, 238, 0.8);
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-line,
+#ui-root.gis-ui .cr-premium .chainage-ruler-current { display: none !important; }
+#ui-root.gis-ui .cr-premium .chainage-ruler-bands {
+  top: 30px;
+  height: 8px;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-input {
+  position: absolute;
+  left: -10px;
+  right: -10px;
+  top: 20px;
+  width: calc(100% + 20px);
+  height: 28px;
+  margin: 0;
+  z-index: 5;
+  opacity: 0;
+  cursor: grab;
+  appearance: none;
+  background: transparent;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-input:active { cursor: grabbing; }
+#ui-root.gis-ui .cr-premium .chainage-ruler-input::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; }
+#ui-root.gis-ui .cr-premium .chainage-ruler-input::-moz-range-thumb { width: 28px; height: 28px; border: 0; }
+
+/* —— Ticks (below the rail) —— */
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick,
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-edge-start,
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-edge-end {
+  top: 42px;
+  transform: translateX(-50%);
+  max-width: none;
+  gap: 2px;
+  z-index: 6;
+  text-shadow: none;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick-mark {
+  position: absolute;
+  top: -6px;
+  left: 50%;
+  width: 1px;
+  height: 5px;
+  background: rgba(255, 255, 255, 0.6);
+  box-shadow: none;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-label {
+  font-size: 13px;
+  font-weight: 700;
+  line-height: 1.1;
+  color: rgba(240, 248, 255, 0.95);
+  font-variant-numeric: tabular-nums;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-meters {
+  font-size: 11px;
+  font-weight: 500;
+  line-height: 1.1;
+  color: rgba(214, 236, 246, 0.88);
+  font-variant-numeric: tabular-nums;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick:hover .chainage-ruler-label { color: #fff; }
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-active .chainage-ruler-label,
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-active .chainage-ruler-meters {
+  opacity: 1;
+  pointer-events: auto;
+  color: var(--cr-cyan);
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-active .chainage-ruler-tick-mark {
+  width: 1px;
+  background: var(--cr-cyan);
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-crowded .chainage-ruler-label,
+#ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-crowded .chainage-ruler-meters {
+  visibility: hidden;
+}
+
+/* —— Thumb + floating label —— */
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor,
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-start,
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-end {
+  position: absolute;
+  top: 34px;
+  width: 0;
+  height: 0;
+  transform: none;
+  display: block;
+  pointer-events: none;
+  z-index: 7;
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor-dot,
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-start .chainage-ruler-cursor-dot,
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-end .chainage-ruler-cursor-dot {
+  position: absolute;
+  left: 0;
+  right: auto;
+  top: 0;
+  width: 20px;
+  height: 20px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid #eafdff;
+  background: var(--cr-cyan);
+  box-shadow: 0 0 0 4px rgba(34, 211, 238, 0.22), 0 0 16px rgba(34, 211, 238, 0.85);
+  transform: translate(-50%, -50%);
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-input:focus-visible ~ .chainage-ruler-cursor .chainage-ruler-cursor-dot {
+  box-shadow: 0 0 0 5px rgba(255, 255, 255, 0.35), 0 0 18px rgba(34, 211, 238, 0.95);
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor-label {
+  position: absolute;
+  left: 0;
+  bottom: 13px;
+  transform: translateX(-50%);
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid rgba(160, 240, 255, 0.8);
+  background: rgba(14, 165, 233, 0.72);
+  color: #fff;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(3px);
+  -webkit-backdrop-filter: blur(3px);
+  font: 800 13px/1.2 var(--font-ui, Inter, system-ui, sans-serif);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.4), 0 0 12px rgba(34, 211, 238, 0.45);
+}
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-start .chainage-ruler-cursor-label { transform: translateX(-14px); }
+#ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-end .chainage-ruler-cursor-label { transform: translateX(calc(-100% + 14px)); }
+
+/* Depth legend sits above the navigator */
+#ui-root.gis-ui .depth-legend--corner {
+  bottom: calc(var(--cr-bottom) + var(--cr-height) + 12px);
+}
+
+@media (max-width: 900px) {
+  #ui-root.gis-ui { --cr-height: 74px; }
+  #ui-root.gis-ui .depth-legend--corner { bottom: calc(var(--cr-bottom) + var(--cr-height) + 10px); }
+  #ui-root.gis-ui .chainage-ruler.cr-premium { width: calc(100vw - 20px); }
+  #ui-root.gis-ui .cr-premium .cr-shell { padding: 0; }
+  #ui-root.gis-ui .cr-premium .cr-readout { gap: 6px; padding-right: 10px; }
+  #ui-root.gis-ui .cr-premium .cr-readout-text { min-width: 76px; }
+  #ui-root.gis-ui .cr-premium .cr-value { font-size: 20px; }
+  #ui-root.gis-ui .cr-premium .cr-step { width: 30px; height: 30px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-track { margin: 0 16px; }
+}
+@media (max-width: 640px) {
+  #ui-root.gis-ui { --cr-bottom: max(6px, env(safe-area-inset-bottom)); --cr-height: 66px; }
+  #ui-root.gis-ui .chainage-ruler.cr-premium { width: calc(100vw - 12px); }
+  #ui-root.gis-ui .cr-premium .cr-shell { padding: 0; }
+  #ui-root.gis-ui .cr-premium .cr-readout { gap: 4px; padding-right: 8px; }
+  #ui-root.gis-ui .cr-premium .cr-kicker { display: none; }
+  #ui-root.gis-ui .cr-premium .cr-readout-text { min-width: 58px; }
+  #ui-root.gis-ui .cr-premium .cr-value { font-size: 16px; }
+  #ui-root.gis-ui .cr-premium .cr-meters { font-size: 10px; }
+  #ui-root.gis-ui .cr-premium .cr-step { width: 26px; height: 26px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-track { height: 54px; margin: 0 12px; }
+  #ui-root.gis-ui .cr-premium .cr-rail { top: 24px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-bands { top: 22px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-input { top: 12px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-cursor { top: 26px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-tick,
+  #ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-edge-start,
+  #ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-edge-end { top: 32px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-label { font-size: 10px; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-meters { display: none; }
+  #ui-root.gis-ui .cr-premium .chainage-ruler-cursor-label { font-size: 11px; padding: 1px 6px; }
+}
+/* ── 2D DATA thematic chooser (left stack, 2D map mode only) ── */
+#ui-root.gis-ui .map2d-data-panel {
+  padding: 10px 12px;
+  border: 1px solid rgba(140, 210, 228, 0.38);
+  border-radius: 14px;
+  background: linear-gradient(165deg, rgba(52, 118, 138, 0.52), rgba(28, 78, 98, 0.46));
+  backdrop-filter: blur(14px) saturate(130%);
+  -webkit-backdrop-filter: blur(14px) saturate(130%);
+  box-shadow: 0 10px 26px rgba(8, 40, 55, 0.22), inset 0 1px 0 rgba(220, 245, 255, 0.18);
+  color: #eaf8fb;
+  font-family: var(--font-ui, Inter, system-ui, sans-serif);
+}
+#ui-root.gis-ui .map2d-data-panel[hidden] { display: none !important; }
+#ui-root.gis-ui .m2d-head {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  color: #eaf8fb;
+  margin-bottom: 8px;
+}
+#ui-root.gis-ui .m2d-options {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#ui-root.gis-ui .m2d-opt {
+  appearance: none;
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  width: 100%;
+  padding: 7px 9px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 9px;
+  background: rgba(6, 26, 40, 0.28);
+  color: #eaf8fb;
+  font: 600 12.5px/1.2 var(--font-ui, Inter, system-ui, sans-serif);
+  text-align: left;
+  cursor: pointer;
+  transition: background 150ms ease, border-color 150ms ease;
+}
+#ui-root.gis-ui .m2d-opt:hover { background: rgba(34, 211, 238, 0.12); border-color: rgba(34, 211, 238, 0.4); }
+#ui-root.gis-ui .m2d-opt.is-active { background: rgba(34, 211, 238, 0.18); border-color: rgba(34, 211, 238, 0.7); }
+#ui-root.gis-ui .m2d-radio {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+  box-sizing: border-box;
+  border-radius: 50%;
+  border: 2px solid rgba(234, 248, 251, 0.75);
+}
+#ui-root.gis-ui .m2d-opt.is-active .m2d-radio {
+  border-color: #22d3ee;
+  background: radial-gradient(circle, #22d3ee 0 3.5px, transparent 4px);
+  box-shadow: 0 0 8px rgba(34, 211, 238, 0.6);
+}
+#ui-root.gis-ui .m2d-status {
+  margin: 8px 0 0;
+  font-size: 11.5px;
+  color: #ffd27a;
+}
+#ui-root.gis-ui .m2d-status[hidden],
+#ui-root.gis-ui .m2d-view[hidden] { display: none !important; }
+#ui-root.gis-ui .m2d-view {
+  margin-top: 10px;
+  padding-top: 9px;
+  border-top: 1px solid rgba(255, 255, 255, 0.14);
+}
+#ui-root.gis-ui .m2d-view-title {
+  font-size: 11px;
+  font-weight: 800;
+  letter-spacing: 0.06em;
+  color: #22d3ee;
+}
+#ui-root.gis-ui .m2d-view-ch {
+  font-size: 12px;
+  font-weight: 600;
+  color: #fff;
+  margin: 2px 0 8px;
+  font-variant-numeric: tabular-nums;
+}
+#ui-root.gis-ui .m2d-legend-title {
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: 0.1em;
+  color: rgba(234, 248, 251, 0.85);
+  margin-bottom: 5px;
+}
+#ui-root.gis-ui .m2d-legend {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+#ui-root.gis-ui .m2d-legend li {
+  display: grid;
+  grid-template-columns: 12px 1fr auto;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  line-height: 1.2;
+}
+#ui-root.gis-ui .m2d-sw {
+  width: 12px;
+  height: 12px;
+  border-radius: 3px;
+  box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25);
+}
+#ui-root.gis-ui .m2d-lbl { color: #eaf8fb; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#ui-root.gis-ui .m2d-val { color: rgba(200, 232, 242, 0.8); font-variant-numeric: tabular-nums; white-space: nowrap; }

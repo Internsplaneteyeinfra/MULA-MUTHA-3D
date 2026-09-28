@@ -2,9 +2,13 @@ import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 import { interpolateChainage } from "../../geo/chainage.js";
 
+/** Minimum horizontal gap (px) between neighbouring tick labels before one is hidden. */
+const TICK_GAP_PX = 6;
+
 /**
- * Bottom chainage scrubber — kilometre ticks only (no header row).
- * ±10 m step controls live in the top-center chainage step HUD.
+ * Bottom chainage navigator: full-width cyan track with a floating thumb
+ * label and kilometre ticks. Snaps to the real chainage stations
+ * and drives the canonical `chainage-select` event.
  */
 export function mountChainageRuler(root, dataset) {
   const points = [...(dataset?.chainage || [])].sort(
@@ -15,26 +19,25 @@ export function mountChainageRuler(root, dataset) {
   const majors = pickRulerStations(points);
   const minM = Number(points[0].meters) || 0;
   const maxM = Math.max(Number(points[points.length - 1].meters) || 0, minM + 1);
+  const spanM = Math.max(1, maxM - minM);
   const intervalM =
     Number(dataset?.chainageIntervalM) > 0
       ? Math.round(dataset.chainageIntervalM)
       : Math.max(1, Math.round(Math.abs((points[1]?.meters ?? 10) - (points[0]?.meters ?? 0))) || 10);
 
   const el = document.createElement("div");
-  el.className = "hud chainage-ruler map-chrome chainage-ruler--track-only";
+  el.className = "hud chainage-ruler map-chrome chainage-ruler--track-only cr-premium";
   el.id = "chainage-ruler";
-  el.setAttribute("aria-label", "Chainage ruler");
+  el.setAttribute("aria-label", "Chainage navigator");
 
   const ticksHtml = majors
     .map((p, i) => {
       const m = Number(p.meters) || 0;
-      const pct = (m / maxM) * 100;
+      const pct = ((m - minM) / spanM) * 100;
       const station = formatRulerLabel(p);
       const meters = `${Math.round(m)} m`;
-      const edge =
-        i === 0 ? " is-edge-start" : i === majors.length - 1 ? " is-edge-end" : "";
-      const sparse = m % 2000 !== 0 && i !== 0 && i !== majors.length - 1 ? " is-sparse" : "";
-      return `<button type="button" class="chainage-ruler-tick chainage-tick${edge}${sparse}" data-meters="${m}" style="left:${pct}%" aria-label="${station}, ${meters}">
+      const edge = i === 0 ? " is-edge-start" : i === majors.length - 1 ? " is-edge-end" : "";
+      return `<button type="button" class="chainage-ruler-tick chainage-tick${edge}" data-meters="${m}" style="left:${pct}%" aria-label="${station}, ${meters}">
         <span class="chainage-ruler-tick-mark"></span>
         <span class="chainage-ruler-label">${station}</span>
         <span class="chainage-ruler-meters">${meters}</span>
@@ -44,13 +47,12 @@ export function mountChainageRuler(root, dataset) {
 
   el.innerHTML = `
     <div class="chainage-ruler-bands-head" id="chainage-ruler-bands-head" hidden></div>
-    <div class="chainage-ruler-row">
+    <div class="cr-shell">
       <div class="chainage-ruler-track chainage-slider" role="list">
-        <div class="chainage-ruler-line" aria-hidden="true"></div>
+        <div class="cr-rail" aria-hidden="true"><div class="cr-fill" id="chainage-ruler-fill"></div></div>
         <div class="chainage-ruler-bands" id="chainage-ruler-bands" aria-hidden="true" hidden></div>
         <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="${intervalM}" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
         ${ticksHtml}
-        <div class="chainage-ruler-current" id="chainage-ruler-current" hidden></div>
         <div class="chainage-ruler-cursor" id="chainage-ruler-cursor" hidden>
           <span class="chainage-ruler-cursor-label" id="chainage-ruler-cursor-label">0+000</span>
           <span class="chainage-ruler-cursor-dot"></span>
@@ -61,15 +63,38 @@ export function mountChainageRuler(root, dataset) {
   root.appendChild(el);
 
   const range = el.querySelector("#chainage-ruler-input");
+  const track = el.querySelector(".chainage-ruler-track");
+  const fill = el.querySelector("#chainage-ruler-fill");
+  const cursor = el.querySelector("#chainage-ruler-cursor");
+  const cursorLabel = el.querySelector("#chainage-ruler-cursor-label");
+  const tickEls = [...el.querySelectorAll(".chainage-ruler-tick")];
   let inputRaf = 0;
   let pendingMeters = null;
   let dragDispatchTimer = 0;
   let lastDragDispatch = 0;
+  let lastSel = undefined;
+
+  function nearestIndex(meters) {
+    let lo = 0;
+    let hi = points.length - 1;
+    while (lo < hi) {
+      const mid = (lo + hi) >> 1;
+      if ((points[mid].meters ?? 0) < meters) lo = mid + 1;
+      else hi = mid;
+    }
+    if (lo > 0 && Math.abs((points[lo - 1].meters ?? 0) - meters) <= Math.abs((points[lo].meters ?? 0) - meters)) {
+      return lo - 1;
+    }
+    return lo;
+  }
+
+  function nearestPoint(meters) {
+    return points[nearestIndex(meters)];
+  }
 
   function dispatchSelect(meters, { focus = true, dragging = false } = {}) {
     if (!Number.isFinite(meters)) return;
-    const snapped = nearestPoint(meters);
-    const m = Number(snapped?.meters);
+    const m = Number(nearestPoint(meters)?.meters);
     if (!Number.isFinite(m)) return;
     state.selectedChainageMeters = m;
     state.showChainage = true;
@@ -78,29 +103,15 @@ export function mountChainageRuler(root, dataset) {
     );
   }
 
-  function nearestPoint(meters) {
-    let best = points[0];
-    let dist = Infinity;
-    for (const p of points) {
-      const d = Math.abs((p.meters ?? 0) - meters);
-      if (d < dist) {
-        dist = d;
-        best = p;
-      }
-    }
-    return best;
-  }
-
   range?.addEventListener("input", () => {
     pendingMeters = Number(nearestPoint(Number(range.value))?.meters);
     if (inputRaf) return;
     inputRaf = requestAnimationFrame(() => {
       inputRaf = 0;
-      const m = pendingMeters;
-      state.selectedChainageMeters = m;
+      state.selectedChainageMeters = pendingMeters;
       state.showChainage = true;
-      const now = performance.now();
-      const wait = Math.max(0, 50 - (now - lastDragDispatch));
+      update();
+      const wait = Math.max(0, 50 - (performance.now() - lastDragDispatch));
       window.clearTimeout(dragDispatchTimer);
       dragDispatchTimer = window.setTimeout(() => {
         lastDragDispatch = performance.now();
@@ -118,11 +129,7 @@ export function mountChainageRuler(root, dataset) {
     const m = Number(nearestPoint(raw)?.meters);
     if (!Number.isFinite(m)) return;
     if (range) range.value = String(m);
-    state.selectedChainageMeters = m;
-    state.showChainage = true;
-    document.dispatchEvent(
-      new CustomEvent("chainage-select", { detail: { meters: m, focus: true, dragging: false } }),
-    );
+    dispatchSelect(m, { focus: true, dragging: false });
   };
   range?.addEventListener("change", settleCamera);
   range?.addEventListener("pointerup", settleCamera);
@@ -130,14 +137,30 @@ export function mountChainageRuler(root, dataset) {
   el.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-meters]");
     if (!btn) return;
-    const m = Number(btn.dataset.meters);
-    if (!Number.isFinite(m)) return;
-    dispatchSelect(m);
+    dispatchSelect(Number(btn.dataset.meters));
   });
 
-  const cursor = el.querySelector("#chainage-ruler-cursor");
-  const cursorLabel = el.querySelector("#chainage-ruler-cursor-label");
-  const currentDot = el.querySelector("#chainage-ruler-current");
+  /** Hide tick labels that would collide with a kept neighbour (ends always kept). */
+  function layoutTicks() {
+    const w = track.clientWidth;
+    if (!w) return;
+    const boxes = tickEls.map((t) => {
+      const half = t.querySelector(".chainage-ruler-label").offsetWidth / 2;
+      const x = (Number(t.style.left.replace("%", "")) / 100) * w;
+      return { t, x0: x - half, x1: x + half };
+    });
+    const last = boxes[boxes.length - 1];
+    let prev = null;
+    for (const b of boxes) {
+      const keep = b === boxes[0] || b === last ||
+        ((!prev || b.x0 >= prev.x1 + TICK_GAP_PX) && b.x1 + TICK_GAP_PX <= last.x0);
+      b.t.classList.toggle("is-crowded", !keep);
+      if (keep) prev = b;
+    }
+  }
+  const ro = new ResizeObserver(() => layoutTicks());
+  ro.observe(track);
+  requestAnimationFrame(layoutTicks);
 
   function update() {
     const show = state.showChainage !== false && !state.cinematicActive;
@@ -145,42 +168,41 @@ export function mountChainageRuler(root, dataset) {
     if (!show) return;
 
     const sel = state.selectedChainageMeters;
-    el.querySelectorAll(".chainage-ruler-tick").forEach((t) => {
-      const tm = Number(t.dataset.meters);
-      // Cursor can sit between km ticks — light up the nearest major.
-      const active =
-        Number.isFinite(sel) && Number.isFinite(tm) && Math.abs(tm - sel) < 0.5
-          ? true
-          : Number.isFinite(sel) &&
-            Number.isFinite(tm) &&
-            Math.abs(tm - sel) <= 500 &&
-            Math.round(sel / 1000) * 1000 === tm;
-      t.classList.toggle("is-active", !!active);
-      t.classList.toggle("active", !!active);
-    });
+    if (sel === lastSel) return;
+    lastSel = sel;
 
-    if (sel == null || !cursor) {
-      if (cursor) cursor.hidden = true;
-      if (currentDot) currentDot.hidden = true;
+    const hasSel = Number.isFinite(sel);
+    const activeTick = hasSel ? majors[nearestMajor(sel)] : null;
+    for (const t of tickEls) {
+      const on = !!activeTick && Number(t.dataset.meters) === activeTick.meters && Math.abs(activeTick.meters - sel) <= 500;
+      t.classList.toggle("is-active", on);
+      t.classList.toggle("active", on);
+    }
+
+    if (!hasSel) {
+      cursor.hidden = true;
+      fill.style.width = "0%";
       return;
     }
-    if (range && Number.isFinite(sel)) range.value = String(Math.min(maxM, Math.max(minM, sel)));
-    const pct = Math.min(100, Math.max(0, ((sel - minM) / Math.max(1, maxM - minM)) * 100));
+    const clamped = Math.min(maxM, Math.max(minM, sel));
+    if (range) range.value = String(clamped);
+    const pct = ((clamped - minM) / spanM) * 100;
     cursor.style.left = `${pct}%`;
-    cursor.classList.toggle("is-edge-start", pct <= 4);
-    cursor.classList.toggle("is-edge-end", pct >= 96);
+    cursor.classList.toggle("is-edge-start", pct <= 3);
+    cursor.classList.toggle("is-edge-end", pct >= 97);
     cursor.hidden = false;
+    fill.style.width = `${pct}%`;
 
-    if (currentDot) {
-      currentDot.style.left = `${pct}%`;
-      currentDot.hidden = false;
-    }
+    const label = interpolateChainage(points, sel)?.label || metersToStation(sel);
+    cursorLabel.textContent = String(label).replace(/^\+/, "");
+  }
 
-    const p = interpolateChainage(points, sel);
-    const label = p?.label || metersToStation(sel);
-    if (cursorLabel) {
-      cursorLabel.textContent = `${label} · ${Math.round(sel)} m`;
+  function nearestMajor(meters) {
+    let best = 0;
+    for (let i = 1; i < majors.length; i++) {
+      if (Math.abs(majors[i].meters - meters) < Math.abs(majors[best].meters - meters)) best = i;
     }
+    return best;
   }
 
   const bandsEl = el.querySelector("#chainage-ruler-bands");
@@ -201,14 +223,13 @@ export function mountChainageRuler(root, dataset) {
       el.classList.remove("has-bands");
       return;
     }
-    const span = Math.max(1, maxM - minM);
     bandsEl.innerHTML = segs
       .map((s) => {
         const a = Math.max(minM, Math.min(maxM, Number(s.startM)));
         const b = Math.max(minM, Math.min(maxM, Number(s.endM)));
         if (!(b > a)) return "";
-        const left = ((a - minM) / span) * 100;
-        const width = ((b - a) / span) * 100;
+        const left = ((a - minM) / spanM) * 100;
+        const width = ((b - a) / spanM) * 100;
         return `<span class="chainage-ruler-band is-${escapeAttr(s.style || "observed")}${s.active ? " is-active" : ""}"
           style="left:${left.toFixed(3)}%;width:${width.toFixed(3)}%;--band-color:${escapeAttr(s.color || "#6b7a7f")}"
           title="${escapeAttr(s.title || "")}"></span>`;
@@ -228,6 +249,7 @@ export function mountChainageRuler(root, dataset) {
     window.cancelAnimationFrame(inputRaf);
     window.clearTimeout(dragDispatchTimer);
     document.removeEventListener("chainage-bands", onBands);
+    ro.disconnect();
     el.remove();
   }
 

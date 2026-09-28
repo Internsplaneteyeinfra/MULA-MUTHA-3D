@@ -240,6 +240,34 @@ export function terrainHeightAt(x, z, stations) {
   return heightAt(x, z, stations, activeDtm);
 }
 
+/**
+ * Height of the rendered terrain mesh (coarse grid from createTerrain) at x/z.
+ * Differs from terrainHeightAt near narrow channels, where grid cells span both banks.
+ */
+export function renderedTerrainHeightAt(mesh, x, z) {
+  const geo = mesh?.geometry;
+  const p = geo?.parameters;
+  const pos = geo?.attributes?.position;
+  if (!p?.widthSegments || !pos) return null;
+  if (!geo.boundingBox) geo.computeBoundingBox();
+  const { min, max } = geo.boundingBox;
+  const nx = p.widthSegments;
+  const nz = p.heightSegments;
+  const fx = ((x - min.x) / Math.max(1e-6, max.x - min.x)) * nx;
+  const fz = ((z - min.z) / Math.max(1e-6, max.z - min.z)) * nz;
+  if (fx < 0 || fz < 0 || fx > nx || fz > nz) return null;
+  const ix = Math.min(nx - 1, Math.floor(fx));
+  const iz = Math.min(nz - 1, Math.floor(fz));
+  const tx = fx - ix;
+  const tz = fz - iz;
+  const at = (i, j) => pos.getY(j * (nx + 1) + i);
+  const a = at(ix, iz);
+  const b = at(ix + 1, iz);
+  const c = at(ix, iz + 1);
+  const d = at(ix + 1, iz + 1);
+  return (a * (1 - tx) + b * tx) * (1 - tz) + (c * (1 - tx) + d * tx) * tz;
+}
+
 /** Raw FABDEM scene elevation — no channel carve (for profile / analysis charts). */
 export function rawDtmElevationAt(x, z) {
   const y = activeDtm?.sampleSceneXY?.(x, z);
