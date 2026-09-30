@@ -9438,3 +9438,6 @@
 }
 #ui-root.gis-ui .silt-title > span { color: #ff4fd8; font-size: 13px; letter-spacing: 0; }
 #ui-root.gis-ui .river-data-row[data-m2d][hidden] { display: none !important; }
+
+/* One Hydrology UI at a time: the detailed modal (state.hydrologyViewState = "detailed") replaces Current Hydrology. */
+body.hydro-intel-open #dt-panel { display: none !important; }

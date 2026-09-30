@@ -167,6 +167,8 @@ export const state = {
   distanceMeasureActive: false,
   /** The one active 2D analysis: null | "salinity" | "erosion" | "silt". Drives 2D panel visibility. */
   active2DAnalysis: null,
+  /** Hydrology UI: "current" (left Current Hydrology panel) | "detailed" (MULA–MUTHA HYDROLOGY modal; left panel hidden). */
+  hydrologyViewState: "current",
   cinematicActive: false,
   cinematicPaused: false,
   cinematicProgress: 0,

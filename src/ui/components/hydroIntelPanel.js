@@ -280,16 +280,17 @@ export function mountHydroIntelPanel(root) {
   }
 
   // ── Close / open helpers ─────────────────────────────────────────────────
-  function show() {
-    backdrop.hidden = false;
-    backdrop.style.display = "flex";
-    document.body.classList.add("hydro-intel-open");
+  // body.hydro-intel-open mirrors state.hydrologyViewState; CSS uses it to hide Current Hydrology.
+  function setHydrologyView(view) {
+    const detailed = view === "detailed";
+    state.hydrologyViewState = detailed ? "detailed" : "current";
+    backdrop.hidden = !detailed;
+    backdrop.style.display = detailed ? "flex" : "none";
+    document.body.classList.toggle("hydro-intel-open", detailed);
   }
-  function hide() {
-    backdrop.hidden = true;
-    backdrop.style.display = "none";
-    document.body.classList.remove("hydro-intel-open");
-  }
+  function show() { setHydrologyView("detailed"); }
+  function hide() { setHydrologyView("current"); }
+  const isOpen = () => state.hydrologyViewState === "detailed";
 
   // ── Tab switching ─────────────────────────────────────────────────────────
   tabBtns.forEach((btn) => {
@@ -1710,8 +1711,8 @@ body.hydro-intel-open .chainage-current-marker {
   }
 
   // ── Public API ────────────────────────────────────────────────────────────
-  onDigitalTwinExit(() => { if (!backdrop.hidden) hide(); });
-  window.__MM_HYDRO_INTEL__ = { show, hide, isOpen: () => !backdrop.hidden };
+  onDigitalTwinExit(() => { if (isOpen()) hide(); });
+  window.__MM_HYDRO_INTEL__ = { show, hide, isOpen };
 
-  return { show, hide, el: backdrop, isOpen: () => !backdrop.hidden };
+  return { show, hide, el: backdrop, isOpen };
 }
