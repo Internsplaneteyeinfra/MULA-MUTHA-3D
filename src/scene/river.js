@@ -18,16 +18,14 @@ export function depthNorm(d, minD = DEPTH_LEGEND_MIN, maxD = DEPTH_LEGEND_MAX) {
   );
 }
 
-/**
- * Bed Y = waterSurface − depth × exaggeration.
- * Bank profile (acrossU) carves a visible trough: shallow edges, deeper centre.
- */
 export function bedElevation(d, _minD, _maxD, acrossU, exag) {
-  const bank = Math.abs((Number(acrossU) || 0.5) * 2 - 1); // 0 = centre, 1 = edge
-  const bankFactor = 1 - Math.pow(THREE.MathUtils.clamp(bank, 0, 1), 1.25) * 0.62;
-  const depth = Math.max(Number(d) || 0.15, 0.15) * bankFactor;
+  // Use ACTUAL verified bathymetric depth, strictly relative to water surface.
+  // The lateral interpolation is already handled spatially by the bathymetry cloud/service.
+  const depth = Number(d) || 0;
   const y = SURFACE_Y - depth * Math.max(1, exag);
-  return Math.min(y, SURFACE_Y - MIN_BED_SEPARATION);
+  // We don't enforce a minimum separation for the real bed; 
+  // if depth is 0, it means bank elevation.
+  return y;
 }
 
 /** Water surface stays at real elevation — exaggeration never moves it. */

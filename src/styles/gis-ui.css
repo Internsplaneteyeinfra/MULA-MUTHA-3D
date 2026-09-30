@@ -1186,6 +1186,37 @@
 .chainage-step-delta {
   display: none !important;
 }
+.chainage-step-center {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+}
+.chainage-step-travel {
+  font: 700 10px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 224, 140, 0.95);
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85);
+  white-space: nowrap;
+}
+.chainage-step-travel[hidden] {
+  display: none;
+}
+.chainage-step-hud.is-travelling .chainage-step-station {
+  color: #ffe08c;
+}
+.chainage-step-btn.is-explore {
+  width: 32px;
+  height: 32px;
+}
+.chainage-step-btn.is-explore .chainage-step-arrow {
+  font-size: 13px;
+}
+.chainage-step-btn.is-explore.active {
+  background: rgba(255, 213, 74, 0.26);
+  border-color: rgba(255, 213, 74, 0.8);
+}
 @media (max-width: 720px) {
   .chainage-step-hud {
     /* Analytics bar drops lower on small screens */

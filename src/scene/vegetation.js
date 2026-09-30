@@ -2,11 +2,13 @@ import * as THREE from "three";
 import { terrainHeightAt } from "./terrain.js";
 import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
+import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 
 const MAX_TREES = 11000;
 
 /**
- * Vegetation from OSM trees + parks + riparian buffer.
+ * Vegetation from OSM trees + parks + a riparian bank band limited to LULC Forest.
+ * Nothing is planted on LULC Water.
  * Uses reference GLB models (palm, broadleaf, conifer, birch, grass).
  * @param {object} dataset
  * @param {{ maxTrees?: number, castShadow?: boolean }} [opts]
@@ -22,9 +24,16 @@ export async function createVegetation(dataset, opts = {}) {
   const pickables = [];
   const maxTrees = Math.max(200, Number(opts.maxTrees) || MAX_TREES);
   const castShadow = !!opts.castShadow;
+  const lulc = await loadLulcClassGrid().catch((err) => {
+    console.warn("[vegetation] LULC unavailable — riparian band skipped:", err?.message || err);
+    return null;
+  });
+  const ring = dataset.ringLocal || [];
+  const onWater = (x, z) => lulc?.classAtLocal(x, z) === "water";
+  const inRiver = (x, z) => ring.length > 2 && pointInRing(x, z, ring);
 
   for (const ot of osmTrees) {
-    if (blocked(ot.x, ot.z, buildings, roads, stations, true)) continue;
+    if (inRiver(ot.x, ot.z) || blocked(ot.x, ot.z, buildings, roads, stations, true) || onWater(ot.x, ot.z)) continue;
     const h = ot.tree_height || 8;
     const assetId = classifyTreeAsset(ot, "osm", rng);
     const scale = Math.max(0.45, Math.min(2.6, h / 8));
@@ -52,7 +61,7 @@ export async function createVegetation(dataset, opts = {}) {
 
   const riparianStep = maxTrees < 2000 ? 3 : maxTrees < 4000 ? 2 : 1;
   const riparianDens = maxTrees < 2000 ? 0.55 : maxTrees < 4000 ? 0.75 : 0.9;
-  for (let i = 0; i < stations.length; i += riparianStep) {
+  for (let i = 0; lulc && i < stations.length; i += riparianStep) {
     const st = stations[i];
     for (const side of [-1, 1]) {
       const px = -st.flowZ;
@@ -66,6 +75,7 @@ export async function createVegetation(dataset, opts = {}) {
         const z = st.z + pz * side * dist + st.flowZ * along;
         // Keep off the water channel; allow near roads (parks / banks)
         if (blocked(x, z, buildings, [], stations)) continue;
+        if (lulc.classAtLocal(x, z) !== "forest") continue;
         placements.push({
           x,
           z,
@@ -89,7 +99,7 @@ export async function createVegetation(dataset, opts = {}) {
     for (let i = 0; i < count; i++) {
       const p = randomInPolygon(poly.vertices, rng);
       if (!p) continue;
-      if (blocked(p.x, p.z, buildings, roads, stations)) continue;
+      if (inRiver(p.x, p.z) || blocked(p.x, p.z, buildings, roads, stations) || onWater(p.x, p.z)) continue;
       placements.push({
         x: p.x,
         z: p.z,

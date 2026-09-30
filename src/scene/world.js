@@ -44,6 +44,7 @@ import { createQualityProfile, createThrottle, isLowMemoryDevice } from "../perf
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import { nearestStationU } from "./riverCamera.js";
+import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
 import { initDigitalTwin } from "../services/digitalTwinService.js";
@@ -354,6 +355,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     getNallaFlow: () => nallaFlow,
     getHydrologyGroup: () => hydrologyLayer,
     getRawSurveyLayer: () => rawSurveyPoints,
+    getAqiLayer: () => aqiRiverLayer,
+    getBodCodLayer: () => bodCodLayer,
     riverWidthMeasure,
     distanceMeasure,
     siltAreaTool,
@@ -378,7 +381,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   vegTypeGrowGroup.name = "vegetationTypePermanent";
   scene.add(vegTypeGrowGroup);
 
-  /** Tree-covered islands / riparian bars inside the river polygon (Vegetation Type raster, Trees class). */
+  /** LULC land (forest / bank) inside the river polygon, away from surveyed depth points. */
   let riparianLayer = null;
   async function loadRiparianVegetation() {
     const qNow = quality.get();
@@ -627,7 +630,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   // Eye-level corridor (reference screenshot): low boat height, nearly flat look.
   // Height 16 / back 55 / ahead 180 / lookY ≈ eye → horizon mid-frame, marker mid-foreground.
-  // Ruler drags snap; discrete chainage picks glide along the river (see chainFlight).
+  // Ruler drags snap; discrete chainage picks travel the river (see riverJourney.js).
   function chainageCameraOptions(_point, dragging = false) {
     return {
       cameraHeight: 16,
@@ -644,21 +647,37 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
 
   /**
-   * River glide for discrete chainage picks (ticks, prev/next, step arrows):
-   * the camera travels along the centerline — downstream when moving forward,
-   * reversing upstream when moving back — instead of snapping.
+   * River journeys for discrete chainage picks (ticks, prev/next, step arrows, twin clicks):
+   * the camera travels the centerline between chainages, turning to face upstream on long
+   * backward trips, and settles into the inspection pose. See riverJourney.js.
    */
-  const CHAIN_FLIGHT_MIN_S = 0.5;
-  const CHAIN_FLIGHT_MAX_S = 4.5;
-  const CHAIN_FLIGHT_M_PER_S = 1800;
-  /** Camera must already be at eye level near the river to glide; otherwise fly in directly. */
+  /** Camera must already be at eye level near the river to travel it; otherwise fly in directly. */
   const CHAIN_FLIGHT_NEAR_M = 260;
   const CHAIN_FLIGHT_MAX_EYE_Y = 90;
-  let chainFlight = null;
+  const journey = createRiverJourney({ dataset, getBridges: () => bridgeLabels.items() });
   let chainFocusM = null;
 
+  function publishJourney(tr) {
+    state.cameraJourney = tr
+      ? {
+          mode: tr.mode,
+          direction: tr.direction,
+          startChainage: tr.startChainage,
+          targetChainage: tr.targetChainage,
+          currentChainage: tr.currentChainage,
+          distance: tr.distance,
+          duration: tr.duration,
+        }
+      : null;
+    document.dispatchEvent(new CustomEvent("river-journey-progress", { detail: state.cameraJourney }));
+  }
+
   function cancelChainFlight() {
-    chainFlight = null;
+    const tr = journey.cancel();
+    if (!tr) return;
+    chainFocusM = tr.currentChainage;
+    publishJourney(null);
+    flushSettled();
   }
   canvas.addEventListener("pointerdown", cancelChainFlight, { passive: true });
   canvas.addEventListener("wheel", cancelChainFlight, { passive: true });
@@ -670,42 +689,97 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return c.y < CHAIN_FLIGHT_MAX_EYE_Y && Math.hypot(c.x - p.x, c.z - p.z) < CHAIN_FLIGHT_NEAR_M;
   }
 
-  function startChainFlight(toM) {
-    const fromM = chainFlight ? chainFlight.currentM : chainFocusM;
-    const dist = Math.abs(toM - fromM);
-    chainFlight = {
-      fromM,
-      toM,
-      currentM: fromM,
-      t: 0,
-      dur: THREE.MathUtils.clamp(CHAIN_FLIGHT_MIN_S + dist / CHAIN_FLIGHT_M_PER_S, CHAIN_FLIGHT_MIN_S, CHAIN_FLIGHT_MAX_S),
-      lift: Math.min(12, dist * 0.004),
-    };
+  /** Scene-aware destination framing from data already in the scene. */
+  function destinationPose(toM) {
+    const p = interpolateChainage(dataset.chainage, toM);
+    const hydroId = hydrologyLayer.userData?.getActiveId?.();
+    const floodOn = !!(apiFloodLayer.visible || climateImpactLayer.visible);
+    if (floodOn || hydroId === "geology") return { height: 26, back: 85 };
+    const nearBridge = (bridgeLabels.items() || []).some(
+      (b) => Number.isFinite(b.x) && p && Math.hypot(b.x - p.x, b.z - p.z) < 160,
+    );
+    if (nearBridge) return { height: 22, back: 70 };
+    return null;
   }
 
+  function startChainFlight(toM, opts = {}) {
+    const fromM = journey.active ? journey.active.currentChainage : chainFocusM;
+    const c = cam.camera;
+    const tr = journey.start(fromM, toM, { p: c.position, l: cam.controls.target }, {
+      targetPose: destinationPose(toM) || undefined,
+      ...opts,
+    });
+    setJourneyTarget(tr.targetChainage, toM, opts.requestedM);
+    publishJourney(tr);
+    console.info("[RiverJourney]", {
+      mode: tr.mode,
+      from: tr.startChainage,
+      to: tr.targetChainage,
+      direction: tr.direction > 0 ? "FORWARD" : "BACKWARD",
+      chordDirection: tr.chordDirection,
+      distance_m: Math.round(tr.distance),
+      duration_s: +tr.duration.toFixed(2),
+      reorient: tr.reorient,
+    });
+    return tr;
+  }
+
+  let journeyPublishT = 0;
   function stepChainFlight(dt) {
-    const f = chainFlight;
-    if (!f) return;
-    if (state.cinematicActive || isMap2DMode()) {
-      chainFlight = null;
+    if (!journey.active) return;
+    if (
+      state.cinematicActive ||
+      isMap2DMode() ||
+      state.joiningStreamsMode ||
+      state.joiningStreamsNavigation ||
+      state.garbageSelectionActive
+    ) {
+      cancelChainFlight();
       return;
     }
-    f.t = Math.min(1, f.t + dt / f.dur);
-    const k = f.t < 0.5 ? 4 * f.t ** 3 : 1 - (-2 * f.t + 2) ** 3 / 2;
-    f.currentM = f.fromM + (f.toM - f.fromM) * k;
-    chainFocusM = f.currentM;
-    const p = interpolateChainage(dataset.chainage, f.currentM);
-    if (p?.x != null) {
-      cam.focusOnXZ?.(p.x, p.z, {
-        ...chainageCameraOptions(p, true),
-        cameraHeight: 16 + Math.sin(Math.PI * k) * f.lift,
-      });
-    }
-    if (f.t >= 1) {
-      chainFlight = null;
-      chainFocusM = f.toM;
+    const f = journey.step(dt);
+    if (!f) return;
+    chainFocusM = f.meters;
+    cam.setPose?.(f.p, f.l, { fov: f.fov });
+    journeyPublishT += dt;
+    if (f.done) {
+      chainFocusM = f.transition.targetChainage;
+      state.selectedChainageMeters = f.transition.targetChainage;
+      publishJourney(null);
+      flushSettled();
+      document.dispatchEvent(
+        new CustomEvent("river-journey-arrive", {
+          detail: { meters: f.transition.targetChainage, mode: f.transition.mode },
+        }),
+      );
+    } else if (journeyPublishT > 0.1) {
+      journeyPublishT = 0;
+      publishJourney(f.transition);
     }
   }
+
+  function exploreRiver() {
+    if (cinematic.isActive() || isMap2DMode()) return false;
+    const chain = dataset.chainage || [];
+    if (!chain.length) return false;
+    const first = chain[0].meters;
+    const last = chain[chain.length - 1].meters;
+    let fromM = journey.active?.currentChainage ?? chainFocusM ?? state.selectedChainageMeters ?? first;
+    // Start at 0+000 unless already underway near the source.
+    if (!cameraNearChainage(fromM) || fromM > first + 50) {
+      const p0 = interpolateChainage(chain, first);
+      journey.cancel();
+      chainFocusM = first;
+      cam.focusOnXZ?.(p0.x, p0.z, { ...chainageCameraOptions(p0, false), dur: 0 });
+      fromM = first;
+    }
+    startChainFlight(last, { mode: CameraMode.FULL_RIVER_JOURNEY });
+    return true;
+  }
+  document.addEventListener("river-explore", () => {
+    if (journey.active?.mode === CameraMode.FULL_RIVER_JOURNEY) cancelChainFlight();
+    else exploreRiver();
+  });
 
   // Chainage camera movement is UI-only (bottom ruler + top ± arrows).
   // River / 3D chainage-point clicks must not jump the view.
@@ -757,20 +831,21 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 0.6 });
       return;
     }
-    const glideFrom = chainFlight ? chainFlight.currentM : chainFocusM;
+    if (state.garbageSelectionActive) return;
+    const glideFrom = journey.active ? journey.active.currentChainage : chainFocusM;
     if (dragging || glideFrom == null || Math.abs(p.meters - glideFrom) < 1) {
       cancelChainFlight();
       chainFocusM = p.meters;
       cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
       return;
     }
-    if (!chainFlight && !cameraNearChainage(glideFrom)) {
+    if (!journey.active && !cameraNearChainage(glideFrom)) {
       // Camera is off the river (overview / orbit): fly in directly, then glide next time.
       chainFocusM = p.meters;
       cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, false), dur: 1.2, ease: "inOutCubic", transitLift: undefined });
       return;
     }
-    startChainFlight(p.meters);
+    startChainFlight(p.meters, { requestedM: m });
   });
 
   let lastChainMoveTime = 0;
@@ -805,6 +880,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
             hydroId === "water_quality_tss"
           ) {
             if (state.chainageTipActive) hideChainageTip();
+            return;
+          }
+          // Richer map hover cards (river, land, features) already include the chainage.
+          if (state.hover) {
+            state.chainageTipActive = false;
             return;
           }
           const hit = resolveChainageUnderCursor(e, 70);
@@ -848,6 +928,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydroId === "water_quality_tss"
     ) {
       if (state.chainageTipActive) hideChainageTip();
+      return;
+    }
+    // Richer map hover cards (river, land, features) already include the chainage.
+    if (state.hover) {
+      state.chainageTipActive = false;
       return;
     }
     const hit = resolveChainageUnderCursor(e, 70);
@@ -1309,6 +1394,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       return hydrologyLayer.userData?.validateExtent?.() ?? null;
     },
     cam,
+    /** Travel the whole corridor 0+000 → end along the real chainage profile. */
+    exploreRiver,
+    riverJourney: journey,
     /** Exit 2D if needed and fly to chainage eye-level view (used by VIEW → 3D). */
     goToChainageView(meters) {
       if (cinematic.isActive()) return;
@@ -1327,11 +1415,25 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       m = Math.min(last, Math.max(first, m));
       const p = interpolateChainage(chain, m);
       if (!p || p.x == null) return;
+      state.showChainage = true;
+      state.showChainageLabels = false;
+
+      // Already at eye level on the river: travel the corridor instead of a straight hop.
+      const fromM = journey.active ? journey.active.currentChainage : chainFocusM;
+      if (!wasMap2d && fromM != null && Math.abs(p.meters - fromM) >= 1 &&
+          (journey.active || cameraNearChainage(fromM))) {
+        startChainFlight(p.meters);
+        document.dispatchEvent(
+          new CustomEvent("chainage-select", {
+            detail: { meters: p.meters, notes: false, focus: false },
+          }),
+        );
+        return;
+      }
+
       state.selectedChainageMeters = p.meters;
       cancelChainFlight();
       chainFocusM = p.meters;
-      state.showChainage = true;
-      state.showChainageLabels = false;
 
       const startY = cam.camera?.position?.y ?? 0;
       const eyeH = 16;

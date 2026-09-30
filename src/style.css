@@ -263,6 +263,7 @@ html, body, #app {
 .tooltip .k { color: var(--muted); }
 .tooltip .v { font-family: var(--font-mono); }
 .tooltip .v.depth { color: #9ad4e0; font-weight: 600; }
+.tooltip .tip-sep { height: 1px; margin: 5px 0; background: rgba(200,220,230,0.18); }
 .tooltip.tooltip--survey {
   min-width: 0;
   width: max-content;

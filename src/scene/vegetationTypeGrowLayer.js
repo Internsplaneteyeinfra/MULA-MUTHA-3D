@@ -3,6 +3,7 @@ import { lonLatToLocal } from "../geo/geoReference.js";
 import { terrainHeightAt } from "./terrain.js";
 import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
+import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 
 const MAX_INSTANCES = 9000;
 const DEFAULT_STEP_M = 55;
@@ -160,6 +161,7 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
   const buildings = dataset.osm?.buildings || [];
   const roads = dataset.osm?.roads || [];
   const riverRing = dataset.ringLocal || null;
+  const lulc = await loadLulcClassGrid().catch(() => null);
   const rng = mulberry(0x7e9714e ^ Math.floor(box.west * 1e6));
 
   const west = Number(box.west);
@@ -210,6 +212,8 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
 
         if (riverRing && pointInRing(x, z, riverRing)) continue;
         if (blocked(x, z, buildings, roads, stations)) continue;
+        const cover = lulc?.classAtLocal(x, z);
+        if (cover === "water" || cover === "settlement") continue;
 
         const y = terrainHeightAt(x, z, stations);
         if (!Number.isFinite(y)) continue;

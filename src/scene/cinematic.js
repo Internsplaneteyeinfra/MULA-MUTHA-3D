@@ -1132,6 +1132,28 @@ export function createCameraSystem(canvas, dataset) {
     };
   }
 
+  /** Per-frame pose from a river journey: no tween, cancels any in-flight transition. */
+  function setPose(p, l, opts = {}) {
+    if (state.cinematicActive || isMap2D()) return false;
+    localTransition = null;
+    zoomTransition = null;
+    orientTransition = null;
+    state.cameraMode = "orbit";
+    state.playing = false;
+    controls.enabled = true;
+    controls.minPolarAngle = 0;
+    controls.maxPolarAngle = Math.PI * 0.495;
+    if (activeCamera.isPerspectiveCamera && Number.isFinite(opts.fov) && activeCamera.fov !== opts.fov) {
+      activeCamera.fov = opts.fov;
+      activeCamera.updateProjectionMatrix();
+    }
+    activeCamera.position.copy(p);
+    controls.target.copy(l);
+    activeCamera.up.set(0, 1, 0);
+    activeCamera.lookAt(controls.target);
+    return true;
+  }
+
   return {
     get camera() {
       return activeCamera;
@@ -1140,6 +1162,7 @@ export function createCameraSystem(canvas, dataset) {
     controls,
     applyMode,
     focusOnXZ,
+    setPose,
     focusPose,
     startDrainageFlight,
     startGarbageFlight,

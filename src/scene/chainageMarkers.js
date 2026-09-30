@@ -38,25 +38,25 @@ export function createChainageLayer(dataset) {
     color: "#ffffff",
     depthTest: false,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.1,
   });
   const majorMat = new THREE.MeshBasicMaterial({
     color: "#f5c518",
     depthTest: false,
     transparent: true,
-    opacity: 1,
+    opacity: 0.2,
   });
   const minorMat = new THREE.MeshBasicMaterial({
     color: "#ffffff",
     depthTest: false,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.05,
   });
   const selectFillMat = new THREE.MeshBasicMaterial({
     color: "#ffd54a",
     depthTest: false,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.85,
   });
   const selectRingMat = new THREE.MeshBasicMaterial({
     color: "#ff8a00",
@@ -124,9 +124,9 @@ export function createChainageLayer(dataset) {
   lineGeo.setPositions(positions);
   const lineMat = new LineMaterial({
     color: 0xffffff,
-    linewidth: 1.85,
+    linewidth: 1.0,
     transparent: true,
-    opacity: 0.95,
+    opacity: 0.08,
     depthTest: false,
     depthWrite: false,
     worldUnits: false,

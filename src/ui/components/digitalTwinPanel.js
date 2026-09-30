@@ -16,6 +16,7 @@ import {
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
+import { whenChainageSettled } from "../../scene/riverJourney.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 import { refreshHydrologyProfile } from "../../services/hydrology/hydrologyProfileService.js";
 import { historicalHydrologyService } from "../../services/hydrology/historicalHydrologyService.js";
@@ -124,8 +125,10 @@ export function mountDigitalTwinPanel(root) {
   });
   document.addEventListener("chainage-select", (e) => {
     const m = Number(e.detail?.meters);
-    if (Number.isFinite(m)) eventMeters = m;
-    schedule();
+    whenChainageSettled("digital-twin-panel", m, () => {
+      if (Number.isFinite(m)) eventMeters = m;
+      schedule();
+    });
   });
   document.addEventListener("twin-state-change", (e) => {
     twin = e.detail || twin;

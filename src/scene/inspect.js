@@ -7,6 +7,16 @@ import { bedYAt, sampleDepthAt } from "../features/fishing/FishingZoneSystem.js"
 import { pickNullahAt } from "./drainageLayer.js";
 import { pickDepthZoneAt } from "./depthZonesLayer.js";
 import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
+import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { aqiCategory } from "../services/aqiService.js";
+
+const LULC_HOVER = {
+  water: { label: "Water Bodies", color: "#2196F3" },
+  settlement: { label: "Settlements", color: "#C62828" },
+  forest: { label: "Forest", color: "#006400" },
+  crop: { label: "Crop Land", color: "#E6A23C" },
+  barren: { label: "Barren Land", color: "#A9A9A9" },
+};
 
 export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset, tooltip, opts = {}) {
   const resolveCam = () => (typeof camera === "function" ? camera() : camera);
@@ -26,6 +36,13 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   const riverWidthMeasure = opts.riverWidthMeasure;
   const distanceMeasure = opts.distanceMeasure;
   const siltAreaTool = opts.siltAreaTool;
+  const getAqiLayer = opts.getAqiLayer;
+  const getBodCodLayer = opts.getBodCodLayer;
+  let lulc = null;
+  loadLulcClassGrid()
+    .then((g) => { lulc = g; })
+    .catch((err) => console.warn("Hover land cover unavailable:", err.message));
+  const featureIndex = createFeatureIndex(dataset);
   /** Pointer-down position — a click after a map pan is not a silt point. */
   let downXY = null;
   canvas.addEventListener("pointerdown", (e) => {
@@ -222,6 +239,141 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       tooltip.hide();
       if (state.hover?.rawSurvey) state.hover = null;
     }, STICKY_SURVEY_MS);
+  }
+
+  function chainageInfo(x, z) {
+    const ch = nearestChainage(x, z, dataset.chainage);
+    return { chainageLabel: ch?.label ?? null, chainageM: ch?.meters ?? null };
+  }
+
+  function pickMapFeature(x, z) {
+    if (state.showFish) {
+      for (const zone of dataset.fishingZones || []) {
+        if ((zone.x - x) ** 2 + (zone.z - z) ** 2 > zone.radius ** 2) continue;
+        return {
+          fishingHover: true,
+          kind: "fishing",
+          name: zone.name || zone.id,
+          depthM: sampleDepthAt(zone.x, zone.z, dataset),
+          activity: zone.activity,
+          species: (zone.dominant || []).join(", "),
+          radiusM: zone.radius,
+          nearBridge: zone.nearBridge,
+          waterValid: zone.waterValid,
+          lon: zone.lon,
+          lat: zone.lat,
+          ...chainageInfo(zone.x, zone.z),
+        };
+      }
+    }
+    if (state.showBridges) {
+      for (const br of dataset.bridges || []) {
+        const a = br.start;
+        const b = br.end;
+        if (!a || !b) continue;
+        const half = (br.widthM || 14) * 0.5 + 6;
+        if (distToSegment2(x, z, a.x, a.z, b.x, b.z) > half * half) continue;
+        return {
+          bridgeHover: true,
+          kind: "bridge",
+          name: br.name || "Bridge",
+          highway: br.highway,
+          lengthM: br.lengthM,
+          widthM: br.widthM,
+          channelWidthM: br.channelHalf != null ? br.channelHalf * 2 : null,
+          osmId: br.id,
+          source: br.source,
+          lon: br.midLon,
+          lat: br.midLat,
+          ...chainageInfo(br.midX, br.midZ),
+        };
+      }
+    }
+    if (state.showUrban && state.showOsmBuildings) {
+      const b = featureIndex.buildingAt(x, z);
+      if (b) {
+        const ll = dataset.frame.toLonLat(b.midX, b.midZ);
+        return {
+          featureType: "building",
+          osmId: b.id,
+          name: b.name,
+          building: b.building,
+          height: b.heightM,
+          height_source: b.height_source,
+          levels: b.levels,
+          amenity: b.amenity,
+          address: [b.addr_housenumber, b.addr_street].filter(Boolean).join(" "),
+          footprintM2: b.footprintM2,
+          lon: ll.lon,
+          lat: ll.lat,
+        };
+      }
+    }
+    if (state.showVegetation && state.showOsmTrees) {
+      const t = featureIndex.treeNear(x, z, 6);
+      if (t) {
+        return {
+          featureType: "tree",
+          osmId: t.id,
+          name: t.species || t.genus,
+          species: t.species,
+          genus: t.genus,
+          height: t.tree_height,
+          height_source: t.height_source,
+          lon: t.lon,
+          lat: t.lat,
+        };
+      }
+    }
+    return null;
+  }
+
+  function landHoverInfo(x, z) {
+    const geo = dataset.frame.toLonLat(x, z);
+    const cls = lulc?.classAtLonLat(geo.lon, geo.lat) || null;
+    const lc = cls ? LULC_HOVER[cls] : null;
+    const elev = dataset.dtm?.sampleLonLat?.(geo.lon, geo.lat);
+    const bank = distanceToBank(x, z, dataset.corridor?.stations || []);
+    return {
+      landHover: true,
+      lon: geo.lon,
+      lat: geo.lat,
+      landCover: lc?.label ?? null,
+      landCoverColor: lc?.color ?? null,
+      lulcYear: lulc?.year ?? null,
+      elevationM: Number.isFinite(elev) ? elev : null,
+      distToRiverM: bank,
+      ...chainageInfo(x, z),
+    };
+  }
+
+  function activeLayerRows(chM) {
+    const rows = [];
+    if (chM == null) return rows;
+    const aqi = getAqiLayer?.();
+    if (aqi?.visible) {
+      const seg = (aqi.userData?.getSegments?.() || []).find((s) => chM >= s.m0 && chM <= s.m1);
+      const r = seg?.reading;
+      if (r) {
+        if (Number.isFinite(r.aqi)) {
+          const cat = aqiCategory(r.aqi)?.label;
+          rows.push(["AQI", `${Math.round(r.aqi)}${cat && cat !== "—" ? ` · ${cat}` : ""}`]);
+        }
+        if (Number.isFinite(r.pm2_5)) rows.push(["PM2.5", `${r.pm2_5.toFixed(1)} µg/m³`]);
+        if (Number.isFinite(r.pm10)) rows.push(["PM10", `${r.pm10.toFixed(1)} µg/m³`]);
+      }
+    }
+    const bc = getBodCodLayer?.();
+    if (bc?.visible) {
+      const reach = bc.userData?.getReachAtMeters?.(chM);
+      if (reach) {
+        rows.push(["Reach", reach.name || reach.id]);
+        if (reach.cls) rows.push(["BOD/COD class", reach.cls]);
+        if (Number.isFinite(reach.bod)) rows.push(["BOD", `${reach.bod.toFixed(2)} mg/L`]);
+        if (Number.isFinite(reach.cod)) rows.push(["COD", `${reach.cod.toFixed(1)} mg/L`]);
+      }
+    }
+    return rows;
   }
 
   function inspect(e, { fromClick = false } = {}) {
@@ -436,8 +588,6 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       clearStickyBankErosion();
     }
 
-    // Chainage tip owns hover tooltip — but river click must still measure width/depth.
-    if (state.chainageTipActive && !fromClick) return;
     if (state.showRawSurveyPoints && !state.cinematicActive) {
       const surveyLayer = getRawSurveyLayer?.();
 
@@ -489,9 +639,6 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     } else if (stickySurveyPoint) {
       clearStickySurvey();
     }
-
-    // Selected chainage tip owns hover — except Joining Streams drainage hover/click.
-    if (state.chainageTipActive && !fromClick && !state.joiningStreamsMode) return;
 
     // Joining Streams — hover = tooltip only; click = select. Never freeze camera.
     if (state.joiningStreamsMode && state.showDrainage && !state.cinematicActive) {
@@ -610,108 +757,103 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       }
     }
 
-    // Glassy depth-zone polygons (real KML) — inspect without changing coords
-    if (state.showDepthZones && !state.cinematicActive) {
-      const planeHit = raycaster.intersectObjects(targets, false)[0];
-      let wx = planeHit?.point.x ?? null;
-      let wz = planeHit?.point.z ?? null;
-      if (wx == null) {
-        const plane = new THREE.Plane(new THREE.Vector3(0, 1, 0), -SURFACE_Y);
-        const pt = new THREE.Vector3();
-        if (raycaster.ray.intersectPlane(plane, pt)) {
-          wx = pt.x;
-          wz = pt.z;
+    // Salinity / water-quality / pollution features — hover whenever the layer is active.
+    if (!state.cinematicActive) {
+      const hydro = getHydrologyGroup?.();
+      const hydroId = hydro?.visible ? hydro.userData?.getActiveId?.() : null;
+      const { wx, wz } =
+        hydroId === "salinity" ||
+        hydroId === "water_quality_tss" ||
+        hydroId === "water_quality_ndwi" ||
+        hydroId === "water_quality_ndci" ||
+        hydroId === "water_quality_wst" ||
+        hydroId === "pollution"
+          ? pickWorldXZ()
+          : { wx: null, wz: null };
+      if (wx != null) {
+        const feat = hydro.userData.pickAt?.(wx, wz);
+        if (feat) {
+          const layerTitles = {
+            water_quality_tss: "TSS",
+            water_quality_ndwi: "NDWI — Water Detection",
+            water_quality_ndci: "Chlorophyll-a",
+            water_quality_wst: "WST — Temperature",
+            salinity: "SALINITY",
+            pollution: "POLLUTION",
+          };
+
+          if (hydroId === "pollution" && fromClick) {
+            const layer = hydro.userData.getPollutionLayer?.();
+            const selected = layer?.userData?.select?.(feat.id, { focusCamera: true });
+            if (selected) {
+              state.garbageSelectionActive = true;
+              tooltip.show(e.clientX, e.clientY, {
+                hydrologyPollution: true,
+                garbageSelected: true,
+                displayName: selected.name || null,
+                displayType: selected.category || null,
+                name: selected.name || null,
+                description: selected.description || null,
+                associationStatus: selected.associationStatus,
+                distanceToRiver: selected.distanceToRiver,
+                chainageLabel:
+                  selected.riverChainageMeters != null
+                    ? `${Math.floor(selected.riverChainageMeters / 1000)}+${String(Math.round(selected.riverChainageMeters % 1000)).padStart(3, "0")}`
+                    : null,
+                color: "#E89A1C",
+                lon: selected.lon,
+                lat: selected.lat,
+                localX: selected.x,
+                localZ: selected.z,
+                layer: "pollution",
+                layerTitle: "POLLUTION",
+              });
+              state.hover = { x: selected.x, z: selected.z, layer: "pollution" };
+              return;
+            }
+          }
+
+          tooltip.show(e.clientX, e.clientY, {
+            hydrologySalinity: hydroId === "salinity",
+            hydrologyWaterQuality:
+              hydroId !== "salinity" && hydroId !== "pollution",
+            hydrologyPollution: hydroId === "pollution",
+            garbageSelected: false,
+            displayName: feat.name || null,
+            displayType: feat.category || null,
+            name: feat.name || feat.class_label || hydroId,
+            class_label: feat.class_label,
+            class: feat.class,
+            range: feat.range,
+            unit: feat.unit || null,
+            value: feat.value ?? null,
+            valueText: feat.valueText || null,
+            metric: feat.metric || null,
+            description: feat.description,
+            associationStatus: feat.associationStatus,
+            distanceToRiver: feat.distanceToRiver,
+            chainageLabel: feat.chainageLabel,
+            color: feat.color || (hydroId === "pollution" ? "#E89A1C" : null),
+            localX: feat.x,
+            localZ: feat.z,
+            lon: feat.lon ?? feat.vertices?.[0]?.lon,
+            lat: feat.lat ?? feat.vertices?.[0]?.lat,
+            layer: hydroId,
+            layerTitle: layerTitles[hydroId] || hydroId,
+          });
+          state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label, layer: hydroId };
+          return;
+        }
+        if (hydroId === "pollution" && fromClick) {
+          window.__MM_SCENE__?.clearGarbageSelection?.();
         }
       }
+    }
+
+    // Glassy depth-zone polygons (real KML) — inspect without changing coords
+    if (state.showDepthZones && !state.cinematicActive) {
+      const { wx, wz } = pickWorldXZ();
       if (wx != null) {
-        const hydro = getHydrologyGroup?.();
-        const hydroId = hydro?.visible ? hydro.userData?.getActiveId?.() : null;
-        if (
-          hydroId === "salinity" ||
-          hydroId === "water_quality_tss" ||
-          hydroId === "water_quality_ndwi" ||
-          hydroId === "water_quality_ndci" ||
-          hydroId === "water_quality_wst" ||
-          hydroId === "pollution"
-        ) {
-          const feat = hydro.userData.pickAt?.(wx, wz);
-          if (feat) {
-            const layerTitles = {
-              water_quality_tss: "TSS",
-              water_quality_ndwi: "NDWI — Water Detection",
-              water_quality_ndci: "Chlorophyll-a",
-              water_quality_wst: "WST — Temperature",
-              salinity: "SALINITY",
-              pollution: "POLLUTION",
-            };
-
-            if (hydroId === "pollution" && fromClick) {
-              const layer = hydro.userData.getPollutionLayer?.();
-              const selected = layer?.userData?.select?.(feat.id, { focusCamera: true });
-              if (selected) {
-                state.garbageSelectionActive = true;
-                tooltip.show(e.clientX, e.clientY, {
-                  hydrologyPollution: true,
-                  garbageSelected: true,
-                  displayName: selected.name || null,
-                  displayType: selected.category || null,
-                  name: selected.name || null,
-                  description: selected.description || null,
-                  associationStatus: selected.associationStatus,
-                  distanceToRiver: selected.distanceToRiver,
-                  chainageLabel:
-                    selected.riverChainageMeters != null
-                      ? `${Math.floor(selected.riverChainageMeters / 1000)}+${String(Math.round(selected.riverChainageMeters % 1000)).padStart(3, "0")}`
-                      : null,
-                  color: "#E89A1C",
-                  lon: selected.lon,
-                  lat: selected.lat,
-                  localX: selected.x,
-                  localZ: selected.z,
-                  layer: "pollution",
-                  layerTitle: "POLLUTION",
-                });
-                state.hover = { x: selected.x, z: selected.z, layer: "pollution" };
-                return;
-              }
-            }
-
-            tooltip.show(e.clientX, e.clientY, {
-              hydrologySalinity: hydroId === "salinity",
-              hydrologyWaterQuality:
-                hydroId !== "salinity" && hydroId !== "pollution",
-              hydrologyPollution: hydroId === "pollution",
-              garbageSelected: false,
-              displayName: feat.name || null,
-              displayType: feat.category || null,
-              name: feat.name || feat.class_label || hydroId,
-              class_label: feat.class_label,
-              class: feat.class,
-              range: feat.range,
-              unit: feat.unit || null,
-              value: feat.value ?? null,
-              valueText: feat.valueText || null,
-              metric: feat.metric || null,
-              description: feat.description,
-              associationStatus: feat.associationStatus,
-              distanceToRiver: feat.distanceToRiver,
-              chainageLabel: feat.chainageLabel,
-              color: feat.color || (hydroId === "pollution" ? "#E89A1C" : null),
-              localX: feat.x,
-              localZ: feat.z,
-              lon: feat.lon ?? feat.vertices?.[0]?.lon,
-              lat: feat.lat ?? feat.vertices?.[0]?.lat,
-              layer: hydroId,
-              layerTitle: layerTitles[hydroId] || hydroId,
-            });
-            state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label, layer: hydroId };
-            return;
-          }
-          if (hydroId === "pollution" && fromClick) {
-            window.__MM_SCENE__?.clearGarbageSelection?.();
-          }
-        }
-
         const dzGroup = getDepthZonesGroup?.();
         const feat = pickDepthZoneAt(dzGroup, wx, wz);
         if (feat) {
@@ -746,6 +888,17 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       }
     }
 
+    // Fishing points, bridges, OSM buildings / trees — hover in both 2D and 3D.
+    {
+      const { wx, wz } = pickWorldXZ();
+      const feature = wx != null ? pickMapFeature(wx, wz) : null;
+      if (feature) {
+        tooltip.show(e.clientX, e.clientY, feature);
+        state.hover = { x: wx, z: wz, feature: feature.featureType || feature.kind };
+        return;
+      }
+    }
+
     if (state.inspectMode) {
       const osmHit = pickOsmFeature(dataset, pointer, cam, canvas, e);
       if (osmHit) {
@@ -764,8 +917,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     const { x, z } = hit.point;
     const isRiver = hit.object.name !== "terrain";
     if (!state.inspectMode && !isRiver) {
-      tooltip.hide();
-      state.hover = null;
+      tooltip.show(e.clientX, e.clientY, landHoverInfo(x, z));
+      state.hover = { x, z, land: true };
       if (fromClick) riverWidthMeasure?.hide?.();
       return;
     }
@@ -918,7 +1071,11 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         flowDirection: flowDir,
         flowSpeed: hydroStation?.velocity_ms?.value ?? flowSpeed,
         chainage: ch?.meters != null ? `${(ch.meters / 1000).toFixed(2)} km` : ch?.label,
+        chainageLabel: ch?.label,
         chainageM: ch?.meters,
+        depthSource: kind,
+        widthM: hydroStation?.width_m ?? null,
+        layerRows: activeLayerRows(ch?.meters),
       });
       return;
     }
@@ -1032,6 +1189,103 @@ function depthColorHex(t) {
   const g = Math.round(234 + (20 - 234) * c);
   const b = Math.round(255 + (40 - 255) * c);
   return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
+}
+
+/** Ground-XZ grid over OSM building footprints and trees; rebuilt when `dataset.osm` is replaced. */
+function createFeatureIndex(dataset) {
+  const CELL = 80;
+  let osmRef = null;
+  let buildings = new Map();
+  let trees = new Map();
+
+  const key = (cx, cz) => `${cx},${cz}`;
+  function add(map, cx, cz, item) {
+    const k = key(cx, cz);
+    let bin = map.get(k);
+    if (!bin) map.set(k, (bin = []));
+    bin.push(item);
+  }
+
+  function sync() {
+    if (dataset.osm === osmRef) return;
+    osmRef = dataset.osm;
+    buildings = new Map();
+    trees = new Map();
+    for (const b of osmRef?.buildings || []) {
+      const v = b.vertices;
+      if (!v?.length) continue;
+      let x0 = Infinity, x1 = -Infinity, z0 = Infinity, z1 = -Infinity, area = 0;
+      for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+        x0 = Math.min(x0, v[i].x); x1 = Math.max(x1, v[i].x);
+        z0 = Math.min(z0, v[i].z); z1 = Math.max(z1, v[i].z);
+        area += v[j].x * v[i].z - v[i].x * v[j].z;
+      }
+      b.footprintM2 ??= Math.abs(area) * 0.5;
+      for (let cx = Math.floor(x0 / CELL); cx <= Math.floor(x1 / CELL); cx++) {
+        for (let cz = Math.floor(z0 / CELL); cz <= Math.floor(z1 / CELL); cz++) add(buildings, cx, cz, b);
+      }
+    }
+    for (const t of osmRef?.trees || []) {
+      if (Number.isFinite(t.x)) add(trees, Math.floor(t.x / CELL), Math.floor(t.z / CELL), t);
+    }
+  }
+
+  return {
+    buildingAt(x, z) {
+      sync();
+      for (const b of buildings.get(key(Math.floor(x / CELL), Math.floor(z / CELL))) || []) {
+        if (pointInPoly(x, z, b.vertices)) return b;
+      }
+      return null;
+    },
+    treeNear(x, z, maxM) {
+      sync();
+      const cx = Math.floor(x / CELL);
+      const cz = Math.floor(z / CELL);
+      let best = null;
+      let bestD = maxM * maxM;
+      for (let dx = -1; dx <= 1; dx++) {
+        for (let dz = -1; dz <= 1; dz++) {
+          for (const t of trees.get(key(cx + dx, cz + dz)) || []) {
+            const d = (t.x - x) ** 2 + (t.z - z) ** 2;
+            if (d < bestD) { bestD = d; best = t; }
+          }
+        }
+      }
+      return best;
+    },
+  };
+}
+
+function pointInPoly(x, z, v) {
+  let inside = false;
+  for (let i = 0, j = v.length - 1; i < v.length; j = i++) {
+    if ((v[i].z > z) !== (v[j].z > z) &&
+        x < ((v[j].x - v[i].x) * (z - v[i].z)) / (v[j].z - v[i].z) + v[i].x) inside = !inside;
+  }
+  return inside;
+}
+
+function distToSegment2(px, pz, ax, az, bx, bz) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const len2 = dx * dx + dz * dz || 1;
+  const t = Math.max(0, Math.min(1, ((px - ax) * dx + (pz - az) * dz) / len2));
+  return (px - ax - t * dx) ** 2 + (pz - az - t * dz) ** 2;
+}
+
+/** Metres from a land point to the nearest corridor bank (centreline distance minus half-width). */
+function distanceToBank(x, z, stations) {
+  let best = null;
+  let bestD = Infinity;
+  const step = Math.max(1, Math.floor(stations.length / 600));
+  for (let i = 0; i < stations.length; i += step) {
+    const s = stations[i];
+    const d2 = (s.x - x) ** 2 + (s.z - z) ** 2;
+    if (d2 < bestD) { bestD = d2; best = s; }
+  }
+  if (!best) return null;
+  return Math.max(0, Math.sqrt(bestD) - (best.halfWidth || 0));
 }
 
 function buildIndex(points, cell) {

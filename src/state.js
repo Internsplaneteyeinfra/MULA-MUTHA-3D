@@ -169,6 +169,8 @@ export const state = {
   active2DAnalysis: null,
   /** Hydrology UI: "current" (left Current Hydrology panel) | "detailed" (MULA–MUTHA HYDROLOGY modal; left panel hidden). */
   hydrologyViewState: "current",
+  /** Active river journey (riverJourney.js CameraMode + chainages), null when the camera is idle/inspecting. */
+  cameraJourney: null,
   cinematicActive: false,
   cinematicPaused: false,
   cinematicProgress: 0,

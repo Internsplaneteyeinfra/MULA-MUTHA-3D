@@ -1,5 +1,6 @@
 import { state } from "../state.js";
 import { sceneName } from "../scene/cinematic.js";
+import { whenChainageSettled } from "../scene/riverJourney.js";
 import { mountProjectIdentity } from "./components/projectIdentity.js";
 import { mountWeatherWidget } from "./components/weatherWidget.js";
 import { mountAnalyticsControls } from "./components/analyticsControls.js";
@@ -38,6 +39,27 @@ import {
 
 const cancelFloodSimulationRequest = cancelJalnetraFloodRequest;
 
+function tipEsc(s) {
+  return String(s ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;");
+}
+
+function tipNum(v, digits, suffix = "") {
+  const n = Number(v);
+  return v != null && v !== "" && Number.isFinite(n) ? `${n.toFixed(digits)}${suffix}` : null;
+}
+
+/** Key/value rows; rows without a value are omitted rather than shown as blanks. */
+function tipRows(rows) {
+  return rows
+    .filter(([, v]) => v != null && String(v).trim() !== "")
+    .map(([k, v]) => `<div class="kv"><span class="k">${tipEsc(k)}</span><span class="v">${tipEsc(v)}</span></div>`)
+    .join("");
+}
+
 export function createTooltip(root) {
   const el = document.createElement("div");
   el.className = "hud tooltip";
@@ -45,11 +67,88 @@ export function createTooltip(root) {
   return {
     show(x, y, info) {
       el.classList.add("visible");
+      
+      const isClickPanel = info.lithologyClick || info.hydrologyInspect || info.garbageSelected || info.rawSurveyPoint;
+      
+      if (!isClickPanel) {
+        let what = "OBJECT";
+        let val = "—";
+        
+        if (info.bankErosionHover) {
+          what = "BANK EROSION";
+          val = info.label || info.class_label || "—";
+        } else if (info.landUseHover) {
+          what = info.layerTitle || "LAND USE";
+          const isVolume = info.siltVolume || /volume/i.test(String(info.layerTitle));
+          if (isVolume) {
+             val = info.value != null ? Number(info.value).toFixed(Number(info.value) >= 10 ? 1 : 2) : (info.label || "—");
+          } else {
+             val = info.label || info.class_label || "—";
+          }
+        } else if (info.landHover) {
+          what = "TERRAIN";
+          val = info.elevationM != null ? info.elevationM.toFixed(1) + " m" : "—";
+        } else if (info.bridgeHover) {
+          what = String(info.name || "BRIDGE");
+          val = info.chainageLabel || "—";
+        } else if (info.fishingHover) {
+          what = String(info.name || "FISHING POINT");
+          val = info.activity || "—";
+        } else if (info.chainageHover) {
+          what = "CHAINAGE";
+          val = info.label || "—";
+        } else if (info.nullahHover) {
+          what = info.joiningHover ? "JOINING STREAM" : "DRAINAGE CHANNEL";
+          val = info.name && !/^unnamed\b/i.test(String(info.name)) ? info.name : info.chainageLabel || "—";
+        } else if (info.hydrologyPollution) {
+          what = "POLLUTION";
+          val = info.displayName || info.name || "—";
+        } else if (info.hydrologySalinity || info.hydrologyWaterQuality) {
+          what = info.hydrologySalinity ? "SALINITY" : info.layerTitle || "WATER QUALITY";
+          const isNumericWq = info.hydrologySalinity || info.layer === "water_quality_tss" || info.layer === "water_quality_ndci";
+          val = info.valueText ? info.valueText : (isNumericWq && info.range ? info.range : info.class_label || info.class || "—");
+        } else if (info.depthZoneHover) {
+          what = "DEPTH ZONE";
+          val = info.depthClass ? info.depthClass + " m" : "—";
+        } else if (info.compact || info.depth != null) {
+          what = "DEPTH";
+          if (info.compact) what = "RIVER";
+          val = info.depth != null ? info.depth.toFixed(2) + " m" : "—";
+        } else if (info.featureType) {
+          const isTree = info.featureType === "tree";
+          what = info.name || (isTree ? "TREE" : "BUILDING");
+          val = info.height != null ? info.height.toFixed(1) + " m" : (info.levels ? info.levels + " levels" : "—");
+        }
+        
+        el.className = "hud tooltip visible"; // clear out previous modifiers
+        el.style.left = `${x + 15}px`;
+        el.style.top = `${y + 15}px`;
+        el.style.padding = "5px 8px";
+        el.style.borderRadius = "5px";
+        el.style.minWidth = "auto";
+        el.style.maxWidth = "150px";
+        el.style.background = "rgba(12, 18, 28, 0.9)";
+        el.style.border = "1px solid rgba(154, 212, 224, 0.2)";
+        el.style.boxShadow = "0 4px 12px rgba(0,0,0,0.5)";
+        
+        el.innerHTML = `
+          <div class="hover-title" style="font-weight: 700; font-size: 9px; color: #8ba3b0; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.05em; line-height: 1.15;">${tipEsc(what)}</div>
+          <div class="hover-value" style="font-size: 11px; color: #ffffff; font-weight: 600; font-family: var(--font-mono, monospace); line-height: 1.15;">(${tipEsc(val)})</div>
+        `;
+        return;
+      }
+
+      // If it's a click panel, restore default tooltip styles
+      el.className = "hud tooltip visible";
+      el.style.padding = "";
+      el.style.borderRadius = "";
+      el.style.minWidth = "";
+      el.style.maxWidth = "";
+      el.style.background = "";
+      el.style.border = "";
+      el.style.boxShadow = "";
+
       el.classList.toggle("tooltip--survey", !!info.rawSurveyPoint);
-      el.classList.toggle(
-        "tooltip--bank-erosion",
-        !!info.bankErosionHover || !!info.landUseHover,
-      );
       el.classList.toggle("tooltip--lithology", !!info.lithologyClick);
       el.classList.toggle("is-garbage-panel", !!info.hydrologyPollution);
       if (info.lithologyClick) {
@@ -117,6 +216,50 @@ export function createTooltip(root) {
               ${sub}
             </div>
           </div>
+        `;
+        return;
+      }
+      if (info.landHover || info.bridgeHover || info.fishingHover) {
+        const swatch = info.landCoverColor
+          ? `<span class="swatch" style="background:${info.landCoverColor}"></span>`
+          : "";
+        const title = info.landHover
+          ? `${swatch}LAND · HOVER`
+          : info.bridgeHover
+            ? `BRIDGE · ${tipEsc(info.name)}`
+            : `FISHING POINT · ${tipEsc(info.name)}`;
+        const rows = info.landHover
+          ? [
+              ["Land cover", info.landCover ? `${info.landCover}${info.lulcYear ? ` (LULC ${info.lulcYear})` : ""}` : null],
+              ["Terrain elevation", tipNum(info.elevationM, 1, " m")],
+              ["Distance to river", tipNum(info.distToRiverM, 0, " m")],
+              ["Nearest chainage", info.chainageLabel],
+            ]
+          : info.bridgeHover
+            ? [
+                ["Road", info.highway],
+                ["Span", tipNum(info.lengthM, 0, " m")],
+                ["Deck width", tipNum(info.widthM, 0, " m")],
+                ["River width here", tipNum(info.channelWidthM, 0, " m")],
+                ["Chainage", info.chainageLabel],
+                ["OSM ID", info.osmId],
+              ]
+            : [
+                ["Depth", tipNum(info.depthM, 2, " m")],
+                ["Activity", info.activity],
+                ["Species", info.species || null],
+                ["Zone radius", tipNum(info.radiusM, 0, " m")],
+                ["Near bridge", info.nearBridge == null ? null : info.nearBridge ? "Yes" : "No"],
+                ["Chainage", info.chainageLabel],
+                ["Status", info.waterValid === false ? "Invalid location" : null],
+              ];
+        el.innerHTML = `
+          <h3>${title}</h3>
+          ${tipRows(rows)}
+          ${tipRows([
+            ["Latitude", tipNum(info.lat, 6, "° N")],
+            ["Longitude", tipNum(info.lon, 6, "° E")],
+          ])}
         `;
         return;
       }
@@ -252,24 +395,37 @@ export function createTooltip(root) {
           <h3>${info.riverMeasure ? "RIVER · MEASURE" : "RIVER · HOVER"}</h3>
           <div class="kv"><span class="k">LAT / LON</span><span class="v">${info.lat.toFixed(6)}° N, ${info.lon.toFixed(6)}° E</span></div>
           ${info.waterSurface != null ? `<div class="kv"><span class="k">WATER</span><span class="v">${info.waterSurface.toFixed(1)} m</span></div>` : ""}
-          ${info.riverbedElevation != null ? `<div class="kv"><span class="k">RIVERBED</span><span class="v">${info.riverbedElevation.toFixed(1)} m</span></div>` : ""}
+          <div class="kv"><span class="k">BED DEPTH</span><span class="v depth">${(-info.depth).toFixed(2)} m</span></div>
+          <div class="kv"><span class="k">MODE</span><span class="v">Relative</span></div>
           <div class="kv"><span class="k">DEPTH</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
+          ${info.riverMeasure ? "" : tipRows([
+            ["DEPTH SOURCE", info.depthSource],
+            ["CHAINAGE", info.chainageLabel],
+            ["WIDTH", tipNum(info.widthM, 1, " m")],
+          ])}
           ${measureRows}
           ${info.flowDirection ? `<div class="kv"><span class="k">FLOW</span><span class="v">${info.flowDirection}${info.flowSpeed != null ? ` · ${info.flowSpeed.toFixed(1)} m/s` : ""}</span></div>` : ""}
+          ${info.layerRows?.length ? `<div class="tip-sep"></div>${tipRows(info.layerRows.map(([k, v]) => [String(k).toUpperCase(), v]))}` : ""}
         `;
         return;
       }
       if (info.featureType) {
+        const isTree = info.featureType === "tree";
         el.innerHTML = `
           <h3>OSM · ${String(info.featureType).toUpperCase()}</h3>
-          <div class="kv"><span class="k">OSM ID</span><span class="v">${info.osmId ?? "—"}</span></div>
-          <div class="kv"><span class="k">Name</span><span class="v">${info.name ?? "—"}</span></div>
-          <div class="kv"><span class="k">Longitude</span><span class="v">${info.lon?.toFixed?.(6) ?? "—"}°</span></div>
-          <div class="kv"><span class="k">Latitude</span><span class="v">${info.lat?.toFixed?.(6) ?? "—"}°</span></div>
-          <div class="kv"><span class="k">Height</span><span class="v">${info.height != null ? Number(info.height).toFixed(1) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Height source</span><span class="v">${info.height_source ?? "—"}</span></div>
-          <div class="kv"><span class="k">Species</span><span class="v">${info.species ?? info.genus ?? "—"}</span></div>
-          <div class="kv"><span class="k">Building</span><span class="v">${info.building ?? "—"}</span></div>
+          ${tipRows([
+            ["Name", info.name],
+            [isTree ? "Species" : "Type", isTree ? info.species ?? info.genus : info.building],
+            ["Height", tipNum(info.height, 1, " m")],
+            ["Height source", info.height_source],
+            ["Levels", info.levels],
+            ["Footprint", tipNum(info.footprintM2, 0, " m²")],
+            ["Amenity", info.amenity],
+            ["Address", info.address],
+            ["OSM ID", info.osmId],
+            ["Latitude", tipNum(info.lat, 6, "° N")],
+            ["Longitude", tipNum(info.lon, 6, "° E")],
+          ])}
         `;
         return;
       }
@@ -342,15 +498,13 @@ export function createTooltip(root) {
         : "";
       el.innerHTML = `
         <h3>${swatch}RIVER INSPECT</h3>
-        <div class="kv"><span class="k">Longitude</span><span class="v">${info.lon.toFixed(6)}°</span></div>
-        <div class="kv"><span class="k">Latitude</span><span class="v">${info.lat.toFixed(6)}°</span></div>
-        <div class="kv"><span class="k">Terrain elevation</span><span class="v">${info.landElevation != null ? info.landElevation.toFixed(1) + " m" : "—"}</span></div>
-        <div class="kv"><span class="k">Water surface</span><span class="v">${info.waterSurface != null ? info.waterSurface.toFixed(1) + " m" : "—"}</span></div>
-        <div class="kv"><span class="k">Riverbed elevation</span><span class="v">${info.riverbedElevation != null ? info.riverbedElevation.toFixed(1) + " m" : "—"}</span></div>
+        <div class="kv"><span class="k">Chainage</span><span class="v">${info.chainage ?? "—"}</span></div>
+        <div class="kv"><span class="k">Lateral offset</span><span class="v">${info.lateralOffset != null ? info.lateralOffset.toFixed(1) + " m" : "—"}</span></div>
         <div class="kv"><span class="k">Water depth</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
+        <div class="kv"><span class="k">Bed relative depth</span><span class="v depth">${(-info.depth).toFixed(2)} m</span></div>
+        <div class="kv"><span class="k">Mode</span><span class="v">Relative</span></div>
         <div class="kv"><span class="k">Depth source</span><span class="v">${info.depthLabel ?? info.kind}</span></div>
         <div class="kv"><span class="k">Flow direction</span><span class="v">${info.flowDirection ?? "—"}</span></div>
-        <div class="kv"><span class="k">Chainage</span><span class="v">${info.chainage ?? "—"}</span></div>
         <div class="kv"><span class="k">Nearest fishing</span><span class="v">${info.nearestFishing ?? "—"}</span></div>
         <div class="kv"><span class="k">Nearest bridge</span><span class="v">${info.nearestBridge ?? "—"}</span></div>
       `;
@@ -808,7 +962,7 @@ export function mountUI(root, {
   document.addEventListener("chainage-select", (event) => {
     const m = Number(event.detail?.meters);
     if (event.detail?.meters != null && Number.isFinite(m)) state.selectedChainageMeters = m;
-    syncSelectedChainage(event.detail?.meters);
+    whenChainageSettled("river-data", m, () => syncSelectedChainage(event.detail?.meters));
     chainRuler.update?.();
     chainStepHud.update?.();
   });

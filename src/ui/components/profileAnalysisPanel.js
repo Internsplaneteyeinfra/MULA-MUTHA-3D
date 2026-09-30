@@ -333,9 +333,9 @@ function renderChart(profile) {
 
   return `<svg class="profile-analysis-svg" viewBox="0 0 ${w} ${h}" role="img" aria-label="A to B elevation profile">
     ${yTicks.join("")}
-    ${pathOf("terrain_elevation", "#E8A13D", 2)}
     ${pathWet("water_surface_elevation", "#5bc8e8")}
     ${pathWet("river_bed_elevation", "#5dcea0")}
+    ${pathOf("terrain_elevation", "#E8A13D", 2.6)}
     <text x="${padL}" y="${h - 6}" class="profile-analysis-tick">A</text>
     <text x="${padL + plotW}" y="${h - 6}" text-anchor="end" class="profile-analysis-tick">B · ${maxX.toFixed(0)} m</text>
     <text x="${padL}" y="11" class="profile-analysis-axis">Elevation (m)</text>

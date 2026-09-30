@@ -33,17 +33,46 @@ export function mountChainageStepHud(root, dataset) {
     </button>
     <div class="chainage-step-center">
       <span class="chainage-step-station" id="chainage-step-station">—</span>
+      <span class="chainage-step-travel" id="chainage-step-travel" hidden></span>
     </div>
     <button type="button" class="chainage-step-btn is-next" id="chainage-step-next"
       title="Forward ${intervalM} m" aria-label="Next ${intervalM} m">
       <span class="chainage-step-arrow" aria-hidden="true">→</span>
     </button>
+    <button type="button" class="chainage-step-btn is-explore" id="chainage-step-explore"
+      title="Explore River — travel 0+000 → end" aria-label="Explore river" aria-pressed="false">
+      <span class="chainage-step-arrow" aria-hidden="true">▶</span>
+    </button>
   `;
   root.appendChild(el);
 
   const stationEl = el.querySelector("#chainage-step-station");
+  const travelEl = el.querySelector("#chainage-step-travel");
   const prevBtn = el.querySelector("#chainage-step-prev");
   const nextBtn = el.querySelector("#chainage-step-next");
+  const exploreBtn = el.querySelector("#chainage-step-explore");
+
+  exploreBtn.addEventListener("click", (e) => {
+    e.stopPropagation();
+    document.dispatchEvent(new CustomEvent("river-explore"));
+  });
+
+  function onJourney(e) {
+    const j = e.detail;
+    el.classList.toggle("is-travelling", !!j);
+    const exploring = j?.mode === "full-river-journey";
+    exploreBtn.classList.toggle("active", exploring);
+    exploreBtn.setAttribute("aria-pressed", String(exploring));
+    exploreBtn.querySelector(".chainage-step-arrow").textContent = exploring ? "■" : "▶";
+    travelEl.hidden = !j;
+    if (!j) {
+      update();
+      return;
+    }
+    stationEl.textContent = metersToStation(j.currentChainage);
+    travelEl.textContent = `${j.direction > 0 ? "▶ downstream" : "◀ upstream"} → ${metersToStation(j.targetChainage)}`;
+  }
+  document.addEventListener("river-journey-progress", onJourney);
 
   function nearestPoint(meters) {
     let best = points[0];
@@ -103,6 +132,7 @@ export function mountChainageStepHud(root, dataset) {
       state.selectedChainageMeters != null;
     el.hidden = !show;
     if (!show) return;
+    if (state.cameraJourney) return;
 
     const idx = currentIndex();
     const label = metersToStation(state.selectedChainageMeters);
@@ -227,6 +257,7 @@ export function mountChainageStepHud(root, dataset) {
 
   function dispose() {
     document.removeEventListener("chainage-select", update);
+    document.removeEventListener("river-journey-progress", onJourney);
     window.removeEventListener("resize", scheduleLayout);
     document.removeEventListener("transitionend", scheduleLayout, true);
     document.removeEventListener("animationend", scheduleLayout, true);

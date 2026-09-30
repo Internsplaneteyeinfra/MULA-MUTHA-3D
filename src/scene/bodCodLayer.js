@@ -246,6 +246,23 @@ export function createBodCodLayer(dataset) {
     getKmToM: () => kmToM,
     getCorridorLenM: () => corridorLenM,
     findReachIndexAtMeters,
+    /** Reach under a chainage (meters) with the class/values currently drawn. */
+    getReachAtMeters(meters) {
+      const seg = segments[findReachIndexAtMeters(meters)];
+      if (!seg) return null;
+      const s = seg.liveSample || seg.reach.today || {};
+      return {
+        id: seg.reach.id,
+        name: seg.reach.name,
+        cls: seg.mesh.userData.cls,
+        bod: Number(s.p50),
+        cod: Number(s.cod_p50),
+        tier: s.tier || null,
+        date: s.date || null,
+        m0: seg.m0,
+        m1: seg.m1,
+      };
+    },
     reachMeters,
     update,
     dispose,

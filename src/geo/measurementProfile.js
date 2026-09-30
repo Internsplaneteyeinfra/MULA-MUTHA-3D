@@ -7,8 +7,7 @@ import { metersDistance, localToLonLat } from "./geoReference.js";
 import { terrainHeightAt, rawDtmElevationAt } from "../scene/terrain.js";
 import { formatStation } from "./chainage.js";
 import { getCurrentHydraulicSnapshot } from "../services/forecastService.js";
-import { SURFACE_Y, bedElevation } from "../scene/river.js";
-import { state } from "../state.js";
+import { SURFACE_Y } from "../scene/river.js";
 
 /**
  * @param {{
@@ -78,21 +77,12 @@ export async function buildMeasurementProfile({ pointA, pointB, dataset, sampleC
     const inWater = !!bath?.inWater;
     const depth_m = inWater && Number.isFinite(bath.depth) ? bath.depth : null;
     const depth_quality = bath?.exact ? "measured" : inWater ? "interpolated" : null;
-    const acrossU = Number.isFinite(bath?.acrossU) ? bath.acrossU : 0.5;
 
-    // Same bed equation as the 3D river mesh (bank trough + depth exaggeration).
-    // Raw Excel depths are often nearly flat across — without bank shaping the chart looks straight.
+    // Profile uses the surveyed depth in metres under the water line (no exaggeration),
+    // so the gap on the chart matches the depth reading.
     const water_surface_elevation = inWater ? SURFACE_Y : null;
     const river_bed_elevation =
-      inWater && Number.isFinite(depth_m)
-        ? bedElevation(
-            depth_m,
-            dataset.minDepth,
-            dataset.maxDepth,
-            acrossU,
-            state.depthExaggeration ?? 2,
-          )
-        : null;
+      inWater && Number.isFinite(depth_m) ? SURFACE_Y - depth_m : null;
 
     if (Number.isFinite(bath?.lat) && bath.lat < closestLat) {
       closestLat = bath.lat;

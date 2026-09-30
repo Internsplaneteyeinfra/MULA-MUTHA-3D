@@ -192,19 +192,26 @@ const frag = /* glsl */ `
 
   ${WAVE_GLSL}
 
-  // Continuous depth tint: Excel on legend scale + strong bank shallowing
+  // Continuous depth tint: Normalized to available range
   vec3 depthColor(float d){
-    float excelT = clamp((d - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
-    excelT = smoothstep(0.0, 1.0, pow(excelT, 0.78));
+    // Normalize using the actual bathymetry depth range
+    float t = clamp((d - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
+    
+    // Smoothly interpolate through the predefined UI preset colors linearly
+    // so the visual bands match the legend exactly.
+    vec3 c;
+    if (t < 0.333) {
+      c = mix(uC0, uC1, smoothstep(0.0, 0.333, t));
+    } else if (t < 0.666) {
+      c = mix(uC1, uC2, smoothstep(0.333, 0.666, t));
+    } else {
+      c = mix(uC2, uC3, smoothstep(0.666, 1.0, t));
+    }
 
-    float edgeAmt = abs(vAcross * 2.0 - 1.0); // 0 centre, 1 edge
-    // Preserve measured depth differences while making the shallow bank visibly lighter.
-    float tt = clamp(excelT * (1.0 - edgeAmt * 0.45) + edgeAmt * 0.08, 0.0, 1.0);
-    tt = mix(0.35 + edgeAmt * 0.05, tt, uShowDepth);
-
-    vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.35, tt));
-    c = mix(c, uC2, smoothstep(0.25, 0.65, tt));
-    c = mix(c, uC3, smoothstep(0.55, 1.0, tt));
+    // Preserve bank lightening to blend gracefully into the terrain edge
+    float edgeAmt = abs(vAcross * 2.0 - 1.0);
+    c = mix(c, uC0, smoothstep(0.85, 1.0, edgeAmt) * 0.6);
+    
     return c;
   }
 
@@ -281,9 +288,27 @@ const frag = /* glsl */ `
     col = mix(baseCol, col, 0.92);
     col = col * (1.0 - fresnel * 0.22) + uSkyColor * fresnel * 0.3 + vec3(0.92, 0.97, 1.0) * spec;
 
-    // Keep normal water clearly blue; cutaway mode below remains translucent.
-    float alpha = mix(0.60, 0.88, smoothstep(0.05, 0.9, depthT)) * uOpacity;
-    // Soften the river mesh outer edge smoothly into the banks
+    // -----------------------------------------------------------
+    // DEPTH-BASED UNDERWATER TRANSMISSION
+    // -----------------------------------------------------------
+    // The riverbed is physically rendered beneath the water surface.
+    // We adjust the water volume's transparency based on the actual measured depth (vDepth)
+    // so that the bed is visible in shallow areas and smoothly obscured in deep areas.
+    
+    // 0-0.5m -> moderate transparent (preserves blue depth color)
+    // 0.5-1.5m -> deeper transparency
+    // 1.5-3.0m -> subtle transparency
+    // >3.0m -> opaque deep water
+    float volumeAlpha = mix(0.55, 0.95, 1.0 - exp(-vDepth * 0.8));
+    float alpha = volumeAlpha * uOpacity;
+
+    // Preserve surface features: 
+    // Specular highlights, fresnel, foam, and crest sparkles should remain opaque
+    // so the surface reflects light robustly and the wave curves remain highly visible.
+    float surfaceFeatures = clamp(fresnel * 3.5 + spec * 6.0 + foam * 3.0 + sparkle * 3.0, 0.0, 1.0);
+    alpha = max(alpha, surfaceFeatures * 0.92);
+
+    // Soften the river mesh outer edge smoothly into the banks to prevent hard polygonal boundaries
     alpha *= 1.0 - smoothstep(0.92, 1.0, edge);
     alpha = mix(alpha, mix(0.12, 0.32, depthT) * uOpacity, uCutaway);
     alpha *= mix(0.08, 1.0, revealMask);
@@ -372,6 +397,11 @@ export function syncWaterMaterial(material) {
 
   u.uAnimEnabled.value = state.waterAnimEnabled !== false ? 1 : 0;
   u.uOverallSpeed.value = num("waterOverallSpeed", preset?.waterOverallSpeed ?? 0.55);
+
+  if (Math.random() < 0.01) {
+    console.log("WATER SHADER DEBUG - minDepth:", u.uMinDepth.value, "maxDepth:", u.uMaxDepth.value);
+  }
+
   u.uPrimaryWaveSpeed.value = num("primaryWaveSpeed", preset?.primaryWaveSpeed ?? 0.035);
   u.uPrimaryWaveAmplitude.value = num("primaryWaveAmplitude", preset?.primaryWaveAmplitude ?? 0.06);
   u.uSecondaryWaveSpeed.value = num("secondaryWaveSpeed", preset?.secondaryWaveSpeed ?? 0.05);
