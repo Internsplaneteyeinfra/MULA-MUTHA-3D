@@ -96,6 +96,23 @@ export class BathymetryService {
     }
     return { depthM: null, provenance: 'UNAVAILABLE' };
   }
+
+  /**
+   * Returns the relative bed elevation (conceptually -depth) at the given location.
+   * Maintains the strict distinction between relative bed and absolute MSL.
+   */
+  getRiverBedAt({ chainageMeters, lateralOffsetMeters }) {
+    const res = this.getBathymetryAt({ chainageMeters, lateralOffsetMeters });
+    if (res.depthM != null) {
+      return {
+        bedElevationRelative: -res.depthM,
+        nearestSurveyDistanceM: null, // Would require spatial index
+        provenance: res.provenance,
+        available: true
+      };
+    }
+    return { bedElevationRelative: null, available: false, provenance: 'UNAVAILABLE' };
+  }
 }
 
 export const bathymetryService = new BathymetryService();

@@ -215,7 +215,7 @@ function renderResult(r, hotspot, dataset) {
     ${pointsSection(r.points)}`;
 }
 
-/** Thickness and volume stay "—": the project has no silt-thickness layer, and neither depth nor the volume surface substitutes for it. */
+/** Shows bathymetric depth from CSV (interpolated) in lieu of true silt thickness. */
 function thicknessSection(r) {
   const vi = r.volumeIndex;
   const viBody =
@@ -224,12 +224,27 @@ function thicknessSection(r) {
          ${kv("Median", formatSiltValue(vi.median, { digits: 1 }))}
          <p class="silt-note">Volume-surface value on 0–${formatSiltValue(vi.scaleMax)} scale · unit unconfirmed in source · not thickness.</p>`
       : note(vi?.note, "Volume surface unavailable");
+
+  // Bathymetric depth section
+  const bd = r.bathymetryDepth;
+  let depthBody;
+  if (bd && bd.status !== "UNAVAILABLE") {
+    depthBody = `
+      <div class="silt-hero" style="font-size:1.5rem"><span>${formatSiltValue(bd.mean, { digits: 2, unit: " m" })}</span> ${badge(bd.status)}</div>
+      ${kv("Min depth", formatSiltValue(bd.min, { digits: 2, unit: " m" }))}
+      ${kv("Max depth", formatSiltValue(bd.max, { digits: 2, unit: " m" }))}
+      ${kv("Mean depth", formatSiltValue(bd.mean, { digits: 2, unit: " m" }))}
+      <p class="silt-note">${escapeSiltHtml(bd.note)}</p>`;
+  } else {
+    depthBody = `${kv("Min / Mean / Max", `${DASH} / ${DASH} / ${DASH}`)}
+     ${note(r.thickness?.note, "No silt thickness layer in project data")}`;
+  }
+
   return `${sec(
-    "Silt Thickness",
-    `${kv("Min / Mean / Max", `${DASH} / ${DASH} / ${DASH}`)}
-     ${note(r.thickness?.note, "No silt thickness layer in project data")}`,
+    `River Bed Depth ${bd ? badge(bd.status) : badge("UNAVAILABLE")}`,
+    depthBody,
   )}
-  ${sec("Estimated Volume", `${kv("Volume", DASH)}${note(r.volumeM3?.note, "Needs thickness in metres")}`)}
+  ${sec("Estimated Silt Volume", `${kv("Volume", DASH)}${note(r.volumeM3?.note, "Needs thickness in metres")}`)}
   ${vi ? sec(`Volume Surface Index ${badge(vi.status)}`, viBody) : ""}`;
 }
 
@@ -254,7 +269,7 @@ function hotspotSection(r, hotspot, dataset) {
       ${kv("Lon", formatSiltValue(hotspot.lon, { digits: 6 }))}
       ${kv("Silt value", isMissingSiltValue(hotspot.classLabel) ? DASH : `${text(hotspot.classLabel)} class`)}
       ${kv("Vol. surface", isMissingSiltValue(hotspot.volumeIndex) ? DASH : `${formatSiltValue(hotspot.volumeIndex, { digits: 1 })} (unit unconfirmed)`)}
-      ${kv("Thickness", DASH)}
+      ${kv("Bed depth", isMissingSiltValue(hotspot.depthM) ? DASH : formatSiltValue(hotspot.depthM, { digits: 2, unit: " m" }))}
       ${kv("Source", text(hotspot.source))}
       ${kv("Verification", badge(hotspot.status))}
     </div>`;
@@ -270,10 +285,14 @@ function hotspotSection(r, hotspot, dataset) {
 function verificationSection(r) {
   const vi = r.volumeIndex;
   const viDerived = vi?.status === "DERIVED";
+  const bd = r.bathymetryDepth;
+  const bdStatus = bd?.status ?? "UNAVAILABLE";
+  const bdNote = bd?.status === "INTERPOLATED" ? "Nearest-neighbour from bathymetry CSV · not silt thickness" : "Not in project data";
   const rows = [
     ["Silt classes", r.silt ? "DERIVED" : "UNAVAILABLE", r.silt ? "Colour-decoded from source KMZ raster" : "No valid cells"],
     ["Volume surface", viDerived ? "DERIVED" : "UNAVAILABLE", viDerived ? "Colour-decoded · unit unconfirmed" : "No decoded values inside polygon"],
-    ["Silt thickness", "UNAVAILABLE", "Not in project data"],
+    ["River bed depth", bdStatus, bdNote],
+    ["Silt thickness", "UNAVAILABLE", "No dedicated silt-thickness layer in project data"],
     ["Field survey", "UNAVAILABLE", "No ground-truth silt observations"],
   ];
   const src = [r.source?.classification, r.source?.volume].filter((s) => !isMissingSiltValue(s));
@@ -308,7 +327,7 @@ function pointsSection(points) {
             <span>Lon</span> <span>${formatSiltValue(p.lon, { digits: 6 })}</span>
             <span>Silt</span> <span>${silt}</span>
             <span>Vol. surface</span> <span>${formatSiltValue(p.volumeIndex, { digits: 1 })}</span>
-            <span>Thickness</span> <span>${DASH}</span>
+            <span>Bed depth</span> <span>${isMissingSiltValue(p.depthM) ? DASH : formatSiltValue(p.depthM, { digits: 2, unit: " m" })}</span>
             <span>Nearest obs.</span> <span>${near}</span>
           </div>
           ${p.status === "UNAVAILABLE" ? note(p.verification, "No nearby verified observation", false, "Verification: ") : ""}

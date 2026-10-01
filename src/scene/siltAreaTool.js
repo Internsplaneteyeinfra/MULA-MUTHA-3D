@@ -227,6 +227,7 @@ export function createSiltAreaTool() {
       const res = await analyzeSiltPolygon(points, {
         classPeriod: scene?.getSiltClassificationPeriod?.() ?? undefined,
         volumePeriod: scene?.getSiltVolumePeriod?.() ?? undefined,
+        dataset: scene?.dataset ?? undefined,
       });
       if (id !== runId || !active) return;
       result = res;
@@ -276,11 +277,10 @@ export function createSiltAreaTool() {
 
   function setActive(on) {
     const next = !!on;
-    if (next === active) return;
     active = next;
     suspended = false;
     syncState();
-    reset({ silent: true });
+    if (!next) reset({ silent: true });
     emit();
   }
 
@@ -343,6 +343,39 @@ export function createSiltAreaTool() {
     selectHotspot,
     update,
     setSuspended,
+    setCutaway: (on) => {
+      const riverMat = window.__MM_SCENE__?.river?.mesh?.material;
+      if (!riverMat) return;
+      if (!on || points.length < 3) {
+        riverMat.clippingPlanes = null;
+        riverMat.clipIntersection = false;
+        return;
+      }
+      const planes = [];
+      for (let i = 0; i < points.length; i++) {
+        const p1 = points[i];
+        const p2 = points[(i + 1) % points.length];
+        const dx = p2.x - p1.x;
+        const dz = p2.z - p1.z;
+        const normal = new THREE.Vector3(-dz, 0, dx).normalize();
+        
+        const cx = points.reduce((s, p) => s + p.x, 0) / points.length;
+        const cz = points.reduce((s, p) => s + p.z, 0) / points.length;
+        const toCenter = new THREE.Vector3(cx - p1.x, 0, cz - p1.z);
+        // We want normals pointing OUTWARD so the interior is on the negative side of all planes.
+        if (normal.dot(toCenter) > 0) {
+          normal.negate();
+        }
+        planes.push(new THREE.Plane().setFromNormalAndCoplanarPoint(normal, new THREE.Vector3(p1.x, 0, p1.z)));
+      }
+      riverMat.clipIntersection = true;
+      riverMat.clippingPlanes = planes;
+    },
+    editSiltAnalysis: () => {
+      reset({ silent: true });
+      hintEl && (hintEl.hidden = false); // this should be handled by event listener
+      emit();
+    },
     isActive: () => active,
     isAccepting: () => active && !suspended,
     getSnapshot: snapshot,

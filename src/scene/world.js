@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { state } from "../state.js";
 import { createTerrain } from "./terrain.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
-import { createRiver, applyExaggeration, applyRiverLook, SURFACE_Y } from "./river.js";
+import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
 import { createVegetationApiLayer } from "./vegetationApiLayer.js";
@@ -43,6 +43,7 @@ import { computeActiveSceneBounds, computeSceneBounds } from "../geo/sceneBounds
 import { createQualityProfile, createThrottle, isLowMemoryDevice } from "../perf/quality.js";
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
+import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { nearestStationU } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
@@ -76,6 +77,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   renderer.shadowMap.type = q.softShadow
     ? THREE.PCFSoftShadowMap
     : THREE.BasicShadowMap;
+  renderer.localClippingEnabled = true;
 
   if (q.tier !== "high") {
     console.info(
@@ -158,9 +160,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     sun.castShadow = q.shadows && state.skyEnabled !== false;
   }
 
-  const terrain = createTerrain(dataset);
+  const terrain = await createTerrain(dataset);
   const kmlSkeleton = createKmlSkeleton(dataset);
   const river = createRiver(dataset);
+  const landCover = await loadLulcClassGrid();
+  clipRiverToHydrology(river, landCover);
+  logCorridorLandCover(dataset, landCover);
   const coordinateGrid = createCoordinateGrid(dataset);
   const riverBanks = createRiverBankOverlay(dataset);
   const drainageLayer = createDrainageLayer(dataset);
@@ -210,19 +215,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(terrain.mesh);
   if (terrain.surround) scene.add(terrain.surround);
   scene.add(terrain.outline);
-  scene.add(kmlSkeleton);
+  // scene.add(kmlSkeleton);
   scene.add(river.bed);
   scene.add(river.walls);
   scene.add(river.mesh);
   if (river.wire) scene.add(river.wire);
-  scene.add(particles.mesh);
+  // scene.add(particles.mesh);
   scene.add(waterFx.group);
   scene.add(riverRain.group);
   scene.add(chainage.group);
   scene.add(bridges);
   scene.add(validation);
   scene.add(coordinateGrid);
-  scene.add(riverBanks);
+  // scene.add(riverBanks);
   scene.add(drainageLayer);
   scene.add(mainStemLayer);
   scene.add(depthZonesLayer);
@@ -1562,6 +1567,13 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       siltAreaTool.reset();
       return siltAreaTool.getSnapshot();
     },
+    editSiltAnalysis() {
+      if (siltAreaTool.editSiltAnalysis) siltAreaTool.editSiltAnalysis();
+      return siltAreaTool.getSnapshot();
+    },
+    setSiltCutaway(on) {
+      if (siltAreaTool.setCutaway) siltAreaTool.setCutaway(on);
+    },
     addSiltAnalysisPoint(x, z) {
       return siltAreaTool.addPoint(x, z);
     },
@@ -2133,4 +2145,35 @@ function createRawSurveyPointLayer(dataset) {
   };
 
   return layer;
+}
+
+/** Dev check: LULC class across the Sangam–Bund Garden reach, not the corridor polygon. */
+function logCorridorLandCover(dataset, lulc) {
+  if (!lulc?.classAtLocal || !dataset?.chainage?.length) return;
+  const stations = dataset.corridor?.stations || [];
+  const marks = [0, 500, 620, 1000, 1270, 1500, 2000];
+  const rows = [];
+  for (const m of marks) {
+    const p = interpolateChainage(dataset.chainage, m);
+    if (!p) continue;
+    let st = stations[0];
+    let best = Infinity;
+    for (let i = 0; i < stations.length; i += 3) {
+      const s = stations[i];
+      const d = (s.x - p.x) ** 2 + (s.z - p.z) ** 2;
+      if (d < best) { best = d; st = s; }
+    }
+    const px = st ? -st.flowZ : 0;
+    const pz = st ? st.flowX : 0;
+    const at = (dist) => lulc.classAtLocal(p.x + px * dist, p.z + pz * dist);
+    rows.push({
+      ch: m,
+      left90: at(-90),
+      left40: at(-40),
+      center: at(0),
+      right40: at(40),
+      right90: at(90),
+    });
+  }
+  console.info("[land-cover] CH 0+000–2+000", rows);
 }

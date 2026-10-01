@@ -12,6 +12,7 @@ import { HydraulicProfileEngine } from "./hydraulicProfileEngine.js";
 import { telemetryService, GAUGE_STATIONS } from "./hydrologyTelemetryService.js";
 import { hydrologyStore } from "./hydrologyStore.js";
 import { PROVENANCE_STATUS } from "./hydrologyContract.js";
+import { startLiveHydrologyPolling, subscribeLiveHydrology } from "./liveHydrologyService.js";
 
 let _engineInstance = null;
 let _initPromise = null;
@@ -41,6 +42,24 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
       }
 
       _engineInstance = new HydraulicProfileEngine(stations, soundings);
+
+      // Start live Open-Meteo polling (every 15 min, free, no API key)
+      startLiveHydrologyPolling();
+
+      // Re-solve hydraulic profile whenever new rainfall data arrives
+      subscribeLiveHydrology((liveData) => {
+        if (liveData?.available && Number.isFinite(liveData.Q_total)) {
+          refreshHydrologyProfile({
+            discharge_m3s: liveData.Q_total,
+            source: `LIVE_RAINFALL_RUNOFF — ${liveData.weatherDescription ?? ""} — ${liveData.currentRain_mm_hr ?? 0} mm/hr`,
+            provenance: PROVENANCE_STATUS.LIVE,
+          });
+          console.info(
+            `[LiveHydrology] Profile updated: Q=${liveData.Q_total.toFixed(1)} m³/s`,
+            `(rain=${liveData.currentRain_mm_hr} mm/hr, baseflow=${liveData.Q_baseflow} m³/s)`
+          );
+        }
+      });
 
       // Attempt initial solve with verified telemetry or initial baseline
       await refreshHydrologyProfile();
@@ -76,11 +95,20 @@ export async function refreshHydrologyProfile(customParams = {}) {
       source = "CWC_BUND_GARDEN_TELEMETRY";
       provenance = bundObs.discharge.status;
     } else {
-      // Nominal seasonal baseline for Pune urban corridor (~65 m³/s baseflow)
-      // Clearly marked as VERIFIED baseline, NEVER claiming observed without telemetry
-      Q = 65.0;
-      source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
-      provenance = PROVENANCE_STATUS.VERIFIED;
+      // Try live Open-Meteo rainfall-derived discharge
+      const { getCachedLiveHydrology } = await import("./liveHydrologyService.js");
+      const live = getCachedLiveHydrology();
+      if (live?.available && Number.isFinite(live.Q_total) && live.Q_total > 0) {
+        Q = live.Q_total;
+        source = `LIVE_RAINFALL_RUNOFF — ${live.weatherDescription ?? ""} — ${live.currentRain_mm_hr ?? 0} mm/hr`;
+        provenance = PROVENANCE_STATUS.LIVE;
+      } else {
+        // Nominal seasonal baseline for Pune urban corridor (~65 m³/s baseflow)
+        // Clearly marked as MODELLED baseline, NEVER claiming observed without telemetry
+        Q = 65.0;
+        source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
+        provenance = PROVENANCE_STATUS.MODELLED ?? PROVENANCE_STATUS.VERIFIED;
+      }
     }
   }
 

@@ -4,88 +4,121 @@
  * Path orientation follows geometry only (tip A → tip B by chainage).
  * No place-name assumptions.
  */
+import * as THREE from "three";
 
 export function buildCorridorFromKml(ringLocal, depthPoints, opts = {}) {
   const nStations = opts.nStations ?? 720;
   const across = opts.across ?? 40;
   const centerlineLocal = opts.centerlineLocal || null;
-
-  const closed = closeRing(ringLocal);
-  const { left, right, tipA, tipB } = splitBanks(closed);
-  const L = resample(left, nStations);
-  const R = resample(right, nStations);
+  const profileStations = opts.profileStations || null;
 
   let stations = [];
-  for (let i = 0; i < nStations; i++) {
-    const lx = L[i].x;
-    const lz = L[i].z;
-    const rx = R[i].x;
-    const rz = R[i].z;
-    const x = (lx + rx) * 0.5;
-    const z = (lz + rz) * 0.5;
-    const half = Math.hypot(rx - lx, rz - lz) * 0.5;
-    stations.push({
-      x,
-      z,
-      leftX: lx,
-      leftZ: lz,
-      rightX: rx,
-      rightZ: rz,
-      // Exact bank-to-bank half-width from KML (no artificial shrink)
-      halfWidth: Math.max(8, half),
-      width: Math.max(16, half * 2),
-    });
-  }
+  const closed = closeRing(ringLocal);
+  let tipA = null;
+  let tipB = null;
 
-  // Orient path so chainage increases downstream (geographic east for Mutha).
-  // Use tip easting (CRS metres), not local X sign.
-  let shouldReverse = false;
-  if (Number.isFinite(tipA?.easting) && Number.isFinite(tipB?.easting)) {
-    // stations[0] sits at tipA; reverse if that tip is already farther east
-    shouldReverse = tipA.easting > tipB.easting;
-  } else {
-    const dx = stations[stations.length - 1].x - stations[0].x;
-    const dz = stations[stations.length - 1].z - stations[0].z;
-    shouldReverse = Math.abs(dx) >= Math.abs(dz) ? dx < 0 : dz < 0;
-  }
-  if (shouldReverse) {
-    stations.reverse();
-    for (const s of stations) {
-      const tx = s.leftX;
-      const tz = s.leftZ;
-      s.leftX = s.rightX;
-      s.leftZ = s.rightZ;
-      s.rightX = tx;
-      s.rightZ = tz;
+  if (profileStations && profileStations.length > 2) {
+    tipA = profileStations[0];
+    tipB = profileStations[profileStations.length - 1];
+
+    for (let i = 0; i < profileStations.length; i++) {
+      const ps = profileStations[i];
+      stations.push({
+        x: ps.x,
+        z: ps.z,
+        width: ps.width_m,
+        halfWidth: ps.width_m * 0.5,
+        chainage_m: ps.chainage_m,
+      });
     }
+
+    assignTangents(stations);
+
+    for (let i = 0; i < stations.length; i++) {
+      const s = stations[i];
+      const px = -s.flowZ;
+      const pz = s.flowX;
+      s.leftX = s.x - px * s.halfWidth;
+      s.leftZ = s.z - pz * s.halfWidth;
+      s.rightX = s.x + px * s.halfWidth;
+      s.rightZ = s.z + pz * s.halfWidth;
+    }
+
+    // Light smoothing to prevent small tangent wiggles
+    smoothBanks(stations, 2);
+    assignTangents(stations);
+    expandBanks(stations, 1.012);
+  } else {
+    const banks = splitBanks(closed);
+    tipA = banks.tipA;
+    tipB = banks.tipB;
+    const L = resample(banks.left, nStations);
+    const R = resample(banks.right, nStations);
+
+    for (let i = 0; i < nStations; i++) {
+      const lx = L[i].x;
+      const lz = L[i].z;
+      const rx = R[i].x;
+      const rz = R[i].z;
+      const x = (lx + rx) * 0.5;
+      const z = (lz + rz) * 0.5;
+      const half = Math.hypot(rx - lx, rz - lz) * 0.5;
+      stations.push({
+        x,
+        z,
+        leftX: lx,
+        leftZ: lz,
+        rightX: rx,
+        rightZ: rz,
+        halfWidth: Math.max(8, half),
+        width: Math.max(16, half * 2),
+      });
+    }
+
+    let shouldReverse = false;
+    if (Number.isFinite(tipA?.easting) && Number.isFinite(tipB?.easting)) {
+      shouldReverse = tipA.easting > tipB.easting;
+    } else {
+      const dx = stations[stations.length - 1].x - stations[0].x;
+      const dz = stations[stations.length - 1].z - stations[0].z;
+      shouldReverse = Math.abs(dx) >= Math.abs(dz) ? dx < 0 : dz < 0;
+    }
+    if (shouldReverse) {
+      stations.reverse();
+      for (const s of stations) {
+        const tx = s.leftX;
+        const tz = s.leftZ;
+        s.leftX = s.rightX;
+        s.leftZ = s.rightZ;
+        s.rightX = tx;
+        s.rightZ = tz;
+      }
+    }
+
+    smoothBanks(stations, 1);
+    if (centerlineLocal?.length >= 2) {
+      snapStationsToCenterline(stations, centerlineLocal);
+    }
+
+    assignTangents(stations);
+    fitBanksToKmlRing(stations, closed);
+    expandBanks(stations, 1.012);
+    smoothBanks(stations, 8);
+    assignTangents(stations);
   }
 
-  // Minimal smooth — preserve KML bank-to-bank width (heavy smooth shrinks water)
-  smoothBanks(stations, 1);
-
-  // Snap midpoints to KML centerline; keep measured bank half-widths
-  if (centerlineLocal?.length >= 2) {
-    snapStationsToCenterline(stations, centerlineLocal);
-  }
-
-  // Rebuild left/right banks from the full KML polygon face so every station
-  // spans bank-to-bank. Prevents dry "un-rivered" gaps inside the KML ring.
-  assignTangents(stations);
-  fitBanksToKmlRing(stations, closed);
-
-  // Tiny outward pad so triangles fully cover the KML face (no land peek-through)
-  expandBanks(stations, 1.012);
-
-  // Natural edge smoothing that retains true bank width & DTM channel alignment
-  smoothBanks(stations, 8);
-
-  assignTangents(stations);
-
-  const chainage = [0];
-  for (let i = 1; i < stations.length; i++) {
-    chainage.push(
-      chainage[i - 1] + Math.hypot(stations[i].x - stations[i - 1].x, stations[i].z - stations[i - 1].z),
-    );
+  const chainage = [];
+  if (stations.length > 0 && typeof stations[0].chainage_m === 'number') {
+    for (let i = 0; i < stations.length; i++) {
+      chainage.push(stations[i].chainage_m);
+    }
+  } else {
+    chainage.push(0);
+    for (let i = 1; i < stations.length; i++) {
+      chainage.push(
+        chainage[i - 1] + Math.hypot(stations[i].x - stations[i - 1].x, stations[i].z - stations[i - 1].z),
+      );
+    }
   }
   const length = chainage[chainage.length - 1] || 1;
 
@@ -181,24 +214,11 @@ function walk(ring, from, to, reverse = false) {
 }
 
 function resample(pts, n) {
-  const acc = [0];
-  for (let i = 1; i < pts.length; i++) {
-    acc.push(acc[i - 1] + Math.hypot(pts[i].x - pts[i - 1].x, pts[i].z - pts[i - 1].z));
-  }
-  const total = acc[acc.length - 1] || 1;
-  const out = [];
-  let j = 0;
-  for (let i = 0; i < n; i++) {
-    const d = (total * i) / (n - 1);
-    while (j < acc.length - 2 && acc[j + 1] < d) j++;
-    const span = Math.max(1e-6, acc[j + 1] - acc[j]);
-    const u = (d - acc[j]) / span;
-    out.push({
-      x: pts[j].x + (pts[j + 1].x - pts[j].x) * u,
-      z: pts[j].z + (pts[j + 1].z - pts[j].z) * u,
-    });
-  }
-  return out;
+  if (pts.length < 2) return pts.map(p => ({ x: p.x, z: p.z }));
+  const vec3Pts = pts.map(p => new THREE.Vector3(p.x, 0, p.z));
+  const curve = new THREE.CatmullRomCurve3(vec3Pts, false, 'catmullrom', 0.5);
+  const spaced = curve.getSpacedPoints(n - 1);
+  return spaced.map(p => ({ x: p.x, z: p.z }));
 }
 
 function smoothBanks(stations, passes) {
@@ -378,6 +398,8 @@ function rasterize(stations, across, depthPoints) {
   const exact = [];
   const bedElev = [];
 
+  const nearestDArr = [];
+
   const index = spatialIndex(depthPoints);
 
   for (let s = 0; s < stations.length; s++) {
@@ -397,16 +419,23 @@ function rasterize(stations, across, depthPoints) {
       curve.push(st.curve || 0);
       exact.push(sample.exact ? 1 : 0);
       bedElev.push(-sample.depth);
+      nearestDArr.push(sample.nearestD);
     }
   }
 
   const cols = across + 1;
   const indices = [];
+  const maxD2 = 45 * 45; // Max 45m from surveyed bathymetry to be considered water
+
   for (let s = 0; s < stations.length - 1; s++) {
     for (let a = 0; a < across; a++) {
       const i0 = s * cols + a;
-      indices.push(i0, i0 + cols, i0 + 1);
-      indices.push(i0 + 1, i0 + cols, i0 + cols + 1);
+      const i1 = i0 + 1;
+      const i2 = i0 + cols;
+      const i3 = i0 + cols + 1;
+      
+      indices.push(i0, i2, i1);
+      indices.push(i1, i2, i3);
     }
   }
 
@@ -494,7 +523,7 @@ function rasterize(stations, across, depthPoints) {
   };
 }
 
-function spatialIndex(points) {
+export function spatialIndex(points) {
   const cell = 80;
   const map = new Map();
   for (const p of points) {
@@ -507,7 +536,7 @@ function spatialIndex(points) {
   return { cell, map };
 }
 
-function neighbors(index, x, z) {
+export function neighbors(index, x, z) {
   const { cell, map } = index;
   const kx = Math.floor(x / cell);
   const kz = Math.floor(z / cell);
@@ -541,7 +570,7 @@ function sampleDepth(x, z, points, index, station) {
     n++;
   }
   if (n >= 2 && wSum > 0) {
-    return { depth: dSum / wSum, exact: nearestD < 2.5 * 2.5 };
+    return { depth: dSum / wSum, exact: nearestD < 2.5 * 2.5, nearestD };
   }
 
   // Wider fallback across the full point set (capped)
@@ -557,7 +586,7 @@ function sampleDepth(x, z, points, index, station) {
     n2++;
     if (n2 > 60) break;
   }
-  if (n2 > 0) return { depth: d2s / w2, exact: false };
+  if (n2 > 0) return { depth: d2s / w2, exact: false, nearestD: 100 * 100 };
 
   // Channel-shaped fallback from station width (continuous across banks)
   const u = station
@@ -567,7 +596,7 @@ function sampleDepth(x, z, points, index, station) {
       )
     : 0.5;
   const midDepth = 1.75;
-  return { depth: midDepth * (0.55 + 0.45 * (1 - u * u)), exact: false };
+  return { depth: midDepth * (0.55 + 0.45 * (1 - u * u)), exact: false, nearestD: Infinity };
 }
 
 export function detectBridgeSites(stations) {

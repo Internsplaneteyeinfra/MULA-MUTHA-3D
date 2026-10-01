@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createWaterMaterial } from "./waterShader.js";
 import { state } from "../state.js";
+import { wseSpatialService } from "../services/hydrology/wseSpatialService.js";
 
 export const SURFACE_Y = 9.4;
 /** Minimum metres the riverbed stays below the water surface (prevents poke-through). */
@@ -92,10 +93,6 @@ export function createRiver(dataset) {
   const mesh = new THREE.Mesh(surfGeo, material);
   mesh.name = "riverSurface";
   mesh.renderOrder = 4;
-  // One continuous surface — avoid z-fight with bed / walls
-  material.polygonOffset = true;
-  material.polygonOffsetFactor = -1;
-  material.polygonOffsetUnits = -1;
 
   const bedGeo = new THREE.BufferGeometry();
   bedGeo.setAttribute("position", new THREE.Float32BufferAttribute(bedPos, 3));
@@ -156,6 +153,134 @@ export function createRiver(dataset) {
   wire.renderOrder = 20;
 
   return { mesh, material, bed, walls, wire, bathymetry: bath };
+}
+
+/**
+ * Drop water and bed triangles whose centroid is physically dry based on local depth.
+ * depth = WSE - bed. If depth <= 0, the triangle is deleted.
+ * LULC is used only as a secondary constraint.
+ *
+ * SAFETY RULE: If wseSpatialService has no hydraulic profile yet (loaded async),
+ * default every triangle to wet=true so the river is never accidentally erased.
+ * The hydraulic clip will run again once the profile loads via hydrologyStore listener.
+ */
+export function clipRiverToHydrology(river, lulc) {
+  if (!river?.bathymetry) return;
+  const bath = river.bathymetry;
+  const src = bath.indices;
+  const pos = bath.positions;
+  const chainages = bath.chainages || new Float32Array(pos.length / 3);
+  const lateralOffsets = bath.lateralOffsets || new Float32Array(pos.length / 3);
+
+  // Check if hydraulic profile is available at all before doing depth checks.
+  const profileReady = wseSpatialService._cachedRecords != null &&
+                       wseSpatialService._cachedRecords.length > 0;
+
+  const keep = [];
+  let removed = 0;
+  for (let t = 0; t < src.length; t += 3) {
+    const a = src[t];
+    const b = src[t + 1];
+    const c = src[t + 2];
+
+    const x   = (pos[a * 3] + pos[b * 3] + pos[c * 3]) / 3;
+    const z   = (pos[a * 3 + 2] + pos[b * 3 + 2] + pos[c * 3 + 2]) / 3;
+    const cls = lulc?.classAtLocal?.(x, z);
+
+    // If LULC explicitly says non-water land (not just unclassified), remove it
+    if (cls && cls !== "water" && cls !== "wetland") {
+      removed++;
+      continue;
+    }
+
+    // Hydraulic wet/dry — only applied when profile data exists
+    if (profileReady) {
+      const ch  = (chainages[a] + chainages[b] + chainages[c]) / 3;
+      const off = (lateralOffsets[a] + lateralOffsets[b] + lateralOffsets[c]) / 3;
+      const depthInfo = wseSpatialService.getDepthAt(ch, off);
+      if (!depthInfo.wetted && depthInfo.depthM === 0) {
+        // Only remove if we have a confident dry reading, not just unavailable
+        if (depthInfo.provenance !== "WSE_UNAVAILABLE") {
+          removed++;
+          continue;
+        }
+      }
+    }
+    // If no profile or profile says wet or unavailable → keep triangle
+    keep.push(a, b, c);
+  }
+
+  const index = new Uint32Array(keep);
+  for (const geo of [river.mesh.geometry, river.bed.geometry, river.wire?.geometry]) {
+    if (!geo) continue;
+    geo.setIndex(new THREE.BufferAttribute(index.slice(), 1));
+    smoothMeshBoundary(geo, 4);
+    geo.computeVertexNormals();
+  }
+  console.info("[river] water clipped to Hydrology", {
+    kept: keep.length / 3, removed, profileReady
+  });
+}
+
+function smoothMeshBoundary(geo, iterations = 3) {
+  const pos = geo.getAttribute("position");
+  const idx = geo.getIndex();
+  if (!pos || !idx) return;
+
+  const indices = idx.array;
+  const edgeCount = new Map();
+  
+  // 1. Find all edges
+  function addEdge(a, b) {
+    const key = a < b ? `${a},${b}` : `${b},${a}`;
+    const entry = edgeCount.get(key) || { count: 0, a, b };
+    entry.count++;
+    edgeCount.set(key, entry);
+  }
+  
+  for (let i = 0; i < indices.length; i += 3) {
+    addEdge(indices[i], indices[i + 1]);
+    addEdge(indices[i + 1], indices[i + 2]);
+    addEdge(indices[i + 2], indices[i]);
+  }
+
+  // 2. Identify boundary vertices and their boundary neighbors
+  const boundaryAdj = new Map();
+  for (const { count, a, b } of edgeCount.values()) {
+    if (count === 1) { // Boundary edge
+      if (!boundaryAdj.has(a)) boundaryAdj.set(a, []);
+      if (!boundaryAdj.has(b)) boundaryAdj.set(b, []);
+      boundaryAdj.get(a).push(b);
+      boundaryAdj.get(b).push(a);
+    }
+  }
+
+  // 3. Laplacian smoothing on boundary vertices only
+  const newPos = new Float32Array(pos.array);
+  for (let iter = 0; iter < iterations; iter++) {
+    const tempPos = new Float32Array(newPos);
+    for (const [v, neighbors] of boundaryAdj.entries()) {
+      if (neighbors.length < 2) continue; // Skip endpoints or errors
+      
+      let sumX = 0, sumZ = 0;
+      for (const n of neighbors) {
+        sumX += tempPos[n * 3];
+        sumZ += tempPos[n * 3 + 2];
+      }
+      
+      // Move 50% towards the average of neighbors (Chaikin-like softening)
+      const avgX = sumX / neighbors.length;
+      const avgZ = sumZ / neighbors.length;
+      newPos[v * 3] = tempPos[v * 3] * 0.5 + avgX * 0.5;
+      newPos[v * 3 + 2] = tempPos[v * 3 + 2] * 0.5 + avgZ * 0.5;
+    }
+  }
+  
+  for (let i = 0; i < pos.count; i++) {
+    pos.setX(i, newPos[i * 3]);
+    pos.setZ(i, newPos[i * 3 + 2]);
+  }
+  pos.needsUpdate = true;
 }
 
 function createBoundaryWalls(bath, dataset, exag) {

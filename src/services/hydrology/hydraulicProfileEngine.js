@@ -84,14 +84,35 @@ export class HydraulicProfileEngine {
       const { section, priority, provenance: xsProvenance, confidence: xsConfidence } =
         crossSectionRegistry.resolveSection(st, sounding?.depth_m);
 
-      // Solve normal depth: Q = (1/n) * A * R^(2/3) * S^(1/2)
-      const denom = (2.0 / 3.0) * st.width_m * sqrtS;
-      const h_normal = Math.max(0.1, Math.pow((Q * manningN) / Math.max(1e-4, denom), 0.6));
-
-      // Area, Wetted Perimeter, Hydraulic Radius
-      const areaVal = section ? section.computeWettedArea(h_normal) : null;
-      const area = areaVal?.value || ((2.0 / 3.0) * st.width_m * h_normal);
-      const perim = section ? section.computeWettedPerimeter(h_normal) : (st.width_m + (8.0 * h_normal * h_normal) / (3.0 * st.width_m));
+      // Solve normal depth iteratively if cross-section data is available
+      let h_normal = 0.1;
+      let area = 0;
+      let perim = 0;
+      
+      if (section && typeof section.computeWettedArea === 'function') {
+        // Bisection method to find h_normal where (1/n) * A * (A/P)^(2/3) * sqrtS == Q
+        let lo = 0.01, hi = 20.0;
+        for (let iter = 0; iter < 30; iter++) {
+          const mid = (lo + hi) / 2;
+          const A = section.computeWettedArea(mid);
+          const P = section.computeWettedPerimeter(mid);
+          if (P > 0) {
+            const Q_calc = (1.0 / manningN) * A * Math.pow(A / P, 2.0 / 3.0) * sqrtS;
+            if (Q_calc < Q) lo = mid;
+            else hi = mid;
+          } else {
+            hi = mid;
+          }
+        }
+        h_normal = (lo + hi) / 2;
+        area = section.computeWettedArea(h_normal) || ((2.0 / 3.0) * st.width_m * h_normal);
+        perim = section.computeWettedPerimeter(h_normal) || (st.width_m + (8.0 * h_normal * h_normal) / (3.0 * st.width_m));
+      } else {
+        const denom = (2.0 / 3.0) * st.width_m * sqrtS;
+        h_normal = Math.max(0.1, Math.pow((Q * manningN) / Math.max(1e-4, denom), 0.6));
+        area = ((2.0 / 3.0) * st.width_m * h_normal);
+        perim = (st.width_m + (8.0 * h_normal * h_normal) / (3.0 * st.width_m));
+      }
       const r_hyd = perim > 0 ? area / perim : null;
 
       // Flow Velocity v = Q / A

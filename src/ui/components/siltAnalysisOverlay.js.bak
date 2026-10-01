@@ -1,0 +1,256 @@
+import { X, MousePointerSquareDashed, Trash2, MousePointer2 } from "lucide";
+import { lucideHtml } from "../icons.js";
+import { state } from "../../state.js";
+import {
+  SILT_DASH as DASH,
+  escapeSiltHtml,
+  formatSiltArea,
+} from "./siltFormat.js";
+
+const INSTRUCTION = "Select 4 points around the area to analyze";
+
+export function mountSiltAnalysisOverlay(root, dataset) {
+  const panel = document.createElement("div");
+  panel.className = "silt-pro-overlay";
+  panel.id = "silt-pro-overlay";
+  panel.hidden = true;
+  
+  panel.innerHTML = `
+    <div class="silt-pro-top-bar">
+      <div class="silt-pro-title">
+        <span class="icon">🟫</span>
+        <h2>SILT AREA ANALYSIS</h2>
+      </div>
+      
+      <div class="silt-pro-toolbar">
+        <button class="silt-pro-btn" data-silt="edit">
+          ${lucideHtml(MousePointerSquareDashed, { size: 14 })} <span>Edit Points</span>
+        </button>
+        <button class="silt-pro-btn" data-silt="reset">
+          ${lucideHtml(Trash2, { size: 14 })} <span>Clear</span>
+        </button>
+        <div class="silt-pro-divider"></div>
+        <button class="silt-pro-btn silt-pro-btn--toggle active" data-silt="mode-surface">Surface</button>
+        <button class="silt-pro-btn silt-pro-btn--toggle" data-silt="mode-cutaway">Cutaway</button>
+        <div class="silt-pro-divider"></div>
+        <button class="silt-pro-btn silt-pro-btn--danger" data-silt="close">
+          ${lucideHtml(X, { size: 14 })} <span>Close</span>
+        </button>
+      </div>
+    </div>
+    
+    <div class="silt-pro-hint-banner" id="silt-pro-hint">
+      <div class="hint-content">
+        ${lucideHtml(MousePointer2, { size: 16 })}
+        <span id="silt-pro-hint-text">${INSTRUCTION}</span>
+      </div>
+    </div>
+
+    <!-- MAIN LEGEND (FLOATING RIGHT) -->
+    <div class="silt-pro-floating-legend" id="silt-pro-legend" hidden>
+      <h4>SILT / DEPOSITION</h4>
+      <div class="legend-subtitle">Spatial Analysis Index</div>
+      <ul class="legend-list" id="silt-pro-legend-list"></ul>
+    </div>
+
+    <!-- BOTTOM DASHBOARD -->
+    <div class="silt-pro-dashboard" id="silt-pro-dashboard" hidden>
+      <div class="dashboard-grid">
+        
+        <!-- COL 1: CROSS SECTION -->
+        <div class="dashboard-panel">
+          <div class="panel-header">CROSS-SECTION VIEW (Along P1 - P2)</div>
+          <div class="panel-body chart-container" id="silt-cross-section">
+             <div class="chart-y-axis">
+               <span>8m</span><span>4m</span><span>0m</span><span>-4m</span>
+             </div>
+             <div class="chart-area" id="silt-cs-canvas"></div>
+             <div class="chart-x-axis">
+               <span>0m</span><span>50m</span><span>100m</span><span>150m</span><span>200m</span>
+             </div>
+          </div>
+        </div>
+
+        <!-- COL 2: SILT PROFILE -->
+        <div class="dashboard-panel">
+          <div class="panel-header">SILT PROFILE (Along P1 - P2)</div>
+          <div class="panel-body chart-container" id="silt-profile">
+             <div class="chart-y-axis" id="silt-profile-y-axis">
+               <span>High</span><span>Med</span><span>Low</span><span>None</span>
+             </div>
+             <div class="chart-area" id="silt-prof-canvas"></div>
+             <div class="chart-x-axis">
+               <span>0m</span><span>50m</span><span>100m</span><span>150m</span><span>200m</span>
+             </div>
+          </div>
+        </div>
+
+        <!-- COL 3: STATISTICS & COMPOSITION -->
+        <div class="dashboard-panel panel-split">
+          <div class="stats-section">
+            <div class="panel-header">SELECTED AREA STATISTICS</div>
+            <div class="stats-grid" id="silt-pro-stats"></div>
+            
+            <div class="panel-header mt-2">DATA STATUS</div>
+            <div class="status-grid">
+              <div class="kv"><span>Silt Analysis</span><span class="badge derived">DERIVED</span></div>
+              <div class="kv"><span>Bathymetry</span><span class="badge observed">OBSERVED</span></div>
+              <div class="kv"><span>WSE</span><span class="badge modelled">MODELLED</span></div>
+              <div class="kv"><span>Thickness</span><span class="badge unavailable">UNAVAILABLE</span></div>
+            </div>
+          </div>
+          
+          <div class="composition-section">
+            <div class="panel-header">SEDIMENT COMPOSITION</div>
+            <div class="composition-body">
+              <div class="missing-data">${DASH}<br/>Data unavailable</div>
+            </div>
+            
+            <div class="panel-header mt-2">ESTIMATED VOLUME</div>
+            <div class="composition-body">
+              <div class="missing-data">${DASH}<br/>Thickness data unavailable</div>
+            </div>
+          </div>
+        </div>
+        
+      </div>
+    </div>
+  `;
+  
+  root.appendChild(panel);
+
+  const hintEl = panel.querySelector("#silt-pro-hint");
+  const hintText = panel.querySelector("#silt-pro-hint-text");
+  const dashboard = panel.querySelector("#silt-pro-dashboard");
+  const legend = panel.querySelector("#silt-pro-legend");
+  const statsGrid = panel.querySelector("#silt-pro-stats");
+  const legendList = panel.querySelector("#silt-pro-legend-list");
+  
+  let active = false;
+  let snap = null;
+
+  const scene = () => window.__MM_SCENE__;
+
+  function open() {
+    active = true;
+    panel.hidden = false;
+    scene()?.setSiltAnalysisActive?.(true);
+    document.body.classList.add("silt-analysis-mode");
+  }
+
+  function close() {
+    active = false;
+    panel.hidden = true;
+    scene()?.setSiltAnalysisActive?.(false);
+    document.body.classList.remove("silt-analysis-mode");
+  }
+
+  panel.addEventListener("click", (e) => {
+    const btn = e.target.closest("[data-silt]");
+    if (btn) {
+      if (btn.dataset.silt === "close") close();
+      else if (btn.dataset.silt === "reset") scene()?.resetSiltAnalysis?.();
+      else if (btn.dataset.silt === "edit") {
+         scene()?.editSiltAnalysis?.();
+      }
+      else if (btn.dataset.silt === "mode-surface") {
+         panel.querySelectorAll('.silt-pro-btn--toggle').forEach(b => b.classList.remove('active'));
+         btn.classList.add('active');
+         scene()?.setSiltCutaway?.(false);
+      }
+      else if (btn.dataset.silt === "mode-cutaway") {
+         panel.querySelectorAll('.silt-pro-btn--toggle').forEach(b => b.classList.remove('active'));
+         btn.classList.add('active');
+         scene()?.setSiltCutaway?.(true);
+      }
+      return;
+    }
+  });
+
+  document.addEventListener("silt-analysis-change", (e) => {
+    snap = e.detail || null;
+    active = !!snap?.active;
+    if (!active) {
+       panel.hidden = true;
+       document.body.classList.remove("silt-analysis-mode");
+       return;
+    }
+    
+    panel.hidden = false;
+    document.body.classList.add("silt-analysis-mode");
+    render();
+  });
+
+  function render() {
+    if (!active || !snap) return;
+    const { phase, count, result } = snap;
+    
+    if (phase === "select") {
+      hintEl.hidden = false;
+      hintText.textContent = `${INSTRUCTION} (${count}/4)`;
+      dashboard.hidden = true;
+      legend.hidden = true;
+      return;
+    }
+    if (phase === "analyzing") {
+      hintEl.hidden = false;
+      hintText.textContent = "Analysing silt raster inside polygon…";
+      dashboard.hidden = true;
+      legend.hidden = true;
+      return;
+    }
+    
+    hintEl.hidden = true;
+    dashboard.hidden = false;
+    legend.hidden = false;
+    
+    renderDashboard(result);
+  }
+
+  function renderDashboard(r) {
+    if (!r) return;
+    
+    const area = r.selectedAreaM2 ? formatSiltArea(r.selectedAreaM2) : DASH;
+    const covArea = r.silt?.areaM2 ? formatSiltArea(r.silt.areaM2) : DASH;
+    const covPct = r.silt?.coveragePct != null ? `${(r.silt.coveragePct * 100).toFixed(1)}%` : DASH;
+    const obs = r.silt?.validCells ?? DASH;
+    const hotspots = r.hotspots?.length ?? 0;
+    
+    statsGrid.innerHTML = `
+      <div class="kv"><span>Selected Area</span><span>${area}</span></div>
+      <div class="kv"><span>Silt Covered Area</span><span>${covArea}</span></div>
+      <div class="kv"><span>Coverage</span><span>${covPct}</span></div>
+      <div class="kv"><span>Valid Observations</span><span>${obs}</span></div>
+      <div class="kv"><span>Hotspots</span><span>${hotspots}</span></div>
+    `;
+    
+    if (r.classes && r.classes.length) {
+       legendList.innerHTML = r.classes.map(c => `
+         <li>
+           <div class="swatch" style="background:${escapeSiltHtml(c.color)}"></div>
+           <div class="label">${escapeSiltHtml(c.label)}</div>
+           <div class="pct">${(c.pct * 100).toFixed(0)}%</div>
+         </li>
+       `).join("");
+    } else {
+       legendList.innerHTML = `<li>Data Unavailable</li>`;
+    }
+    
+    const cs = panel.querySelector("#silt-cs-canvas");
+    cs.innerHTML = `
+      <div class="cs-sky"></div>
+      <div class="cs-water"><div class="cs-label">WSE</div></div>
+      <div class="cs-bed"><div class="cs-label">River Bed</div></div>
+      <div class="cs-note">Visualization Only</div>
+    `;
+    
+    const prof = panel.querySelector("#silt-prof-canvas");
+    prof.innerHTML = `
+      <div class="prof-curve"></div>
+      <div class="cs-note">Index Profile</div>
+    `;
+  }
+
+  // To allow external trigger
+  return { open, close, isOpen: () => active && !panel.hidden, el: panel };
+}

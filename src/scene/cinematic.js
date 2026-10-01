@@ -267,6 +267,9 @@ export function createCameraSystem(canvas, dataset) {
   function exitMap2D({ preserveUp = false } = {}) {
     if (activeCamera === perspCamera) {
       unlockPerspectiveControls();
+      if (state.cameraMode === "aerial" || state.cameraMode === "top" || state.cameraMode === "2d") {
+        state.cameraMode = "overview";
+      }
       return;
     }
     perspCamera.position.copy(orthoCamera.position);
@@ -283,6 +286,9 @@ export function createCameraSystem(canvas, dataset) {
     unlockPerspectiveControls();
     perspCamera.lookAt(controls.target);
     controls.update();
+    if (state.cameraMode === "aerial" || state.cameraMode === "top" || state.cameraMode === "2d") {
+      state.cameraMode = "overview";
+    }
   }
 
   function takeManualControl() {

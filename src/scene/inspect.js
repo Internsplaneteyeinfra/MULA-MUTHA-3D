@@ -94,7 +94,9 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
   function pickWorldXZ() {
     let wx = null;
     let wz = null;
-    const planeHit = raycaster.intersectObjects(targets, false)[0];
+    const list = [...targets];
+    if (terrainMesh) list.push(terrainMesh);
+    const planeHit = raycaster.intersectObjects(list, true)[0];
     if (planeHit) {
       wx = planeHit.point.x;
       wz = planeHit.point.z;
@@ -392,7 +394,12 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       e.preventDefault?.();
       e.stopPropagation?.();
       e.stopImmediatePropagation?.();
-      if (downXY && Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y) > 6) return;
+      let wasDrag = false;
+      if (downXY) {
+        if (Math.hypot(e.clientX - downXY.x, e.clientY - downXY.y) > 14) wasDrag = true;
+        downXY = null;
+      }
+      if (wasDrag) return;
       const hotspot = siltAreaTool?.pickHotspot?.(raycaster);
       if (hotspot) {
         siltAreaTool.selectHotspot(hotspot.id);
@@ -1131,6 +1138,19 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     }
     inspect(e);
   }
+
+  window.addEventListener("pointerdown", (e) => {
+    downXY = { x: e.clientX, y: e.clientY };
+  }, true);
+
+  window.addEventListener("click", (e) => {
+    if (siltAreaTool?.isAccepting?.()) {
+      if (e.target.closest("button, input, select, textarea, .silt-pro-top-bar, .silt-pro-dashboard, .right-toolbar, .gis-tools-stack")) {
+        return;
+      }
+      inspect(e, { fromClick: true });
+    }
+  }, true);
 
   canvas.addEventListener("pointermove", onMove);
   canvas.addEventListener("click", (e) => inspect(e, { fromClick: true }));

@@ -1,21 +1,31 @@
 import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { computeSceneBounds } from "../geo/sceneBounds.js";
+import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { localToLonLat } from "../geo/geoReference.js";
+import { spatialIndex, neighbors } from "../geo/corridor.js";
+import { wseSpatialService } from "../services/hydrology/wseSpatialService.js";
 
 let activeDtm = null;
+let activeDataset = null;
+let activeLulc = null;
+let activePointsIndex = null;
 
 /**
  * FABDEM DTM terrain when available; procedural fallback otherwise.
  * Covers full KML + OSM union with geographic padding.
  */
-export function createTerrain(dataset) {
+export async function createTerrain(dataset) {
   activeDtm = dataset.dtm || null;
+  activeDataset = dataset;
+  activePointsIndex = spatialIndex(dataset.points || []);
+  activeLulc = await loadLulcClassGrid();
   const b = computeSceneBounds(dataset);
   const width = b.spanX;
   const depth = b.spanZ;
   const lite = dataset.lite === true;
-  const segsX = activeDtm ? (lite ? 180 : 360) : (lite ? 160 : 280);
-  const segsZ = activeDtm ? (lite ? 90 : 180) : (lite ? 80 : 140);
+  const segsX = activeDtm ? (lite ? 360 : 720) : (lite ? 240 : 512);
+  const segsZ = activeDtm ? (lite ? 180 : 360) : (lite ? 120 : 256);
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(b.cx, 0, b.cz);
@@ -185,10 +195,42 @@ function createGroundSurround(b, heights, minY) {
 }
 
 function heightAt(x, z, stations, dtm = activeDtm) {
-  const near = nearest(x, z, stations);
-  const lat = near.lat;
-  const half = Math.max(12, near.st.halfWidth);
+  const nearStation = nearest(x, z, stations);
+  const lat = nearStation.lat;
+  const ch = nearStation.st.chainage_m;
+  const half = Math.max(12, nearStation.st.halfWidth);
   const dtmY = dtm?.sampleSceneXY?.(x, z) ?? null;
+
+  // Use the canonical hydrology services to determine if this is water and the local bed elevation
+  let isWater = false;
+  let bedY = null;
+  let targetWaterY = SURFACE_Y - 0.5;
+
+  // Use wseSpatialService for data-driven bed/water determination
+  if (true) {
+    const depthInfo = wseSpatialService.getDepthAt(ch, lat);
+
+    if (depthInfo.wetted) {
+      isWater = true;
+      // Place bed at SURFACE_Y minus the local hydraulic depth
+      bedY = SURFACE_Y - depthInfo.depthM;
+      targetWaterY = SURFACE_Y - 0.5;
+    }
+  } else {
+    // Fallback if services not ready
+    let nearDist2 = Infinity;
+    if (activePointsIndex) {
+      const nearPts = neighbors(activePointsIndex, x, z);
+      for (const p of nearPts) {
+        const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
+        if (d2 < nearDist2) nearDist2 = d2;
+      }
+      if (nearDist2 < 45 * 45) {
+        isWater = true;
+        bedY = SURFACE_Y - 0.8; // Legacy fallback
+      }
+    }
+  }
 
   const hills =
     fbm(x * 0.00045, z * 0.00045) * 18 +
@@ -196,47 +238,29 @@ function heightAt(x, z, stations, dtm = activeDtm) {
     fbm(x * 0.003 + 9, z * 0.003) * 3;
   const bankFalloff = THREE.MathUtils.smoothstep(lat / (half * 3.5), 0.35, 1);
   const proceduralBase = SURFACE_Y + 2 + hills * bankFalloff;
-  const landY = dtmY ?? proceduralBase;
-
-  // Only carve the wet channel — keep banks and surrounding hills at full DTM height
-  if (lat < half * 0.72) {
-    const u = lat / (half * 0.72);
-    const channelY = THREE.MathUtils.lerp(
-      SURFACE_Y - 0.8,
-      SURFACE_Y - 16,
-      THREE.MathUtils.smoothstep(0, 1, 1 - u),
-    );
-    if (dtmY != null) return Math.min(dtmY, channelY);
-    return channelY;
-  }
 
   if (dtmY != null) {
-    // Narrow shelf: ensure banks sit above water without flattening DTM relief
-    if (lat < half * 1.05) {
-      return Math.max(dtmY, SURFACE_Y + 0.35);
+    let finalY = dtmY;
+    if (isWater) {
+      // Smoothly carve the DTM down below the water surface so it doesn't occlude the river mesh.
+      finalY = bedY != null ? bedY : targetWaterY;
     }
-    return dtmY;
+    // Ensure the outer straight KML boundaries are buried by raising the terrain slightly at the edges.
+    const inFootprint = lat < half * 1.1;
+    if (inFootprint && !isWater) {
+      const bankLip = THREE.MathUtils.smoothstep(lat, half * 0.9, half * 1.0) * 0.6;
+      finalY += bankLip;
+    }
+    return finalY;
   }
 
-  if (lat < half * 1.35) {
-    const t = (lat - half * 0.72) / (half * 0.63);
-    return THREE.MathUtils.lerp(SURFACE_Y - 0.8, proceduralBase, THREE.MathUtils.smoothstep(0, 1, t));
+  if (isWater) {
+    return bedY != null ? bedY : SURFACE_Y - 0.8;
   }
   return proceduralBase;
 }
 
 export function terrainHeightAt(x, z, stations) {
-  const near = nearest(x, z, stations);
-  const lat = near.lat;
-  const half = Math.max(12, near.st.halfWidth);
-  const dtmY = activeDtm?.sampleSceneXY?.(x, z) ?? null;
-
-  // Buildings/roads/trees: use real DTM on land, only sink under water center
-  if (dtmY != null) {
-    if (lat < half * 0.72) return Math.min(dtmY, SURFACE_Y - 1);
-    if (lat < half * 1.05) return Math.max(dtmY, SURFACE_Y + 0.35);
-    return dtmY;
-  }
   return heightAt(x, z, stations, activeDtm);
 }
 

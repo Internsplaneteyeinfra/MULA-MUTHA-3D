@@ -273,7 +273,7 @@ export function createChainageLayer(dataset) {
     minorMesh.visible = showMinors;
     rimMesh.visible = true;
     majorMesh.visible = true;
-    chainLine.visible = true;
+    chainLine.visible = false;
     lineMat.linewidth = camY < 500 ? 2.4 : camY > 900 ? 2.2 : 1.95;
     syncSelection();
 

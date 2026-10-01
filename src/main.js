@@ -2,6 +2,7 @@ import "./style.css";
 import "./styles/gis-ui.css";
 import "./weather/weather.css";
 import "./styles/layers-panel.css";
+import "./styles/silt-pro.css";
 import { loadJourneyDataset } from "./geo/load.js";
 import { createWorld } from "./scene/world.js";
 import { mountUI, createTooltip, mountCinematicOverlays } from "./ui/overlay.js";

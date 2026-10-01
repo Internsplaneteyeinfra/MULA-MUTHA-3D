@@ -4,11 +4,12 @@ import { SURFACE_Y } from "./river.js";
 import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { nearestStation, lateralDistToCenterline } from "../features/fishing/FishingZoneSystem.js";
 
 const FOREST = 1;
 const BANK = 2;
 /** A cell is kept only when most of its neighbours are land too (drops water-edge speckle). */
-const MIN_LAND_NEIGHBOURS = 4;
+const MIN_LAND_NEIGHBOURS = 2;
 const MIN_CLUSTER_M2 = 3000;
 /** Cells this close to a surveyed bathymetry point (≈12 m grid) are wetted channel and stay water. */
 const WATER_CLEAR_M = 9;
@@ -64,10 +65,7 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
   for (const cluster of clusters) {
     const sub = new THREE.Group();
     sub.name = "riparianCluster";
-    const land = buildLandMesh(cluster, cells, landMat, rng);
-    sub.add(land.mesh);
-    group.add(sub);
-
+    // No artificial island mesh is generated. Vegetation polygon is ONLY a mask.
     const forest = cluster.cells.filter((c) => c.kind === FOREST && !c.submerged);
     const raised = cluster.cells.filter((c) => !c.submerged);
     const labelCells = forest.length ? forest : raised.length ? raised : cluster.cells;
@@ -97,14 +95,16 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
     };
     group.userData.clusters.push(info);
 
-    for (const c of forest) {
-      const baseY = land.cellY(c);
-      const interior = c.depth >= 1;
-      if (interior && rng() < treeChance) {
-        placements.push(treePlacement(c, cells, baseY, stations, info, riparianTreeAsset(rng), rng));
-      } else if (!interior && rng() < UNDERGROWTH_CHANCE) {
-        placements.push(treePlacement(c, cells, baseY, stations, info, "grass", rng));
-      }
+    for (const c of cluster.cells) {
+      if (c.kind !== FOREST) continue;
+      const p = cells.cornerLocal(c.i + 0.5, c.j + 0.5);
+      const baseY = dataset.dtm?.sampleSceneXY?.(p.x, p.z) ?? (SURFACE_Y + 1);
+      // Spacing follows how deep the cell sits inside forest. Edges and mixed
+      // margins stay open; the interior is vegetation, not a planted grid.
+      const local = c.depth >= 4 ? 1 : c.depth >= 2 ? 0.45 : 0.16;
+      if (rng() >= treeChance * local) continue;
+      const asset = c.depth >= 2 ? riparianTreeAsset(rng) : (rng() < 0.45 ? "grass" : riparianTreeAsset(rng));
+      placements.push(treePlacement(c, cells, baseY, stations, info, asset, rng));
     }
   }
 
@@ -209,31 +209,8 @@ function detectLandCells(ring, depthPoints, lulc, stations) {
     return lonLatToLocal(ll.lon, ll.lat);
   };
 
-  const wet = new Map();
-  for (const p of depthPoints) {
-    if (!Number.isFinite(p.x) || !Number.isFinite(p.z)) continue;
-    const key = `${Math.floor(p.x / WATER_CLEAR_M)},${Math.floor(p.z / WATER_CLEAR_M)}`;
-    if (!wet.has(key)) wet.set(key, []);
-    wet.get(key).push(p);
-  }
-  const nearWater = (x, z) => {
-    const cx = Math.floor(x / WATER_CLEAR_M);
-    const cz = Math.floor(z / WATER_CLEAR_M);
-    for (let dx = -1; dx <= 1; dx++) {
-      for (let dz = -1; dz <= 1; dz++) {
-        for (const p of wet.get(`${cx + dx},${cz + dz}`) || []) {
-          if ((p.x - x) ** 2 + (p.z - z) ** 2 <= WATER_CLEAR_M ** 2) return true;
-        }
-      }
-    }
-    return false;
-  };
-  for (let k = 0; k < land.length; k++) {
-    if (!land[k]) continue;
-    const p = cornerLocal((k % gw) + 0.5, ((k / gw) | 0) + 0.5);
-    if (nearWater(p.x, p.z)) land[k] = 0;
-  }
-
+  // Footprint is the LULC class itself. Bathymetry points and the corridor polygon
+  // do not erase forest, barren, crop, or settlement.
   const keep = new Uint8Array(gw * gh);
   for (let j = 1; j < gh - 1; j++) {
     for (let i = 1; i < gw - 1; i++) {
@@ -254,8 +231,9 @@ function detectLandCells(ring, depthPoints, lulc, stations) {
     const j = Math.floor(p.py) - py0;
     if (i >= 0 && j >= 0 && i < gw && j < gh) centreCells.push(j * gw + i);
   }
-  const { submerged, crossings } = markChannelCrossings({ gw, gh, keep, cornerLocal, cellArea }, inRing, centreCells);
-  return { gw, gh, keep, submerged, crossings, cornerLocal, cellArea };
+  // Land stays land. Water is clipped out of the water mesh instead of sinking the island.
+  const submerged = new Uint8Array(gw * gh);
+  return { gw, gh, keep, submerged, crossings: [], cornerLocal, cellArea };
 }
 
 /**
@@ -432,114 +410,7 @@ function clusterCells(grid) {
   return clusters;
 }
 
-/** One shared-vertex grid mesh per cluster: shoreline corners dip under the water, interior rises gently. */
-function buildLandMesh(cluster, grid, material, rng) {
-  const { gw, cornerLocal } = grid;
-  const cellDepth = new Map(cluster.cells.map((c) => [c.k, c.depth]));
-  const cellKind = new Map(cluster.cells.map((c) => [c.k, c.kind]));
-  const cellSub = new Set(cluster.cells.filter((c) => c.submerged).map((c) => c.k));
-  const cornerIndex = new Map();
-  const positions = [];
-  const colors = [];
-  const cornerY = [];
-  const index = [];
-  const wet = new THREE.Color("#5a5038");
-  const lush = new THREE.Color("#46592c");
-  const bare = new THREE.Color("#8a7b5a");
-  const col = new THREE.Color();
 
-  const corner = (ci, cj) => {
-    const key = cj * (gw + 1) + ci;
-    let v = cornerIndex.get(key);
-    if (v != null) return v;
-    let n = 0;
-    let dMin = Infinity;
-    let forestAdj = false;
-    let sub = 0;
-    for (const [dx, dy] of [[-1, -1], [0, -1], [-1, 0], [0, 0]]) {
-      const ck = (cj + dy) * gw + ci + dx;
-      const d = cellDepth.get(ck);
-      if (d != null) { n++; dMin = Math.min(dMin, d); }
-      if (cellKind.get(ck) === FOREST) forestAdj = true;
-      if (cellSub.has(ck)) sub++;
-    }
-    const allSub = sub > 0 && sub === n;
-    const t = allSub ? 0.8 : n < 4 || sub ? 0 : Math.min(1, (dMin + 1) / 4);
-    const y = SURFACE_Y + (allSub ? SUBMERGED_Y : n < 4 || sub ? EDGE_Y : INTERIOR_Y + CROWN_Y * t + (rng() - 0.5) * 0.12);
-    const p = cornerLocal(ci, cj);
-    v = positions.length / 3;
-    positions.push(p.x, y, p.z);
-    col.copy(wet).lerp(forestAdj ? lush : bare, t).offsetHSL(0, 0, (rng() - 0.5) * 0.04);
-    colors.push(col.r, col.g, col.b);
-    cornerY.push(y);
-    cornerIndex.set(key, v);
-    return v;
-  };
-
-  for (const c of cluster.cells) {
-    const a = corner(c.i, c.j);
-    const b = corner(c.i + 1, c.j);
-    const d = corner(c.i, c.j + 1);
-    const e = corner(c.i + 1, c.j + 1);
-    index.push(a, d, b, b, d, e);
-  }
-
-  // Laplacian Smoothing Pass to remove blocky raster staircase edges
-  const numVerts = positions.length / 3;
-  const adj = Array.from({ length: numVerts }, () => new Set());
-  for (let i = 0; i < index.length; i += 3) {
-    const i0 = index[i], i1 = index[i+1], i2 = index[i+2];
-    adj[i0].add(i1); adj[i0].add(i2);
-    adj[i1].add(i0); adj[i1].add(i2);
-    adj[i2].add(i0); adj[i2].add(i1);
-  }
-  
-  // 3 iterations of smoothing to strongly round the jagged blocks
-  for (let iter = 0; iter < 3; iter++) {
-    const newPos = [...positions];
-    for (let i = 0; i < numVerts; i++) {
-      const neighbors = Array.from(adj[i]);
-      if (neighbors.length > 0) {
-        let sumX = 0, sumZ = 0;
-        for (const n of neighbors) {
-          sumX += positions[n * 3];
-          sumZ += positions[n * 3 + 2];
-        }
-        // Move vertex 50% toward the centroid of its neighbors (preserve Y)
-        newPos[i * 3] = positions[i * 3] * 0.5 + (sumX / neighbors.length) * 0.5;
-        newPos[i * 3 + 2] = positions[i * 3 + 2] * 0.5 + (sumZ / neighbors.length) * 0.5;
-      }
-    }
-    for (let i = 0; i < positions.length; i++) positions[i] = newPos[i];
-  }
-
-  const geo = new THREE.BufferGeometry();
-  geo.setAttribute("position", new THREE.Float32BufferAttribute(positions, 3));
-  geo.setAttribute("color", new THREE.Float32BufferAttribute(colors, 3));
-  geo.setIndex(index);
-  geo.computeVertexNormals();
-  if (geo.getAttribute("normal").getY(0) < 0) {
-    for (let i = 0; i < index.length; i += 3) [index[i + 1], index[i + 2]] = [index[i + 2], index[i + 1]];
-    geo.setIndex(index);
-    geo.computeVertexNormals();
-  }
-  geo.computeBoundingSphere();
-
-  const mesh = new THREE.Mesh(geo, material);
-  mesh.name = "riparianLand";
-  mesh.receiveShadow = true;
-
-  const cellY = (c) => {
-    const ids = [
-      cornerIndex.get(c.j * (gw + 1) + c.i),
-      cornerIndex.get(c.j * (gw + 1) + c.i + 1),
-      cornerIndex.get((c.j + 1) * (gw + 1) + c.i),
-      cornerIndex.get((c.j + 1) * (gw + 1) + c.i + 1),
-    ];
-    return ids.reduce((s, v) => s + cornerY[v], 0) / 4;
-  };
-  return { mesh, cellY };
-}
 
 function treePlacement(c, grid, baseY, stations, info, assetId, rng) {
   const half = Math.sqrt(grid.cellArea) * 0.45;

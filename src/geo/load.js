@@ -166,16 +166,44 @@ export async function loadJourneyDataset({
 
   const nadiTwinProfiles = await loadNadiTwinProfiles();
 
+  let profileStations = null;
+  let canonicalChainage = null;
+  if (nadiTwinProfiles?.chainage?.length) {
+    profileStations = nadiTwinProfiles.chainage.map((s) => {
+      const u = lonLatToUtm(s.lon, s.lat);
+      const loc = frame.toLocal(u.easting, u.northing);
+      return { ...s, x: loc.x, z: loc.z };
+    });
+    
+    canonicalChainage = profileStations.map((s) => {
+      const m = Math.round(s.chainage_m);
+      return {
+        lon: s.lon,
+        lat: s.lat,
+        easting: lonLatToUtm(s.lon, s.lat).easting,
+        northing: lonLatToUtm(s.lon, s.lat).northing,
+        x: s.x,
+        z: s.z,
+        meters: s.chainage_m,
+        label: `${Math.floor(m / 1000)}+${String(m % 1000).padStart(3, "0")}`,
+        major: m % 1000 === 0
+      };
+    });
+  }
+
+  const finalChainage = canonicalChainage || chainage;
+
   onProgress?.(0.72, "Building river corridor + Excel bathymetry…");
   const corridor = buildCorridorFromKml(ringLocal, depth.points, {
     across: 40,
     nStations: lite ? 360 : 720,
     centerlineLocal,
+    profileStations,
   });
 
   // Align corridor t=0 with chainage 0+000 when available
-  if (chainage.length && corridor.stations?.length) {
-    alignCorridorToChainageStart(corridor, chainage[0]);
+  if (finalChainage.length && corridor.stations?.length) {
+    alignCorridorToChainageStart(corridor, finalChainage[0]);
   }
 
   const bathymetry = {
@@ -266,7 +294,7 @@ export async function loadJourneyDataset({
     ringLocal,
     centerlineLocal,
     corridor,
-    chainage,
+    chainage: finalChainage,
     nadiTwinProfiles,
     osm,
     bridges,
@@ -292,7 +320,7 @@ export async function loadJourneyDataset({
     depthSource: "mula_mutha_water_depth.xlsx",
     kmlSource: usedRiverSource,
     riverSource: usedRiverSource,
-    chainageCount: chainage.length,
+    chainageCount: finalChainage.length,
     kmzOverlay: DEPTH_OVERLAY_BOX,
     pathStart: startLL,
     pathEnd: endLL,
@@ -328,7 +356,7 @@ export async function loadJourneyDataset({
     ringLocal,
     ringGeo,
     centerlineLocal,
-    chainage,
+    chainage: finalChainage,
     chainageIntervalM,
     corridor,
     bathymetry,
@@ -450,11 +478,18 @@ function alignCorridorToChainageStart(corridor, ch0) {
       stations[i].flowX = fx / len;
       stations[i].flowZ = fz / len;
     }
-    const chainage = [0];
-    for (let i = 1; i < stations.length; i++) {
-      chainage.push(
-        chainage[i - 1] + Math.hypot(stations[i].x - stations[i - 1].x, stations[i].z - stations[i - 1].z),
-      );
+    const chainage = [];
+    if (stations.length > 0 && typeof stations[0].chainage_m === 'number') {
+      for (let i = 0; i < stations.length; i++) {
+        chainage.push(stations[i].chainage_m);
+      }
+    } else {
+      chainage.push(0);
+      for (let i = 1; i < stations.length; i++) {
+        chainage.push(
+          chainage[i - 1] + Math.hypot(stations[i].x - stations[i - 1].x, stations[i].z - stations[i - 1].z),
+        );
+      }
     }
     const length = chainage[chainage.length - 1] || 1;
     corridor.length = length;

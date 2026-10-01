@@ -210,10 +210,10 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
         const x = local.x + Math.cos(ang) * jitter;
         const z = local.z + Math.sin(ang) * jitter;
 
-        if (riverRing && pointInRing(x, z, riverRing)) continue;
-        if (blocked(x, z, buildings, roads, stations)) continue;
+        if (blocked(x, z, buildings, roads, stations, lulc)) continue;
         const cover = lulc?.classAtLocal(x, z);
-        if (cover === "water" || cover === "settlement") continue;
+        if (cover === "water" || cover === "settlement" || cover === "barren" || cover === "crop") continue;
+        if (riverRing && pointInRing(x, z, riverRing) && cover !== "forest") continue;
 
         const y = terrainHeightAt(x, z, stations);
         if (!Number.isFinite(y)) continue;
@@ -390,10 +390,10 @@ function scaleForKind(kind, rng) {
   return 1.1 + rng() * 1.45;
 }
 
-function blocked(x, z, buildings, roads, stations) {
+function blocked(x, z, buildings, roads, stations, lulc) {
   if (stations?.length) {
     const near = nearest(x, z, stations);
-    if (near.lat < near.half + RIVER_CLEAR_EXTRA_M) return true;
+    if (near.lat < near.half + RIVER_CLEAR_EXTRA_M && lulc?.classAtLocal(x, z) !== "forest") return true;
   }
   for (const b of buildings) {
     if (Math.hypot(b.midX - x, b.midZ - z) < BUILDING_CLEAR_M) return true;

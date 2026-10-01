@@ -337,6 +337,7 @@ export function createWaterMaterial(dataset) {
     fragmentShader: frag,
     transparent: true,
     depthWrite: false,
+    clipping: true,
     // DoubleSide: corridor winding can flip with CRS local-frame changes;
     // translucent water must stay visible from overview / 2D / 3D.
     side: THREE.DoubleSide,

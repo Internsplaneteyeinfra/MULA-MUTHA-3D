@@ -19,6 +19,50 @@ import {
   SILT_VOLUME_PERIODS,
 } from "./hydrologyLayer.js";
 
+/**
+ * Nearest-neighbour depth lookup from the bathymetry CSV points array.
+ * @param {number} x  local metres
+ * @param {number} z  local metres
+ * @param {{x:number,z:number,depth:number}[]} pts  dataset.points
+ * @returns {number|null}
+ */
+function sampleBathyDepth(x, z, pts) {
+  if (!pts?.length) return null;
+  let best = null;
+  let bestD2 = Infinity;
+  const step = Math.max(1, Math.floor(pts.length / 800));
+  for (let i = 0; i < pts.length; i += step) {
+    const p = pts[i];
+    const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
+    if (d2 < bestD2) { bestD2 = d2; best = p; }
+  }
+  return best != null && Number.isFinite(best.depth) ? best.depth : null;
+}
+
+/**
+ * Sample bathymetry depth at several interior points of the polygon ring.
+ * Returns { min, max, mean, samples } or null when no data.
+ */
+function samplePolygonDepths(ring, pts) {
+  if (!pts?.length) return null;
+  // centroid
+  const n = ring.length;
+  const cx = ring.reduce((s, p) => s + p.x, 0) / n;
+  const cz = ring.reduce((s, p) => s + p.z, 0) / n;
+  // sample centroid + mid-edges
+  const probes = [{ x: cx, z: cz }];
+  for (let i = 0; i < n; i++) {
+    const a = ring[i]; const b = ring[(i + 1) % n];
+    probes.push({ x: (a.x + b.x) / 2 * 0.5 + cx * 0.5, z: (a.z + b.z) / 2 * 0.5 + cz * 0.5 });
+  }
+  const depths = probes.map(p => sampleBathyDepth(p.x, p.z, pts)).filter(v => v != null);
+  if (!depths.length) return null;
+  const min = Math.min(...depths);
+  const max = Math.max(...depths);
+  const mean = depths.reduce((s, v) => s + v, 0) / depths.length;
+  return { min, max, mean, samples: depths.length };
+}
+
 export const STATUS = Object.freeze({
   VERIFIED: "VERIFIED",
   DERIVED: "DERIVED",
@@ -193,7 +237,7 @@ function median(sorted) {
 
 /**
  * @param {{x:number,z:number}[]} points  P1..P4 in local metres
- * @param {{ classPeriod?: string, volumePeriod?: string }} [opts]
+ * @param {{ classPeriod?: string, volumePeriod?: string, dataset?: object }} [opts]
  */
 export async function analyzeSiltPolygon(points, opts = {}) {
   const { ring, reordered } = orderRing(points);
@@ -219,7 +263,19 @@ export async function analyzeSiltPolygon(points, opts = {}) {
     },
     thickness: { status: STATUS.UNAVAILABLE, note: "No silt thickness layer in project data" },
     volumeM3: { status: STATUS.UNAVAILABLE, note: "Needs thickness in metres" },
+    bathymetryDepth: null, // populated below if dataset is available
   };
+
+  // --- Bathymetry depth sampling (from CSV dataset.points) ---
+  const bathyPts = opts.dataset?.points ?? null;
+  const polyDepthStats = samplePolygonDepths(ring, bathyPts);
+  if (polyDepthStats) {
+    base.bathymetryDepth = {
+      status: STATUS.INTERPOLATED,
+      ...polyDepthStats,
+      note: "Nearest-neighbour from bathymetry CSV · not a verified silt-thickness measurement",
+    };
+  }
 
   let clsBmp;
   try {
@@ -412,7 +468,8 @@ export async function analyzeSiltPolygon(points, opts = {}) {
     const ll = localToLonLat(p.x, p.z);
     const ix = Math.floor(lonToPx(ll.lon)) - x0;
     const iy = Math.floor(latToPy(ll.lat)) - y0;
-    const res = pointResultUnavailable(p, idx, ll);
+    const depthAtPoint = sampleBathyDepth(p.x, p.z, bathyPts);
+    const res = { ...pointResultUnavailable(p, idx, ll), depthM: depthAtPoint };
     if (ix < 0 || iy < 0 || ix >= cw || iy >= ch) return res;
     const k = iy * cw + ix;
     if (clsIdx[k] >= 0) {
