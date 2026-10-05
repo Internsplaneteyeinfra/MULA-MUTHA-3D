@@ -64,6 +64,16 @@ export async function createBuildingSystem(dataset) {
     else distantRecs.push(record);
   }
 
+  // A tier cap must not drop real footprints: the overflow is drawn by the next, cheaper tier.
+  const spill = (from, cap, to) => {
+    if (from.length <= cap) return;
+    from.sort((a, b) => a.dist - b.dist);
+    to.push(...from.splice(cap));
+  };
+  spill(heroRecs, LOD.HERO_MAX, nearRecs);
+  spill(nearRecs, LOD.NEAR_MAX, midRecs);
+  spill(midRecs, LOD.MID_MAX, distantRecs);
+
   const allRecs = [...heroRecs, ...nearRecs, ...midRecs, ...distantRecs];
   auditBuildingSample(allRecs, stations, 20);
 
@@ -128,10 +138,9 @@ function buildFarLodExtrusions(list, stations) {
   group.name = "buildingsFarLod";
   const tmp = new THREE.Color();
   const CHUNK = 2200;
-  const step = list.length > 20000 ? 2 : 1;
   const geos = [];
 
-  for (let i = 0; i < list.length; i += step) {
+  for (let i = 0; i < list.length; i++) {
     const { building, metrics, classification } = list[i];
     const verts = building.vertices;
     if (!verts || verts.length < 4) continue;

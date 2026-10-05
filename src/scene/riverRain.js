@@ -123,26 +123,20 @@ export function createRiverRain(dataset) {
       return;
     }
 
-    burstAge += dt;
-    if (!raining && burstAge >= BURST_EVERY_S) {
-      raining = true;
-      burstAge = 0;
-      // Seed a wave of drops at burst start
-      const seedN = Math.floor(120 + intensity * 280);
-      for (let i = 0; i < seedN && i < COUNT; i++) respawn(i);
-    }
-    if (raining && burstAge >= BURST_DURATION_S) {
-      raining = false;
-      burstAge = 0;
-    }
+    let forcedIntensity = 0;
+    if (state.skyPreset === "raining") forcedIntensity = 0.8;
+    else if (state.skyPreset === "drizzle") forcedIntensity = 0.4;
+    
+    const currentIntensity = Math.max(intensity, forcedIntensity);
+    raining = currentIntensity > 0.2; // continuous raining if intensity is high enough
 
-    const targetOpacity = raining ? 0.35 + intensity * 0.55 : 0;
+    const targetOpacity = raining ? 0.35 + currentIntensity * 0.55 : 0;
     activeOpacity += (targetOpacity - activeOpacity) * Math.min(1, dt * 6);
     mat.uniforms.uOpacity.value = activeOpacity;
 
     if (activeOpacity < 0.02 && !raining) return;
 
-    const spawnRate = raining ? 180 + intensity * 420 : 0;
+    const spawnRate = raining ? 80 + currentIntensity * 120 : 0; // continuous small amount of drops
     let toSpawn = spawnRate * dt;
     for (let i = 0; i < COUNT; i++) {
       if (life[i] < 0) {

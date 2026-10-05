@@ -51,10 +51,11 @@ export function mountSettingsPanel(root) {
                 ${lucideHtml(Sun, { size: 14 })}
                 <select id="sky-preset" aria-label="Sky Preset">
                   <option value="calmRealistic" selected>Calm Realistic</option>
-                  <option value="clearBlueDay">Clear Blue Day</option>
-                  <option value="cinematicClouds">Cinematic Clouds</option>
-                  <option value="floodWeather">Flood Weather</option>
-                  <option value="goldenHour">Golden Hour</option>
+                  <option value="clearSky">Clear Sky</option>
+                  <option value="raining">Raining</option>
+                  <option value="partlyCloudy">Partly Cloudy</option>
+                  <option value="drizzle">Drizzle</option>
+                  <option value="scattered">Scattered</option>
                 </select>
                 ${lucideHtml(ChevronDown, { size: 14, className: "lp-icon lp-select-chevron" })}
               </div>

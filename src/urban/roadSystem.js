@@ -51,7 +51,7 @@ const PATH = /^(footway|path|cycleway|pedestrian|track)$/;
 
 /**
  * Terrain-following OSM roads as continuous mitered ribbons (no box gaps at bends).
- * Junction discs + bridge approach links keep intersections sealed.
+ * OSM ways share node coordinates at junctions, so ribbons meet without snapping.
  */
 export function createRoadSystem(dataset) {
   const group = new THREE.Group();
@@ -61,18 +61,17 @@ export function createRoadSystem(dataset) {
   if (!rawRoads.length) return group;
 
   const bridges = dataset.bridges || [];
+  // OSM ways already share node coordinates at junctions; no endpoint snapping,
+  // which would pull real roads off their surveyed positions.
   const roads = rawRoads.map((r) => ({
     ...r,
     vertices: (r.vertices || []).map((v) => ({ ...v })),
   }));
-  snapRoadNetwork(roads, 12);
 
   /** @type {Array<{pts: Array<{x:number,z:number,y:number}>, halfW:number, color:string, major:boolean, medium:boolean, pathLike:boolean, hw:string}>} */
   const ribbons = [];
   const edgeSegs = [];
   const dashSegs = [];
-  const junctionNodes = [];
-  const roadTips = [];
   let skippedWater = 0;
 
   for (const road of roads) {
@@ -124,24 +123,7 @@ export function createRoadSystem(dataset) {
       run.push({ x: v.x, z: v.z, y });
     }
     flushRun();
-
-    // Tips + junctions from land vertices
-    for (let i = 0; i < verts.length; i++) {
-      const v = verts[i];
-      const bank = nearestHalf(v.x, v.z, stations);
-      if (bank.lat < bank.half * 0.72) continue;
-      if (isUnderBridgeDeck(v.x, v.z, bridges, stations)) continue;
-      const y = terrainHeightAt(v.x, v.z, stations) + 0.13;
-      pushJunction(junctionNodes, { x: v.x, z: v.z, y, w: segW, color });
-      if (i === 0 || i === verts.length - 1) {
-        roadTips.push({ x: v.x, z: v.z, y, w: segW, color, major, medium });
-      }
-    }
   }
-
-  // Bridge approach ribbons (2-point strips)
-  const approachLinks = linkRoadsToBridges(roadTips, bridges, stations, ribbons, junctionNodes);
-  mergeNearbyJunctions(junctionNodes, 18);
 
   if (!ribbons.length) return group;
 
@@ -261,8 +243,6 @@ export function createRoadSystem(dataset) {
 
   console.info("Roads", {
     ribbons: ribbons.length,
-    junctions: junctionNodes.length,
-    bridgeLinks: approachLinks,
     edges: edgeSegs.length,
     dashes: dashSegs.length,
     skippedWater,
@@ -452,49 +432,6 @@ function addMarkingsAlong(pts, halfW, major, medium, edgeSegs, dashSegs) {
   }
 }
 
-/** Snap nearby OSM endpoints / T-junctions so segments share the same XZ. */
-function snapRoadNetwork(roads, snapM) {
-  const ends = [];
-  for (const road of roads) {
-    const v = road.vertices;
-    if (!v || v.length < 2) continue;
-    ends.push(v[0], v[v.length - 1]);
-  }
-  for (let i = 0; i < ends.length; i++) {
-    for (let j = i + 1; j < ends.length; j++) {
-      const a = ends[i];
-      const b = ends[j];
-      const d = Math.hypot(a.x - b.x, a.z - b.z);
-      if (d <= 0 || d > snapM) continue;
-      const x = (a.x + b.x) * 0.5;
-      const z = (a.z + b.z) * 0.5;
-      a.x = b.x = x;
-      a.z = b.z = z;
-    }
-  }
-  for (const end of ends) {
-    let best = null;
-    let bestD = snapM;
-    for (const road of roads) {
-      const v = road.vertices;
-      if (!v || v.length < 3) continue;
-      for (let i = 1; i < v.length - 1; i++) {
-        const p = v[i];
-        if (p === end) continue;
-        const d = Math.hypot(end.x - p.x, end.z - p.z);
-        if (d > 0 && d < bestD) {
-          bestD = d;
-          best = p;
-        }
-      }
-    }
-    if (best) {
-      end.x = best.x;
-      end.z = best.z;
-    }
-  }
-}
-
 function isUnderBridgeDeck(x, z, bridges, stations) {
   if (!bridges?.length) return false;
   const bank = nearestHalf(x, z, stations);
@@ -525,129 +462,6 @@ function closestOnSeg(px, pz, ax, az, bx, bz) {
   const x = ax + abx * t;
   const z = az + abz * t;
   return { x, z, t, d: Math.hypot(px - x, pz - z) };
-}
-
-/**
- * Short ribbons from road tips to bridge abutments / ramp toes.
- */
-function linkRoadsToBridges(tips, bridges, stations, ribbons, junctionNodes) {
-  if (!bridges?.length || !tips?.length) return 0;
-  let links = 0;
-  for (const br of bridges) {
-    const ends = [
-      { p: br.start, other: br.end },
-      { p: br.end, other: br.start },
-    ].filter((e) => e.p && Number.isFinite(e.p.x) && Number.isFinite(e.p.z));
-
-    for (const end of ends) {
-      const ax = end.p.x;
-      const az = end.p.z;
-      let dx = 0;
-      let dz = 1;
-      if (end.other && Number.isFinite(end.other.x)) {
-        dx = ax - end.other.x;
-        dz = az - end.other.z;
-        const L = Math.hypot(dx, dz) || 1;
-        dx /= L;
-        dz /= L;
-      }
-      const toeX = ax + dx * 30;
-      const toeZ = az + dz * 30;
-      const targets = [
-        { x: toeX, z: toeZ },
-        { x: ax, z: az },
-      ];
-
-      for (const tgt of targets) {
-        let best = null;
-        let bestD = 42;
-        for (const tip of tips) {
-          const d = Math.hypot(tip.x - tgt.x, tip.z - tgt.z);
-          if (d < bestD && d > 1.5) {
-            bestD = d;
-            best = tip;
-          }
-        }
-        if (!best) continue;
-        const y0 = best.y;
-        const y1 = terrainHeightAt(tgt.x, tgt.z, stations) + 0.14;
-        const w = Math.max(best.w, Math.min(12, br.widthM || 8));
-        ribbons.push({
-          pts: densifyRun(
-            [
-              { x: best.x, z: best.z, y: y0 },
-              { x: tgt.x, z: tgt.z, y: y1 },
-            ],
-            10,
-          ),
-          halfW: w * 0.5,
-          color: best.color || "#505660",
-          major: true,
-          medium: false,
-          pathLike: false,
-          hw: "primary",
-        });
-        pushJunction(junctionNodes, {
-          x: tgt.x,
-          z: tgt.z,
-          y: y1,
-          w,
-          color: best.color || "#505660",
-        });
-        pushJunction(junctionNodes, {
-          x: best.x,
-          z: best.z,
-          y: best.y,
-          w,
-          color: best.color || "#505660",
-        });
-        links++;
-      }
-    }
-  }
-  return links;
-}
-
-function pushJunction(list, node) {
-  for (const n of list) {
-    if (Math.hypot(n.x - node.x, n.z - node.z) < 8) {
-      n.x = (n.x * n._wSum + node.x * node.w) / (n._wSum + node.w);
-      n.z = (n.z * n._wSum + node.z * node.w) / (n._wSum + node.w);
-      n.y = Math.max(n.y, node.y);
-      n.w = Math.max(n.w, node.w);
-      n._wSum += node.w;
-      n._count = (n._count || 1) + 1;
-      return;
-    }
-  }
-  list.push({ ...node, _wSum: node.w, _count: 1 });
-}
-
-function mergeNearbyJunctions(list, distM) {
-  for (let i = 0; i < list.length; i++) {
-    const a = list[i];
-    if (!a || a._dead) continue;
-    for (let j = i + 1; j < list.length; j++) {
-      const b = list[j];
-      if (!b || b._dead) continue;
-      if (Math.hypot(a.x - b.x, a.z - b.z) > distM) continue;
-      const wa = a._wSum || a.w;
-      const wb = b._wSum || b.w;
-      a.x = (a.x * wa + b.x * wb) / (wa + wb);
-      a.z = (a.z * wa + b.z * wb) / (wa + wb);
-      a.y = Math.max(a.y, b.y);
-      a.w = Math.max(a.w, b.w);
-      a._wSum = wa + wb;
-      a._count = (a._count || 1) + (b._count || 1);
-      b._dead = true;
-    }
-  }
-  let w = 0;
-  for (let i = 0; i < list.length; i++) {
-    if (list[i]._dead) continue;
-    list[w++] = list[i];
-  }
-  list.length = w;
 }
 
 function nearestHalf(x, z, stations) {

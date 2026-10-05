@@ -63,7 +63,7 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   const roads = projectLines(roadsFc, frame, corridor, maxDist);
   // Keep corridor buildings along full river + inland blocks (roads beyond bank)
   const buildingsAll = projectBuildings(buildingsFc, frame, corridor, buildingMaxDist);
-  const buildings = stratifyAlongCorridor(buildingsAll, corridor, 28000);
+  const buildings = stratifyAlongCorridor(buildingsAll, corridor, 60000);
   const green = projectPolygons(vegFc, frame, corridor, maxDist + 400);
   const trees = projectTrees(treesFc, frame, corridor, maxDist + 200);
   const treeRows = projectLines(treeRowsFc, frame, corridor, maxDist + 200);
@@ -276,7 +276,8 @@ function validateOsmAlignment(corridor, roads, buildings) {
   if (!stations.length) {
     return { ok: false, issues: ["No corridor stations for alignment check"] };
   }
-  const sample = buildings.slice(0, 80);
+  const step = Math.max(1, Math.floor(buildings.length / 200));
+  const sample = buildings.filter((_, i) => i % step === 0);
   if (!sample.length && !roads.length) {
     return { ok: true, issues: ["No OSM features loaded — alignment skipped"], medianDistM: null };
   }
