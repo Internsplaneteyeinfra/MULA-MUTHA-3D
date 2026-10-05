@@ -226,6 +226,7 @@ export function mountSiltAnalysisOverlay(root, dataset) {
   function render() {
     if (!active || !snap) return;
     const { phase, count, result } = snap;
+    
     if (phase === "select") {
       hintEl.hidden = false;
       hintText.textContent = INSTRUCTION + " (" + count + "/4)";

@@ -18,7 +18,8 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
 }
 
 .silt-pro-overlay > * { pointer-events: auto; }
-.silt-pro-overlay[hidden] { display: none !important; }
+.silt-pro-overlay[hidden],
+.silt-pro-overlay [hidden] { display: none !important; }
 
 /* TOP BAR */
 .silt-pro-top-bar {
