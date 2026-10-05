@@ -929,7 +929,12 @@ export function mountUI(root, {
     on3D: () => {
       map2dData?.leave();
       onCamera("overview");
-      window.__MM_SCENE__?.goToChainageView?.(state.selectedChainageMeters ?? 8000);
+      let mid = 8000;
+      const ch = dataset?.chainage;
+      if (ch && ch.length) {
+        mid = ch[0].meters + (ch[ch.length - 1].meters - ch[0].meters) / 2;
+      }
+      window.__MM_SCENE__?.goToChainageView?.(state.selectedChainageMeters ?? mid);
       nav.syncActive();
     },
     onSiltToggle: () => {
@@ -970,7 +975,14 @@ export function mountUI(root, {
     chainRuler.update?.();
     chainStepHud.update?.();
   });
-  const initialChainage = state.selectedChainageMeters ?? dataset.chainage?.[0]?.meters;
+  const chainData = dataset.chainage || [];
+  let midMeters = 8000;
+  if (chainData.length > 0) {
+    const first = chainData[0].meters;
+    const last = chainData[chainData.length - 1].meters;
+    midMeters = first + (last - first) / 2;
+  }
+  const initialChainage = state.selectedChainageMeters ?? midMeters;
   if (initialChainage != null) {
     state.selectedChainageMeters = initialChainage;
     syncSelectedChainage(initialChainage);

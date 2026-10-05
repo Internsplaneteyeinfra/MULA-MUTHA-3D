@@ -109,24 +109,24 @@ const SKY_FRAG = /* glsl */ `
       float spd = uCloudSpeed * 0.012;
       vec2 uv1 = base * 1.05 + vec2(uTime * spd * 0.55, uTime * spd * 0.22);
       float c1 = fbm(uv1);
-      c1 = smoothstep(0.58 - uCloudDensity * 0.16, 0.82, c1);
+      c1 = smoothstep(0.65 - uCloudDensity * 0.45, 0.85, c1);
 
       float c2 = 0.0;
       float c3 = 0.0;
       if (uQuality > 0.5) {
         vec2 uv2 = base * 2.2 + vec2(-uTime * spd * 0.95, uTime * spd * 0.4);
         c2 = fbm(uv2 + 3.7);
-        c2 = smoothstep(0.62 - uCloudDensity * 0.12, 0.86, c2) * 0.45;
+        c2 = smoothstep(0.68 - uCloudDensity * 0.35, 0.88, c2) * 0.6;
       }
       if (uQuality > 1.5) {
         vec2 uv3 = base * 0.65 + vec2(uTime * spd * 0.28, -uTime * spd * 0.18);
         c3 = fbm(uv3 + 11.0);
-        c3 = smoothstep(0.58, 0.88, c3) * 0.22;
+        c3 = smoothstep(0.65 - uCloudDensity * 0.25, 0.90, c3) * 0.4;
       }
 
-      cloudMask = clamp(c1 * 0.7 + c2 + c3, 0.0, 1.0) * elev * uCloudDensity;
-      vec3 cloudCol = mix(vec3(0.94, 0.96, 0.99), mix(uMid, uHaze, 0.45), 0.18);
-      col = mix(col, cloudCol, cloudMask * 0.52);
+      cloudMask = clamp(c1 * 0.85 + c2 + c3, 0.0, 1.0) * elev;
+      vec3 cloudCol = mix(vec3(0.96, 0.98, 1.0) * mix(vec3(1.0), vec3(1.0, 0.9, 0.7), uSunWarmth), mix(uMid, uHaze, 0.6), 0.25);
+      col = mix(col, cloudCol, cloudMask * 0.95);
     }
 
     // Mild desaturation near horizon for depth

@@ -434,6 +434,7 @@ export async function analyzeSiltPolygon(points, opts = {}) {
       max: sorted[sorted.length - 1],
       mean: sum / sorted.length,
       median: median(sorted),
+      total: sum,
       cells: sorted.length,
       scaleMax: SILT_VOLUME_MAX,
       note: "Colour-decoded; unit unconfirmed in source legend",

@@ -181,7 +181,7 @@ export function createSiltAreaTool() {
     canvas.getContext("2d").putImageData(new ImageData(clip.data, clip.width, clip.height), 0, 0);
     const tex = new THREE.CanvasTexture(canvas);
     tex.colorSpace = THREE.SRGBColorSpace;
-    tex.magFilter = THREE.NearestFilter;
+    tex.magFilter = THREE.LinearFilter;
     tex.minFilter = THREE.LinearFilter;
     tex.generateMipmaps = false;
     const { nw, ne, sw, se } = clip.corners;
