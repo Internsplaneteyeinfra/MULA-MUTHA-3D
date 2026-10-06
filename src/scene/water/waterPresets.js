@@ -3,7 +3,7 @@
 export const WATER_PRESETS = {
   calmRealistic: {
     label: "Calm Realistic River",
-    waterAnimEnabled: true,
+    waterAnimEnabled: false,
     waterOverallSpeed: 0.50,
     primaryWaveAmplitude: 0.035,
     primaryWaveSpeed: 0.025,
@@ -16,8 +16,8 @@ export const WATER_PRESETS = {
     waterOpacity: 0.65,
     reflectionStrength: 0.68,
     waveHighlight: 0.85,
-    shallowColor: "#4fc8eb",
-    deepColor: "#07529d",
+    shallowColor: "#7ed9f3",
+    deepColor: "#1870c9",
   },
   glassyCalm: {
     label: "Glassy Calm",

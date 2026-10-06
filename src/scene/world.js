@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { state } from "../state.js";
-import { createTerrain } from "./terrain.js";
+import { createTerrain, terrainHeightAt } from "./terrain.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
 import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
 import { setWaterSiltMode } from "./waterShader.js";
@@ -45,6 +45,7 @@ import { createQualityProfile, createThrottle, isLowMemoryDevice } from "../perf
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { loadOsmWater } from "../geo/osmWater.js";
 import { createWaterFill } from "./waterFill.js";
 import { nearestStationU } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
@@ -165,11 +166,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const terrain = await createTerrain(dataset);
   const kmlSkeleton = createKmlSkeleton(dataset);
   const river = createRiver(dataset);
-  const landCover = await loadLulcClassGrid();
-  clipRiverToHydrology(river, landCover);
+  const [landCover, osmWater] = await Promise.all([
+    loadLulcClassGrid(),
+    loadOsmWater().catch((e) => {
+      console.warn("[river] OSM water unavailable", e);
+      return null;
+    }),
+  ]);
+  clipRiverToHydrology(river, landCover, osmWater);
   logCorridorLandCover(dataset, landCover);
-  const waterFill = createWaterFill(terrain.mesh, river, dataset);
-  if (waterFill) river.mesh.add(waterFill);
+  river.dtmHeightAt = (x, z) => terrainHeightAt(x, z, dataset.corridor.stations);
+  applyExaggeration(river, dataset, state.depthExaggeration || 1, 0, null);
+  const waterFill = createWaterFill(terrain.mesh, river, dataset, landCover, osmWater);
+  if (waterFill) {
+    waterFill.visible = false;
+    river.mesh.add(waterFill);
+  }
 
   const UNDERWATER_COLOR = "#4a8fa0";
   /** Light volume tint only — land, depth colours and banks stay readable at hundreds of metres. */
@@ -189,6 +201,17 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     underwaterCheckIn -= dt;
     if (underwaterCheckIn > 0) return underwater;
     underwaterCheckIn = 0.25;
+    const stations = dataset.corridor.stations;
+    let best = stations[0], bestD = Infinity;
+    for (const s of stations) {
+      const d = (s.x - camera.position.x) ** 2 + (s.z - camera.position.z) ** 2;
+      if (d < bestD) { bestD = d; best = s; }
+    }
+    const lat = Math.sqrt(bestD);
+    if (lat < Math.max(18, best.halfWidth) * 1.35) {
+      underwater = true;
+      return true;
+    }
     underwaterRay.set(camera.position, UP);
     underwaterRay.far = SURFACE_Y + 2 - camera.position.y;
     underwater = underwaterRay.intersectObject(river.mesh, true).length > 0;

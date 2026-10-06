@@ -7,10 +7,11 @@ import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { state } from "../state.js";
 import { analyzeSiltPolygon } from "./siltAreaAnalysis.js";
+import { terrainHeightAt } from "./terrain.js";
 
 /** Low, Moderate, High, Very High: fraction of the local water column (bed → WSE) filled by sediment. */
 const SILT_SEVERITY_FACTOR = [0.1, 0.35, 0.7, 0.95];
-const SILT_CLASS_COLORS = [0x2ecc40, 0xffd400, 0xff8c1a, 0xe02424];
+const SILT_CLASS_COLORS = [0x0d5c2e, 0x6b7a00, 0xc2410c, 0x991b1b];
 const SURFACE_CLEARANCE_M = 0.03;
 
 function sedimentTopY(bedY, factor) {
@@ -187,12 +188,17 @@ export function createSiltAreaTool() {
       console.warn("Failed to clear water silt mode", e);
     }
     if (overlay) {
+      overlay.traverse((o) => {
+        o.geometry?.dispose?.();
+        if (o.material) {
+          o.material.map?.dispose?.();
+          o.material.dispose?.();
+        }
+      });
       group.remove(overlay);
-      overlay.geometry.dispose();
-      overlay.material.map?.dispose();
-      overlay.material.dispose();
       overlay = null;
     }
+    mounds = null;
     for (const s of hotspotSprites) {
       group.remove(s);
       s.material.map?.dispose();
@@ -249,15 +255,14 @@ export function createSiltAreaTool() {
     const ptX = new Float32Array(cw * ch);
     const ptZ = new Float32Array(cw * ch);
     
+    const stations = window.__MM_SCENE__?.dataset?.corridor?.stations;
     const colors = SILT_CLASS_COLORS.map((c) => new THREE.Color(c));
-    const defaultColor = new THREE.Color(0x4a4036);
     
     // Pass 1: Extract Data
     for (let iy = 0; iy < ch; iy++) {
       for (let ix = 0; ix < cw; ix++) {
         const k = iy * cw + ix;
         const alpha = clip.data[k * 4 + 3];
-        if (alpha > 0) valid[k] = 1;
         
         const u = cw > 1 ? ix / (cw - 1) : 0;
         const v = ch > 1 ? iy / (ch - 1) : 0;
@@ -265,15 +270,18 @@ export function createSiltAreaTool() {
         const x = (1 - v) * ((1 - u) * nw.x + u * ne.x) + v * ((1 - u) * sw.x + u * se.x);
         const z = (1 - v) * ((1 - u) * nw.z + u * ne.z) + v * ((1 - u) * sw.z + u * se.z);
         
-        const bedY = SURFACE_Y - getDepthAt(x, z);
+        const dtmY = stations ? terrainHeightAt(x, z, stations) : null;
+        const bathyY = SURFACE_Y - getDepthAt(x, z);
+        const bedY = Number.isFinite(dtmY) ? dtmY : bathyY;
         let severity = 0.0;
-        let col = defaultColor;
+        let col = colors[0];
         
         if (alpha >= 195) {
           const clsIdx = Math.round((alpha - 200) / 10);
-          if (clsIdx >= 0 && clsIdx <= 3) {
+          if (clsIdx >= 0 && clsIdx <= 3 && bedY < SURFACE_Y - 0.05) {
             severity = SILT_SEVERITY_FACTOR[clsIdx];
             col = colors[clsIdx];
+            valid[k] = 1;
           }
         }
         
@@ -316,7 +324,7 @@ export function createSiltAreaTool() {
         
         // If entirely outside valid region, weight is 0. Keep original.
         const factor = weight > 0 ? sumFactor / weight : rawFactor[k];
-        topY[k] = sedimentTopY(botY[k], factor);
+        topY[k] = sedimentTopY(botY[k], factor) + 0.04;
         if (weight > 0) {
           vPos.push(ptX[k], topY[k], ptZ[k]);
           vColor.push(sumR / weight, sumG / weight, sumB / weight);
@@ -335,7 +343,7 @@ export function createSiltAreaTool() {
         // Bottom Vertex
         vPos.push(ptX[k], botY[k], ptZ[k]);
         // Darken bottom vertices
-        vColor.push(rawR[k] * 0.4, rawG[k] * 0.4, rawB[k] * 0.4);
+        vColor.push(rawR[k] * 0.48, rawG[k] * 0.48, rawB[k] * 0.48);
       }
     }
     
@@ -391,19 +399,21 @@ export function createSiltAreaTool() {
     geo.setIndex(indices);
     geo.computeVertexNormals();
     
-    const mat = new THREE.MeshStandardMaterial({
+    const mat = new THREE.MeshBasicMaterial({
       vertexColors: true,
-      transparent: false,
-      opacity: 1.0,
+      side: THREE.DoubleSide,
       depthTest: true,
       depthWrite: true,
-      side: THREE.DoubleSide,
-      roughness: 0.82,
-      metalness: 0.0
+      toneMapped: false,
+      polygonOffset: true,
+      polygonOffsetFactor: -8,
+      polygonOffsetUnits: -4,
     });
     
     mounds = new THREE.Mesh(geo, mat);
+    mounds.name = "siltSediment3d";
     mounds.frustumCulled = false;
+    mounds.renderOrder = 22;
     overlay.add(mounds);
     
     group.add(overlay);
@@ -411,11 +421,12 @@ export function createSiltAreaTool() {
 
   function buildHotspots(list) {
     for (const h of list) {
-      const s = makeBadgeSprite(h.id, h.dominant === "Very High" ? "#E74C3C" : "#F39C12");
+      const s = makeBadgeSprite(h.id, h.dominant === "Very High" ? "#991B1B" : "#C2410C");
       const d = getDepthAt(h.x, h.z);
-      
+      const stations = window.__MM_SCENE__?.dataset?.corridor?.stations;
+      const dtmY = stations ? terrainHeightAt(h.x, h.z, stations) : SURFACE_Y - d;
       const clsIdx = ["Low", "Moderate", "High", "Very High"].indexOf(h.dominant);
-      const topY = sedimentTopY(SURFACE_Y - d, SILT_SEVERITY_FACTOR[Math.max(0, clsIdx)]);
+      const topY = sedimentTopY(Number.isFinite(dtmY) ? dtmY : SURFACE_Y - d, SILT_SEVERITY_FACTOR[Math.max(0, clsIdx)]);
       
       s.position.set(h.x, topY + 0.3, h.z); // 0.3m visual offset
       s.userData.hotspot = h;

@@ -306,7 +306,7 @@ const frag = /* glsl */ `
     // 1.5-3.0m -> subtle transparency
     // >3.0m -> opaque deep water
     float volumeAlpha = mix(0.55, 0.95, 1.0 - exp(-vDepth * 0.8));
-    float alpha = volumeAlpha * uOpacity;
+    float alpha = max(volumeAlpha * uOpacity, mix(0.52, 0.80, depthT));
 
     // Preserve surface features: 
     // Specular highlights, fresnel, foam, and crest sparkles should remain opaque
@@ -321,7 +321,8 @@ const frag = /* glsl */ `
     alpha *= mix(1.0, 0.92, clamp(wake * 0.35, 0.0, 1.0));
 
     // From below the surface the sheet is a back face — keep it as water, not a window onto green DTM.
-    if (!gl_FrontFacing) {
+    // During silt analysis the 3D sediment on the DTM must stay visible from below.
+    if (!gl_FrontFacing && uSiltMode < 0.5) {
       col = mix(col, vec3(0.20, 0.46, 0.54), 0.72);
       alpha = max(alpha, mix(0.70, 0.92, depthT));
     }
@@ -346,9 +347,8 @@ const frag = /* glsl */ `
       }
       
       if (inside) {
-        // Transparency and slight cyan desaturation inside the silt block
-        alpha = min(alpha, 0.33);
-        col = mix(col, vec3(0.5, 0.65, 0.72), 0.20);
+        alpha = min(alpha, 0.05);
+        col = mix(col, vec3(0.10, 0.16, 0.18), 0.04);
       } else {
         // More subtle transparency outside the polygon so the river remains present but subdued
         alpha = min(alpha, 0.65);

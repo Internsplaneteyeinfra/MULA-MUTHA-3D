@@ -1,7 +1,6 @@
 import * as THREE from "three";
 import { createWaterMaterial } from "./waterShader.js";
 import { state } from "../state.js";
-import { wseSpatialService } from "../services/hydrology/wseSpatialService.js";
 
 export const SURFACE_Y = 9.4;
 /** Minimum metres the riverbed stays below the water surface (prevents poke-through). */
@@ -156,70 +155,143 @@ export function createRiver(dataset) {
 }
 
 /**
- * Drop water and bed triangles whose centroid is physically dry based on local depth.
- * depth = WSE - bed. If depth <= 0, the triangle is deleted.
- * LULC is used only as a secondary constraint.
- *
- * SAFETY RULE: If wseSpatialService has no hydraulic profile yet (loaded async),
- * default every triangle to wet=true so the river is never accidentally erased.
- * The hydraulic clip will run again once the profile loads via hydrologyStore listener.
+ * Keep water and bed triangles only where LULC 2026 or live OSM records water.
+ * The AOI / corridor polygon is not treated as a water mask.
  */
-export function clipRiverToHydrology(river, lulc) {
-  if (!river?.bathymetry) return;
-  const bath = river.bathymetry;
-  const src = bath.indices;
-  const pos = bath.positions;
-  const chainages = bath.chainages || new Float32Array(pos.length / 3);
-  const lateralOffsets = bath.lateralOffsets || new Float32Array(pos.length / 3);
-
-  // Check if hydraulic profile is available at all before doing depth checks.
-  const profileReady = wseSpatialService._cachedRecords != null &&
-                       wseSpatialService._cachedRecords.length > 0;
-
-  const keep = [];
-  let removed = 0;
-  for (let t = 0; t < src.length; t += 3) {
-    const a = src[t];
-    const b = src[t + 1];
-    const c = src[t + 2];
-
-    const x   = (pos[a * 3] + pos[b * 3] + pos[c * 3]) / 3;
-    const z   = (pos[a * 3 + 2] + pos[b * 3 + 2] + pos[c * 3 + 2]) / 3;
-    const cls = lulc?.classAtLocal?.(x, z);
-
-    // If LULC explicitly says non-water land (not just unclassified), remove it
-    if (cls && cls !== "water" && cls !== "wetland") {
-      removed++;
-      continue;
-    }
-
-    // Hydraulic wet/dry — only applied when profile data exists
-    if (profileReady) {
-      const ch  = (chainages[a] + chainages[b] + chainages[c]) / 3;
-      const off = (lateralOffsets[a] + lateralOffsets[b] + lateralOffsets[c]) / 3;
-      const depthInfo = wseSpatialService.getDepthAt(ch, off);
-      if (!depthInfo.wetted && depthInfo.depthM === 0) {
-        // Only remove if we have a confident dry reading, not just unavailable
-        if (depthInfo.provenance !== "WSE_UNAVAILABLE") {
-          removed++;
-          continue;
-        }
-      }
-    }
-    // If no profile or profile says wet or unavailable → keep triangle
-    keep.push(a, b, c);
-  }
-
-  const index = new Uint32Array(keep);
+export function clipRiverToHydrology(river, lulc, osmWater) {
+  if (!river?.mesh?.geometry) return;
+  // Keep the measured corridor waterline. Per-triangle LULC clips made a
+  // triangular bank; round the existing outline instead.
   for (const geo of [river.mesh.geometry, river.bed.geometry, river.wire?.geometry]) {
     if (!geo) continue;
-    geo.setIndex(new THREE.BufferAttribute(index.slice(), 1));
-    smoothMeshBoundary(geo, 4);
+    subdivideBoundaryEdges(geo, 10, 4);
+    smoothMeshBoundary(geo, 20);
     geo.computeVertexNormals();
   }
-  console.info("[river] water clipped to Hydrology", {
-    kept: keep.length / 3, removed, profileReady
+  console.info("[river] waterline rounded (LULC clip skipped for smooth banks)", {
+    osmPolygons: osmWater?.count ?? 0,
+    lulc: !!lulc,
   });
+}
+
+function boundaryEdges(indices) {
+  const edgeCount = new Map();
+  const addEdge = (a, b) => {
+    const key = a < b ? `${a},${b}` : `${b},${a}`;
+    const entry = edgeCount.get(key) || { count: 0, a, b };
+    entry.count++;
+    edgeCount.set(key, entry);
+  };
+  for (let i = 0; i < indices.length; i += 3) {
+    addEdge(indices[i], indices[i + 1]);
+    addEdge(indices[i + 1], indices[i + 2]);
+    addEdge(indices[i + 2], indices[i]);
+  }
+  return edgeCount;
+}
+
+function subdivideBoundaryEdges(geo, maxEdgeM = 16, passes = 3) {
+  const posAttr = geo.getAttribute("position");
+  if (!posAttr || !geo.getIndex()) return;
+
+  const attrNames = Object.keys(geo.attributes);
+  const arrays = {};
+  const sizes = {};
+  for (const name of attrNames) {
+    const attr = geo.getAttribute(name);
+    arrays[name] = Array.from(attr.array);
+    sizes[name] = attr.itemSize;
+  }
+  let indices = Array.from(geo.getIndex().array);
+
+  const vertCount = () => arrays.position.length / 3;
+
+  const lerpVert = (a, b) => {
+    const id = vertCount();
+    for (const name of attrNames) {
+      const size = sizes[name];
+      const arr = arrays[name];
+      for (let k = 0; k < size; k++) {
+        arr.push((arr[a * size + k] + arr[b * size + k]) * 0.5);
+      }
+    }
+    return id;
+  };
+
+  const dist = (a, b) => {
+    const ax = arrays.position[a * 3];
+    const az = arrays.position[a * 3 + 2];
+    const bx = arrays.position[b * 3];
+    const bz = arrays.position[b * 3 + 2];
+    return Math.hypot(ax - bx, az - bz);
+  };
+
+  for (let pass = 0; pass < passes; pass++) {
+    const edges = boundaryEdges(indices);
+    const next = [];
+    const mid = new Map();
+    const midpoint = (a, b) => {
+      const key = a < b ? `${a},${b}` : `${b},${a}`;
+      if (mid.has(key)) return mid.get(key);
+      const id = lerpVert(a, b);
+      mid.set(key, id);
+      return id;
+    };
+    for (let i = 0; i < indices.length; i += 3) {
+      const a = indices[i];
+      const b = indices[i + 1];
+      const c = indices[i + 2];
+      const ab = a < b ? `${a},${b}` : `${b},${a}`;
+      const bc = b < c ? `${b},${c}` : `${c},${b}`;
+      const ca = c < a ? `${c},${a}` : `${a},${c}`;
+      const splitAB = edges.get(ab)?.count === 1 && dist(a, b) > maxEdgeM;
+      const splitBC = edges.get(bc)?.count === 1 && dist(b, c) > maxEdgeM;
+      const splitCA = edges.get(ca)?.count === 1 && dist(c, a) > maxEdgeM;
+      const n = (splitAB ? 1 : 0) + (splitBC ? 1 : 0) + (splitCA ? 1 : 0);
+      if (n === 0) {
+        next.push(a, b, c);
+        continue;
+      }
+      if (n === 1) {
+        if (splitAB) {
+          const m = midpoint(a, b);
+          next.push(a, m, c, m, b, c);
+        } else if (splitBC) {
+          const m = midpoint(b, c);
+          next.push(a, b, m, a, m, c);
+        } else {
+          const m = midpoint(c, a);
+          next.push(a, b, m, b, c, m);
+        }
+        continue;
+      }
+      if (splitAB && splitBC && !splitCA) {
+        const mab = midpoint(a, b);
+        const mbc = midpoint(b, c);
+        next.push(a, mab, c, mab, b, mbc, mab, mbc, c);
+      } else if (splitBC && splitCA && !splitAB) {
+        const mbc = midpoint(b, c);
+        const mca = midpoint(c, a);
+        next.push(a, b, mca, b, mbc, mca, mbc, c, mca);
+      } else if (splitCA && splitAB && !splitBC) {
+        const mca = midpoint(c, a);
+        const mab = midpoint(a, b);
+        next.push(a, mab, mca, mab, b, c, mab, c, mca);
+      } else {
+        const mab = midpoint(a, b);
+        const mbc = midpoint(b, c);
+        const mca = midpoint(c, a);
+        next.push(a, mab, mca, mab, b, mbc, mca, mbc, c, mab, mbc, mca);
+      }
+    }
+    indices = next;
+  }
+
+  for (const name of attrNames) {
+    const attr = geo.getAttribute(name);
+    geo.setAttribute(name, new THREE.Float32BufferAttribute(arrays[name], attr.itemSize));
+  }
+  geo.setIndex(new THREE.BufferAttribute(new Uint32Array(indices), 1));
 }
 
 function smoothMeshBoundary(geo, iterations = 3) {
@@ -244,35 +316,30 @@ function smoothMeshBoundary(geo, iterations = 3) {
     addEdge(indices[i + 2], indices[i]);
   }
 
-  // 2. Identify boundary vertices and their boundary neighbors
   const boundaryAdj = new Map();
   for (const { count, a, b } of edgeCount.values()) {
-    if (count === 1) { // Boundary edge
-      if (!boundaryAdj.has(a)) boundaryAdj.set(a, []);
-      if (!boundaryAdj.has(b)) boundaryAdj.set(b, []);
-      boundaryAdj.get(a).push(b);
-      boundaryAdj.get(b).push(a);
-    }
+    if (count !== 1) continue;
+    if (!boundaryAdj.has(a)) boundaryAdj.set(a, []);
+    if (!boundaryAdj.has(b)) boundaryAdj.set(b, []);
+    boundaryAdj.get(a).push(b);
+    boundaryAdj.get(b).push(a);
   }
 
-  // 3. Laplacian smoothing on boundary vertices only
   const newPos = new Float32Array(pos.array);
   for (let iter = 0; iter < iterations; iter++) {
     const tempPos = new Float32Array(newPos);
     for (const [v, neighbors] of boundaryAdj.entries()) {
-      if (neighbors.length < 2) continue; // Skip endpoints or errors
-      
-      let sumX = 0, sumZ = 0;
+      if (neighbors.length < 2) continue;
+      let sumX = 0;
+      let sumZ = 0;
       for (const n of neighbors) {
         sumX += tempPos[n * 3];
         sumZ += tempPos[n * 3 + 2];
       }
-      
-      // Move 50% towards the average of neighbors (Chaikin-like softening)
       const avgX = sumX / neighbors.length;
       const avgZ = sumZ / neighbors.length;
-      newPos[v * 3] = tempPos[v * 3] * 0.5 + avgX * 0.5;
-      newPos[v * 3 + 2] = tempPos[v * 3 + 2] * 0.5 + avgZ * 0.5;
+      newPos[v * 3] = tempPos[v * 3] * 0.22 + avgX * 0.78;
+      newPos[v * 3 + 2] = tempPos[v * 3 + 2] * 0.22 + avgZ * 0.78;
     }
   }
   
@@ -380,24 +447,21 @@ export function applyRiverLook(river, mode = "water") {
     }
     to.needsUpdate = true;
   }
+  river.walls.visible = look !== "water";
   for (const child of river.walls.children) {
     const col = child.geometry.attributes.color;
     for (let i = 0; i < col.count; i++) {
       const isBed = i % 4 === 0 || i % 4 === 2;
-      // Keep the measured channel edge readable beneath translucent blue water.
-      // The old brown wall became almost black under Chrome's scene lighting.
-      if (look === "water") col.setXYZ(i, 0.32, 0.52, 0.58);
+      if (look === "water") col.setXYZ(i, 0.52, 0.56, 0.42);
       else if (look === "erosionDark") {
         if (isBed) col.setXYZ(i, 0.04, 0.05, 0.06);
         else col.setXYZ(i, 0.09, 0.1, 0.11);
       } else if (look === "depth") {
-        // Cut-bank earth walls for ground deep view — never water-blue
         if (isBed) col.setXYZ(i, 0.42, 0.36, 0.26);
         else col.setXYZ(i, 0.68, 0.60, 0.44);
       } else if (isBed) col.setXYZ(i, 0.12, 0.42, 0.62);
       else col.setXYZ(i, 0.35, 0.65, 0.72);
     }
-    col.needsUpdate = true;
     col.needsUpdate = true;
     child.material.transparent = look === "cutaway";
     child.material.opacity = look === "cutaway" ? 0.86 : 1.0;
@@ -436,16 +500,23 @@ export function applyExaggeration(river, dataset, exag, floodRiseM = 0, waterSur
     const finalWaterY = baseSurfaceY + rise;
 
     pos.setY(i, finalWaterY);
-    bed.setY(i, bedElevation(d, dataset.minDepth, dataset.maxDepth, across, exag));
+    const x = bath.positions[i * 3];
+    const z = bath.positions[i * 3 + 2];
+    const dtmY = river.dtmHeightAt?.(x, z);
+    const fromSurvey = bedElevation(d, dataset.minDepth, dataset.maxDepth, across, exag);
+    const bedY = Number.isFinite(dtmY)
+      ? Math.min(dtmY, finalWaterY - 0.08)
+      : fromSurvey;
+    bed.setY(i, bedY);
   }
   pos.needsUpdate = true;
   bed.needsUpdate = true;
   river.mesh.geometry.computeVertexNormals();
   river.bed.geometry.computeVertexNormals();
-  updateWalls(river.walls, bath, dataset, exag, rise, waterSurfaceSceneY);
+  updateWalls(river.walls, bath, dataset, exag, rise, waterSurfaceSceneY, river.dtmHeightAt);
 }
 
-function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null) {
+function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null, dtmHeightAt = null) {
   const child = group.children[0];
   if (!child) return;
   const attr = child.geometry.attributes.position;
@@ -467,20 +538,18 @@ function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSce
     const wallTopA = surfaceYa + Math.max(0, floodRiseM) - 0.08;
     const wallTopB = surfaceYb + Math.max(0, floodRiseM) - 0.08;
 
-    const ya = bedElevation(
-      bath.depths[a],
-      dataset.minDepth,
-      dataset.maxDepth,
-      bath.acrossU?.[a] ?? 0.5,
-      exag,
-    );
-    const yb = bedElevation(
-      bath.depths[b],
-      dataset.minDepth,
-      dataset.maxDepth,
-      bath.acrossU?.[b] ?? 0.5,
-      exag,
-    );
+    const xa = bath.positions[a * 3];
+    const za = bath.positions[a * 3 + 2];
+    const xb = bath.positions[b * 3];
+    const zb = bath.positions[b * 3 + 2];
+    const dtmA = dtmHeightAt?.(xa, za);
+    const dtmB = dtmHeightAt?.(xb, zb);
+    const ya = Number.isFinite(dtmA)
+      ? Math.min(dtmA, wallTopA - 0.02)
+      : bedElevation(bath.depths[a], dataset.minDepth, dataset.maxDepth, bath.acrossU?.[a] ?? 0.5, exag);
+    const yb = Number.isFinite(dtmB)
+      ? Math.min(dtmB, wallTopB - 0.02)
+      : bedElevation(bath.depths[b], dataset.minDepth, dataset.maxDepth, bath.acrossU?.[b] ?? 0.5, exag);
     attr.setY(i, ya);
     attr.setY(i + 1, wallTopA);
     attr.setY(i + 2, yb);

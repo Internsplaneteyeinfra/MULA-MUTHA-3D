@@ -18,6 +18,7 @@ const REQUIRED = [
   "data/roads.geojson",
   "data/bridges.geojson",
   "data/trees.geojson",
+  "data/osm_water.geojson",
   "data/FABDEM_DTM_FINAL.tif",
   "assets/trees/palm.glb",
   "assets/buildings/residential/house_01.glb",

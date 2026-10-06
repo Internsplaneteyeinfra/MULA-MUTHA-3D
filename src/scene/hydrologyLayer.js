@@ -173,10 +173,10 @@ export const SILT_CLASS_BOUNDS = {
 };
 
 export const SILT_CLASS_CLASSES = [
-  { id: "low", label: "Low", color: "#2ECC71" },
-  { id: "moderate", label: "Moderate", color: "#A8E010" },
-  { id: "high", label: "High", color: "#F39C12" },
-  { id: "very_high", label: "Very High", color: "#E74C3C" },
+  { id: "low", label: "Low", color: "#0D5C2E" },
+  { id: "moderate", label: "Moderate", color: "#6B7A00" },
+  { id: "high", label: "High", color: "#C2410C" },
+  { id: "very_high", label: "Very High", color: "#991B1B" },
 ];
 
 export const SILT_CLASS_PERIODS = [
@@ -413,11 +413,11 @@ const BUILTIN_LAYER_DEFS = {
 };
 
 const CLASS_COLOR = {
-  Low: "#2ECC71",
-  Moderate: "#F39C12",
-  High: "#E74C3C",
+  Low: "#0D5C2E",
+  Moderate: "#6B7A00",
+  High: "#C2410C",
+  "Very High": "#991B1B",
   "Very Low": "#0000FF",
-  "Very High": "#FF0000",
   "Very Low Salinity": "#0000FF",
   "Low Salinity": "#00BFFF",
   "Moderate Salinity": "#00FF00",

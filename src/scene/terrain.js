@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { computeSceneBounds } from "../geo/sceneBounds.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { loadOsmWater, isObservedWater } from "../geo/osmWater.js";
 import { localToLonLat } from "../geo/geoReference.js";
 import { spatialIndex, neighbors } from "../geo/corridor.js";
 import { wseSpatialService } from "../services/hydrology/wseSpatialService.js";
@@ -9,6 +10,7 @@ import { wseSpatialService } from "../services/hydrology/wseSpatialService.js";
 let activeDtm = null;
 let activeDataset = null;
 let activeLulc = null;
+let activeOsmWater = null;
 let activePointsIndex = null;
 
 /**
@@ -20,6 +22,12 @@ export async function createTerrain(dataset) {
   activeDataset = dataset;
   activePointsIndex = spatialIndex(dataset.points || []);
   activeLulc = await loadLulcClassGrid();
+  try {
+    activeOsmWater = await loadOsmWater();
+  } catch (e) {
+    console.warn("[terrain] OSM water unavailable", e);
+    activeOsmWater = null;
+  }
   const b = computeSceneBounds(dataset);
   const width = b.spanX;
   const depth = b.spanZ;
@@ -43,6 +51,27 @@ export async function createTerrain(dataset) {
     heights[i] = y;
   }
 
+  const nx = segsX + 1;
+  const nz = segsZ + 1;
+  for (let pass = 0; pass < 5; pass++) {
+    const next = heights.slice();
+    for (let iz = 1; iz < nz - 1; iz++) {
+      for (let ix = 1; ix < nx - 1; ix++) {
+        const i = iz * nx + ix;
+        const y = heights[i];
+        const n0 = heights[i - 1];
+        const n1 = heights[i + 1];
+        const n2 = heights[i - nx];
+        const n3 = heights[i + nx];
+        if (y > SURFACE_Y + 2 && n0 > SURFACE_Y && n1 > SURFACE_Y && n2 > SURFACE_Y && n3 > SURFACE_Y) continue;
+        const avg = (y + n0 + n1 + n2 + n3) * 0.2;
+        next[i] = y * 0.32 + avg * 0.68;
+      }
+    }
+    heights.set(next);
+  }
+  for (let i = 0; i < pos.count; i++) pos.setY(i, heights[i]);
+
   let minY = Infinity;
   let maxY = -Infinity;
   for (let i = 0; i < heights.length; i++) {
@@ -62,8 +91,6 @@ export async function createTerrain(dataset) {
   const cStone = new THREE.Color("#b8a888");
   const cBank = new THREE.Color("#847252");
   const cWet = new THREE.Color("#5f7a66");
-  const cSub = new THREE.Color("#4a4334");
-  const cSubDeep = new THREE.Color("#2a3638");
   const tmp = new THREE.Color();
 
   for (let i = 0; i < pos.count; i++) {
@@ -75,9 +102,9 @@ export async function createTerrain(dataset) {
     const half = near.st.halfWidth;
 
     if (y < SURFACE_Y - 0.05) {
-      // Channel carved below WSE: wet bed, not grass, so looking through water still reads as river.
-      const subT = THREE.MathUtils.clamp((SURFACE_Y - y) / 2.4, 0, 1);
-      tmp.copy(cSub).lerp(cSubDeep, subT);
+      const wet = THREE.MathUtils.clamp((SURFACE_Y - y) / 4, 0, 1);
+      tmp.copy(cGrass).lerp(cBank, 0.28 + wet * 0.2);
+      tmp.lerp(cWet, wet * 0.22);
     } else if (activeDtm) {
       const hn = THREE.MathUtils.clamp((y - minY) / ySpan, 0, 1);
       tmp.copy(cLow).lerp(cGrass, smooth(hn, 0.05, 0.32));
@@ -207,35 +234,21 @@ function heightAt(x, z, stations, dtm = activeDtm) {
   const half = Math.max(12, nearStation.st.halfWidth);
   const dtmY = dtm?.sampleSceneXY?.(x, z) ?? null;
 
-  // Use the canonical hydrology services to determine if this is water and the local bed elevation
-  let isWater = false;
+  const depthInfo = wseSpatialService.getDepthAt(ch, lat);
+  const observed = isObservedWater(activeLulc, activeOsmWater, x, z);
+  let isWater = observed;
   let bedY = null;
   let targetWaterY = SURFACE_Y - 0.5;
 
-  // Use wseSpatialService for data-driven bed/water determination
-  if (true) {
-    const depthInfo = wseSpatialService.getDepthAt(ch, lat);
-
-    if (depthInfo.wetted) {
-      isWater = true;
-      // Place bed at SURFACE_Y minus the local hydraulic depth
+  if (observed) {
+    if (depthInfo.wetted && depthInfo.depthM > 0) {
       bedY = SURFACE_Y - depthInfo.depthM;
-      targetWaterY = SURFACE_Y - 0.5;
+    } else if (dtmY != null) {
+      bedY = Math.min(dtmY, SURFACE_Y - 0.45);
+    } else {
+      bedY = SURFACE_Y - 0.8;
     }
-  } else {
-    // Fallback if services not ready
-    let nearDist2 = Infinity;
-    if (activePointsIndex) {
-      const nearPts = neighbors(activePointsIndex, x, z);
-      for (const p of nearPts) {
-        const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
-        if (d2 < nearDist2) nearDist2 = d2;
-      }
-      if (nearDist2 < 45 * 45) {
-        isWater = true;
-        bedY = SURFACE_Y - 0.8; // Legacy fallback
-      }
-    }
+    targetWaterY = SURFACE_Y - 0.5;
   }
 
   const hills =
@@ -246,18 +259,20 @@ function heightAt(x, z, stations, dtm = activeDtm) {
   const proceduralBase = SURFACE_Y + 2 + hills * bankFalloff;
 
   if (dtmY != null) {
-    let finalY = dtmY;
+    let channelY = dtmY;
     if (isWater) {
-      // Smoothly carve the DTM down below the water surface so it doesn't occlude the river mesh.
-      finalY = bedY != null ? bedY : targetWaterY;
+      channelY = bedY != null ? bedY : targetWaterY;
+    } else if (lat < half) {
+      channelY = Math.min(dtmY, SURFACE_Y - 0.1);
     }
-    // Ensure the outer straight KML boundaries are buried by raising the terrain slightly at the edges.
-    const inFootprint = lat < half * 1.1;
-    if (inFootprint && !isWater) {
-      const bankLip = THREE.MathUtils.smoothstep(lat, half * 0.9, half * 1.0) * 0.6;
-      finalY += bankLip;
+    const inner = half * 0.76;
+    const outer = half * 1.14;
+    if (lat < outer) {
+      const bankY = Math.max(dtmY, SURFACE_Y + 0.28);
+      const s = THREE.MathUtils.smoothstep(inner, outer, lat);
+      return THREE.MathUtils.lerp(channelY, bankY, s);
     }
-    return finalY;
+    return dtmY;
   }
 
   if (isWater) {
