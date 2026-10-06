@@ -196,6 +196,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
             ${interactiveAttrs}>
             <span class="lu-theme-class-letter">${escapeHtml(key)}</span>
             <span class="lu-theme-class-name">${escapeHtml(displayName)}</span>
+            ${scaleText && c.label && c.label !== scaleText ? `<span class="lu-theme-class-label">${escapeHtml(c.label)}</span>` : ""}
           </${tag}>`;
         })
         .join("");

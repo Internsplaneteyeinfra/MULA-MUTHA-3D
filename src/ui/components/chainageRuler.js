@@ -1,6 +1,6 @@
 import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
-import { interpolateChainage } from "../../geo/chainage.js";
+import { interpolateChainage, CHAINAGE_DESTINATIONS } from "../../geo/chainage.js";
 
 /** Minimum horizontal gap (px) between neighbouring tick labels before one is hidden. */
 const TICK_GAP_PX = 6;
@@ -45,6 +45,15 @@ export function mountChainageRuler(root, dataset) {
     })
     .join("");
 
+  const destinationsHtml = CHAINAGE_DESTINATIONS.map(dest => {
+    const pct = ((dest.chainage_m - minM) / spanM) * 100;
+    if (pct < 0 || pct > 100) return "";
+    const letter = dest.name.charAt(0).toUpperCase();
+    return `<button type="button" class="chainage-destination-marker" data-meters="${dest.chainage_m}" style="left:${pct}%" aria-label="${dest.name}" title="${dest.name}">
+      ${letter}
+    </button>`;
+  }).join("");
+
   el.innerHTML = `
     <div class="chainage-ruler-bands-head" id="chainage-ruler-bands-head" hidden></div>
     <div class="cr-shell">
@@ -53,6 +62,7 @@ export function mountChainageRuler(root, dataset) {
         <div class="chainage-ruler-bands" id="chainage-ruler-bands" aria-hidden="true" hidden></div>
         <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="${intervalM}" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
         ${ticksHtml}
+        ${destinationsHtml}
         <div class="chainage-ruler-cursor" id="chainage-ruler-cursor" hidden>
           <span class="chainage-ruler-cursor-label" id="chainage-ruler-cursor-label">0+000</span>
           <span class="chainage-ruler-cursor-dot"></span>

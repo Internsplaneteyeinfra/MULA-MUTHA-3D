@@ -181,6 +181,12 @@ const frag = /* glsl */ `
   uniform vec4  uPiers[16];
   uniform float uPierCount;
 
+  uniform float uSiltMode;
+  uniform vec2  uSiltP0;
+  uniform vec2  uSiltP1;
+  uniform vec2  uSiltP2;
+  uniform vec2  uSiltP3;
+
   varying float vDepth;
   varying float vAlong;
   varying float vAcross;
@@ -314,6 +320,41 @@ const frag = /* glsl */ `
     alpha *= mix(0.08, 1.0, revealMask);
     alpha *= mix(1.0, 0.92, clamp(wake * 0.35, 0.0, 1.0));
 
+    // From below the surface the sheet is a back face — keep it as water, not a window onto green DTM.
+    if (!gl_FrontFacing) {
+      col = mix(col, vec3(0.20, 0.46, 0.54), 0.72);
+      alpha = max(alpha, mix(0.70, 0.92, depthT));
+    }
+
+    // SILT ANALYSIS MODE OVERRIDE
+    if (uSiltMode > 0.5) {
+      vec2 p = vWorld.xz;
+      vec2 poly[4];
+      poly[0] = uSiltP0;
+      poly[1] = uSiltP1;
+      poly[2] = uSiltP2;
+      poly[3] = uSiltP3;
+      
+      bool inside = false;
+      int j = 3;
+      for (int i = 0; i < 4; i++) {
+        if (((poly[i].y > p.y) != (poly[j].y > p.y)) &&
+            (p.x < (poly[j].x - poly[i].x) * (p.y - poly[i].y) / (poly[j].y - poly[i].y) + poly[i].x)) {
+          inside = !inside;
+        }
+        j = i;
+      }
+      
+      if (inside) {
+        // Transparency and slight cyan desaturation inside the silt block
+        alpha = min(alpha, 0.33);
+        col = mix(col, vec3(0.5, 0.65, 0.72), 0.20);
+      } else {
+        // More subtle transparency outside the polygon so the river remains present but subdued
+        alpha = min(alpha, 0.65);
+      }
+    }
+
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -366,6 +407,11 @@ export function createWaterMaterial(dataset) {
       uReflectionStrength: { value: preset.reflectionStrength ?? 0.55 },
       uWaveHighlight: { value: preset.waveHighlight ?? 0.75 },
       uQuality: { value: qualityToFloat(state.waterQuality || "high") },
+      uSiltMode: { value: 0 },
+      uSiltP0: { value: new THREE.Vector2() },
+      uSiltP1: { value: new THREE.Vector2() },
+      uSiltP2: { value: new THREE.Vector2() },
+      uSiltP3: { value: new THREE.Vector2() },
       // Use the actual survey range so measured differences remain visible.
       uMinDepth: { value: Number.isFinite(dataset.minDepth) ? dataset.minDepth : 0.5 },
       uMaxDepth: { value: Number.isFinite(dataset.maxDepth) ? dataset.maxDepth : 2.0 },
@@ -487,4 +533,26 @@ export function getWaterDebugInfo(material, dataset) {
     quality: state.waterQuality,
     preset: state.waterPreset,
   };
+}
+
+export function setWaterSiltMode(material, active, points) {
+  if (!material?.uniforms) return;
+  if (!material.uniforms.uSiltMode) {
+    // If uniforms are missing (e.g. hot reload where material was created before the uniform was added),
+    // inject them dynamically to prevent crashing and allow testing.
+    material.uniforms.uSiltMode = { value: 0 };
+    material.uniforms.uSiltP0 = { value: new THREE.Vector2() };
+    material.uniforms.uSiltP1 = { value: new THREE.Vector2() };
+    material.uniforms.uSiltP2 = { value: new THREE.Vector2() };
+    material.uniforms.uSiltP3 = { value: new THREE.Vector2() };
+    material.needsUpdate = true;
+  }
+  
+  material.uniforms.uSiltMode.value = active ? 1 : 0;
+  if (active && points && points.length >= 4) {
+    material.uniforms.uSiltP0.value.set(points[0].x, points[0].z);
+    material.uniforms.uSiltP1.value.set(points[1].x, points[1].z);
+    material.uniforms.uSiltP2.value.set(points[2].x, points[2].z);
+    material.uniforms.uSiltP3.value.set(points[3].x, points[3].z);
+  }
 }

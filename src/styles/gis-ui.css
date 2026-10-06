@@ -5977,6 +5977,16 @@
   white-space: normal;
 }
 
+.lu-theme-class-label {
+  font: 600 9px/1.15 var(--font-ui);
+  letter-spacing: 0.01em;
+  color: rgba(248, 252, 255, 0.95);
+  text-shadow: 0 1px 5px rgba(0, 0, 0, 0.85);
+  max-width: 78px;
+  text-align: center;
+  white-space: normal;
+}
+
 /* LULC / silt: scale chips only — all classes always visible, no click filter */
 .lu-theme-classes.is-legend-only .lu-theme-class,
 .lu-theme-class.is-legend-chip {
@@ -9058,7 +9068,36 @@
   visibility: hidden;
 }
 
-/* —— Thumb + floating label —— */
+/* —— Ticks (below the rail) —— */
+#ui-root.gis-ui .cr-premium .chainage-destination-marker {
+  position: absolute;
+  top: 34px;
+  transform: translate(-50%, -50%);
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: rgba(30, 40, 50, 0.85);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #fff;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  z-index: 8;
+  padding: 0;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+  box-shadow: 0 2px 6px rgba(0,0,0,0.4);
+}
+
+#ui-root.gis-ui .cr-premium .chainage-destination-marker:hover {
+  background: var(--cr-cyan);
+  border-color: #fff;
+  color: #000;
+  transform: translate(-50%, -50%) scale(1.15);
+}
+
 #ui-root.gis-ui .cr-premium .chainage-ruler-cursor,
 #ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-start,
 #ui-root.gis-ui .cr-premium .chainage-ruler-cursor.is-edge-end {

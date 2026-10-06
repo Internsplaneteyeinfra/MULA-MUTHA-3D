@@ -498,6 +498,23 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       window.__MM_SCENE__?.clearLithologyPick?.();
     }
 
+    // Silt Area Tool 3D Volume Hover
+    if (siltAreaTool?.isActive?.() && !siltAreaTool?.isAccepting?.() && siltAreaTool?.pickVolume) {
+      const volInfo = siltAreaTool.pickVolume(raycaster);
+      if (volInfo) {
+        state.landUseTipActive = true;
+        state.chainageTipActive = false;
+        riverWidthMeasure?.hide?.();
+        tooltip.show(e.clientX, e.clientY, {
+          landUseHover: true,
+          siltClass: true,
+          label: volInfo.label,
+          color: volInfo.color,
+          layerTitle: "SILT ANALYSIS (SELECTED AREA)"
+        });
+      }
+    }
+
     // Land Use / LULC / silt / vegetation — hover class under pointer
     {
       const luId = getHydrologyGroup?.()?.userData?.getActiveId?.();

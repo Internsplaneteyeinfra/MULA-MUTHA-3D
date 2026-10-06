@@ -210,6 +210,7 @@ export function mountLandUseThemeHud(root, hooks = {}) {
         ${interactiveAttrs}>
         <span class="lu-theme-class-letter" aria-hidden="true"></span>
         <span class="lu-theme-class-name">${escapeHtml(scaleText)}</span>
+        ${c.label && c.label !== scaleText ? `<span class="lu-theme-class-label">${escapeHtml(c.label)}</span>` : ""}
       </${tag}>`;
       })
       .join("");

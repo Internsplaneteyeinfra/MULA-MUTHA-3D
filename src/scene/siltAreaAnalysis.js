@@ -398,19 +398,27 @@ export async function analyzeSiltPolygon(points, opts = {}) {
         if (v != null) volVal[k] = v;
       }
       const p = localAt(ix, iy);
-      if (!pointInRing(p.x, p.z, ring)) continue;
+      // Propagate RGB to prevent black fringes
+      clip[i4] = cls[i4];
+      clip[i4 + 1] = cls[i4 + 1];
+      clip[i4 + 2] = cls[i4 + 2];
+
+      if (!pointInRing(p.x, p.z, ring)) {
+        clip[i4 + 3] = 0;
+        continue;
+      }
       inside[k] = 1;
       insideCells++;
       const c = clsIdx[k];
-      if (c < 0) continue;
+      if (c < 0) {
+        clip[i4 + 3] = 190; // inside polygon but unclassified: drawn on the bed, no sediment
+        continue;
+      }
       validCells++;
       classCells[c]++;
       const v = volAt(k);
       if (v != null) volValues.push(v);
-      clip[i4] = cls[i4];
-      clip[i4 + 1] = cls[i4 + 1];
-      clip[i4 + 2] = cls[i4 + 2];
-      clip[i4 + 3] = 225;
+      clip[i4 + 3] = 200 + c * 10;
     }
   }
 

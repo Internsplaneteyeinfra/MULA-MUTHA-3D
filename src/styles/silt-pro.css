@@ -1,5 +1,9 @@
 /* Professional Silt Analysis Overlay Styles - Reference Matched */
 
+body.silt-analysis-mode canvas {
+  pointer-events: auto !important;
+}
+
 body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-container):not(.gis-tools-stack) {
   opacity: 0 !important;
   pointer-events: none !important;
@@ -9,7 +13,7 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
   position: absolute;
   inset: 0;
   z-index: 1000;
-  pointer-events: none;
+  pointer-events: none !important;
   font-family: 'Inter', system-ui, sans-serif;
   color: #E8F4F8;
   display: flex;
@@ -17,7 +21,10 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
   justify-content: space-between;
 }
 
-.silt-pro-overlay > * { pointer-events: auto; }
+.silt-pro-overlay button, .silt-pro-overlay [role="button"], .silt-pro-top-bar, .silt-pro-dashboard, .silt-pro-minimized-bar, .silt-pro-floating-legend { 
+  pointer-events: auto !important; 
+}
+
 .silt-pro-overlay[hidden],
 .silt-pro-overlay [hidden] { display: none !important; }
 
@@ -327,3 +334,6 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
 }
 .silt-tt-row { display: flex; justify-content: space-between; gap: 16px; margin-bottom: 4px; }
 .silt-tt-row:last-child { margin-bottom: 0; }
+
+#ui-root .gis-tools-stack { pointer-events: auto !important; }
+

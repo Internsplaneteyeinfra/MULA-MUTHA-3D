@@ -62,6 +62,8 @@ export async function createTerrain(dataset) {
   const cStone = new THREE.Color("#b8a888");
   const cBank = new THREE.Color("#847252");
   const cWet = new THREE.Color("#5f7a66");
+  const cSub = new THREE.Color("#4a4334");
+  const cSubDeep = new THREE.Color("#2a3638");
   const tmp = new THREE.Color();
 
   for (let i = 0; i < pos.count; i++) {
@@ -72,7 +74,11 @@ export async function createTerrain(dataset) {
     const lat = near.lat;
     const half = near.st.halfWidth;
 
-    if (activeDtm) {
+    if (y < SURFACE_Y - 0.05) {
+      // Channel carved below WSE: wet bed, not grass, so looking through water still reads as river.
+      const subT = THREE.MathUtils.clamp((SURFACE_Y - y) / 2.4, 0, 1);
+      tmp.copy(cSub).lerp(cSubDeep, subT);
+    } else if (activeDtm) {
       const hn = THREE.MathUtils.clamp((y - minY) / ySpan, 0, 1);
       tmp.copy(cLow).lerp(cGrass, smooth(hn, 0.05, 0.32));
       tmp.lerp(cOlive, smooth(hn, 0.28, 0.58));

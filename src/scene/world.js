@@ -3,6 +3,7 @@ import { state } from "../state.js";
 import { createTerrain } from "./terrain.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
 import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
+import { setWaterSiltMode } from "./waterShader.js";
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
 import { createVegetationApiLayer } from "./vegetationApiLayer.js";
@@ -44,6 +45,7 @@ import { createQualityProfile, createThrottle, isLowMemoryDevice } from "../perf
 import { createAtmosphericSky } from "./sky/atmosphericSky.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { createWaterFill } from "./waterFill.js";
 import { nearestStationU } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
@@ -166,6 +168,35 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const landCover = await loadLulcClassGrid();
   clipRiverToHydrology(river, landCover);
   logCorridorLandCover(dataset, landCover);
+  const waterFill = createWaterFill(terrain.mesh, river, dataset);
+  if (waterFill) river.mesh.add(waterFill);
+
+  const UNDERWATER_COLOR = "#4a8fa0";
+  /** Light volume tint only — land, depth colours and banks stay readable at hundreds of metres. */
+  const UNDERWATER_FOG_DENSITY = 0.00038;
+  const underwaterRay = new THREE.Raycaster();
+  const UP = new THREE.Vector3(0, 1, 0);
+  let underwaterCheckIn = 0;
+  let underwater = false;
+  let underwaterLook = false;
+  /** Camera below the water surface with river / fill water directly above it (throttled raycast). */
+  function cameraInRiverWater(camera, dt) {
+    if (camera.position.y >= SURFACE_Y - 0.02 || !river.mesh.visible) {
+      underwaterCheckIn = 0;
+      underwater = false;
+      return false;
+    }
+    underwaterCheckIn -= dt;
+    if (underwaterCheckIn > 0) return underwater;
+    underwaterCheckIn = 0.25;
+    underwaterRay.set(camera.position, UP);
+    underwaterRay.far = SURFACE_Y + 2 - camera.position.y;
+    underwater = underwaterRay.intersectObject(river.mesh, true).length > 0;
+    return underwater;
+  }
+  function setUnderwaterLook(on) {
+    underwaterLook = on;
+  }
   const coordinateGrid = createCoordinateGrid(dataset);
   const riverBanks = createRiverBankOverlay(dataset);
   const drainageLayer = createDrainageLayer(dataset);
@@ -1065,6 +1096,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     scene,
     dataset,
     river,
+    cameraSystem: cam,
     atmosphericSky,
     riverRain,
     bridgeLabelStates: () => bridgeLabels.items(),
@@ -1074,6 +1106,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     applyLiveWeather(weather) {
       atmosphericSky.applyLiveWeather?.(weather);
       riverRain.applyLiveWeather?.(weather);
+    },
+    updateSiltWaterMode(active, points) {
+      if (!river || !river.mesh) return;
+      if (river.mesh.material) {
+        setWaterSiltMode(river.mesh.material, active, points);
+      }
     },
     coordinateGrid,
     riverBanks,
@@ -1580,7 +1618,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     selectSiltHotspot(id) {
       return siltAreaTool.selectHotspot(id);
     },
-    getSiltAnalysisSnapshot() {
+    setSiltHoverMarker(wx, wz) { if (siltAreaTool.setHoverMarker) siltAreaTool.setHoverMarker(wx, wz); }, removeSiltHoverMarker() { if (siltAreaTool.removeHoverMarker) siltAreaTool.removeHoverMarker(); }, getSiltAnalysisSnapshot() {
       return siltAreaTool.getSnapshot();
     },
     setDistanceMeasureProfileCursor(sample) {
@@ -2061,8 +2099,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const h = cam.camera.position.y;
       if (isMap2DMode() && !state.cinematicActive) {
         // True 2D GIS view — no fog, haze, or atmospheric wash
+        setUnderwaterLook(false);
         applyMap2DClarity();
       } else if (state.cinematicUnderwater) {
+        setUnderwaterLook(true);
         atmosphericSky.setVisible(false);
         if (scene.fog !== groundFog) scene.fog = groundFog;
         groundFog.density = 0.000008;
@@ -2070,7 +2110,18 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         if (!scene.background) scene.background = new THREE.Color("#5a8fa0");
         else scene.background.set("#5a8fa0");
         renderer.toneMappingExposure = 1.55;
+      } else if (cameraInRiverWater(cam.camera, dt)) {
+        // Fill the water column without hiding land, depth colour, or banks.
+        setUnderwaterLook(true);
+        atmosphericSky.setVisible(state.skyEnabled !== false);
+        atmosphericSky.update(dt, cam.camera);
+        if (scene.fog !== groundFog) scene.fog = groundFog;
+        groundFog.density = UNDERWATER_FOG_DENSITY;
+        groundFog.color.set(UNDERWATER_COLOR);
+        if (!scene.background) scene.background = new THREE.Color(UNDERWATER_COLOR);
+        else scene.background.set(UNDERWATER_COLOR);
       } else {
+        setUnderwaterLook(false);
         restoreAtmosphereClarity();
         const atmospheric = Math.min(0.00006, 0.00003 + h / 7_500_000);
         groundFog.density = cutaway ? 0.000028 : atmospheric * (0.7 + (state.skyAtmosphere ?? 0.55) * 0.5);
