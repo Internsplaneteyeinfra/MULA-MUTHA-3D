@@ -30,10 +30,12 @@ export function createRiverBankOverlay(dataset) {
   for (const s of stations) {
     const px = -s.flowZ;
     const pz = s.flowX;
-    const yL = terrainHeightAt(s.x - px * s.halfWidth, s.z - pz * s.halfWidth, stations) + 0.5;
-    const yR = terrainHeightAt(s.x + px * s.halfWidth, s.z + pz * s.halfWidth, stations) + 0.5;
-    leftPts.push(new THREE.Vector3(s.x - px * s.halfWidth, yL, s.z - pz * s.halfWidth));
-    rightPts.push(new THREE.Vector3(s.x + px * s.halfWidth, yR, s.z + pz * s.halfWidth));
+    const left = s.wetHalfLeft ?? s.halfWidth;
+    const right = s.wetHalfRight ?? s.halfWidth;
+    const yL = terrainHeightAt(s.x - px * left, s.z - pz * left, stations) + 0.5;
+    const yR = terrainHeightAt(s.x + px * right, s.z + pz * right, stations) + 0.5;
+    leftPts.push(new THREE.Vector3(s.x - px * left, yL, s.z - pz * left));
+    rightPts.push(new THREE.Vector3(s.x + px * right, yR, s.z + pz * right));
   }
 
   if (leftPts.length >= 2) {

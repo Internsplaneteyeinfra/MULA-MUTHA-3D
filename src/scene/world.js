@@ -505,7 +505,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   prefetchTreeAssets();
   const loadUrbanLayers = async () => {
     try {
-      const lowTier = quality.get().tier === "low";
+        const lowTier = quality.get().tier === "low";
       // Lite OSM still loads trees/vegetation; only skips heavy extras
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
         const osm = await dataset.loadOsmLater({ lite: dataset.lite === true || lowTier });
@@ -531,8 +531,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const maxTrees = qNow.maxTrees || (lowTier ? 1200 : 2800);
       createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows })
         .then((gTrees) => {
-          treesResult = gTrees;
-          treesGroup.add(gTrees);
+      treesResult = gTrees;
+      treesGroup.add(gTrees);
           console.info("[vegetation] OSM trees ready", {
             meshes: gTrees.children?.length || 0,
             maxTrees,
@@ -612,16 +612,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     setTimeout(loadUrbanLayers, 50);
   });
 
-  createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
-    .then((sys) => {
-      fishing = sys;
-      fishGroup.add(sys.group);
-      if (sys.zones) cinematic.setFishingZones(sys.zones);
-      if (dataset.fishingZones?.length) {
-        dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
-      }
-    })
-    .catch((err) => console.warn("Fishing system load:", err.message));
+    createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
+      .then((sys) => {
+        fishing = sys;
+        fishGroup.add(sys.group);
+        if (sys.zones) cinematic.setFishingZones(sys.zones);
+        if (dataset.fishingZones?.length) {
+          dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
+        }
+      })
+      .catch((err) => console.warn("Fishing system load:", err.message));
 
   // Click a red chainage pin to select it; hover THAT pin for station/meters.
   // Everywhere else, river water-depth hover stays (inspect).
@@ -929,10 +929,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     // Throttle chainage tooltips to max 15fps (~65ms) to save main thread cycles
     if (now - lastChainMoveTime < 65) {
       if (!chainHoverRaf) {
-        chainHoverRaf = requestAnimationFrame(() => {
-          chainHoverRaf = 0;
+    chainHoverRaf = requestAnimationFrame(() => {
+      chainHoverRaf = 0;
           lastChainMoveTime = performance.now();
-          if (state.cinematicActive || !state.showChainage) {
+      if (state.cinematicActive || !state.showChainage) {
             hideChainageTip();
             return;
           }
@@ -959,9 +959,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           }
           // Richer map hover cards (river, land, features) already include the chainage.
           if (state.hover) {
-            state.chainageTipActive = false;
-            return;
-          }
+        state.chainageTipActive = false;
+        return;
+      }
           const hit = resolveChainageUnderCursor(e, 70);
           if (hit) {
             showChainageTipAt(e.clientX + 14, e.clientY - 12, hit);
@@ -970,8 +970,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           }
         });
       }
-      return;
-    }
+        return;
+      }
 
     lastChainMoveTime = now;
     if (chainHoverRaf) {
@@ -1696,7 +1696,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     applyFloodSimulation(result) {
       window.__MM_SCENE__.enterApiFloodMode();
       try {
-        apiFloodLayer.loadFloodResult(result);
+      apiFloodLayer.loadFloodResult(result);
       } catch (err) {
         console.error("[apiFlood] apply failed", err);
         state.floodSimStatus = "error";
@@ -2107,8 +2107,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         particles.mesh.visible = false;
         waterFx.group.visible = false;
       } else {
-        if (particles.mesh.visible) particles.update(dt);
-        if (waterFx.group.visible) waterFx.update(dt);
+      if (particles.mesh.visible) particles.update(dt);
+      if (waterFx.group.visible) waterFx.update(dt);
         riverRain.update(dt);
       }
       if (chainThrottle.ready(dt)) {

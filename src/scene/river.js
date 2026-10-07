@@ -236,6 +236,12 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across) {
   }
   const lSm = smooth1d(leftW, 10);
   const rSm = smooth1d(rightW, 10);
+  for (let s = 0; s < n; s++) {
+    const st = stations[s];
+    st.wetHalfLeft = lSm[s];
+    st.wetHalfRight = rSm[s];
+    st.wetHalfWidth = (lSm[s] + rSm[s]) * 0.5;
+  }
 
   const pts = dataset.points || [];
   const index = spatialIndex(pts);

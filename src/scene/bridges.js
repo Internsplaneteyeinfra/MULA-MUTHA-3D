@@ -3,6 +3,10 @@ import { SURFACE_Y, bedElevation } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
 import { state } from "../state.js";
 import { pointInRing } from "../features/fishing/FishingZoneSystem.js";
+import { addYerwadaArchSpan, isYerwadaArchBridge } from "./yerwadaArchBridge.js";
+import { addAmbedkarArchSpan, isAmbedkarArchBridge } from "./ambedkarArchBridge.js";
+import { addSangamGirderSpan, addOpenGirderSpan, girderTheme, isSangamGirderBridge } from "./sangamGirderBridge.js";
+import { addMundhwaArchSpan, isMundhwaArchBridge } from "./mundhwaArchBridge.js";
 
 /**
  * Full-span road bridges across the river channel.
@@ -32,6 +36,20 @@ export function createBridges(dataset) {
   const dMid = (minD + maxD) * 0.5;
 
   const spans = collectBridgeSpans(dataset, ring, stations);
+  dataset.bridgeSpans = spans;
+  for (const g of spans) {
+    const orig = (dataset.bridges || []).find((b) => String(b.id) === String(g.id));
+    if (!orig) continue;
+    orig.start = g.start;
+    orig.end = g.end;
+    orig.midX = g.midX;
+    orig.midZ = g.midZ;
+    orig.axisX = g.axisX;
+    orig.axisZ = g.axisZ;
+    orig.lengthM = g.lengthM;
+    orig.toe0 = g.toe0;
+    orig.toe1 = g.toe1;
+  }
   console.info("Bridge spans", { count: spans.length, names: spans.map((s) => s.name) });
 
   for (const g of spans) {
@@ -39,11 +57,16 @@ export function createBridges(dataset) {
     bridge.name = g.name;
     bridge.renderOrder = 12;
 
-    const bank0 = terrainHeightAt(g.start.x, g.start.z, stations);
-    const bank1 = terrainHeightAt(g.end.x, g.end.z, stations);
-    const deckY = Math.max(SURFACE_Y + 12.5, bank0 + 2.8, bank1 + 2.8);
-    const span = Math.max(70, g.lengthM);
-    const thick = Math.max(14, Math.min(26, g.widthM || 14));
+    const st = nearestStation((g.start.x + g.end.x) * 0.5, (g.start.z + g.end.z) * 0.5, stations);
+    const leftW = st.wetHalfLeft ?? st.halfWidth ?? 40;
+    const rightW = st.wetHalfRight ?? st.halfWidth ?? 40;
+    const ax = g.axisX;
+    const az = g.axisZ;
+    const y0 = terrainHeightAt(g.start.x, g.start.z, stations);
+    const y1 = terrainHeightAt(g.end.x, g.end.z, stations);
+    const deckY = Math.max(SURFACE_Y + 8.5, y0 + 1.6, y1 + 1.6);
+    const span = Math.max(36, g.lengthM);
+    const thick = Math.max(10, Math.min(16, g.widthM || 12));
 
     dir.set(g.axisX, 0, g.axisZ).normalize();
     const quat = new THREE.Quaternion().setFromUnitVectors(xAxis, dir);
@@ -51,84 +74,133 @@ export function createBridges(dataset) {
     const perpZ = g.axisX;
     const mx = (g.start.x + g.end.x) * 0.5;
     const mz = (g.start.z + g.end.z) * 0.5;
+    const yerwada = isYerwadaArchBridge(g.name);
+    const ambedkar = isAmbedkarArchBridge(g.name);
+    const sangam = isSangamGirderBridge(g.name);
+    const mundhwa = isMundhwaArchBridge(g.name);
+    const customDeck = true;
 
-    // Structural slab
-    const deck = new THREE.Mesh(new THREE.BoxGeometry(span, 2.2, thick), deckMat);
-    deck.position.set(mx, deckY - 0.2, mz);
-    deck.quaternion.copy(quat);
-    deck.castShadow = true;
-    deck.receiveShadow = true;
-    deck.renderOrder = 12;
-    bridge.add(deck);
-
-    // Road asphalt on top — reads as continuous road
-    const road = new THREE.Mesh(new THREE.BoxGeometry(span * 0.998, 0.45, thick * 0.82), asphaltMat);
-    road.position.set(mx, deckY + 1.05, mz);
-    road.quaternion.copy(quat);
-    road.receiveShadow = true;
-    road.renderOrder = 12;
-    bridge.add(road);
-
-    // Center stripe
-    const stripe = new THREE.Mesh(new THREE.BoxGeometry(span * 0.9, 0.08, 0.35), stripeMat);
-    stripe.position.set(mx, deckY + 1.3, mz);
-    stripe.quaternion.copy(quat);
-    stripe.renderOrder = 13;
-    bridge.add(stripe);
-
-    // Sidewalks + railings
-    for (const side of [-1, 1]) {
-      const walk = new THREE.Mesh(new THREE.BoxGeometry(span * 0.99, 0.35, thick * 0.09), capMat);
-      walk.position.set(mx + perpX * side * thick * 0.4, deckY + 1.15, mz + perpZ * side * thick * 0.4);
-      walk.quaternion.copy(quat);
-      bridge.add(walk);
-
-      const rail = new THREE.Mesh(new THREE.BoxGeometry(span * 0.99, 0.55, 0.35), railMat);
-      rail.position.set(mx + perpX * side * thick * 0.48, deckY + 2.35, mz + perpZ * side * thick * 0.48);
-      rail.quaternion.copy(quat);
-      bridge.add(rail);
+    if (yerwada) {
+      addYerwadaArchSpan(bridge, group, {
+        span,
+        thick: Math.max(thick, 13),
+        deckY,
+        mx,
+        mz,
+        quat,
+        start: g.start,
+        end: g.end,
+        minD,
+        maxD,
+        dMid,
+      });
+    } else if (ambedkar) {
+      addAmbedkarArchSpan(bridge, group, {
+        span,
+        thick: Math.max(thick, 16),
+        deckY,
+        mx,
+        mz,
+        quat,
+        start: g.start,
+        end: g.end,
+        minD,
+        maxD,
+        dMid,
+      });
+    } else if (sangam) {
+      addSangamGirderSpan(bridge, group, {
+        name: g.name,
+        span,
+        thick: Math.max(thick, 12),
+        deckY,
+        mx,
+        mz,
+        quat,
+        start: g.start,
+        end: g.end,
+        minD,
+        maxD,
+        dMid,
+      });
+    } else if (mundhwa) {
+      addMundhwaArchSpan(bridge, group, {
+        span,
+        thick: Math.max(thick, 13),
+        deckY,
+        mx,
+        mz,
+        quat,
+        start: g.start,
+        end: g.end,
+        minD,
+        maxD,
+        dMid,
+      });
+    } else {
+      addOpenGirderSpan(
+        bridge,
+        group,
+        {
+          name: g.name,
+          span,
+          thick: Math.max(thick, 12),
+          deckY,
+          mx,
+          mz,
+          quat,
+          start: g.start,
+          end: g.end,
+          minD,
+          maxD,
+          dMid,
+        },
+        girderTheme(g.name),
+      );
     }
 
-    // Approach ramps — longer so land roads meet the deck cleanly
+    // Abutments stay on dry land — never drop a ramp into the river
     for (const end of [
       { p: g.start, outward: -1 },
       { p: g.end, outward: 1 },
     ]) {
       const ground = terrainHeightAt(end.p.x, end.p.z, stations);
-      const rampLen = 36;
+      if (ground < SURFACE_Y + 0.6) continue;
+      const drop = Math.max(0, deckY - ground);
+      const rampLen = 16;
       const rx = end.p.x + dir.x * end.outward * (rampLen * 0.5);
       const rz = end.p.z + dir.z * end.outward * (rampLen * 0.5);
-      const rampY = (deckY + ground) * 0.5 + 0.35;
-      const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 1.25, thick * 0.95), asphaltMat);
-      ramp.position.set(rx, rampY, rz);
+      const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.7, thick * 0.88), asphaltMat);
+      ramp.position.set(rx, ground + drop * 0.45 + 0.35, rz);
       ramp.quaternion.copy(quat);
-      const pitch = Math.atan2(deckY - ground - 1.5, rampLen);
-      ramp.rotateZ(end.outward * -pitch * 0.85);
+      if (drop > 1.4) {
+        ramp.rotateZ(end.outward * -Math.atan2(drop - 0.8, rampLen) * 0.7);
+      }
       ramp.receiveShadow = true;
       bridge.add(ramp);
 
-      // Flat toe pad so OSM road asphalt can meet the ramp
-      const toeX = end.p.x + dir.x * end.outward * (rampLen + 6);
-      const toeZ = end.p.z + dir.z * end.outward * (rampLen + 6);
-      const toe = new THREE.Mesh(new THREE.BoxGeometry(14, 0.35, thick * 1.05), asphaltMat);
-      toe.position.set(toeX, ground + 0.2, toeZ);
-      toe.quaternion.copy(quat);
-      toe.receiveShadow = true;
-      bridge.add(toe);
-
-      const abutH = Math.max(5, deckY - ground);
-      const abut = new THREE.Mesh(new THREE.BoxGeometry(10, abutH, thick * 1.05), abutMat);
+      const abutH = Math.max(3, Math.min(10, drop + 1.4));
+      const abut = new THREE.Mesh(new THREE.BoxGeometry(6, abutH, thick * 0.95), abutMat);
       abut.position.set(end.p.x, ground + abutH * 0.5, end.p.z);
       abut.quaternion.copy(quat);
       abut.castShadow = true;
       bridge.add(abut);
     }
 
-    // Piers in the channel
-    const pierTs = span > 140 ? [0.2, 0.35, 0.5, 0.65, 0.8] : span > 90 ? [0.25, 0.5, 0.75] : [0.35, 0.65];
+    // Piers in the channel (skip abutments on dry banks; arched span has its own piers)
+    const pierTs = customDeck
+      ? []
+      : span > 140
+        ? [0.2, 0.35, 0.5, 0.65, 0.8]
+        : span > 90
+          ? [0.25, 0.5, 0.75]
+          : [0.35, 0.65];
     for (const t of pierTs) {
       const px = g.start.x + (g.end.x - g.start.x) * t;
       const pz = g.start.z + (g.end.z - g.start.z) * t;
+      const lat = Math.abs((px - st.x) * ax + (pz - st.z) * az);
+      const wet = ((px - st.x) * ax + (pz - st.z) * az) < 0 ? leftW : rightW;
+      if (lat > wet * 0.88) continue;
       const pier = new THREE.Mesh(new THREE.BoxGeometry(4.2, 1, 5.4), pierMat);
       pier.castShadow = true;
       pier.quaternion.copy(quat);
@@ -203,6 +275,96 @@ export function createBridges(dataset) {
   return group;
 }
 
+/** Seat the deck on the OSM road that actually crosses here. */
+function snapSpanToRiverBanks(g, stations, roads) {
+  const mx = Number.isFinite(g.midX) ? g.midX : (g.start.x + g.end.x) * 0.5;
+  const mz = Number.isFinite(g.midZ) ? g.midZ : (g.start.z + g.end.z) * 0.5;
+  const st = nearestStation(mx, mz, stations);
+  const leftW = Math.max(14, st.wetHalfLeft ?? st.halfWidth ?? 40);
+  const rightW = Math.max(14, st.wetHalfRight ?? st.halfWidth ?? 40);
+  const cross = bestCrossingRoad(st, leftW, rightW, roads);
+  let ax = -st.flowZ;
+  let az = st.flowX;
+  let al = Math.hypot(ax, az) || 1;
+  ax /= al;
+  az /= al;
+  let start = { x: st.x - ax * (leftW + 18), z: st.z - az * (leftW + 18) };
+  let end = { x: st.x + ax * (rightW + 18), z: st.z + az * (rightW + 18) };
+  if (cross) {
+    start = { x: cross.left.x, z: cross.left.z };
+    end = { x: cross.right.x, z: cross.right.z };
+    ax = end.x - start.x;
+    az = end.z - start.z;
+    al = Math.hypot(ax, az) || 1;
+    ax /= al;
+    az /= al;
+  }
+  start = dryBankSeat(start.x, start.z, -ax, -az, stations);
+  end = dryBankSeat(end.x, end.z, ax, az, stations);
+  return {
+    ...g,
+    start,
+    end,
+    midX: st.x,
+    midZ: st.z,
+    axisX: ax,
+    axisZ: az,
+    lengthM: Math.hypot(end.x - start.x, end.z - start.z),
+    channelHalf: (leftW + rightW) * 0.5,
+  };
+}
+
+/** Walk inland until the ground is above the water, so abutments never sit in the channel. */
+function dryBankSeat(x, z, ix, iz, stations) {
+  let px = x;
+  let pz = z;
+  if (terrainHeightAt(px, pz, stations) >= SURFACE_Y + 0.7) return { x: px, z: pz };
+  const step = 3;
+  for (let i = 0; i < 12; i++) {
+    px += ix * step;
+    pz += iz * step;
+    if (terrainHeightAt(px, pz, stations) >= SURFACE_Y + 0.7) return { x: px, z: pz };
+  }
+  return { x: px, z: pz };
+}
+
+function bestCrossingRoad(st, leftW, rightW, roads) {
+  const px = -st.flowZ;
+  const pz = st.flowX;
+  const classW = { motorway: 6, trunk: 5, primary: 4, secondary: 3, tertiary: 2, residential: 1 };
+  let best = null;
+  let bestScore = -1e9;
+  for (const road of roads) {
+    const hw = road.highway || "";
+    if (/footway|path|steps|cycleway|pedestrian|service/.test(hw)) continue;
+    let leftPt = null;
+    let rightPt = null;
+    let leftD = 1e9;
+    let rightD = 1e9;
+    for (const v of road.vertices || []) {
+      const along = Math.abs((v.x - st.x) * st.flowX + (v.z - st.z) * st.flowZ);
+      if (along > 75) continue;
+      const signed = (v.x - st.x) * px + (v.z - st.z) * pz;
+      if (signed < -leftW - 4 && along < leftD) {
+        leftD = along;
+        leftPt = v;
+      }
+      if (signed > rightW + 4 && along < rightD) {
+        rightD = along;
+        rightPt = v;
+      }
+    }
+    if (!leftPt || !rightPt) continue;
+    const span = Math.hypot(rightPt.x - leftPt.x, rightPt.z - leftPt.z);
+    if (span < leftW + rightW + 8) continue;
+    const score = (classW[hw] || 1) * 30 - (leftD + rightD) + span * 0.02;
+    if (score <= bestScore) continue;
+    bestScore = score;
+    best = { left: leftPt, right: rightPt, hw };
+  }
+  return best;
+}
+
 /**
  * Prefer curated OSM bridges; also promote road polylines that actually cross water.
  */
@@ -222,87 +384,6 @@ function collectBridgeSpans(dataset, ring, stations) {
       axisZ: g.axisZ,
     });
     used.push({ x: g.midX, z: g.midZ });
-  }
-
-  // Road segments crossing the channel → elevated decks only when they truly cross
-  for (const road of dataset.osm?.roads || []) {
-    const hw = road.highway || "";
-    if (/footway|path|steps|cycleway|pedestrian|service/.test(hw)) continue;
-    const verts = road.vertices || [];
-    if (verts.length < 2) continue;
-
-    let i = 1;
-    while (i < verts.length) {
-      const a = verts[i - 1];
-      const b = verts[i];
-      const mx = (a.x + b.x) * 0.5;
-      const mz = (a.z + b.z) * 0.5;
-      const bank = nearestHalf(mx, mz, stations);
-      const overWater =
-        bank.lat < bank.half * 0.85 ||
-        (ring.length && (pointInRing(mx, mz, ring) || pointInRing(a.x, a.z, ring) || pointInRing(b.x, b.z, ring)));
-      if (!overWater) {
-        i++;
-        continue;
-      }
-
-      let j = i;
-      while (j < verts.length) {
-        const p0 = verts[j - 1];
-        const p1 = verts[j];
-        const cx = (p0.x + p1.x) * 0.5;
-        const cz = (p0.z + p1.z) * 0.5;
-        const bk = nearestHalf(cx, cz, stations);
-        const wet =
-          bk.lat < bk.half * 0.9 ||
-          (ring.length && (pointInRing(cx, cz, ring) || pointInRing(p0.x, p0.z, ring) || pointInRing(p1.x, p1.z, ring)));
-        if (!wet) break;
-        j++;
-      }
-
-      const start = verts[i - 1];
-      const end = verts[Math.min(j, verts.length - 1)];
-      const midX = (start.x + end.x) * 0.5;
-      const midZ = (start.z + end.z) * 0.5;
-      const runLen = Math.hypot(end.x - start.x, end.z - start.z);
-
-      // Require a real crossing: wet run long enough OR endpoints on opposite banks
-      const st = nearestStation(midX, midZ, stations);
-      const lat0 = (start.x - st.x) * -st.flowZ + (start.z - st.z) * st.flowX;
-      const lat1 = (end.x - st.x) * -st.flowZ + (end.z - st.z) * st.flowX;
-      const oppositeBanks = lat0 * lat1 < 0 && Math.abs(lat0) > st.halfWidth * 0.35 && Math.abs(lat1) > st.halfWidth * 0.35;
-      if (!oppositeBanks && runLen < st.halfWidth * 1.1) {
-        i = Math.max(i + 1, j);
-        continue;
-      }
-
-      if (used.some((u) => Math.hypot(u.x - midX, u.z - midZ) < 100)) {
-        i = Math.max(i + 1, j);
-        continue;
-      }
-
-      // Snap to centerline + full bank span (same as curated bridges)
-      let ax = -st.flowZ;
-      let az = st.flowX;
-      const al = Math.hypot(ax, az) || 1;
-      ax /= al;
-      az /= al;
-      const half = Math.max(55, st.halfWidth || 40) + 45;
-      const s = { x: st.x - ax * half, z: st.z - az * half };
-      const e = { x: st.x + ax * half, z: st.z + az * half };
-      spans.push({
-        id: `road-bridge-${road.id || i}`,
-        name: road.name || prettyRoadName(hw),
-        start: s,
-        end: e,
-        lengthM: half * 2,
-        widthM: Math.max(12, road.widthM || 10),
-        axisX: ax,
-        axisZ: az,
-      });
-      used.push({ x: st.x, z: st.z });
-      i = Math.max(i + 1, j);
-    }
   }
 
   return spans;

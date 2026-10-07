@@ -11,14 +11,14 @@ const BRIDGE_DISPLAY_NAMES = {
   // Two short OSM stubs → one continuous deck (merged in load)
   "117219023": "Fitzgerald Bridge",
   "117218165": "Fitzgerald Bridge",
-  "207164105": "Bund Garden Bridge",
+  "207164105": "Fitzgerald Bridge",
   "127048454": "Aga Khan Bridge",
   "116839303": "Mundhwa Bridge",
 };
 
 /** OSM ids that are bank stubs of the same crossing — keep one merged deck. */
 const MERGE_GROUPS = [
-  { ids: ["117219023", "117218165", "207164105"], name: "Fitzgerald Bridge", widthM: 12 },
+  { ids: ["117219023", "117218165", "207164105"], name: "Fitzgerald Bridge", widthM: 14 },
 ];
 
 /**

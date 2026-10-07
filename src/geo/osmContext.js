@@ -85,7 +85,8 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
 
   const bankStrip = lite === true;
   const extraM = bankStrip ? RIVER_SIDE_M : FULL_CORRIDOR_M;
-  const roads = projectLines(roadsFc, frame, corridor, extraM, bankStrip);
+  // Roads stay on the full corridor even in lite — vertex stripping broke streets
+  const roads = projectLines(roadsFc, frame, corridor, FULL_CORRIDOR_M, false);
   const buildingsAll = projectBuildings(buildingsFc, frame, corridor, extraM, bankStrip);
   const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 16000 : 60000);
   const green = projectPolygons(vegFc, frame, corridor, extraM, bankStrip);

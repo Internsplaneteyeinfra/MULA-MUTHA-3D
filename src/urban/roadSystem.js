@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { terrainHeightAt } from "../scene/terrain.js";
 import { OSM_ROADS_RENDER_ORDER } from "../scene/drapeDepth.js";
+import { SURFACE_Y } from "../scene/river.js";
 
 /**
  * Roads are flat on the DTM, below draped KML overlays. Drawing them in the
@@ -27,22 +28,22 @@ const WIDTH_BY_CLASS = {
   pedestrian: 3,
 };
 
-/** Asphalt / surface colors by class — dark grey, not pure black. */
+/** Google Maps–style dark asphalt (black carriageway). */
 const ASPHALT = {
-  motorway: "#4a5058",
-  trunk: "#4c525a",
-  primary: "#505660",
-  secondary: "#545a62",
-  tertiary: "#585e66",
-  residential: "#5c6268",
-  unclassified: "#5e646a",
-  living_street: "#60666c",
-  service: "#646a70",
-  track: "#726858",
-  footway: "#8a8478",
-  path: "#7e786c",
-  cycleway: "#5a6870",
-  pedestrian: "#8e8880",
+  motorway: "#1a1a1c",
+  trunk: "#1c1c1e",
+  primary: "#202022",
+  secondary: "#242426",
+  tertiary: "#262628",
+  residential: "#2a2a2c",
+  unclassified: "#2c2c2e",
+  living_street: "#2e2e30",
+  service: "#323234",
+  track: "#3a342c",
+  footway: "#3c3a36",
+  path: "#3a3834",
+  cycleway: "#32363a",
+  pedestrian: "#3e3c38",
 };
 
 const MAJOR = /^(motorway|trunk|primary|secondary)$/;
@@ -57,12 +58,11 @@ export function createRoadSystem(dataset) {
   const group = new THREE.Group();
   group.name = "roads";
   const stations = dataset.corridor.stations;
+  const bridges = dataset.bridgeSpans || dataset.bridges || [];
   const rawRoads = dataset.osm?.roads || [];
   if (!rawRoads.length) return group;
 
-  const bridges = dataset.bridges || [];
-  // OSM ways already share node coordinates at junctions; no endpoint snapping,
-  // which would pull real roads off their surveyed positions.
+  // OSM ways already share node coordinates at junctions; draw them as-is.
   const roads = rawRoads.map((r) => ({
     ...r,
     vertices: (r.vertices || []).map((v) => ({ ...v })),
@@ -70,8 +70,6 @@ export function createRoadSystem(dataset) {
 
   /** @type {Array<{pts: Array<{x:number,z:number,y:number}>, halfW:number, color:string, major:boolean, medium:boolean, pathLike:boolean, hw:string}>} */
   const ribbons = [];
-  const edgeSegs = [];
-  const dashSegs = [];
   let skippedWater = 0;
 
   for (const road of roads) {
@@ -84,174 +82,95 @@ export function createRoadSystem(dataset) {
     const pathLike = PATH.test(hw);
     const major = MAJOR.test(hw);
     const medium = MEDIUM.test(hw);
-    const widthScale = pathLike ? 0.85 : major ? 1.0 : medium ? 0.88 : 0.78;
-    const deckW = w * widthScale;
-    const color = ASPHALT[hw] || "#5a6068";
-    const segW = pathLike ? Math.min(deckW, 2.8) : deckW;
-    const halfW = segW * 0.5;
+    const color = ASPHALT[hw] || "#2a2a2c";
+    const visW = pathLike ? Math.max(1.8, w) : Math.max(5.4, w * 1.12);
+    const halfW = visW * 0.5;
 
-    // Build contiguous land runs (break over water / under bridge decks)
     let run = [];
     const flushRun = () => {
       if (run.length >= 2) {
-        const densified = densifyRun(run, 14);
-        ribbons.push({
-          pts: densified,
-          halfW,
-          color,
-          major,
-          medium,
-          pathLike,
-          hw,
-        });
-        addMarkingsAlong(densified, halfW, major, medium, edgeSegs, dashSegs);
+        const dense = densifyRun(run, 10, stations);
+        for (const pts of splitOnWater(dense, stations, bridges)) {
+          if (pts.length < 2) continue;
+          ribbons.push({
+            pts,
+            halfW,
+            color,
+            major,
+            medium,
+            pathLike,
+            hw,
+          });
+        }
       }
       run = [];
     };
 
     for (let i = 0; i < verts.length; i++) {
       const v = verts[i];
-      const bank = nearestHalf(v.x, v.z, stations);
-      const overWater = bank.lat < bank.half * 0.72;
-      const underBridge = isUnderBridgeDeck(v.x, v.z, bridges, stations);
-      if (overWater || underBridge) {
-        if (overWater || underBridge) skippedWater++;
+      if (roadBlocked(v.x, v.z, stations, bridges)) {
+        skippedWater++;
         flushRun();
         continue;
       }
-      const y = terrainHeightAt(v.x, v.z, stations) + 0.14;
-      run.push({ x: v.x, z: v.z, y });
+      const pt = {
+        x: v.x,
+        z: v.z,
+        y: terrainHeightAt(v.x, v.z, stations) + 0.22,
+      };
+      if (run.length && segmentOverWater(run[run.length - 1], pt, stations, bridges)) {
+        skippedWater++;
+        flushRun();
+      }
+      run.push(pt);
     }
     flushRun();
   }
 
   if (!ribbons.length) return group;
 
-  // —— Continuous asphalt ribbons (merged, vertex-colored) ——
   const asphaltGeo = buildMergedRibbons(ribbons, (r) => r.halfW, 0);
   if (asphaltGeo) {
-    const asphaltMat = new THREE.MeshStandardMaterial({
-      color: "#ffffff",
-      roughness: 0.96,
-      metalness: 0.02,
+    const asphaltMat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       side: THREE.DoubleSide,
+      depthWrite: true,
       polygonOffset: true,
-      polygonOffsetFactor: -1,
-      polygonOffsetUnits: -1,
-      ...OSM_ROAD_DRAW,
+      polygonOffsetFactor: -2,
+      polygonOffsetUnits: -2,
     });
     const asphalt = new THREE.Mesh(asphaltGeo, asphaltMat);
     asphalt.name = "roadAsphalt";
     asphalt.receiveShadow = true;
-    asphalt.castShadow = false;
     asphalt.frustumCulled = false;
     asphalt.renderOrder = OSM_ROADS_RENDER_ORDER + 1;
     group.add(asphalt);
   }
 
-  // —— Soft shoulders (slightly wider, lower) ——
-  const shoulderRibbons = ribbons
-    .filter((r) => r.major || r.medium)
-    .map((r) => ({
-      ...r,
-      halfW: r.halfW + (r.major ? 0.55 : 0.35),
-      color: "#a8a098",
-    }));
-  const shoulderGeo = buildMergedRibbons(shoulderRibbons, (r) => r.halfW, -0.04);
-  if (shoulderGeo) {
-    const shoulderMat = new THREE.MeshStandardMaterial({
-      color: "#ffffff",
-      roughness: 0.92,
-      metalness: 0.02,
-      vertexColors: true,
+  const dashRibbons = collectCenterDashes(ribbons);
+  const dashGeo = dashRibbons.length ? buildMergedRibbons(dashRibbons, (r) => r.halfW, 0.07) : null;
+  if (dashGeo) {
+    const dashMat = new THREE.MeshBasicMaterial({
+      color: "#f5f5f5",
       side: THREE.DoubleSide,
+      depthWrite: false,
       polygonOffset: true,
-      polygonOffsetFactor: 1,
-      polygonOffsetUnits: 1,
-      ...OSM_ROAD_DRAW,
+      polygonOffsetFactor: -4,
+      polygonOffsetUnits: -4,
     });
-    const shoulders = new THREE.Mesh(shoulderGeo, shoulderMat);
-    shoulders.name = "roadShoulders";
-    shoulders.receiveShadow = true;
-    shoulders.frustumCulled = false;
-    shoulders.renderOrder = OSM_ROADS_RENDER_ORDER;
-    group.add(shoulders);
-  }
-
-  const unit = new THREE.BoxGeometry(1, 1, 1);
-  unit.translate(0, 0.5, 0);
-  const dummy = new THREE.Object3D();
-
-  // —— White edge lines ——
-  if (edgeSegs.length) {
-    const edgeMat = new THREE.MeshStandardMaterial({
-      color: "#e8ecef",
-      roughness: 0.72,
-      metalness: 0.05,
-      emissive: "#2a2e32",
-      emissiveIntensity: 0.12,
-      polygonOffset: true,
-      polygonOffsetFactor: -3,
-      polygonOffsetUnits: -3,
-      ...OSM_ROAD_DRAW,
-    });
-    const edges = new THREE.InstancedMesh(unit, edgeMat, edgeSegs.length);
-    edges.name = "roadEdges";
-    edges.frustumCulled = false;
-    edges.renderOrder = OSM_ROADS_RENDER_ORDER + 2;
-    for (let i = 0; i < edgeSegs.length; i++) {
-      const s = edgeSegs[i];
-      dummy.position.set(s.x, s.y, s.z);
-      dummy.rotation.set(0, s.rot, 0);
-      dummy.scale.set(s.w, 0.05, s.len);
-      dummy.updateMatrix();
-      edges.setMatrixAt(i, dummy.matrix);
-    }
-    edges.instanceMatrix.needsUpdate = true;
-    group.add(edges);
-  }
-
-  // —— Dashed center markings ——
-  if (dashSegs.length) {
-    const dashMat = new THREE.MeshStandardMaterial({
-      color: "#f0e6b0",
-      roughness: 0.65,
-      metalness: 0.04,
-      emissive: "#3a3418",
-      emissiveIntensity: 0.15,
-      polygonOffset: true,
-      polygonOffsetFactor: -3,
-      polygonOffsetUnits: -3,
-      ...OSM_ROAD_DRAW,
-    });
-    const dashes = new THREE.InstancedMesh(unit, dashMat, dashSegs.length);
-    dashes.name = "roadDashes";
+    const dashes = new THREE.Mesh(dashGeo, dashMat);
+    dashes.name = "roadCenterDashes";
     dashes.frustumCulled = false;
     dashes.renderOrder = OSM_ROADS_RENDER_ORDER + 2;
-    for (let i = 0; i < dashSegs.length; i++) {
-      const s = dashSegs[i];
-      dummy.position.set(s.x, s.y, s.z);
-      dummy.rotation.set(0, s.rot, 0);
-      dummy.scale.set(s.w, 0.05, s.len);
-      dummy.updateMatrix();
-      dashes.setMatrixAt(i, dummy.matrix);
-    }
-    dashes.instanceMatrix.needsUpdate = true;
     group.add(dashes);
   }
 
-  console.info("Roads", {
-    ribbons: ribbons.length,
-    edges: edgeSegs.length,
-    dashes: dashSegs.length,
-    skippedWater,
-  });
+  console.info("Roads", { ribbons: ribbons.length, skippedWater, osm: roads.length, dashes: dashRibbons.length });
   return group;
 }
 
 /** Insert points along long spans so terrain height follows smoothly. */
-function densifyRun(pts, maxStepM) {
+function densifyRun(pts, maxStepM, stations) {
   if (pts.length < 2) return pts;
   const out = [pts[0]];
   for (let i = 1; i < pts.length; i++) {
@@ -261,12 +180,17 @@ function densifyRun(pts, maxStepM) {
     const n = Math.max(1, Math.ceil(len / maxStepM));
     for (let k = 1; k <= n; k++) {
       const t = k / n;
+      const x = a.x + (b.x - a.x) * t;
+      const z = a.z + (b.z - a.z) * t;
       out.push({
-        x: a.x + (b.x - a.x) * t,
-        z: a.z + (b.z - a.z) * t,
-        y: a.y + (b.y - a.y) * t,
+        x,
+        z,
+        y: terrainHeightAt(x, z, stations) + 0.28,
       });
     }
+  }
+  if (stations) {
+    out[0].y = terrainHeightAt(out[0].x, out[0].z, stations) + 0.28;
   }
   return out;
 }
@@ -339,7 +263,7 @@ function buildMergedRibbons(ribbons, halfFn, yBias = 0) {
           mz /= ml;
           const dot = mx * n1x + mz * n1z;
           const miter = Math.abs(dot) > 0.2 ? 1 / dot : 1;
-          const miterClamp = Math.min(Math.abs(miter), 2.4) * Math.sign(miter || 1);
+          const miterClamp = Math.min(Math.abs(miter), 1.45) * Math.sign(miter || 1);
           nx = mx;
           nz = mz;
           left.push({
@@ -381,73 +305,143 @@ function buildMergedRibbons(ribbons, halfFn, yBias = 0) {
   return geo;
 }
 
-function addMarkingsAlong(pts, halfW, major, medium, edgeSegs, dashSegs) {
-  if (!major && !medium) return;
-  for (let i = 1; i < pts.length; i++) {
-    const a = pts[i - 1];
-    const b = pts[i];
-    const dx = b.x - a.x;
-    const dz = b.z - a.z;
-    const len = Math.hypot(dx, dz);
-    if (len < 1.2) continue;
-    const mx = (a.x + b.x) * 0.5;
-    const mz = (a.z + b.z) * 0.5;
-    const y = Math.max(a.y, b.y) + 0.06;
-    const rot = Math.atan2(dx, dz);
-    const ux = dx / len;
-    const uz = dz / len;
-
-    if (major) {
-      for (const side of [-1, 1]) {
-        const ox = Math.cos(rot) * side * (halfW * 0.84);
-        const oz = -Math.sin(rot) * side * (halfW * 0.84);
-        edgeSegs.push({
-          x: mx + ox,
-          z: mz + oz,
-          y: y + 0.02,
-          len: len * 0.98,
-          w: 0.16,
-          rot,
-        });
-      }
-    }
-
-    if ((major && len > 4) || (medium && len > 8)) {
-      const dashLen = major ? 2.8 : 2.2;
-      const gap = major ? 2.0 : 3.2;
-      const n = Math.max(1, Math.floor(len / (dashLen + gap)));
-      for (let d = 0; d < n; d++) {
-        const t = d * (dashLen + gap) + dashLen * 0.5;
-        if (t > len - 0.8) break;
-        dashSegs.push({
-          x: a.x + ux * t,
-          z: a.z + uz * t,
-          y: y + 0.03,
-          len: Math.min(dashLen, len - t),
-          w: major ? 0.2 : 0.14,
-          rot,
-        });
-      }
+/** White dashed lane line down the middle of carriageways (Google Maps / pavement). */
+function collectCenterDashes(ribbons) {
+  const out = [];
+  for (const r of ribbons) {
+    if (r.pathLike) continue;
+    if (!r.major && !r.medium) continue;
+    const dashM = r.major ? 4.2 : 3.4;
+    const gapM = r.major ? 3.8 : 3.2;
+    const halfW = r.major ? 0.16 : 0.12;
+    for (const pts of dashRunsAlong(r.pts, dashM, gapM)) {
+      if (pts.length >= 2) out.push({ pts, halfW, color: "#f5f5f5" });
     }
   }
+  return out;
+}
+
+function dashRunsAlong(pts, dashM, gapM) {
+  const runs = [];
+  if (!pts || pts.length < 2) return runs;
+  const period = dashM + gapM;
+  let cur = [];
+  let dist = 0;
+  let ax = pts[0].x;
+  let ay = pts[0].y;
+  let az = pts[0].z;
+
+  const flush = () => {
+    if (cur.length >= 2) runs.push(cur);
+    cur = [];
+  };
+
+  for (let i = 1; i < pts.length; i++) {
+    const b = pts[i];
+    const bx = b.x;
+    const by = b.y;
+    const bz = b.z;
+    let seglen = Math.hypot(bx - ax, bz - az);
+    while (seglen > 0.04) {
+      const pos = dist % period;
+      const inDash = pos < dashM;
+      const toBoundary = (inDash ? dashM : period) - pos;
+      let take = Math.min(seglen, toBoundary);
+      if (take <= 1e-4) {
+        take = Math.min(seglen, Math.max(take, 1e-4));
+      }
+      const t = take / seglen;
+      const nx = ax + (bx - ax) * t;
+      const ny = ay + (by - ay) * t;
+      const nz = az + (bz - az) * t;
+      if (inDash) {
+        if (!cur.length) cur.push({ x: ax, z: az, y: ay + 0.05 });
+        cur.push({ x: nx, z: nz, y: ny + 0.05 });
+      } else {
+        flush();
+      }
+      dist += take;
+      ax = nx;
+      ay = ny;
+      az = nz;
+      seglen -= take;
+    }
+    ax = b.x;
+    ay = b.y;
+    az = b.z;
+  }
+  flush();
+  return runs;
+}
+
+function isOsmBridgeTag(bridge) {
+  if (bridge == null || bridge === false) return false;
+  const s = String(bridge).toLowerCase();
+  return s !== "" && s !== "no" && s !== "false" && s !== "0";
+}
+
+function roadBlocked(x, z, stations, bridges) {
+  return pointOverWater(x, z, stations) || isUnderBridgeDeck(x, z, bridges, stations);
+}
+
+function pointOverWater(x, z, stations) {
+  const y = terrainHeightAt(x, z, stations);
+  if (y < SURFACE_Y + 0.55) return true;
+  const bank = nearestHalf(x, z, stations);
+  const half = Math.max(8, bank.half || 0);
+  return bank.lat < half * 0.88;
+}
+
+function segmentOverWater(a, b, stations, bridges) {
+  const steps = 10;
+  for (let k = 1; k < steps; k++) {
+    const t = k / steps;
+    const x = a.x + (b.x - a.x) * t;
+    const z = a.z + (b.z - a.z) * t;
+    if (roadBlocked(x, z, stations, bridges || [])) return true;
+  }
+  return false;
+}
+
+function splitOnWater(pts, stations, bridges) {
+  const runs = [];
+  let cur = [];
+  for (const p of pts) {
+    if (roadBlocked(p.x, p.z, stations, bridges)) {
+      if (cur.length >= 2) runs.push(cur);
+      cur = [];
+      continue;
+    }
+    if (cur.length && segmentOverWater(cur[cur.length - 1], p, stations, bridges)) {
+      if (cur.length >= 2) runs.push(cur);
+      cur = [p];
+      continue;
+    }
+    cur.push(p);
+  }
+  if (cur.length >= 2) runs.push(cur);
+  return runs;
 }
 
 function isUnderBridgeDeck(x, z, bridges, stations) {
   if (!bridges?.length) return false;
-  const bank = nearestHalf(x, z, stations);
-  if (bank.lat > bank.half * 0.95) return false;
   for (const br of bridges) {
     const sx = br.start?.x;
     const sz = br.start?.z;
     const ex = br.end?.x;
     const ez = br.end?.z;
     if (![sx, sz, ex, ez].every(Number.isFinite)) {
-      if (Math.hypot((br.midX ?? 0) - x, (br.midZ ?? 0) - z) < 28) return true;
+      if (Math.hypot((br.midX ?? 0) - x, (br.midZ ?? 0) - z) < 36) {
+        const bank = nearestHalf(x, z, stations);
+        if (bank.lat < Math.max(14, (bank.half || 0) + 10)) return true;
+      }
       continue;
     }
     const hit = closestOnSeg(x, z, sx, sz, ex, ez);
-    if (hit.d < Math.max(18, (br.widthM || 12) * 0.7) && hit.t > 0.12 && hit.t < 0.88) {
-      return true;
+    const pad = Math.max(22, (br.widthM || 14) * 1.15);
+    if (hit.d < pad && hit.t > 0.04 && hit.t < 0.96) {
+      const y = terrainHeightAt(x, z, stations);
+      if (y < SURFACE_Y + 6) return true;
     }
   }
   return false;
@@ -467,6 +461,7 @@ function closestOnSeg(px, pz, ax, az, bx, bz) {
 function nearestHalf(x, z, stations) {
   let best = stations[0];
   let bestD = Infinity;
+  let bestI = 0;
   const step = Math.max(1, Math.floor(stations.length / 180));
   for (let i = 0; i < stations.length; i += step) {
     const st = stations[i];
@@ -474,8 +469,23 @@ function nearestHalf(x, z, stations) {
     if (d2 < bestD) {
       bestD = d2;
       best = st;
+      bestI = i;
     }
   }
-  const lat = Math.abs((x - best.x) * -best.flowZ + (z - best.z) * best.flowX);
-  return { lat, half: best.halfWidth };
+  const lo = Math.max(0, bestI - step * 2);
+  const hi = Math.min(stations.length, bestI + step * 2);
+  for (let i = lo; i < hi; i++) {
+    const st = stations[i];
+    const d2 = (st.x - x) ** 2 + (st.z - z) ** 2;
+    if (d2 < bestD) {
+      bestD = d2;
+      best = st;
+    }
+  }
+  const signed = (x - best.x) * -best.flowZ + (z - best.z) * best.flowX;
+  const half =
+    signed < 0
+      ? (best.wetHalfLeft ?? best.halfWidth)
+      : (best.wetHalfRight ?? best.halfWidth);
+  return { lat: Math.abs(signed), half, st: best };
 }
