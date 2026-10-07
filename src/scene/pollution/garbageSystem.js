@@ -158,6 +158,9 @@ export function createGarbageSystem({ stations = [] } = {}) {
       renderer.setClassFilter(null);
       renderer.setSideFilter?.(null);
       labelsEnabled = false;
+    } else {
+      renderer.setClassFilter(null);
+      renderer.setShowDensity(true);
     }
   }
 

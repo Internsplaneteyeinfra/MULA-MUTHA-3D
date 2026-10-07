@@ -11,12 +11,11 @@
 
 import {
   ArrowDownToLine, ArrowUp, Calendar, ChevronRight, ChevronUp, ChevronLeft,
-  CircleAlert, Gauge, History, Layers, Mountain, Play, Settings, TriangleAlert, Waves, X,
+  CircleAlert, Droplets, Gauge, History, Layers, Mountain, Play, Settings, TriangleAlert, Waves, X,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
-import { whenChainageSettled } from "../../scene/riverJourney.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 import { refreshHydrologyProfile } from "../../services/hydrology/hydrologyProfileService.js";
 import { historicalHydrologyService } from "../../services/hydrology/historicalHydrologyService.js";
@@ -24,6 +23,15 @@ import { bathymetryService } from "../../services/hydrology/bathymetryService.js
 import { getTwinState } from "../../services/digitalTwinService.js";
 import { telemetryService, GAUGE_STATIONS } from "../../services/hydrology/hydrologyTelemetryService.js";
 import { dtmElevationAtLonLat } from "../../scene/terrain.js";
+import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
+import { subscribeLiveHydrology } from "../../services/hydrology/liveHydrologyService.js";
+import {
+  fetchBodCodViewerData,
+  buildBodCodTimeline,
+  defaultTimeIndex,
+  sampleReachAt,
+} from "../../services/bodCodService.js";
+import { PROVENANCE_STATUS } from "../../services/hydrology/hydrologyContract.js";
 
 const SPARK_POINTS = 64;
 const GAUGE_REACH_M = 400;
@@ -72,6 +80,12 @@ export function mountDigitalTwinPanel(root) {
   let bathySettled = false;
   let pending = false;
   let eventMeters = null;
+  let liveQ = null;
+  let liveQMeters = null;
+  let profileSyncTimer = 0;
+  let bodData = null;
+  let bodTimeline = { dates: [], historyCount: 0 };
+  let bodTimeIndex = 0;
 
   // ─── Header controls ──────────────────────────────────────────────────────
   $("#dt-toggle-btn").addEventListener("click", () => {
@@ -125,15 +139,60 @@ export function mountDigitalTwinPanel(root) {
   });
   document.addEventListener("chainage-select", (e) => {
     const m = Number(e.detail?.meters);
-    whenChainageSettled("digital-twin-panel", m, () => {
-      if (Number.isFinite(m)) eventMeters = m;
-      schedule();
-    });
+    if (Number.isFinite(m)) eventMeters = m;
+    schedule();
+    pullLiveQ(m);
+  });
+  document.addEventListener("chainage-discharge", (e) => {
+    const q = Number(e.detail?.q);
+    const m = Number(e.detail?.meters);
+    if (!Number.isFinite(q)) return;
+    liveQ = q;
+    if (Number.isFinite(m)) liveQMeters = m;
+    schedule();
+    syncProfileQ(q);
   });
   document.addEventListener("twin-state-change", (e) => {
     twin = e.detail || twin;
     schedule();
   });
+  subscribeLiveHydrology(() => schedule());
+  fetchBodCodViewerData()
+    .then((data) => {
+      bodData = data;
+      bodTimeline = buildBodCodTimeline(data);
+      bodTimeIndex = defaultTimeIndex(bodTimeline);
+      schedule();
+    })
+    .catch(() => {});
+
+  function pullLiveQ(meters) {
+    const m = Number.isFinite(meters) ? meters : selectedMeters();
+    if (!Number.isFinite(m)) return;
+    getLiveDischargeAtChainage(m)
+      .then((q) => {
+        if (!Number.isFinite(q)) return;
+        liveQ = q;
+        liveQMeters = m;
+        schedule();
+        syncProfileQ(q);
+      })
+      .catch(() => {});
+  }
+
+  function syncProfileQ(q) {
+    if (!Number.isFinite(q) || q <= 0) return;
+    const current = num(hydrologyStore.getSummary()?.discharge_m3s);
+    if (current != null && Math.abs(current - q) < 15) return;
+    window.clearTimeout(profileSyncTimer);
+    profileSyncTimer = window.setTimeout(() => {
+      refreshHydrologyProfile({
+        discharge_m3s: q,
+        source: "LIVE_REACH",
+        provenance: PROVENANCE_STATUS.LIVE,
+      }).catch(() => {});
+    }, 280);
+  }
   new MutationObserver(() => {
     if (!el.hidden) {
       ensureBathymetry();
@@ -186,25 +245,59 @@ export function mountDigitalTwinPanel(root) {
   function renderMetrics(m, rec) {
     const wse = waterLevelAt(rec);
     if (!sparks || (!sparks.wse && wse != null)) sparks = buildSparks();
-    const manningN = rec?.manning_n ?? hydrologyStore.getProfile()?.manningConfig?.n_channel;
+    const manningN = rec?.manning_n ?? hydrologyStore.getProfile()?.manningConfig?.n_channel ?? 0.035;
     const bathy = bathymetryService.ready && Number.isFinite(m)
       ? bathymetryService.getBathymetryAt({ chainageMeters: m, lateralOffsetMeters: 0 })
       : null;
     const depth = num(bathy?.depthM) ?? num(rec?.survey_depth_m?.value) ?? num(rec?.water_depth_m?.value);
     const depthLoading = depth == null && !bathySettled && !bathymetryService.ready;
+    const width = num(rec?.width_m);
+    const q =
+      (Number.isFinite(liveQ) && (liveQMeters == null || Math.abs(liveQMeters - m) < 80) ? liveQ : null)
+      ?? num(rec?.discharge_m3s?.value)
+      ?? num(hydrologyStore.getSummary()?.discharge_m3s);
+    const area =
+      num(rec?.cross_section_area_m2?.value)
+      ?? (width != null && depth != null ? (2 / 3) * width * Math.max(0.05, depth) : null);
+    const vel =
+      num(rec?.velocity_ms?.value)
+      ?? (q != null && area != null && area > 0.5 ? q / area : null);
+    const wq = liveWaterQuality(m);
+    const ch = Number.isFinite(m) ? `CH ${metersToStation(m)}` : "";
 
     metricsEl.innerHTML = [
-      card("q", Waves, "Discharge (Q)", fmt(rec?.discharge_m3s?.value, 1), "m³/s", sparks.q),
-      card("wse", ArrowUp, "Water level (WSE)", fmt(wse, 2), "m MSL", sparks.wse, Number.isFinite(m) ? `CH ${metersToStation(m)}` : ""),
-      card(
-        "depth", ArrowDownToLine, "River depth",
-        depthLoading ? "…" : fmt(depth, 2), "m", sparks.depth,
-        Number.isFinite(m) ? `CH ${metersToStation(m)}` : "",
-      ),
-      card("vel", Gauge, "Flow velocity", fmt(rec?.velocity_ms?.value, 2), "m/s", sparks.vel),
-      card("area", Mountain, "Wetted area", fmt(rec?.cross_section_area_m2?.value, 1), "m²", sparks.area),
+      card("q", Waves, "Discharge (Q)", fmt(q, 1), "m³/s", sparks.q, ch ? `${ch} · live` : "live"),
+      card("wse", ArrowUp, "Water level (WSE)", fmt(wse, 2), "m MSL", sparks.wse, ch),
+      card("depth", ArrowDownToLine, "River depth", depthLoading ? "…" : fmt(depth, 2), "m", sparks.depth, ch),
+      card("vel", Gauge, "Flow velocity", fmt(vel, 2), "m/s", sparks.vel, q != null && area != null ? "v = Q / A" : ""),
+      card("area", Mountain, "Wetted area", fmt(area, 1), "m²", sparks.area, width != null ? `width ${fmt(width, 0)} m` : ""),
       card("n", Settings, "Manning n", fmt(manningN, 3), "", sparks.n),
+      card("bod", Droplets, "BOD", fmt(wq.bod, 1), "mg/L", "", ch),
+      card("cod", Droplets, "COD", fmt(wq.cod, 1), "mg/L", "", ch),
     ].join("");
+  }
+
+  function liveWaterQuality(m) {
+    const list = bodData?.reaches || [];
+    if (!list.length || !Number.isFinite(m)) return { bod: null, cod: null };
+    const km = m / 1000;
+    let reach = list.find((r) => {
+      const [a, b] = Array.isArray(r.km) ? r.km : [0, 2];
+      return km >= Number(a) && km <= Number(b) + 1e-6;
+    });
+    if (!reach) {
+      let bestD = Infinity;
+      for (const r of list) {
+        const [a, b] = Array.isArray(r.km) ? r.km : [0, 2];
+        const d = Math.abs((Number(a) + Number(b)) / 2 - km);
+        if (d < bestD) {
+          bestD = d;
+          reach = r;
+        }
+      }
+    }
+    const sample = sampleReachAt(reach, bodTimeIndex, bodData, bodTimeline);
+    return { bod: num(sample?.p50), cod: num(sample?.cod_p50) };
   }
 
   function buildSparks() {
@@ -293,6 +386,7 @@ export function mountDigitalTwinPanel(root) {
   }
 
   schedule();
+  pullLiveQ(selectedMeters());
 
   return {
     el,

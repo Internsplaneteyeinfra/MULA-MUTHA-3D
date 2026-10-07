@@ -13,11 +13,71 @@ function isLikelySharedOrRemote() {
   return true;
 }
 
+export function isProductionHost() {
+  return isLikelySharedOrRemote();
+}
+
 export function isLowMemoryDevice() {
   const memoryGb = Number(navigator.deviceMemory || 0);
   const cores = Number(navigator.hardwareConcurrency || 0);
   const narrowTouchDevice = navigator.maxTouchPoints > 0 && window.innerWidth < 900;
   return (memoryGb > 0 && memoryGb <= 4) || (cores > 0 && cores <= 4) || narrowTouchDevice;
+}
+
+/**
+ * Chrome reports deviceMemory max 8 for both 8 GB and 16 GB+.
+ * Discrete NVIDIA/AMD/Arc → treat as capable. Intel Iris/UHD + 8 cap → 8 GB laptop.
+ */
+let _gpuName = null;
+function gpuRendererName() {
+  if (_gpuName != null) return _gpuName;
+  try {
+    const c = document.createElement("canvas");
+    const gl = c.getContext("webgl", { failIfMajorPerformanceCaveat: false });
+    if (!gl) {
+      _gpuName = "";
+      return _gpuName;
+    }
+    const ext = gl.getExtension("WEBGL_debug_renderer_info");
+    _gpuName = ext ? String(gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) || "") : "";
+    gl.getExtension("WEBGL_lose_context")?.loseContext();
+    return _gpuName;
+  } catch {
+    _gpuName = "";
+    return _gpuName;
+  }
+}
+
+export function hasDiscreteGpu() {
+  const r = gpuRendererName().toLowerCase();
+  if (!r) return false;
+  return /nvidia|geforce|rtx |gtx |radeon|amd |arc a\d/.test(r);
+}
+
+export function isIntegratedGpu() {
+  const r = gpuRendererName().toLowerCase();
+  if (!r) return false;
+  if (hasDiscreteGpu()) return false;
+  return /intel|iris|uhd graphics|hd graphics|adreno|mali|apple gpu|apple m[0-9]/.test(r);
+}
+
+/** True 8 GB iGPU laptops — not 16 GB workstations (API also reports 8). */
+export function isModestRamDevice() {
+  if (isLowMemoryDevice()) return true;
+  if (hasDiscreteGpu()) return false;
+  const memoryGb = Number(navigator.deviceMemory || 0);
+  return memoryGb > 0 && memoryGb <= 8 && isIntegratedGpu();
+}
+
+/** Lite DTM/OSM only on constrained machines. 16 GB + discrete GPU stays full on production. */
+export function shouldUseLiteAssets() {
+  try {
+    if (new URLSearchParams(location.search).has("fullTerrain")) return false;
+    if (new URLSearchParams(location.search).has("lite")) return true;
+  } catch {
+    /* ignore */
+  }
+  return isModestRamDevice() || isLowMemoryDevice();
 }
 
 function readForcedTier() {
@@ -32,7 +92,7 @@ export function createQualityProfile() {
   // Full features always (fish, bridge names, vegetation). GPU extras only step down.
   let tier =
     forced ||
-    (isLowMemoryDevice() || isLikelySharedOrRemote() ? "medium" : "high");
+    (shouldUseLiteAssets() ? "medium" : "high");
 
   const settings = () => profileFor(tier);
 

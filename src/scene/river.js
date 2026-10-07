@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { createWaterMaterial } from "./waterShader.js";
 import { state } from "../state.js";
 import { isObservedWater } from "../geo/osmWater.js";
+import { spatialIndex, neighbors } from "../geo/corridor.js";
 
 export const SURFACE_Y = 9.4;
 /** Minimum metres the riverbed stays below the water surface (prevents poke-through). */
@@ -156,77 +157,262 @@ export function createRiver(dataset) {
 }
 
 /**
- * Keep water and bed triangles only where LULC 2026 or live OSM records water.
- * The AOI / corridor polygon is not treated as a water mask.
+ * Rebuild water as a filled ribbon: hydrology wet-width at each station,
+ * then a continuous left–right strip (no LULC sawtooth holes).
  */
-export function clipRiverToHydrology(river, lulc, osmWater) {
-  if (!river?.bathymetry) return;
-  const bath = river.bathymetry;
-  const src = bath.indices;
-  const pos = bath.positions;
-  const nVert = (pos.length / 3) | 0;
+export function clipRiverToHydrology(river, lulc, osmWater, dataset) {
+  const stations = dataset?.corridor?.stations;
+  if (!river?.mesh || !stations?.length) return;
 
-  const wet = new Uint8Array(nVert);
-  for (let i = 0; i < nVert; i++) {
-    wet[i] = isObservedWater(lulc, osmWater, pos[i * 3], pos[i * 3 + 2]) ? 1 : 0;
-  }
-
-  const adj = Array.from({ length: nVert }, () => []);
-  const seen = new Set();
-  const link = (a, b) => {
-    const key = a < b ? `${a},${b}` : `${b},${a}`;
-    if (seen.has(key)) return;
-    seen.add(key);
-    adj[a].push(b);
-    adj[b].push(a);
-  };
-  for (let t = 0; t < src.length; t += 3) {
-    link(src[t], src[t + 1]);
-    link(src[t + 1], src[t + 2]);
-    link(src[t + 2], src[t]);
-  }
-
-  const next = new Uint8Array(nVert);
-  for (let pass = 0; pass < 2; pass++) {
-    for (let i = 0; i < nVert; i++) {
-      const nb = adj[i];
-      if (!nb.length) {
-        next[i] = wet[i];
-        continue;
-      }
-      let s = wet[i];
-      for (const j of nb) s += wet[j];
-      next[i] = s * 2 >= nb.length + 1 ? 1 : 0;
-    }
-    wet.set(next);
-  }
-
-  const keep = [];
-  let removed = 0;
-  for (let t = 0; t < src.length; t += 3) {
-    const a = src[t];
-    const b = src[t + 1];
-    const c = src[t + 2];
-    if (wet[a] + wet[b] + wet[c] < 2) {
-      removed++;
-      continue;
-    }
-    keep.push(a, b, c);
-  }
-
-  const index = new Uint32Array(keep);
-  for (const geo of [river.mesh.geometry, river.bed.geometry, river.wire?.geometry]) {
-    if (!geo) continue;
-    geo.setIndex(new THREE.BufferAttribute(index.slice(), 1));
-    subdivideBoundaryEdges(geo, 12, 3);
-    smoothMeshBoundary(geo, 14);
-    geo.computeVertexNormals();
-  }
-  console.info("[river] water clipped to LULC water + OSM (not KML corridor)", {
-    kept: keep.length / 3,
-    removed,
+  const across = 28;
+  const built = buildWetRibbon(stations, lulc, osmWater, dataset, across);
+  if (!built) return;
+  applyRibbonToRiver(river, dataset, built);
+  console.info("[river] filled hydrology ribbon", {
+    stations: stations.length,
+    across,
+    tris: built.indices.length / 3,
     osmPolygons: osmWater?.count ?? 0,
   });
+}
+
+function wetHalfWidth(st, dirX, dirZ, maxH, lulc, osmWater) {
+  const step = 2;
+  let seen = false;
+  let outer = 10;
+  for (let d = 0; d <= maxH + 2; d += step) {
+    if (isObservedWater(lulc, osmWater, st.x + dirX * d, st.z + dirZ * d)) {
+      seen = true;
+      outer = d;
+    } else if (seen && d > outer + 4) {
+      break;
+    }
+  }
+  if (!seen) return Math.min(18, maxH * 0.42);
+  return THREE.MathUtils.clamp(outer + 2, 10, maxH);
+}
+
+function smooth1d(arr, passes) {
+  const n = arr.length;
+  let a = Float32Array.from(arr);
+  for (let p = 0; p < passes; p++) {
+    const b = new Float32Array(n);
+    b[0] = a[0];
+    b[n - 1] = a[n - 1];
+    for (let i = 1; i < n - 1; i++) {
+      b[i] = a[i - 1] * 0.2 + a[i] * 0.6 + a[i + 1] * 0.2;
+    }
+    a = b;
+  }
+  return a;
+}
+
+function samplePointDepth(x, z, index, fallback) {
+  const near = neighbors(index, x, z);
+  let w = 0;
+  let s = 0;
+  for (const p of near) {
+    const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
+    if (d2 > 90 * 90) continue;
+    const ww = 1 / Math.max(6, d2);
+    w += ww;
+    s += ww * (Number(p.depth) || 0);
+  }
+  if (w < 1e-8) return fallback;
+  return s / w;
+}
+
+function buildWetRibbon(stations, lulc, osmWater, dataset, across) {
+  const n = stations.length;
+  const leftW = new Float32Array(n);
+  const rightW = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const st = stations[i];
+    const px = -st.flowZ;
+    const pz = st.flowX;
+    const maxH = Math.max(12, Number(st.halfWidth) || 40);
+    leftW[i] = wetHalfWidth(st, -px, -pz, maxH, lulc, osmWater);
+    rightW[i] = wetHalfWidth(st, px, pz, maxH, lulc, osmWater);
+  }
+  const lSm = smooth1d(leftW, 10);
+  const rSm = smooth1d(rightW, 10);
+
+  const pts = dataset.points || [];
+  const index = spatialIndex(pts);
+  const cols = across + 1;
+  const positions = [];
+  const depths = [];
+  const alongT = [];
+  const acrossU = [];
+  const flow = [];
+  const narrow = [];
+  const widthM = [];
+  const curve = [];
+
+  for (let s = 0; s < n; s++) {
+    const st = stations[s];
+    const px = -st.flowZ;
+    const pz = st.flowX;
+    const lx = st.x - px * lSm[s];
+    const lz = st.z - pz * lSm[s];
+    const rx = st.x + px * rSm[s];
+    const rz = st.z + pz * rSm[s];
+    const width = Math.hypot(rx - lx, rz - lz);
+    for (let a = 0; a <= across; a++) {
+      const u = a / across;
+      const x = lx + (rx - lx) * u;
+      const z = lz + (rz - lz) * u;
+      const bank = Math.abs(u * 2 - 1);
+      const fallback = 0.55 + 1.25 * (1 - bank);
+      const d = Math.max(0.35, samplePointDepth(x, z, index, fallback));
+      positions.push(x, SURFACE_Y, z);
+      depths.push(d);
+      alongT.push(st.t);
+      acrossU.push(u);
+      flow.push(st.flowX, st.flowZ);
+      narrow.push(st.narrow || 0);
+      widthM.push(width);
+      curve.push(st.curve || 0);
+    }
+  }
+
+  const indices = [];
+  for (let s = 0; s < n - 1; s++) {
+    for (let a = 0; a < across; a++) {
+      const i0 = s * cols + a;
+      const i1 = i0 + 1;
+      const i2 = i0 + cols;
+      const i3 = i2 + 1;
+      indices.push(i0, i2, i1, i1, i2, i3);
+    }
+  }
+  if (indices.length >= 3) {
+    const a = indices[0];
+    const b = indices[1];
+    const c = indices[2];
+    const ny =
+      (positions[b * 3] - positions[a * 3]) * (positions[c * 3 + 2] - positions[a * 3 + 2]) -
+      (positions[b * 3 + 2] - positions[a * 3 + 2]) * (positions[c * 3] - positions[a * 3]);
+    if (ny < 0) {
+      for (let i = 0; i < indices.length; i += 3) {
+        const t = indices[i + 1];
+        indices[i + 1] = indices[i + 2];
+        indices[i + 2] = t;
+      }
+    }
+  }
+
+  const boundary = [];
+  for (let s = 0; s < n - 1; s++) {
+    boundary.push([s * cols, (s + 1) * cols]);
+    boundary.push([s * cols + across, (s + 1) * cols + across]);
+  }
+
+  return {
+    positions: new Float32Array(positions),
+    depths: new Float32Array(depths),
+    alongT: new Float32Array(alongT),
+    acrossU: new Float32Array(acrossU),
+    flow: new Float32Array(flow),
+    narrow: new Float32Array(narrow),
+    widthM: new Float32Array(widthM),
+    curve: new Float32Array(curve),
+    indices: new Uint32Array(indices),
+    boundary,
+    across,
+    count: depths.length,
+    source: "hydrology-ribbon",
+  };
+}
+
+function applyRibbonToRiver(river, dataset, bath) {
+  const exag = state.depthExaggeration || 1;
+  const n = bath.count;
+  const surfPos = bath.positions.slice();
+  const bedPos = bath.positions.slice();
+  const bedCol = new Float32Array(n * 3);
+  const depthViewCol = new Float32Array(n * 3);
+  const cutCol = new Float32Array(n * 3);
+  const sand = new THREE.Color("#a89870");
+  const silt = new THREE.Color("#6a5c44");
+  const deepUnder = new THREE.Color("#3a3228");
+  const groundShallow = new THREE.Color("#d2c4a0");
+  const groundMid = new THREE.Color("#9a8458");
+  const groundDeep = new THREE.Color("#4a3e30");
+  const cutShallow = new THREE.Color("#7eb8d8");
+  const cutMid = new THREE.Color("#3d7aa8");
+  const cutDeep = new THREE.Color("#1e4a72");
+  const tmp = new THREE.Color();
+
+  for (let i = 0; i < n; i++) {
+    const d = bath.depths[i];
+    const across = bath.acrossU[i];
+    surfPos[i * 3 + 1] = SURFACE_Y;
+    bedPos[i * 3 + 1] = bedElevation(d, dataset.minDepth, dataset.maxDepth, across, exag);
+    const tExcel = depthNorm(d, dataset.minDepth, dataset.maxDepth);
+    const bank = Math.abs(across * 2 - 1);
+    const t = THREE.MathUtils.clamp(tExcel * (1 - bank * 0.35), 0, 1);
+    const softT = THREE.MathUtils.smoothstep(0.05, 0.95, t) * 0.55;
+    tmp.copy(sand).lerp(silt, softT);
+    tmp.lerp(deepUnder, softT * 0.85);
+    bedCol[i * 3] = tmp.r;
+    bedCol[i * 3 + 1] = tmp.g;
+    bedCol[i * 3 + 2] = tmp.b;
+    tmp.copy(groundShallow).lerp(groundMid, THREE.MathUtils.smoothstep(0, 0.5, t));
+    tmp.lerp(groundDeep, THREE.MathUtils.smoothstep(0.3, 1, t));
+    depthViewCol[i * 3] = tmp.r;
+    depthViewCol[i * 3 + 1] = tmp.g;
+    depthViewCol[i * 3 + 2] = tmp.b;
+    tmp.copy(cutShallow).lerp(cutMid, THREE.MathUtils.smoothstep(0, 0.55, t));
+    tmp.lerp(cutDeep, THREE.MathUtils.smoothstep(0.35, 1, t));
+    cutCol[i * 3] = tmp.r;
+    cutCol[i * 3 + 1] = tmp.g;
+    cutCol[i * 3 + 2] = tmp.b;
+  }
+
+  const surfGeo = new THREE.BufferGeometry();
+  surfGeo.setAttribute("position", new THREE.Float32BufferAttribute(surfPos, 3));
+  surfGeo.setAttribute("aDepth", new THREE.Float32BufferAttribute(bath.depths, 1));
+  surfGeo.setAttribute("aAlong", new THREE.Float32BufferAttribute(bath.alongT, 1));
+  surfGeo.setAttribute("aAcross", new THREE.Float32BufferAttribute(bath.acrossU, 1));
+  surfGeo.setAttribute("aFlow", new THREE.Float32BufferAttribute(bath.flow, 2));
+  surfGeo.setAttribute("aNarrow", new THREE.Float32BufferAttribute(bath.narrow, 1));
+  surfGeo.setAttribute("aWidth", new THREE.Float32BufferAttribute(bath.widthM, 1));
+  surfGeo.setAttribute("aCurve", new THREE.Float32BufferAttribute(bath.curve, 1));
+  surfGeo.setIndex(new THREE.BufferAttribute(bath.indices, 1));
+  surfGeo.computeVertexNormals();
+
+  const bedGeo = new THREE.BufferGeometry();
+  bedGeo.setAttribute("position", new THREE.Float32BufferAttribute(bedPos, 3));
+  bedGeo.setAttribute("color", new THREE.Float32BufferAttribute(bedCol, 3));
+  bedGeo.setAttribute("colorLand", new THREE.Float32BufferAttribute(bedCol.slice(), 3));
+  bedGeo.setAttribute("colorDepthView", new THREE.Float32BufferAttribute(depthViewCol, 3));
+  bedGeo.setAttribute("aDepth", new THREE.Float32BufferAttribute(bath.depths, 1));
+  bedGeo.setAttribute("aAcross", new THREE.Float32BufferAttribute(bath.acrossU, 1));
+  bedGeo.setAttribute("colorCut", new THREE.Float32BufferAttribute(cutCol, 3));
+  bedGeo.setIndex(new THREE.BufferAttribute(bath.indices.slice(), 1));
+  bedGeo.computeVertexNormals();
+
+  river.mesh.geometry.dispose();
+  river.mesh.geometry = surfGeo;
+  river.bed.geometry.dispose();
+  river.bed.geometry = bedGeo;
+  if (river.wire) {
+    river.wire.geometry.dispose();
+    river.wire.geometry = surfGeo.clone();
+  }
+
+  while (river.walls.children.length) {
+    const child = river.walls.children[0];
+    river.walls.remove(child);
+    child.geometry?.dispose();
+    child.material?.dispose?.();
+  }
+  const walls = createBoundaryWalls(bath, dataset, exag);
+  for (const child of [...walls.children]) river.walls.add(child);
+  river.walls.userData.boundary = bath.boundary;
+  river.walls.userData.bath = bath;
+  river.bathymetry = bath;
 }
 
 function boundaryEdges(indices) {
@@ -356,15 +542,12 @@ function smoothMeshBoundary(geo, iterations = 3) {
 
   const indices = idx.array;
   const edgeCount = new Map();
-  
-  // 1. Find all edges
-  function addEdge(a, b) {
+  const addEdge = (a, b) => {
     const key = a < b ? `${a},${b}` : `${b},${a}`;
     const entry = edgeCount.get(key) || { count: 0, a, b };
     entry.count++;
     edgeCount.set(key, entry);
-  }
-  
+  };
   for (let i = 0; i < indices.length; i += 3) {
     addEdge(indices[i], indices[i + 1]);
     addEdge(indices[i + 1], indices[i + 2]);
@@ -393,11 +576,11 @@ function smoothMeshBoundary(geo, iterations = 3) {
       }
       const avgX = sumX / neighbors.length;
       const avgZ = sumZ / neighbors.length;
-      newPos[v * 3] = tempPos[v * 3] * 0.22 + avgX * 0.78;
-      newPos[v * 3 + 2] = tempPos[v * 3 + 2] * 0.22 + avgZ * 0.78;
+      newPos[v * 3] = tempPos[v * 3] * 0.35 + avgX * 0.65;
+      newPos[v * 3 + 2] = tempPos[v * 3 + 2] * 0.35 + avgZ * 0.65;
     }
   }
-  
+
   for (let i = 0; i < pos.count; i++) {
     pos.setX(i, newPos[i * 3]);
     pos.setZ(i, newPos[i * 3 + 2]);

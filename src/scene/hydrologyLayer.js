@@ -1449,6 +1449,7 @@ export function createHydrologyLayer(dataset) {
       pollutionGarbage.userData.setVisible(true);
       pollutionGarbage.userData.setLabelsEnabled?.(true);
       pollutionGarbage.userData.setClassFilter?.(null);
+      pollutionGarbage.userData.setShowDensity?.(true);
       activeId = "pollution";
       group.visible = true;
       const count = pollutionGarbage.userData.getCount?.() || 0;
@@ -1472,8 +1473,8 @@ export function createHydrologyLayer(dataset) {
             { label: "Density HIGH", color: "#C0392B" },
           ],
           layerId: "pollution",
-          garbageDensityToggle: true,
-          densityOn: !!pollutionGarbage.userData.getShowDensity?.(),
+          garbageDensityToggle: false,
+          densityOn: true,
         },
         stats: {
           sites: count,

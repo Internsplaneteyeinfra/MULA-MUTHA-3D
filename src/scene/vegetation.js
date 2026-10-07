@@ -3,6 +3,7 @@ import { terrainHeightAt } from "./terrain.js";
 import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { RIVER_SIDE_M } from "../geo/osmContext.js";
 
 const MAX_TREES = 11000;
 
@@ -100,6 +101,8 @@ export async function createVegetation(dataset, opts = {}) {
       const p = randomInPolygon(poly.vertices, rng);
       if (!p) continue;
       if (inRiver(p.x, p.z) || blocked(p.x, p.z, buildings, roads, stations) || onWater(p.x, p.z)) continue;
+      const bank = nearest(p.x, p.z, stations);
+      if (dataset.lite && bank.lat > bank.half + RIVER_SIDE_M) continue;
       placements.push({
         x: p.x,
         z: p.z,

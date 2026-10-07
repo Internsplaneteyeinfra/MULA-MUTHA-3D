@@ -6,6 +6,7 @@
 import * as THREE from "three";
 import { LOD, markerScaleForCamera } from "./garbageLOD.js";
 import { loadGarbageModel } from "./garbageModels.js";
+import { terrainHeightAt } from "../terrain.js";
 
 /** Scanned pile footprint per density class (metres, largest horizontal extent). */
 const PILE_FOOTPRINT_M = { LOW: 4, MEDIUM: 6, HIGH: 8 };
@@ -34,7 +35,7 @@ export function createGarbageRenderer() {
   debris.name = "garbageDebris";
   const densityGroup = new THREE.Group();
   densityGroup.name = "garbageDensity";
-  densityGroup.visible = false;
+  densityGroup.visible = true;
   root.add(markers, debris, densityGroup);
 
   // Very small ground indicator (far / overview dots)
@@ -626,7 +627,7 @@ export function createGarbageRenderer() {
       c.material?.dispose?.();
     }
     if (!cells?.length) return;
-    const geo = new THREE.CircleGeometry(28, 20);
+    const geo = new THREE.CircleGeometry(36, 28);
     geo.rotateX(-Math.PI / 2);
     for (const cell of cells) {
       const color =
@@ -634,14 +635,31 @@ export function createGarbageRenderer() {
       const mat = new THREE.MeshBasicMaterial({
         color,
         transparent: true,
-        opacity: 0.16 + Math.min(0.28, cell.count * 0.04),
+        opacity: cell.level === "HIGH" ? 0.38 : cell.level === "MEDIUM" ? 0.32 : 0.26,
         depthWrite: false,
         depthTest: true,
         side: THREE.DoubleSide,
+        polygonOffset: true,
+        polygonOffsetFactor: -2,
+        polygonOffsetUnits: -2,
       });
       const m = new THREE.Mesh(geo, mat);
-      m.position.set(cell.x, SURFACE_APPROX, cell.z);
-      m.renderOrder = 12;
+      let y = SURFACE_APPROX;
+      const ids = cell.ids || [];
+      let acc = 0;
+      let n = 0;
+      for (const e of entries) {
+        if (!ids.includes(e.record.id)) continue;
+        acc += e.baseY;
+        n += 1;
+      }
+      if (n) y = acc / n;
+      else {
+        const th = terrainHeightAt(cell.x, cell.z);
+        if (Number.isFinite(th)) y = th;
+      }
+      m.position.set(cell.x, y + 0.45, cell.z);
+      m.renderOrder = 14;
       m.userData.level = cell.level;
       densityGroup.add(m);
     }

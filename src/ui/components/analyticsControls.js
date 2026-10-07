@@ -152,11 +152,9 @@ export function mountAnalyticsControls(root, dataset) {
       pollutionKeys.hide();
       setActive(null);
     },
-    onClassSelect(label) {
-      window.__MM_SCENE__?.setGarbageClassFilter?.(label);
-      if (label && /density/i.test(label)) {
-        window.__MM_SCENE__?.setGarbageDensityVisible?.(true);
-      }
+    onClassSelect() {
+      window.__MM_SCENE__?.setGarbageClassFilter?.(null);
+      window.__MM_SCENE__?.setGarbageDensityVisible?.(true);
       window.__MM_SCENE__?.setGarbageLabelsVisible?.(true);
       pollutionKeys.refresh();
     },
@@ -388,14 +386,10 @@ export function mountAnalyticsControls(root, dataset) {
     hydroLegend.innerHTML = "";
     landUseTheme.hide();
     waterQualityTheme.hide();
-    const densityOn = !!leg.densityOn;
-    pollutionTheme.showClasses(leg.classes || [], "pollution", {
-      extraHtml: leg.garbageDensityToggle
-        ? `<button type="button" class="focus-density-btn${densityOn ? " is-active" : ""}" id="focus-garbage-density" aria-pressed="${densityOn ? "true" : "false"}">Garbage Density</button>`
-        : "",
-    });
+    pollutionTheme.showClasses(leg.classes || [], "pollution", { legendOnly: true });
     window.__MM_SCENE__?.setGarbageLabelsVisible?.(true);
     window.__MM_SCENE__?.setGarbageClassFilter?.(null);
+    window.__MM_SCENE__?.setGarbageDensityVisible?.(true);
     pollutionKeys.show();
   }
 

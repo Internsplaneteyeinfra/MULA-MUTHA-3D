@@ -48,7 +48,7 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
 
       // Re-solve hydraulic profile whenever new rainfall data arrives
       subscribeLiveHydrology((liveData) => {
-        if (liveData?.available && Number.isFinite(liveData.Q_total)) {
+        if (liveData?.available && Number.isFinite(liveData.Q_runoff) && liveData.Q_runoff > 0.5) {
           refreshHydrologyProfile({
             discharge_m3s: liveData.Q_total,
             source: `LIVE_RAINFALL_RUNOFF — ${liveData.weatherDescription ?? ""} — ${liveData.currentRain_mm_hr ?? 0} mm/hr`,
@@ -95,19 +95,30 @@ export async function refreshHydrologyProfile(customParams = {}) {
       source = "CWC_BUND_GARDEN_TELEMETRY";
       provenance = bundObs.discharge.status;
     } else {
-      // Try live Open-Meteo rainfall-derived discharge
       const { getCachedLiveHydrology } = await import("./liveHydrologyService.js");
       const live = getCachedLiveHydrology();
-      if (live?.available && Number.isFinite(live.Q_total) && live.Q_total > 0) {
+      // Rainfall-runoff only when rain is actually contributing (not dry-season baseflow 15/35).
+      if (live?.available && Number.isFinite(live.Q_runoff) && live.Q_runoff > 0.5) {
         Q = live.Q_total;
         source = `LIVE_RAINFALL_RUNOFF — ${live.weatherDescription ?? ""} — ${live.currentRain_mm_hr ?? 0} mm/hr`;
         provenance = PROVENANCE_STATUS.LIVE;
       } else {
-        // Nominal seasonal baseline for Pune urban corridor (~65 m³/s baseflow)
-        // Clearly marked as MODELLED baseline, NEVER claiming observed without telemetry
-        Q = 65.0;
-        source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
-        provenance = PROVENANCE_STATUS.MODELLED ?? PROVENANCE_STATUS.VERIFIED;
+        try {
+          const { getLiveDischargeAtChainage } = await import("../forecastService.js");
+          const liveQ = await getLiveDischargeAtChainage(0);
+          if (Number.isFinite(liveQ) && liveQ > 0) {
+            Q = liveQ;
+            source = "LIVE_REACH";
+            provenance = PROVENANCE_STATUS.LIVE;
+          }
+        } catch {
+          /* fall through */
+        }
+        if (Q == null) {
+          Q = 65.0;
+          source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
+          provenance = PROVENANCE_STATUS.MODELLED ?? PROVENANCE_STATUS.VERIFIED;
+        }
       }
     }
   }

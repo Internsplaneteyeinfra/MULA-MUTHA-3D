@@ -13,10 +13,11 @@
 import { ChevronLeft, ChevronRight, X } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
-import { crossSectionRegistry, CROSS_SECTION_PRIORITY } from "../../services/hydrology/crossSectionRegistry.js";
 import { initHydrologyProfileService, refreshHydrologyProfile } from "../../services/hydrology/hydrologyProfileService.js";
 import { state } from "../../state.js";
 import { attachChartHover } from "../chartHover.js";
+import { dtmElevationAtLonLat } from "../../scene/terrain.js";
+import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
 
 // Light glass palette
 const CS = {
@@ -57,7 +58,7 @@ export function mountCrossSectionModal(root) {
           <span id="cs-station-badge" class="cs-modal__badge" aria-live="polite">CH 0+000</span>
           <button id="cs-next-station" class="cs-station-step" type="button" aria-label="Next station">${lucideHtml(ChevronRight, { size: 15 })}</button>
         </span>
-        <span id="cs-provenance-badge" class="cs-modal__badge cs-modal__badge--prov">PARAMETRIC</span>
+        <span id="cs-provenance-badge" class="cs-modal__badge cs-modal__badge--prov" hidden></span>
       </div>
       <button id="cs-close-btn" class="cs-modal__close-btn" aria-label="Close modal">${lucideHtml(X, { size: 18 })}</button>
     </div>
@@ -89,11 +90,6 @@ export function mountCrossSectionModal(root) {
         <div class="cs-metric-row"><span class="k">Velocity (v)</span><span class="v" id="cs-val-v">—</span></div>
         <div class="cs-metric-row"><span class="k">Froude (Fr)</span><span class="v" id="cs-val-fr">—</span></div>
         
-        <div class="cs-divider"></div>
-        <h4 class="cs-metrics-title">PROVENANCE &amp; INTEGRITY</h4>
-        <div class="cs-metric-row"><span class="k">Geometry Priority</span><span class="v" id="cs-val-geom-priority" style="font-size:10px">—</span></div>
-        <div class="cs-metric-row"><span class="k">Confidence</span><span class="v" id="cs-val-confidence">—</span></div>
-        <div class="cs-metric-row"><span class="k">Datum Status</span><span class="v" id="cs-val-datum-status" style="font-size:10px">—</span></div>
       </div>
     </div>
   `;
@@ -111,6 +107,7 @@ export function mountCrossSectionModal(root) {
   let _solveInProgress = false;
   let _isOpen = false;           // single source of truth — do NOT use backdrop.hidden elsewhere
   let _showCount = 0;            // diagnostic: 1 button click must produce SHOW COUNT 1
+  let _liveQ = null;
 
   // ─── Helpers ────────────────────────────────────────────────────────────────
 
@@ -269,7 +266,6 @@ export function mountCrossSectionModal(root) {
     const fields = [
       "#cs-val-ch", "#cs-val-w", "#cs-val-d", "#cs-val-wse", "#cs-val-bed",
       "#cs-val-a", "#cs-val-r", "#cs-val-q", "#cs-val-v", "#cs-val-fr",
-      "#cs-val-geom-priority", "#cs-val-confidence", "#cs-val-datum-status",
     ];
     fields.forEach((sel) => _setText(sel, "Loading…"));
     if (svg) svg.innerHTML = `<text x="250" y="120" fill="${CS.muted}" text-anchor="middle" font-size="13">Solving hydraulic profile…</text>`;
@@ -422,43 +418,30 @@ export function mountCrossSectionModal(root) {
     }
 
     const st = currentStation;
+    const geo = _liveGeometry(st);
 
-    // ─── Badges ────────────────────────────────────────────────────────────
     const stBadge = modal.querySelector("#cs-station-badge");
-    const provBadge = modal.querySelector("#cs-provenance-badge");
-    if (stBadge) stBadge.textContent = st.station_label || `CH ${Math.round(st.chainage_m)}m`;
+    if (stBadge) stBadge.textContent = st.station_label || `CH ${Math.round(st.chainage_m)}`;
 
-    const xsProv = st.cross_section_area_m2?.status || "PARAMETRIC";
-    if (provBadge) {
-      if (xsProv === "OBSERVED") {
-        provBadge.textContent = "SURVEYED TRANSECT";
-        provBadge.style.background = "rgba(5, 150, 105, 0.14)";
-        provBadge.style.color = "#047857";
-      } else if (xsProv === "INTERPOLATED") {
-        provBadge.textContent = "INTERPOLATED FROM SURVEY";
-        provBadge.style.background = "rgba(2, 132, 199, 0.14)";
-        provBadge.style.color = "#0369a1";
-      } else {
-        provBadge.textContent = "LIVE SURVEY";
-        provBadge.style.background = "rgba(234, 88, 12, 0.14)";
-        provBadge.style.color = "#c2410c";
-      }
-    }
+    _setText("#cs-val-ch", st.station_label || `${Number(st.chainage_m).toFixed(0)} m`);
+    _setText("#cs-val-w", `${geo.width.toFixed(1)} m`);
+    _setText("#cs-val-d", `${geo.depth.toFixed(2)} m`);
+    _setText("#cs-val-wse", `${geo.wse.toFixed(2)} m MSL`);
+    _setText("#cs-val-bed", `${geo.bed.toFixed(2)} m MSL`);
+    _setText("#cs-val-a", `${geo.area.toFixed(1)} m²`);
+    _setText("#cs-val-r", `${geo.radius.toFixed(2)} m`);
+    _setText("#cs-val-q", `${geo.q.toFixed(1)} m³/s`);
+    _setText("#cs-val-v", `${geo.vel.toFixed(2)} m/s`);
+    _setText("#cs-val-fr", `${geo.froude.toFixed(2)}`);
 
-    // ─── Metric fields ─────────────────────────────────────────────────────
-    _setText("#cs-val-ch", st.station_label || `${st.chainage_m.toFixed(1)} m`);
-    _setText("#cs-val-w", st.width_m != null ? `${Number(st.width_m).toFixed(1)} m` : "—");
-    _setText("#cs-val-d", st.water_depth_m?.value != null ? `${st.water_depth_m.value.toFixed(2)} m` : "—");
-    _setText("#cs-val-wse", st.wse_msl?.value != null ? `${st.wse_msl.value.toFixed(2)} m MSL` : "— (Relative Mode)");
-    _setText("#cs-val-bed", st.bed_elevation_msl?.value != null ? `${st.bed_elevation_msl.value.toFixed(2)} m MSL` : "— (Unverified Datum)");
-    _setText("#cs-val-a", st.cross_section_area_m2?.value != null ? `${st.cross_section_area_m2.value.toFixed(1)} m²` : "—");
-    _setText("#cs-val-r", st.hydraulic_radius_m?.value != null ? `${st.hydraulic_radius_m.value.toFixed(2)} m` : "—");
-    _setText("#cs-val-q", st.discharge_m3s?.value != null ? `${st.discharge_m3s.value.toFixed(1)} m³/s` : "—");
-    _setText("#cs-val-v", st.velocity_ms?.value != null ? `${st.velocity_ms.value.toFixed(2)} m/s` : "—");
-    _setText("#cs-val-fr", st.froude_number != null ? `${st.froude_number.toFixed(2)}` : "—");
-    _setText("#cs-val-geom-priority", st.cross_section_area_m2?.source || "PRIORITY_4_PARAMETRIC");
-    _setText("#cs-val-confidence", st.confidence || "MEDIUM");
-    _setText("#cs-val-datum-status", st.provenance?.datum || "VERIFIED_DATUM");
+    getLiveDischargeAtChainage(st.chainage_m)
+      .then((q) => {
+        if (!Number.isFinite(q) || !_isOpen) return;
+        if (_liveQ != null && Math.abs(_liveQ - q) < 0.2) return;
+        _liveQ = q;
+        render();
+      })
+      .catch(() => {});
 
     // ─── Graphs ────────────────────────────────────────────────────────────
     if (activeView === "transect") {
@@ -478,6 +461,36 @@ export function mountCrossSectionModal(root) {
     });
   }
 
+  function _liveGeometry(st) {
+    const n = (v) => {
+      const x = Number(v);
+      return Number.isFinite(x) ? x : null;
+    };
+    const width = Math.max(8, n(st.width_m) || 40);
+    const survey = n(st.survey_depth_m?.value);
+    const solved = n(st.water_depth_m?.value);
+    const depth = Math.max(0.2, survey ?? solved ?? 1.7);
+    const ground = n(dtmElevationAtLonLat(st.lon, st.lat));
+    const bed =
+      n(st.bed_elevation_msl?.value) ??
+      (ground != null ? ground - (survey ?? depth) : 540 - 0.00052 * (n(st.chainage_m) || 0));
+    const wse = n(st.wse_msl?.value) ?? bed + depth;
+    const q =
+      n(_liveQ) ??
+      n(st.discharge_m3s?.value) ??
+      n(hydrologyStore.getSummary()?.discharge_m3s) ??
+      320;
+    const area = n(st.cross_section_area_m2?.value) ?? (2 / 3) * width * depth;
+    const perim = n(st.wetted_perimeter_m?.value) ?? width + (8 * depth * depth) / (3 * width);
+    const radius = n(st.hydraulic_radius_m?.value) ?? (perim > 0 ? area / perim : depth);
+    const vel = n(st.velocity_ms?.value) ?? (area > 0.5 ? q / area : 0.4);
+    const hydD = area / width;
+    const froude =
+      n(st.froude_number) ??
+      (hydD > 0 ? vel / Math.sqrt(9.80665 * hydD) : 0.1);
+    return { width, depth, bed, wse, q, area, radius, vel, froude };
+  }
+
   // ─── DOM helper ──────────────────────────────────────────────────────────
   function _setText(selector, text) {
     const el = modal.querySelector(selector);
@@ -486,8 +499,9 @@ export function mountCrossSectionModal(root) {
 
   // ─── Transect SVG ────────────────────────────────────────────────────────
   function _renderTransectSvg(svgEl, st) {
-    const width = Math.max(10, Number(st.width_m) || 60);
-    const depth = Math.max(0.1, st.water_depth_m?.value || 1.72);
+    const geo = _liveGeometry(st);
+    const width = geo.width;
+    const depth = geo.depth;
 
     const L = { padL: 56, padR: 14, padT: 22, padB: 44 };
     const svgW = 500;

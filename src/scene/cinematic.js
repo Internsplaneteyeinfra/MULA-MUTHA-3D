@@ -815,7 +815,12 @@ export function createCameraSystem(canvas, dataset) {
     if (localTransition) {
       localTransition.t += dt;
       const tNorm = Math.min(1, localTransition.t / localTransition.dur);
-      const easeFn = localTransition.ease === "outCubic" ? easeOutCubic : easeInOutCubic;
+      const easeFn =
+        localTransition.ease === "outCubic"
+          ? easeOutCubic
+          : localTransition.ease === "inOutQuint"
+            ? easeInOutQuint
+            : easeInOutCubic;
       const k = easeFn(tNorm);
       camera.position.lerpVectors(localTransition.fromP, localTransition.toP, k);
       // Arc above the surface mid-flight so the low eye-level path clears houses/buildings.
@@ -1014,7 +1019,7 @@ export function createCameraSystem(canvas, dataset) {
     }
 
     // Instant snap (chainage step/ruler): keep river view, no fly/arc.
-    const snapDur = opts.dur ?? 0.85;
+    const snapDur = opts.dur ?? 1.6;
     if (snapDur <= 0) {
       zoomTransition = null;
       localTransition = null;
@@ -1048,10 +1053,10 @@ export function createCameraSystem(canvas, dataset) {
 
     // Clear-river hops stay quick/straight; building clears get a longer arc so walls read well.
     let dur = snapDur;
-    let ease = opts.ease || "outCubic";
+    let ease = opts.ease || "inOutQuint";
     if (transitLift > 0) {
-      dur = Math.max(dur, THREE.MathUtils.clamp(0.95 + hopDist * 0.0012, 1.05, 1.45));
-      ease = "inOutCubic";
+      dur = Math.max(dur, THREE.MathUtils.clamp(1.4 + hopDist * 0.0018, 1.6, 3.2));
+      ease = "inOutQuint";
     }
 
     // Replace any in-flight transition — never stack competing fly-tos
@@ -1146,7 +1151,10 @@ export function createCameraSystem(canvas, dataset) {
     orientTransition = null;
     state.cameraMode = "orbit";
     state.playing = false;
-    controls.enabled = true;
+    // Keep OrbitControls off while a scripted pass is driving the camera,
+    // otherwise damping rewrites the pose back to the previous chainage.
+    const lock = opts.lockControls !== false;
+    controls.enabled = !lock;
     controls.minPolarAngle = 0;
     controls.maxPolarAngle = Math.PI * 0.495;
     if (activeCamera.isPerspectiveCamera && Number.isFinite(opts.fov) && activeCamera.fov !== opts.fov) {
@@ -1157,6 +1165,10 @@ export function createCameraSystem(canvas, dataset) {
     controls.target.copy(l);
     activeCamera.up.set(0, 1, 0);
     activeCamera.lookAt(controls.target);
+    if (opts.releaseControls) {
+      controls.enabled = true;
+      controls.update();
+    }
     return true;
   }
 
@@ -1231,6 +1243,10 @@ function estimateBuildingTransitLift(from, to, buildings, eyeHeight = 16) {
 
 function easeInOutCubic(t) {
   return t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2;
+}
+
+function easeInOutQuint(t) {
+  return t < 0.5 ? 16 * t ** 5 : 1 - ((-2 * t + 2) ** 5) / 2;
 }
 
 function easeOutCubic(t) {

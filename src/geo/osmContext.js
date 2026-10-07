@@ -2,6 +2,31 @@ import { lonLatToUtm } from "./projection.js";
 import { lonLatToLocal } from "./geoReference.js";
 import { resolveBuildingHeight, resolveTreeHeight } from "./heightResolve.js";
 
+/** Low-RAM: 1 km outside the bank. Full machines use the original study corridor. */
+export const RIVER_SIDE_M = 1000;
+export const FULL_CORRIDOR_M = 4200;
+
+/**
+ * True if (x,z) is in the channel or within `extraM` of the bank (lateral to centerline).
+ */
+export function withinRiverSide(x, z, stations, extraM = RIVER_SIDE_M) {
+  if (!stations?.length) return false;
+  let best = stations[0];
+  let bestD = Infinity;
+  const step = Math.max(1, Math.floor(stations.length / 180));
+  for (let i = 0; i < stations.length; i += step) {
+    const s = stations[i];
+    const d2 = (s.x - x) ** 2 + (s.z - z) ** 2;
+    if (d2 < bestD) {
+      bestD = d2;
+      best = s;
+    }
+  }
+  const lat = Math.abs((x - best.x) * -best.flowZ + (z - best.z) * best.flowX);
+  const half = Math.max(8, Number(best.halfWidth) || 20);
+  return lat <= half + extraM;
+}
+
 /**
  * Load KML-corridor OSM datasets (new + legacy filenames).
  * All features projected into the shared local frame.
@@ -58,16 +83,15 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
     lite ? Promise.resolve(null) : fetchOptional(kmlValUrl),
   ]);
 
-  const maxDist = 4200;
-  const buildingMaxDist = 4200;
-  const roads = projectLines(roadsFc, frame, corridor, maxDist);
-  // Keep corridor buildings along full river + inland blocks (roads beyond bank)
-  const buildingsAll = projectBuildings(buildingsFc, frame, corridor, buildingMaxDist);
-  const buildings = stratifyAlongCorridor(buildingsAll, corridor, 60000);
-  const green = projectPolygons(vegFc, frame, corridor, maxDist + 400);
-  const trees = projectTrees(treesFc, frame, corridor, maxDist + 200);
-  const treeRows = projectLines(treeRowsFc, frame, corridor, maxDist + 200);
-  const waterFeatures = projectMixed(waterFc, frame, corridor, maxDist + 400);
+  const bankStrip = lite === true;
+  const extraM = bankStrip ? RIVER_SIDE_M : FULL_CORRIDOR_M;
+  const roads = projectLines(roadsFc, frame, corridor, extraM, bankStrip);
+  const buildingsAll = projectBuildings(buildingsFc, frame, corridor, extraM, bankStrip);
+  const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 16000 : 60000);
+  const green = projectPolygons(vegFc, frame, corridor, extraM, bankStrip);
+  const trees = projectTrees(treesFc, frame, corridor, extraM, bankStrip);
+  const treeRows = projectLines(treeRowsFc, frame, corridor, extraM, bankStrip);
+  const waterFeatures = projectMixed(waterFc, frame, corridor, extraM, bankStrip);
 
   const alignment = validateOsmAlignment(corridor, roads, buildings);
 
@@ -121,16 +145,26 @@ function toLocal(lon, lat, _frame) {
   return { lon, lat, easting: p.easting, northing: p.northing, x: p.x, z: p.z };
 }
 
-function projectLines(fc, frame, corridor, maxDist) {
+function keepPoint(x, z, stations, maxDist, bankStrip) {
+  return bankStrip
+    ? withinRiverSide(x, z, stations, maxDist)
+    : distToCorridor(x, z, stations) <= maxDist;
+}
+
+function projectLines(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
   const out = [];
   for (const feat of fc.features) {
     const coords = feat.geometry?.coordinates;
     if (!coords || coords.length < 2) continue;
-    const verts = coords.map(([lon, lat]) => toLocal(lon, lat, frame));
+    let verts = coords.map(([lon, lat]) => toLocal(lon, lat, frame));
+    if (bankStrip) {
+      verts = verts.filter((v) => withinRiverSide(v.x, v.z, corridor.stations, maxDist));
+    }
+    if (verts.length < 2) continue;
     const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
     const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-    if (distToCorridor(mx, mz, corridor.stations) > maxDist) continue;
+    if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
     let lengthM = 0;
     for (let i = 1; i < verts.length; i++) {
       lengthM += Math.hypot(verts[i].x - verts[i - 1].x, verts[i].z - verts[i - 1].z);
@@ -152,7 +186,7 @@ function projectLines(fc, frame, corridor, maxDist) {
   return out;
 }
 
-function projectPolygons(fc, frame, corridor, maxDist) {
+function projectPolygons(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
   const out = [];
   for (const feat of fc.features) {
@@ -161,7 +195,7 @@ function projectPolygons(fc, frame, corridor, maxDist) {
     const verts = ring.map(([lon, lat]) => toLocal(lon, lat, frame));
     const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
     const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-    if (distToCorridor(mx, mz, corridor.stations) > maxDist) continue;
+    if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
     out.push({
       id: feat.properties?.osmId ?? feat.properties?.id,
       name: feat.properties?.name,
@@ -178,7 +212,7 @@ function projectPolygons(fc, frame, corridor, maxDist) {
   return out;
 }
 
-function projectBuildings(fc, frame, corridor, maxDist) {
+function projectBuildings(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
   const out = [];
   for (const feat of fc.features) {
@@ -187,7 +221,7 @@ function projectBuildings(fc, frame, corridor, maxDist) {
     const verts = ring.map(([lon, lat]) => toLocal(lon, lat, frame));
     const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
     const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-    if (distToCorridor(mx, mz, corridor.stations) > maxDist) continue;
+    if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
     const resolved = resolveBuildingHeight(feat.properties || {});
     out.push({
       id: feat.properties?.osmId ?? feat.properties?.id,
@@ -214,7 +248,7 @@ function projectBuildings(fc, frame, corridor, maxDist) {
   return out;
 }
 
-function projectTrees(fc, frame, corridor, maxDist) {
+function projectTrees(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
   const out = [];
   for (const feat of fc.features) {
@@ -222,7 +256,7 @@ function projectTrees(fc, frame, corridor, maxDist) {
     if (!c || c.length < 2) continue;
     const [lon, lat] = c;
     const loc = toLocal(lon, lat, frame);
-    if (distToCorridor(loc.x, loc.z, corridor.stations) > maxDist) continue;
+    if (!keepPoint(loc.x, loc.z, corridor.stations, maxDist, bankStrip)) continue;
     const seed = Number(feat.properties?.osmId) || out.length;
     const resolved = resolveTreeHeight(feat.properties || {}, seed);
     out.push({
@@ -242,7 +276,7 @@ function projectTrees(fc, frame, corridor, maxDist) {
   return out;
 }
 
-function projectMixed(fc, frame, corridor, maxDist) {
+function projectMixed(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
   const out = [];
   for (const feat of fc.features) {
@@ -252,7 +286,7 @@ function projectMixed(fc, frame, corridor, maxDist) {
       const verts = g.coordinates.map(([lon, lat]) => toLocal(lon, lat, frame));
       const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
       const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-      if (distToCorridor(mx, mz, corridor.stations) > maxDist) continue;
+      if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
       out.push({ type: "line", id: feat.properties?.osmId, props: feat.properties, vertices: verts });
     } else if (g.type === "Polygon") {
       const ring = g.coordinates?.[0];
@@ -260,7 +294,7 @@ function projectMixed(fc, frame, corridor, maxDist) {
       const verts = ring.map(([lon, lat]) => toLocal(lon, lat, frame));
       const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
       const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-      if (distToCorridor(mx, mz, corridor.stations) > maxDist) continue;
+      if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
       out.push({ type: "poly", id: feat.properties?.osmId, props: feat.properties, vertices: verts });
     }
   }

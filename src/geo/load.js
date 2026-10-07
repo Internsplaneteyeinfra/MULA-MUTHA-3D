@@ -14,7 +14,7 @@ import { parseFishingLocationsKml } from "../features/fishing/FishingLocationLoa
 import fishingKmlRaw from "../features/fishing/Fishing_Locations.kml?raw";
 import drainageKmlRaw from "../data/drainage_network.kml?raw";
 import { buildFishingZones } from "../features/fishing/FishingZoneSystem.js";
-import { isLowMemoryDevice } from "../perf/quality.js";
+import { shouldUseLiteAssets } from "../perf/quality.js";
 
 /** Fallback origin if KML bbox is unavailable. */
 export const SCENE_ORIGIN_LONLAT = { lon: 73.92420242, lat: 18.534020995 };
@@ -48,7 +48,10 @@ export async function loadJourneyDataset({
 }) {
   const params = new URLSearchParams(location.search);
   const forcedLow = [params.get("quality"), params.get("perf")].includes("low");
-  const lite = (isLowMemoryDevice() || forcedLow) && !params.has("fullTerrain");
+  const lite = (shouldUseLiteAssets() || forcedLow) && !params.has("fullTerrain");
+  if (lite) {
+    console.info("[perf] Lite assets for this device (8 GB / iGPU). 16 GB + discrete GPU uses full. ?fullTerrain to force full.");
+  }
   onProgress?.(0.06, "Fetching Excel water-depth grid…");
   const depth = await loadDepthCsv(csvUrl, onProgress);
 
@@ -234,7 +237,7 @@ export async function loadJourneyDataset({
       corridor,
       (msg) => onProgress?.(0.8, msg || "Loading FABDEM terrain (DTM)…"),
       90_000,
-      { maxSampleDim: lite ? 192 : 384 },
+      { maxSampleDim: lite ? 160 : 384 },
     );
     console.info("FABDEM DTM loaded", {
       bounds: dtm.bounds,

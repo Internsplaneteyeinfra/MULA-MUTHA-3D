@@ -20,25 +20,26 @@ export const CameraMode = Object.freeze({
   FULL_RIVER_JOURNEY: "full-river-journey",
 });
 
-const MIN_DUR_S = 0.8;
-const MAX_DUR_S = 3.2;
+const MIN_DUR_S = 1.8;
+const MAX_DUR_S = 16;
 /** Full "Explore River" cruise speed along the centerline. */
-const EXPLORE_M_PER_S = 380;
+const EXPLORE_M_PER_S = 220;
 /** Backward trips shorter than this reverse while facing downstream (no double 180° turn). */
 const REORIENT_MIN_M = 2000;
 /** Extra time given to trips that turn to face upstream and back, so each turn takes ~0.8 s+. */
-const REORIENT_EXTRA_S = 1.2;
+const REORIENT_EXTRA_S = 1.8;
 /** Share of the trip spent blending from wherever the user left the camera. */
-const START_BLEND = 0.18;
+const START_BLEND = 0.24;
 /** Time constant of the travel-heading low-pass (tight bends at cruise speed). */
-const HEADING_TAU_S = 0.14;
+const HEADING_TAU_S = 0.22;
 /** Minimum eye distance inside the bank line. */
 const CHANNEL_MARGIN_M = 6;
 
 const BASE_POSE = { height: 16, back: 55, ahead: 180, lookAbove: 12, fov: 58 };
 
 export function transitionDuration(distanceM) {
-  return THREE.MathUtils.clamp(0.3 + 0.024 * Math.sqrt(Math.max(0, distanceM)), MIN_DUR_S, MAX_DUR_S);
+  const d = Math.max(0, distanceM);
+  return THREE.MathUtils.clamp(1.6 + d / 140, MIN_DUR_S, MAX_DUR_S);
 }
 
 /** Trapezoidal speed profile: ease-in, cruise, ease-out. `accel` 0 starts at cruise speed. */
@@ -235,8 +236,13 @@ export function createRiverJourney({ dataset, getBridges }) {
     const distance = Math.abs(toM - fromM);
     const explore = opts.mode === CameraMode.FULL_RIVER_JOURNEY;
     const reorient = !explore && direction < 0 && distance >= REORIENT_MIN_M;
+    let startBlend = START_BLEND;
+    if (startPose?.p && a) {
+      const away = Math.hypot(startPose.p.x - a.x, startPose.p.z - a.z);
+      if (away > 160) startBlend = THREE.MathUtils.clamp(0.24 + (away - 160) / 3500, 0.24, 0.42);
+    }
     const duration = explore
-      ? Math.max(6, distance / EXPLORE_M_PER_S)
+      ? Math.max(8, distance / EXPLORE_M_PER_S)
       : (opts.duration ?? transitionDuration(distance)) + (reorient ? REORIENT_EXTRA_S : 0);
     const mode = explore
       ? CameraMode.FULL_RIVER_JOURNEY
@@ -251,10 +257,11 @@ export function createRiverJourney({ dataset, getBridges }) {
       duration,
       mode,
       t: 0,
-      accel: opts.continuing ? 0 : explore ? 0.08 : 0.28,
-      decel: explore ? 0.08 : 0.32,
+      accel: opts.continuing ? 0.12 : explore ? 0.12 : 0.36,
+      decel: explore ? 0.14 : 0.4,
+      startBlend,
       reorient,
-      lift: explore ? 10 : Math.min(12, distance * 0.0035),
+      lift: explore ? 6 : Math.min(5, distance * 0.0018),
       targetPose: { ...BASE_POSE, ...(opts.targetPose || {}) },
       startPose: startPose && { p: startPose.p.clone(), l: startPose.l.clone() },
       path: { fromM, toM, along: "chainage centerline", samples: Math.ceil(distance / 10) + 1 },
@@ -289,7 +296,8 @@ export function createRiverJourney({ dataset, getBridges }) {
     step(dt) {
       const tr = transition;
       if (!tr) return null;
-      tr.t = Math.min(1, tr.t + dt / tr.duration);
+      const stepDt = Math.min(Math.max(0, dt), 1 / 24);
+      tr.t = Math.min(1, tr.t + stepDt / tr.duration);
       const s = travelProgress(tr.t, tr.accel, tr.decel);
       const m = tr.startChainage + (tr.targetChainage - tr.startChainage) * s;
       tr.currentChainage = m;
@@ -320,8 +328,9 @@ export function createRiverJourney({ dataset, getBridges }) {
       }
       clampToChannel(outP);
 
-      if (tr.startPose && tr.t < START_BLEND) {
-        const k = smooth01(0, START_BLEND, tr.t);
+      const blend = tr.startBlend || START_BLEND;
+      if (tr.startPose && tr.t < blend) {
+        const k = smooth01(0, blend, tr.t);
         outP.lerpVectors(tr.startPose.p, outP, k);
         outL.lerpVectors(tr.startPose.l, outL, k);
       }
@@ -331,7 +340,7 @@ export function createRiverJourney({ dataset, getBridges }) {
       const rz = outL.z - outP.z;
       const yaw = Math.atan2(rz, rx);
       if (tr.yaw == null) tr.yaw = yaw;
-      tr.yaw += wrapAngle(yaw - tr.yaw) * (1 - Math.exp(-dt / HEADING_TAU_S));
+      tr.yaw += wrapAngle(yaw - tr.yaw) * (1 - Math.exp(-stepDt / HEADING_TAU_S));
       const heading = tr.yaw + wrapAngle(yaw - tr.yaw) * smooth01(0.86, 1, tr.t);
       const len = Math.hypot(rx, rz);
       outL.x = outP.x + Math.cos(heading) * len;

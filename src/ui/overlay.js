@@ -1007,7 +1007,7 @@ export function mountUI(root, {
   depthLegend.className = "depth-legend depth-legend--vertical depth-legend--corner";
   depthLegend.setAttribute("aria-label", "Water depth legend");
   depthLegend.innerHTML = `
-    <strong>WATER DEPTH (m)</strong>
+    <strong>WATER<br>DEPTH<br>(m)</strong>
     <div class="depth-legend-body">
       <div class="depth-bar" aria-hidden="true"></div>
       <div class="depth-ticks">
@@ -1111,7 +1111,7 @@ export function mountUI(root, {
       depthLegend.hidden = !showLegend;
       const title = depthLegend.querySelector("strong");
       if (title) {
-        title.textContent = state.showWater ? "WATER DEPTH (m)" : "CHANNEL DEPTH (m)";
+        title.innerHTML = state.showWater ? "WATER<br>DEPTH<br>(m)" : "CHANNEL<br>DEPTH<br>(m)";
       }
     }
   }

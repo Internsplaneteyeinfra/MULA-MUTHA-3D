@@ -173,18 +173,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       return null;
     }),
   ]);
-  clipRiverToHydrology(river, landCover, osmWater);
+  clipRiverToHydrology(river, landCover, osmWater, dataset);
   logCorridorLandCover(dataset, landCover);
   river.dtmHeightAt = (x, z) => terrainHeightAt(x, z, dataset.corridor.stations);
   applyExaggeration(river, dataset, state.depthExaggeration || 1, 0, null);
   const waterFill = createWaterFill(terrain.mesh, river, dataset, landCover, osmWater);
-  if (waterFill) {
-    waterFill.visible = false;
-    river.mesh.add(waterFill);
-  }
 
   const UNDERWATER_COLOR = "#4a8fa0";
-  /** Light volume tint only — land, depth colours and banks stay readable at hundreds of metres. */
+  /** Light volume tint only — land, depth colours and banks stay readable. */
   const UNDERWATER_FOG_DENSITY = 0.00038;
   const underwaterRay = new THREE.Raycaster();
   const UP = new THREE.Vector3(0, 1, 0);
@@ -273,6 +269,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(river.bed);
   scene.add(river.walls);
   scene.add(river.mesh);
+  if (waterFill) {
+    waterFill.visible = false;
+    scene.add(waterFill);
+  }
   if (river.wire) scene.add(river.wire);
   // scene.add(particles.mesh);
   scene.add(waterFx.group);
@@ -501,15 +501,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   const vegStatus = mountVegetationStatus(uiRoot);
 
-  // Buildings/roads (~12MB GeoJSON) load AFTER first paint so the spinner is not stuck
-  // Trees are meshopt-compressed GLBs — prefetch early, load after buildings so city appears first
+  // 50 m bank strip (buildings, roads, trees) always loads after first paint.
   prefetchTreeAssets();
   const loadUrbanLayers = async () => {
     try {
       const lowTier = quality.get().tier === "low";
       // Lite OSM still loads trees/vegetation; only skips heavy extras
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
-        const osm = await dataset.loadOsmLater({ lite: lowTier });
+        const osm = await dataset.loadOsmLater({ lite: dataset.lite === true || lowTier });
         dataset.osm = osm;
         if (osm.alignment && !osm.alignment.ok) {
           console.error("OSM–KML ALIGNMENT ISSUE", osm.alignment.issues);
@@ -554,16 +553,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
     }
-
-    // JalNetra Vegetation Type — optional (heavy); skip on low/medium for smoothness
-    if (quality.get().enableVegApi) {
-      loadJalnetraVegetation().catch((err) => {
-        console.warn("Vegetation Type API:", err?.message || err);
-      });
-    }
   };
 
+  let jalnetraStarted = false;
   async function loadJalnetraVegetation() {
+    if (vegApiResult || jalnetraStarted) return;
+    jalnetraStarted = true;
     state.vegetationStatus = "loading";
     state.vegetationMessage = "Analyzing vegetation...";
     vegStatus.show("Analyzing vegetation...", "loading");
@@ -604,6 +599,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.vegetationMessage = "";
       vegStatus.hide();
     } catch (err) {
+      jalnetraStarted = false;
       state.vegetationStatus = "error";
       state.vegetationMessage = err?.message || "Vegetation analysis failed.";
       vegStatus.show(state.vegetationMessage, "error");
@@ -611,7 +607,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     }
   }
 
-  // Yield one frame so the canvas can present before heavy OSM parse
+  // Yield one frame so the canvas can present, then load the 50 m river-side strip.
   requestAnimationFrame(() => {
     setTimeout(loadUrbanLayers, 50);
   });
@@ -735,6 +731,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     chainFocusM = tr.currentChainage;
     publishJourney(null);
     flushSettled();
+    cam.controls.enabled = true;
+    cam.controls.update?.();
   }
   canvas.addEventListener("pointerdown", cancelChainFlight, { passive: true });
   canvas.addEventListener("wheel", cancelChainFlight, { passive: true });
@@ -759,9 +757,32 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return null;
   }
 
+  function nearestChainageToCamera() {
+    const c = cam.camera?.position;
+    const stations = dataset.corridor?.stations || [];
+    if (!c || !stations.length) return dataset.chainage?.[0]?.meters ?? 0;
+    let best = stations[0];
+    let bestD = Infinity;
+    const step = Math.max(1, Math.floor(stations.length / 400));
+    for (let i = 0; i < stations.length; i += step) {
+      const s = stations[i];
+      const d = (s.x - c.x) ** 2 + (s.z - c.z) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = s;
+      }
+    }
+    return Number.isFinite(best.along) ? best.along : dataset.chainage?.[0]?.meters ?? 0;
+  }
+
   function startChainFlight(toM, opts = {}) {
-    const fromM = journey.active ? journey.active.currentChainage : chainFocusM;
+    const fromM = journey.active
+      ? journey.active.currentChainage
+      : cameraNearChainage(chainFocusM)
+        ? chainFocusM
+        : nearestChainageToCamera();
     const c = cam.camera;
+    if (cam.controls) cam.controls.enabled = false;
     const tr = journey.start(fromM, toM, { p: c.position, l: cam.controls.target }, {
       targetPose: destinationPose(toM) || undefined,
       ...opts,
@@ -797,7 +818,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const f = journey.step(dt);
     if (!f) return;
     chainFocusM = f.meters;
-    cam.setPose?.(f.p, f.l, { fov: f.fov });
+    cam.setPose?.(f.p, f.l, {
+      fov: f.fov,
+      lockControls: true,
+      releaseControls: !!f.done,
+    });
     journeyPublishT += dt;
     if (f.done) {
       chainFocusM = f.transition.targetChainage;
@@ -885,21 +910,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     if (isMap2DMode()) {
       cancelChainFlight();
       chainFocusM = p.meters;
-      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 0.6 });
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 1.15, ease: "inOutQuint" });
       return;
     }
     if (state.garbageSelectionActive) return;
-    const glideFrom = journey.active ? journey.active.currentChainage : chainFocusM;
-    if (dragging || glideFrom == null || Math.abs(p.meters - glideFrom) < 1) {
+    if (dragging) {
       cancelChainFlight();
       chainFocusM = p.meters;
-      cam.focusOnXZ?.(p.x, p.z, chainageCameraOptions(p, dragging));
-      return;
-    }
-    if (!journey.active && !cameraNearChainage(glideFrom)) {
-      // Camera is off the river (overview / orbit): fly in directly, then glide next time.
-      chainFocusM = p.meters;
-      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, false), dur: 1.2, ease: "inOutCubic", transitLift: undefined });
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, true), dur: 0 });
       return;
     }
     startChainFlight(p.meters, { requestedM: m });
@@ -1189,6 +1207,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       return res;
     },
     async showHydrologyLayer(id) {
+      if (id === "vegetation_extent" || id === "vegetation_health") {
+        await loadJalnetraVegetation();
+      }
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
       aqiRiverLayer.userData?.setVisible?.(false);
@@ -1483,10 +1504,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.showChainage = true;
       state.showChainageLabels = false;
 
-      // Already at eye level on the river: travel the corridor instead of a straight hop.
-      const fromM = journey.active ? journey.active.currentChainage : chainFocusM;
-      if (!wasMap2d && fromM != null && Math.abs(p.meters - fromM) >= 1 &&
-          (journey.active || cameraNearChainage(fromM))) {
+      if (!wasMap2d) {
         startChainFlight(p.meters);
         document.dispatchEvent(
           new CustomEvent("chainage-select", {
@@ -1508,29 +1526,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           ? Math.min(420, Math.max(90, (startY - eyeH) * 0.22))
           : 0;
 
-      // ── Distance-proportional duration ───────────────────────────────────
-      // River-click fly: duration scales with chainage distance so short hops
-      // feel snappy and long ones feel cinematic.  Clamp to [0.65, 3.4] s.
-      // When arriving from 2D map, always use the longer 3.4 s descent.
-      let flyDur;
-      if (wasMap2d) {
-        flyDur = 3.4;
-      } else {
-        const fromM = state.selectedChainageMeters ?? m;
-        // Use 3D world distance if the current camera is already at eye level;
-        // fall back to chainage-metres distance for robustness.
-        const curP = cam.camera?.position;
-        const horizDist = curP
-          ? Math.hypot(p.x - curP.x, p.z - curP.z)
-          : Math.abs(m - fromM);
-        // ~1 s per 1 500 m of world distance, min 0.65 s, max 3.0 s
-        flyDur = Math.min(3.0, Math.max(0.65, horizDist / 1500));
-      }
-
       cam.focusOnXZ?.(p.x, p.z, {
         ...chainageCameraOptions(p, false),
-        dur: flyDur,
-        ease: "inOutCubic",
+        dur: 4.2,
+        ease: "inOutQuint",
         transitLift: descentLift,
       });
       document.dispatchEvent(
@@ -1567,8 +1566,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         lookY: SURFACE_Y + 14,
         lateralOffset: 0,
         fov: 58,
-        dur: 0.55,
-        ease: "outCubic",
+        dur: 1.1,
+        ease: "inOutQuint",
       });
     },
     toggleRiverMeasureKind(kind) {
@@ -1657,6 +1656,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const waterOn = !!on;
       river.mesh.visible = waterOn;
       if (river.material) river.material.visible = waterOn;
+      if (waterFill) waterFill.visible = false;
       applyRiverLook(river, waterOn ? "water" : "depth");
       lastWaterOn = waterOn;
       lastRiverLook = waterOn ? "water" : "depth";
@@ -2123,7 +2123,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (fishing) fishing.update(dt, cam.camera);
       if (!cinematic.isActive()) {
         stepChainFlight(dt);
-        cam.update(dt);
+        // Orbit damping must not run during a chainage pass — it snaps back
+        // to the previous station after the first click.
+        if (!journey.active) cam.update(dt);
       }
       const h = cam.camera.position.y;
       if (isMap2DMode() && !state.cinematicActive) {
@@ -2159,6 +2161,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         scene.background = null;
         atmosphericSky.update(dt, cam.camera);
       }
+      if (waterFill) waterFill.visible = waterOn && underwaterLook;
       renderer.render(scene, cam.camera);
     },
   };

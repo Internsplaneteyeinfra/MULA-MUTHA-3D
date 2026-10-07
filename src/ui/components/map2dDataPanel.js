@@ -6,8 +6,6 @@ import { metersToStation } from "../../scene/chainageMarkers.js";
 /** Thematic layers offered in 2D — ids are existing hydrology layer ids. */
 const OPTIONS = [
   { id: "silt", label: "Silt Analysis", icon: "🟫", layerId: "silt_classification" },
-  { id: "salinity", label: "Salinity", icon: "🧂", layerId: "salinity" },
-  { id: "erosion", label: "Erosion", icon: "🏞️", layerId: "bank_erosion" },
 ];
 
 const isMap2d = () =>

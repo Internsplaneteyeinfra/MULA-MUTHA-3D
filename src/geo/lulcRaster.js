@@ -4,6 +4,7 @@
  * the canonical geoReference pipeline, so 2D overlay and 3D placement share one CRS.
  */
 import { localToLonLat } from "./geoReference.js";
+import { shouldUseLiteAssets } from "../perf/quality.js";
 
 /** Year shown by default in the 2D LULC layer (hydrologyLayer lulcYear). */
 export const LULC_REFERENCE_YEAR = 2026;
@@ -30,6 +31,7 @@ const CLASS_IDS = ["", "water", "settlement", "forest", "crop", "barren"];
 const MAX_COLOR_DIST2 = 110 * 110;
 /** Decode at ≤ this width (2026 overlay: 6737 px ≈ 2.3 m → ≈ 4.6 m cells). */
 const MAX_DECODE_W = 3400;
+const MAX_DECODE_W_LITE = 1400;
 
 const cache = new Map();
 
@@ -57,7 +59,8 @@ async function decode(year) {
   const res = await fetch(`${base}${entry.overlay.replace(/^\//, "")}`, { cache: "force-cache" });
   if (!res.ok) throw new Error(`LULC ${year} overlay unavailable (${res.status})`);
   const bitmap = await createImageBitmap(await res.blob());
-  const scale = Math.min(1, MAX_DECODE_W / bitmap.width);
+  const maxW = shouldUseLiteAssets() ? MAX_DECODE_W_LITE : MAX_DECODE_W;
+  const scale = Math.min(1, maxW / bitmap.width);
   const width = Math.max(1, Math.round(bitmap.width * scale));
   const height = Math.max(1, Math.round(bitmap.height * scale));
   const canvas = document.createElement("canvas");

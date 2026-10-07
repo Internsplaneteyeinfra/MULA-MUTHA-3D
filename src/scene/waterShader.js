@@ -305,8 +305,8 @@ const frag = /* glsl */ `
     // 0.5-1.5m -> deeper transparency
     // 1.5-3.0m -> subtle transparency
     // >3.0m -> opaque deep water
-    float volumeAlpha = mix(0.55, 0.95, 1.0 - exp(-vDepth * 0.8));
-    float alpha = max(volumeAlpha * uOpacity, mix(0.52, 0.80, depthT));
+    float volumeAlpha = mix(0.72, 0.96, 1.0 - exp(-vDepth * 0.9));
+    float alpha = max(volumeAlpha * uOpacity, mix(0.68, 0.90, depthT));
 
     // Preserve surface features: 
     // Specular highlights, fresnel, foam, and crest sparkles should remain opaque
@@ -315,7 +315,7 @@ const frag = /* glsl */ `
     alpha = max(alpha, surfaceFeatures * 0.92);
 
     // Soften the river mesh outer edge smoothly into the banks to prevent hard polygonal boundaries
-    alpha *= 1.0 - smoothstep(0.92, 1.0, edge);
+    alpha *= 1.0 - smoothstep(0.97, 1.0, edge);
     alpha = mix(alpha, mix(0.12, 0.32, depthT) * uOpacity, uCutaway);
     alpha *= mix(0.08, 1.0, revealMask);
     alpha *= mix(1.0, 0.92, clamp(wake * 0.35, 0.0, 1.0));

@@ -15,6 +15,7 @@ import { buildCityHlod } from "./cityHlod.js";
 import { corridorTier, LOD } from "./buildingLodTiers.js";
 import { auditBuildingSample } from "./buildingAudit.js";
 import { pointInRing } from "../features/fishing/FishingZoneSystem.js";
+import { RIVER_SIDE_M } from "../geo/osmContext.js";
 
 const WATER_CLEAR_M = 3;
 
@@ -50,6 +51,7 @@ export async function createBuildingSystem(dataset) {
       skippedWater++;
       continue;
     }
+    if (dataset.lite && bank.lat > bank.half + RIVER_SIDE_M) continue;
     if (ring.length && overlapsWater(metrics, b, ring, WATER_CLEAR_M)) {
       skippedWater++;
       continue;

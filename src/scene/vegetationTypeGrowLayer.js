@@ -1,5 +1,6 @@
 import * as THREE from "three";
-import { lonLatToLocal } from "../geo/geoReference.js";
+import { localToLonLat } from "../geo/geoReference.js";
+import { RIVER_SIDE_M, FULL_CORRIDOR_M } from "../geo/osmContext.js";
 import { terrainHeightAt } from "./terrain.js";
 import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
@@ -168,71 +169,84 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
   const east = Number(box.east);
   const north = Number(box.north);
   const south = Number(box.south);
-  const midLat = (north + south) * 0.5;
-  const lonStep = stepM / (111320 * Math.max(0.2, Math.cos((midLat * Math.PI) / 180)));
-  const latStep = stepM / 110540;
 
   const placements = [];
   const typeCounts = { trees: 0, shrub: 0, grass: 0, mixed: 0 };
+  const seen = new Set();
+  const cellKey = (x, z) => `${Math.round(x / stepM)}:${Math.round(z / stepM)}`;
+  const alongStep = Math.max(1, Math.round(stepM / 12));
 
-  for (let lat = south + latStep * 0.5; lat < north; lat += latStep) {
-    for (let lon = west + lonStep * 0.5; lon < east; lon += lonStep) {
-      if (placements.length >= maxN) break;
+  const tryPlaceAt = (x0, z0) => {
+    if (placements.length >= maxN) return;
+    const ck = cellKey(x0, z0);
+    if (seen.has(ck)) return;
+    seen.add(ck);
 
-      let local;
-      try {
-        local = lonLatToLocal(lon, lat);
-      } catch {
-        continue;
-      }
-
-      const hit = sampleHit(lon, lat, local.x, local.z);
-      if (!hit) continue;
-
-      const kind = classToKind(hit.id || hit.class_label || hit.label);
-      if (!kind) continue;
-
-      const accept =
-        kind === "trees"
-          ? rng() < 0.78
-          : kind === "shrub"
-            ? rng() < 0.65
-            : kind === "grass"
-              ? rng() < 0.5
-              : rng() < 0.62;
-      if (!accept) continue;
-
-      const cluster = densifyCount(kind, rng);
-      for (let c = 0; c < cluster; c++) {
-        if (placements.length >= maxN) break;
-        const jitter = c === 0 ? 0 : 1.8 + rng() * 7;
-        const ang = rng() * Math.PI * 2;
-        const x = local.x + Math.cos(ang) * jitter;
-        const z = local.z + Math.sin(ang) * jitter;
-
-        if (blocked(x, z, buildings, roads, stations, lulc)) continue;
-        const cover = lulc?.classAtLocal(x, z);
-        if (cover === "water" || cover === "settlement" || cover === "barren" || cover === "crop") continue;
-        if (riverRing && pointInRing(x, z, riverRing) && cover !== "forest") continue;
-
-        const y = terrainHeightAt(x, z, stations);
-        if (!Number.isFinite(y)) continue;
-
-        const assetId = assetForKind(kind, rng);
-        const scale = scaleForKind(kind, rng);
-        placements.push({
-          x,
-          z,
-          y: y + 0.15,
-          rotY: rng() * Math.PI * 2,
-          scale,
-          assetId,
-          kind,
-        });
-        typeCounts[kind] = (typeCounts[kind] || 0) + 1;
-      }
+    let ll;
+    try {
+      ll = localToLonLat(x0, z0);
+    } catch {
+      return;
     }
-    if (placements.length >= maxN) break;
+    if (!Number.isFinite(ll.lon) || !Number.isFinite(ll.lat)) return;
+    if (ll.lat < south || ll.lat > north || ll.lon < west || ll.lon > east) return;
+
+    const hit = sampleHit(ll.lon, ll.lat, x0, z0);
+    if (!hit) return;
+
+    const kind = classToKind(hit.id || hit.class_label || hit.label);
+    if (!kind) return;
+
+    const accept =
+      kind === "trees"
+        ? rng() < 0.78
+        : kind === "shrub"
+          ? rng() < 0.65
+          : kind === "grass"
+            ? rng() < 0.5
+            : rng() < 0.62;
+    if (!accept) return;
+
+    const cluster = densifyCount(kind, rng);
+    for (let c = 0; c < cluster; c++) {
+      if (placements.length >= maxN) break;
+      const jitter = c === 0 ? 0 : 1.8 + rng() * 7;
+      const ang = rng() * Math.PI * 2;
+      const x = x0 + Math.cos(ang) * jitter;
+      const z = z0 + Math.sin(ang) * jitter;
+
+      if (blocked(x, z, buildings, roads, stations, lulc)) continue;
+      const cover = lulc?.classAtLocal(x, z);
+      if (cover === "water" || cover === "settlement" || cover === "barren" || cover === "crop") continue;
+      if (riverRing && pointInRing(x, z, riverRing) && cover !== "forest") continue;
+
+      const y = terrainHeightAt(x, z, stations);
+      if (!Number.isFinite(y)) continue;
+
+      const assetId = assetForKind(kind, rng);
+      const scale = scaleForKind(kind, rng);
+      placements.push({
+        x,
+        z,
+        y: y + 0.15,
+        rotY: rng() * Math.PI * 2,
+        scale,
+        assetId,
+        kind,
+      });
+      typeCounts[kind] = (typeCounts[kind] || 0) + 1;
+    }
+  };
+
+  for (let i = 0; i < stations.length && placements.length < maxN; i += alongStep) {
+    const st = stations[i];
+    const half = Math.max(8, Number(st.halfWidth) || 20);
+    const maxOff = half + (dataset.lite === true ? RIVER_SIDE_M : FULL_CORRIDOR_M);
+    const nx = -st.flowZ;
+    const nz = st.flowX;
+    for (let off = -maxOff; off <= maxOff && placements.length < maxN; off += stepM) {
+      tryPlaceAt(st.x + nx * off, st.z + nz * off);
+    }
   }
 
   const prototypes = await preloadTreeAssets(placements.map((p) => p.assetId));

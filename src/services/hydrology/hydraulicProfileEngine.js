@@ -84,35 +84,42 @@ export class HydraulicProfileEngine {
       const { section, priority, provenance: xsProvenance, confidence: xsConfidence } =
         crossSectionRegistry.resolveSection(st, sounding?.depth_m);
 
-      // Solve normal depth iteratively if cross-section data is available
-      let h_normal = 0.1;
-      let area = 0;
-      let perim = 0;
-      
-      if (section && typeof section.computeWettedArea === 'function') {
-        // Bisection method to find h_normal where (1/n) * A * (A/P)^(2/3) * sqrtS == Q
-        let lo = 0.01, hi = 20.0;
+      const width = Math.max(4, Number(st.width_m) || 40);
+      const surveyH = Number(sounding?.depth_m);
+      const areaAt = (h) => {
+        let A = section?.computeWettedArea?.(h);
+        if (A && typeof A === "object") A = A.value;
+        if (!Number.isFinite(A) || A <= 0) A = (2 / 3) * width * h;
+        return A;
+      };
+      const perimAt = (h) => {
+        let P = section?.computeWettedPerimeter?.(h);
+        if (P && typeof P === "object") P = P.value;
+        if (!Number.isFinite(P) || P <= 0) P = width + (8 * h * h) / (3 * width);
+        return P;
+      };
+
+      let h_normal = Number.isFinite(surveyH) && surveyH > 0.15 ? surveyH : 0.8;
+      if (section && typeof section.computeWettedArea === "function") {
+        let lo = 0.05;
+        let hi = 20;
         for (let iter = 0; iter < 30; iter++) {
           const mid = (lo + hi) / 2;
-          const A = section.computeWettedArea(mid);
-          const P = section.computeWettedPerimeter(mid);
-          if (P > 0) {
-            const Q_calc = (1.0 / manningN) * A * Math.pow(A / P, 2.0 / 3.0) * sqrtS;
-            if (Q_calc < Q) lo = mid;
-            else hi = mid;
-          } else {
-            hi = mid;
-          }
+          const A = areaAt(mid);
+          const P = perimAt(mid);
+          const Q_calc = (1 / manningN) * A * Math.pow(A / P, 2 / 3) * sqrtS;
+          if (Q_calc < Q) lo = mid;
+          else hi = mid;
         }
         h_normal = (lo + hi) / 2;
-        area = section.computeWettedArea(h_normal) || ((2.0 / 3.0) * st.width_m * h_normal);
-        perim = section.computeWettedPerimeter(h_normal) || (st.width_m + (8.0 * h_normal * h_normal) / (3.0 * st.width_m));
       } else {
-        const denom = (2.0 / 3.0) * st.width_m * sqrtS;
-        h_normal = Math.max(0.1, Math.pow((Q * manningN) / Math.max(1e-4, denom), 0.6));
-        area = ((2.0 / 3.0) * st.width_m * h_normal);
-        perim = (st.width_m + (8.0 * h_normal * h_normal) / (3.0 * st.width_m));
+        const denom = (2 / 3) * width * sqrtS;
+        h_normal = Math.max(0.15, Math.pow((Q * manningN) / Math.max(1e-4, denom), 0.6));
       }
+      if (Number.isFinite(surveyH) && surveyH > h_normal) h_normal = surveyH;
+
+      const area = areaAt(h_normal);
+      const perim = perimAt(h_normal);
       const r_hyd = perim > 0 ? area / perim : null;
 
       // Flow Velocity v = Q / A
