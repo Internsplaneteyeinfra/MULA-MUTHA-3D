@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { createWaterMaterial } from "./waterShader.js";
 import { state } from "../state.js";
+import { isObservedWater } from "../geo/osmWater.js";
 
 export const SURFACE_Y = 9.4;
 /** Minimum metres the riverbed stays below the water surface (prevents poke-through). */
@@ -159,18 +160,72 @@ export function createRiver(dataset) {
  * The AOI / corridor polygon is not treated as a water mask.
  */
 export function clipRiverToHydrology(river, lulc, osmWater) {
-  if (!river?.mesh?.geometry) return;
-  // Keep the measured corridor waterline. Per-triangle LULC clips made a
-  // triangular bank; round the existing outline instead.
+  if (!river?.bathymetry) return;
+  const bath = river.bathymetry;
+  const src = bath.indices;
+  const pos = bath.positions;
+  const nVert = (pos.length / 3) | 0;
+
+  const wet = new Uint8Array(nVert);
+  for (let i = 0; i < nVert; i++) {
+    wet[i] = isObservedWater(lulc, osmWater, pos[i * 3], pos[i * 3 + 2]) ? 1 : 0;
+  }
+
+  const adj = Array.from({ length: nVert }, () => []);
+  const seen = new Set();
+  const link = (a, b) => {
+    const key = a < b ? `${a},${b}` : `${b},${a}`;
+    if (seen.has(key)) return;
+    seen.add(key);
+    adj[a].push(b);
+    adj[b].push(a);
+  };
+  for (let t = 0; t < src.length; t += 3) {
+    link(src[t], src[t + 1]);
+    link(src[t + 1], src[t + 2]);
+    link(src[t + 2], src[t]);
+  }
+
+  const next = new Uint8Array(nVert);
+  for (let pass = 0; pass < 2; pass++) {
+    for (let i = 0; i < nVert; i++) {
+      const nb = adj[i];
+      if (!nb.length) {
+        next[i] = wet[i];
+        continue;
+      }
+      let s = wet[i];
+      for (const j of nb) s += wet[j];
+      next[i] = s * 2 >= nb.length + 1 ? 1 : 0;
+    }
+    wet.set(next);
+  }
+
+  const keep = [];
+  let removed = 0;
+  for (let t = 0; t < src.length; t += 3) {
+    const a = src[t];
+    const b = src[t + 1];
+    const c = src[t + 2];
+    if (wet[a] + wet[b] + wet[c] < 2) {
+      removed++;
+      continue;
+    }
+    keep.push(a, b, c);
+  }
+
+  const index = new Uint32Array(keep);
   for (const geo of [river.mesh.geometry, river.bed.geometry, river.wire?.geometry]) {
     if (!geo) continue;
-    subdivideBoundaryEdges(geo, 10, 4);
-    smoothMeshBoundary(geo, 20);
+    geo.setIndex(new THREE.BufferAttribute(index.slice(), 1));
+    subdivideBoundaryEdges(geo, 12, 3);
+    smoothMeshBoundary(geo, 14);
     geo.computeVertexNormals();
   }
-  console.info("[river] waterline rounded (LULC clip skipped for smooth banks)", {
+  console.info("[river] water clipped to LULC water + OSM (not KML corridor)", {
+    kept: keep.length / 3,
+    removed,
     osmPolygons: osmWater?.count ?? 0,
-    lulc: !!lulc,
   });
 }
 

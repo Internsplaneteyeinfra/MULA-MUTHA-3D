@@ -14,10 +14,10 @@ const MAX_DIST_M = 20000;
 const MIN_RANGE_M = 3000;
 const RANGE_PER_HEIGHT = 12;
 /** Bridge labels appear within SHOW and disappear beyond HIDE (hysteresis band between). */
-export const BRIDGE_LABEL_SHOW_RADIUS = 350;
-export const BRIDGE_LABEL_HIDE_RADIUS = 450;
+export const BRIDGE_LABEL_SHOW_RADIUS = 2200;
+export const BRIDGE_LABEL_HIDE_RADIUS = 2800;
 /** Labels shrink from full size at this distance to MIN_SCALE at the hide radius. */
-const SCALE_FULL_M = 150;
+const SCALE_FULL_M = 500;
 const MIN_SCALE = 0.88;
 const OBSTACLE_REFRESH_MS = 300;
 /** Candidate label slots relative to the anchor: [x shift in label widths, stack level]. */
@@ -164,11 +164,21 @@ export function createBridgeLabels(bridgesGroup, dataset) {
     svg.setAttribute("viewBox", `0 0 ${vw} ${vh}`);
 
     const overview = state.cameraMode === "overview";
+    const map2d =
+      state.cameraMode === "aerial" ||
+      state.cameraMode === "top" ||
+      state.cameraMode === "2d";
+    const wideView = overview || map2d;
     const maxDist = Math.min(MAX_DIST_M, Math.max(MIN_RANGE_M, camera.position.y * RANGE_PER_HEIGHT));
     const cands = [];
     for (const it of items) {
       if (it.kind !== "riparian" && !bridgesOn) continue;
-      if (it.kind === "landmark" ? !overview : !updateProximity(it, camera)) {
+      if (it.kind === "landmark") {
+        if (!wideView) {
+          hide(it);
+          continue;
+        }
+      } else if (!wideView && !updateProximity(it, camera)) {
         hide(it);
         continue;
       }

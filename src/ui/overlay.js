@@ -1076,19 +1076,19 @@ export function mountUI(root, {
   root.querySelector("#settings-close")?.addEventListener("click", () => toggleSettings(false));
 
   root.querySelector("#layer-reset")?.addEventListener("click", () => {
-    if (state.cinematicActive) return;
+    if (state.cinematicActive) window.__MM_SCENE__?.stopCinematic?.();
     onCamera("reset");
     syncLayersPanelFromState();
     onCamera("overview");
     nav.syncActive();
   });
   root.querySelector("#layer-bath-cam")?.addEventListener("click", () => {
-    if (state.cinematicActive) return;
+    if (state.cinematicActive) window.__MM_SCENE__?.stopCinematic?.();
     onCamera("bathymetry");
     nav.syncActive();
   });
   root.querySelector("#layer-flow-path")?.addEventListener("click", () => {
-    if (state.cinematicActive) return;
+    if (state.cinematicActive) window.__MM_SCENE__?.stopCinematic?.();
     onCamera("follow");
     pathScrub.hidden = false;
     nav.syncActive();
@@ -1118,9 +1118,9 @@ export function mountUI(root, {
 
   function setCinematicHud(active) {
     if (brand) brand.hidden = active;
-    if (navWrap) navWrap.hidden = active;
-    if (toolsStack) toolsStack.hidden = active;
-    if (flowBtn) flowBtn.hidden = !active; // pause control only while cinematic runs
+    if (navWrap) navWrap.hidden = false;
+    if (toolsStack) toolsStack.hidden = false;
+    if (flowBtn) flowBtn.hidden = !active;
     if (pathScrub) pathScrub.hidden = active || state.cameraMode !== "follow";
     if (!active) syncCamButtons();
     if (active) {
@@ -1460,8 +1460,8 @@ export function mountUI(root, {
 
     if (cine) {
       if (brand) brand.hidden = true;
-      if (navWrap) navWrap.hidden = true;
-      if (toolsStack) toolsStack.hidden = true;
+      if (navWrap) navWrap.hidden = false;
+      if (toolsStack) toolsStack.hidden = false;
       if (pathScrub) pathScrub.hidden = true;
       if (chainPanel?.el) chainPanel.el.hidden = true;
       if (chainStepHud?.el) chainStepHud.el.hidden = true;

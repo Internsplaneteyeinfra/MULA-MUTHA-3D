@@ -113,10 +113,12 @@ function rasterRing(grid, width, height, west, south, east, north, ring) {
   }
 }
 
-/** True where LULC 2026 is water, or live OSM water where LULC has no land class. */
+/** Open water only. Wetland / bars / forest inside the KML AOI stay land (matches satellite). */
 export function isObservedWater(lulc, osm, x, z) {
   const cls = lulc?.classAtLocal?.(x, z);
-  if (cls === "water" || cls === "wetland") return true;
-  if (cls === "forest" || cls === "settlement" || cls === "crop" || cls === "barren") return false;
+  if (cls === "water") return true;
+  if (cls === "forest" || cls === "settlement" || cls === "crop" || cls === "barren" || cls === "wetland") {
+    return false;
+  }
   return !!osm?.isWaterAtLocal?.(x, z);
 }

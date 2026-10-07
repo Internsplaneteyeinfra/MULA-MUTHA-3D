@@ -102,16 +102,22 @@ async function boot() {
 
     let last = performance.now();
     let frameBudget = 0;
+    let paused = false;
+    document.addEventListener("visibilitychange", () => {
+      paused = document.hidden;
+      last = performance.now();
+      frameBudget = 0;
+    });
     function loop(now) {
       requestAnimationFrame(loop);
+      if (paused) return;
       const rawDt = (now - last) / 1000;
       last = now;
       const q = app.getQuality?.() || { targetFps: 60 };
-      // Cap update rate on shared/low quality so GPU stays responsive
-      const minDt = 1 / Math.max(20, q.targetFps || 60);
+      const minDt = 1 / Math.max(24, q.targetFps || 60);
       frameBudget += rawDt;
-      if (frameBudget < minDt * 0.92) return;
-      const dt = Math.min(0.05, frameBudget);
+      if (frameBudget < minDt * 0.88) return;
+      const dt = Math.min(0.033, frameBudget);
       frameBudget = 0;
       app.update(dt);
     }

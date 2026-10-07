@@ -259,18 +259,8 @@ function heightAt(x, z, stations, dtm = activeDtm) {
   const proceduralBase = SURFACE_Y + 2 + hills * bankFalloff;
 
   if (dtmY != null) {
-    let channelY = dtmY;
     if (isWater) {
-      channelY = bedY != null ? bedY : targetWaterY;
-    } else if (lat < half) {
-      channelY = Math.min(dtmY, SURFACE_Y - 0.1);
-    }
-    const inner = half * 0.76;
-    const outer = half * 1.14;
-    if (lat < outer) {
-      const bankY = Math.max(dtmY, SURFACE_Y + 0.28);
-      const s = THREE.MathUtils.smoothstep(inner, outer, lat);
-      return THREE.MathUtils.lerp(channelY, bankY, s);
+      return bedY != null ? bedY : targetWaterY;
     }
     return dtmY;
   }

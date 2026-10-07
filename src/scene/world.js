@@ -616,18 +616,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     setTimeout(loadUrbanLayers, 50);
   });
 
-  if (quality.get().enableFishing) {
-    createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
-      .then((sys) => {
-        fishing = sys;
-        fishGroup.add(sys.group);
-        if (sys.zones) cinematic.setFishingZones(sys.zones);
-        if (dataset.fishingZones?.length) {
-          dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
-        }
-      })
-      .catch((err) => console.warn("Fishing system load:", err.message));
-  }
+  createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
+    .then((sys) => {
+      fishing = sys;
+      fishGroup.add(sys.group);
+      if (sys.zones) cinematic.setFishingZones(sys.zones);
+      if (dataset.fishingZones?.length) {
+        dataset.activeSceneBounds = computeActiveSceneBounds(dataset);
+      }
+    })
+    .catch((err) => console.warn("Fishing system load:", err.message));
 
   // Click a red chainage pin to select it; hover THAT pin for station/meters.
   // Everywhere else, river water-depth hover stays (inspect).
@@ -1120,6 +1118,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     dataset,
     river,
     cameraSystem: cam,
+    stopCinematic: () => cinematic.finish(),
     atmosphericSky,
     riverRain,
     bridgeLabelStates: () => bridgeLabels.items(),
@@ -1917,7 +1916,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   return {
     setCamera: (mode) => {
-      if (cinematic.isActive()) return;
+      if (cinematic.isActive()) cinematic.finish();
       cam.applyMode(mode);
     },
     rotateCompass: (dir) => cam.rotateToCompass(dir),
@@ -1931,6 +1930,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     pauseWaterFlow: () => cinematic.pause(),
     resumeWaterFlow: () => cinematic.resume(),
     togglePauseWaterFlow: () => cinematic.togglePause(),
+    stopCinematic: () => cinematic.finish(),
     isCinematicActive: () => cinematic.isActive(),
     isCinematicPaused: () => cinematic.isPaused(),
     getQuality: () => quality.get(),
@@ -2023,7 +2023,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       river.mesh.visible = waterOn;
       if (river.material) river.material.visible = waterOn;
       river.bed.visible = state.showBathymetry !== false;
-      river.walls.visible = state.showBathymetry !== false;
+      river.walls.visible = state.showBathymetry !== false && riverLook !== "water";
       if (river.wire) river.wire.visible = !!state.showWaterDebug && waterOn;
       // Keep hydrology draped overlays on when a layer is active
       if (hydrologyLayer.userData?.getActiveId?.()) {
@@ -2102,9 +2102,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         particles.setReveal?.(r);
         waterFx.setReveal?.(r);
       }
-      if (particles.mesh.visible) particles.update(dt);
-      if (waterFx.group.visible) waterFx.update(dt);
-      riverRain.update(dt);
+      const map2dIdle = isMap2DMode() && !cinematic.isActive();
+      if (map2dIdle) {
+        particles.mesh.visible = false;
+        waterFx.group.visible = false;
+      } else {
+        if (particles.mesh.visible) particles.update(dt);
+        if (waterFx.group.visible) waterFx.update(dt);
+        riverRain.update(dt);
+      }
       if (chainThrottle.ready(dt)) {
         chainage.update(cam.camera);
         if (state.lithologyTipActive) pinLithologyPickTip();

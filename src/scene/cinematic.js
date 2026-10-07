@@ -86,7 +86,7 @@ export function createCameraSystem(canvas, dataset) {
   const controls = new OrbitControls(perspCamera, canvas);
   controls.enableDamping = true;
   // Softer damping = smoother, less twitchy orbit (inspection-friendly)
-  controls.dampingFactor = 0.08;
+  controls.dampingFactor = 0.11;
   controls.maxPolarAngle = Math.PI * 0.495;
   controls.minDistance = 12;
   controls.maxDistance = diag * 3.2;
@@ -95,7 +95,7 @@ export function createCameraSystem(canvas, dataset) {
   controls.enablePan = true;
   controls.screenSpacePanning = true;
   // Slower mouse / wheel so users can study drainage & terrain without overshoot
-  const ORBIT_SPEED = { rotate: 0.28, zoom: 0.48, pan: 0.38 };
+  const ORBIT_SPEED = { rotate: 0.42, zoom: 0.72, pan: 0.55 };
   const JOINING_ORBIT_SPEED = { rotate: 0.2, zoom: 0.38, pan: 0.28 };
   controls.rotateSpeed = ORBIT_SPEED.rotate;
   controls.zoomSpeed = ORBIT_SPEED.zoom;

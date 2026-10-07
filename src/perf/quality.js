@@ -29,10 +29,10 @@ function readForcedTier() {
 
 export function createQualityProfile() {
   const forced = readForcedTier();
-  // Default medium for smooth UX; low on weak/remote; high only when forced
+  // Full features always (fish, bridge names, vegetation). GPU extras only step down.
   let tier =
     forced ||
-    (isLowMemoryDevice() || isLikelySharedOrRemote() ? "low" : "medium");
+    (isLowMemoryDevice() || isLikelySharedOrRemote() ? "medium" : "high");
 
   const settings = () => profileFor(tier);
 
@@ -46,25 +46,21 @@ export function createQualityProfile() {
     get() {
       return settings();
     },
-    /** Call once per rendered frame with dt seconds. Auto-downgrades if FPS tanks. */
+    /** GPU-only adapt. Fish, bridges, vegetation and labels stay on. */
     noteFrame(dt) {
-      if (forced || tier === "low") return;
+      if (forced || tier === "medium") return;
       if (!dt || dt <= 0 || dt > 0.25) return;
       const fps = 1 / dt;
       fpsSamples.push(fps);
       if (fpsSamples.length > 40) fpsSamples.shift();
       const now = performance.now();
-      if (now - lastAdapt < 2000 || fpsSamples.length < 25) return;
+      if (now - lastAdapt < 1800 || fpsSamples.length < 22) return;
       lastAdapt = now;
       const avg = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
       if (avg < 32 && tier === "high") {
         tier = "medium";
         fpsSamples = [];
-        console.info("[perf] Auto quality → medium (avg FPS", avg.toFixed(0), ")");
-      } else if (avg < 26 && tier === "medium") {
-        tier = "low";
-        fpsSamples = [];
-        console.info("[perf] Auto quality → low (avg FPS", avg.toFixed(0), ")");
+        console.info("[perf] Shadows off for smoothness — fish and labels stay on");
       }
     },
   };
@@ -80,7 +76,7 @@ function profileFor(tier) {
       shadowMapSize: 512,
       preserveDrawingBuffer: false,
       targetFps: 30,
-      labelHz: 6,
+      labelHz: 16,
       lodHz: 4,
       chainageHz: 8,
       coordLabelHz: 3,
@@ -88,8 +84,8 @@ function profileFor(tier) {
       maxTrees: 1200,
       maxVegTypeTrees: 1800,
       treeShadows: false,
-      enableVegApi: false,
-      enableFishing: false,
+      enableVegApi: true,
+      enableFishing: true,
       vegTypeStepM: 72,
       lightTreesOnly: true,
     };
@@ -97,7 +93,7 @@ function profileFor(tier) {
   if (tier === "medium") {
     return {
       tier,
-      pixelRatioMax: 1.15,
+      pixelRatioMax: 1.1,
       antialias: true,
       shadows: false,
       shadowMapSize: 1024,
@@ -108,10 +104,10 @@ function profileFor(tier) {
       chainageHz: 12,
       coordLabelHz: 5,
       softShadow: false,
-      maxTrees: 2800,
-      maxVegTypeTrees: 3500,
+      maxTrees: 2200,
+      maxVegTypeTrees: 2800,
       treeShadows: false,
-      enableVegApi: false,
+      enableVegApi: true,
       enableFishing: true,
       vegTypeStepM: 55,
       lightTreesOnly: true,

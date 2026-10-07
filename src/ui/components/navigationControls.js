@@ -68,43 +68,53 @@ export function mountNavigationControls(root, {
     document.dispatchEvent(new CustomEvent("river-measure-clear"));
   };
 
+  const runNav = (fn) => {
+    if (state.cinematicActive) window.__MM_SCENE__?.stopCinematic?.();
+    fn();
+  };
+
   overviewBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    onOverview?.();
-    syncActive();
+    runNav(() => {
+      clearRiverMeasure();
+      onOverview?.();
+      syncActive();
+    });
   });
   view2dBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    onRiverSide?.();
-    syncActive();
+    runNav(() => {
+      clearRiverMeasure();
+      onRiverSide?.();
+      syncActive();
+    });
   });
   view3dBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    if (on3D) on3D();
-    else onOverview?.();
-    syncActive();
+    runNav(() => {
+      clearRiverMeasure();
+      if (on3D) on3D();
+      else onOverview?.();
+      syncActive();
+    });
   });
   siltBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    onSiltToggle?.();
+    runNav(() => onSiltToggle?.());
   });
   layersBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    onLayersToggle?.();
+    runNav(() => {
+      clearRiverMeasure();
+      onLayersToggle?.();
+    });
   });
   settingsBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    onSettingsToggle?.();
+    runNav(() => {
+      clearRiverMeasure();
+      onSettingsToggle?.();
+    });
   });
   floodBtn.addEventListener("click", () => {
-    if (state.cinematicActive) return;
-    clearRiverMeasure();
-    onFloodToggle?.();
+    runNav(() => {
+      clearRiverMeasure();
+      onFloodToggle?.();
+    });
   });
 
   document.addEventListener("silt-analysis-ui-open", () => {
