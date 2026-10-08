@@ -85,12 +85,14 @@ export function createRoadSystem(dataset) {
     const color = ASPHALT[hw] || "#2a2a2c";
     const visW = pathLike ? Math.max(1.8, w) : Math.max(5.4, w * 1.12);
     const halfW = visW * 0.5;
+    const keepAcross = isOsmBridgeTag(road.bridge) || wayCrossesWater(verts, stations);
 
     let run = [];
     const flushRun = () => {
       if (run.length >= 2) {
-        const dense = densifyRun(run, 10, stations);
-        for (const pts of splitOnWater(dense, stations, bridges)) {
+        const dense = densifyRun(run, 10, stations, bridges);
+        const parts = keepAcross ? [dense] : splitOnWater(dense, stations, bridges);
+        for (const pts of parts) {
           if (pts.length < 2) continue;
           ribbons.push({
             pts,
@@ -108,7 +110,7 @@ export function createRoadSystem(dataset) {
 
     for (let i = 0; i < verts.length; i++) {
       const v = verts[i];
-      if (roadBlocked(v.x, v.z, stations, bridges)) {
+      if (!keepAcross && roadBlocked(v.x, v.z, stations, bridges)) {
         skippedWater++;
         flushRun();
         continue;
@@ -116,9 +118,11 @@ export function createRoadSystem(dataset) {
       const pt = {
         x: v.x,
         z: v.z,
-        y: terrainHeightAt(v.x, v.z, stations) + 0.22,
+        y: keepAcross
+          ? crossingHeightAt(v.x, v.z, stations, bridges)
+          : roadHeightAt(v.x, v.z, stations, bridges),
       };
-      if (run.length && segmentOverWater(run[run.length - 1], pt, stations, bridges)) {
+      if (!keepAcross && run.length && segmentOverWater(run[run.length - 1], pt, stations, bridges)) {
         skippedWater++;
         flushRun();
       }
@@ -170,7 +174,7 @@ export function createRoadSystem(dataset) {
 }
 
 /** Insert points along long spans so terrain height follows smoothly. */
-function densifyRun(pts, maxStepM, stations) {
+function densifyRun(pts, maxStepM, stations, bridges) {
   if (pts.length < 2) return pts;
   const out = [pts[0]];
   for (let i = 1; i < pts.length; i++) {
@@ -185,12 +189,12 @@ function densifyRun(pts, maxStepM, stations) {
       out.push({
         x,
         z,
-        y: terrainHeightAt(x, z, stations) + 0.28,
+        y: roadHeightAt(x, z, stations, bridges),
       });
     }
   }
   if (stations) {
-    out[0].y = terrainHeightAt(out[0].x, out[0].z, stations) + 0.28;
+    out[0].y = roadHeightAt(out[0].x, out[0].z, stations, bridges);
   }
   return out;
 }
@@ -380,8 +384,66 @@ function isOsmBridgeTag(bridge) {
   return s !== "" && s !== "no" && s !== "false" && s !== "0";
 }
 
+function wayCrossesWater(verts, stations) {
+  let wet = false;
+  let dry = false;
+  for (const v of verts || []) {
+    if (pointOverWater(v.x, v.z, stations)) wet = true;
+    else dry = true;
+    if (wet && dry) return true;
+  }
+  return false;
+}
+
+function crossingHeightAt(x, z, stations, bridges) {
+  const ground = terrainHeightAt(x, z, stations) + 0.28;
+  let deck = SURFACE_Y + 1.9;
+  for (const br of bridges || []) {
+    if (!Number.isFinite(br.deckY)) continue;
+    const sx = br.start?.x;
+    const sz = br.start?.z;
+    const ex = br.end?.x;
+    const ez = br.end?.z;
+    if (![sx, sz, ex, ez].every(Number.isFinite)) {
+      if (Math.hypot((br.midX ?? 0) - x, (br.midZ ?? 0) - z) < 50) {
+        deck = Math.max(deck, br.deckY);
+      }
+      continue;
+    }
+    const hit = closestOnSeg(x, z, sx, sz, ex, ez);
+    if (hit.d < Math.max(18, (br.widthM || 14) * 1.1)) {
+      deck = Math.max(deck, br.deckY);
+    }
+  }
+  if (pointOverWater(x, z, stations)) return Math.max(ground, deck);
+  return Math.max(ground, deck - 0.02);
+}
+
+function roadHeightAt(x, z, stations, bridges) {
+  const ground = terrainHeightAt(x, z, stations) + 0.28;
+  if (!bridges?.length) return ground;
+  for (const br of bridges) {
+    const deck = br.deckY;
+    if (!Number.isFinite(deck)) continue;
+    const sx = br.start?.x;
+    const sz = br.start?.z;
+    const ex = br.end?.x;
+    const ez = br.end?.z;
+    if (![sx, sz, ex, ez].every(Number.isFinite)) continue;
+    const hit = closestOnSeg(x, z, sx, sz, ex, ez);
+    const pad = Math.max(12, (br.widthM || 14) * 0.8);
+    if (hit.d < pad) {
+      // Smoothly transition at the very ends
+      if (hit.t < 0.05) return ground + (deck - ground) * (hit.t / 0.05);
+      if (hit.t > 0.95) return ground + (deck - ground) * ((1 - hit.t) / 0.05);
+      return deck;
+    }
+  }
+  return ground;
+}
+
 function roadBlocked(x, z, stations, bridges) {
-  return pointOverWater(x, z, stations) || isUnderBridgeDeck(x, z, bridges, stations);
+  return false;
 }
 
 function pointOverWater(x, z, stations) {
@@ -438,10 +500,10 @@ function isUnderBridgeDeck(x, z, bridges, stations) {
       continue;
     }
     const hit = closestOnSeg(x, z, sx, sz, ex, ez);
-    const pad = Math.max(22, (br.widthM || 14) * 1.15);
-    if (hit.d < pad && hit.t > 0.04 && hit.t < 0.96) {
-      const y = terrainHeightAt(x, z, stations);
-      if (y < SURFACE_Y + 6) return true;
+    const pad = Math.max(16, (br.widthM || 14) * 0.95);
+    // Only hide the mid-span (over water). Keep bank roads so they meet the abutments.
+    if (hit.d < pad && hit.t > 0.22 && hit.t < 0.78 && pointOverWater(x, z, stations)) {
+      return true;
     }
   }
   return false;

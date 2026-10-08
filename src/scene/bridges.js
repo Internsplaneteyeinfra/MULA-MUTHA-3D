@@ -7,6 +7,44 @@ import { addYerwadaArchSpan, isYerwadaArchBridge } from "./yerwadaArchBridge.js"
 import { addAmbedkarArchSpan, isAmbedkarArchBridge } from "./ambedkarArchBridge.js";
 import { addSangamGirderSpan, addOpenGirderSpan, girderTheme, isSangamGirderBridge } from "./sangamGirderBridge.js";
 import { addMundhwaArchSpan, isMundhwaArchBridge } from "./mundhwaArchBridge.js";
+import { validateBridgeConnections } from "./bridgeValidation.js";
+
+/**
+ * Typical roadway height above normal water (scene SURFACE_Y) for live
+ * Mula–Mutha crossings. Values follow each structure’s character:
+ * historic masonry sits lower; newer RCC/steel decks sit higher.
+ * Final deck is max(this, bank DTM + 1.15 m) so it meets the approach road.
+ */
+const DECK_ABOVE_WATER_M = [
+  { test: /mundhwa/i, m: 7.4 },
+  { test: /fitzgerald|yerwada|yarwada|bund garden/i, m: 7.6 },
+  { test: /ambedkar|babasaheb/i, m: 9.4 },
+  { test: /aga khan/i, m: 8.8 },
+  { test: /sangamwadi.*new/i, m: 8.6 },
+  { test: /sangamwadi.*old/i, m: 7.0 },
+  { test: /sangam/i, m: 8.2 },
+  { test: /dengle/i, m: 7.8 },
+  { test: /shivaji/i, m: 7.8 },
+];
+
+function deckYForBridge(name, y0, y1) {
+  const n = String(name || "");
+  const bank = Math.max(y0, y1);
+  const roadY = bank + 0.28;
+  const masonry = /mundhwa|fitzgerald|yerwada|yarwada|bund garden|ambedkar|babasaheb/i.test(n);
+  if (masonry) {
+    let above = 7.4;
+    for (const row of DECK_ABOVE_WATER_M) {
+      if (row.test.test(n)) {
+        above = row.m;
+        break;
+      }
+    }
+    return Math.max(SURFACE_Y + above, roadY);
+  }
+  // Road bridges sit on the approach asphalt — not floating above it.
+  return Math.max(SURFACE_Y + 1.85, roadY);
+}
 
 /**
  * Full-span road bridges across the river channel.
@@ -64,7 +102,15 @@ export function createBridges(dataset) {
     const az = g.axisZ;
     const y0 = terrainHeightAt(g.start.x, g.start.z, stations);
     const y1 = terrainHeightAt(g.end.x, g.end.z, stations);
-    const deckY = Math.max(SURFACE_Y + 8.5, y0 + 1.6, y1 + 1.6);
+    const yerwada = isYerwadaArchBridge(g.name);
+    const ambedkar = isAmbedkarArchBridge(g.name);
+    const sangam = isSangamGirderBridge(g.name);
+    const mundhwa = isMundhwaArchBridge(g.name);
+    const historic = yerwada || mundhwa || ambedkar;
+    const deckY = deckYForBridge(g.name, y0, y1);
+    g.deckY = deckY;
+    const orig = (dataset.bridges || []).find((b) => String(b.id) === String(g.id));
+    if (orig) orig.deckY = deckY;
     const span = Math.max(36, g.lengthM);
     const thick = Math.max(10, Math.min(16, g.widthM || 12));
 
@@ -74,10 +120,6 @@ export function createBridges(dataset) {
     const perpZ = g.axisX;
     const mx = (g.start.x + g.end.x) * 0.5;
     const mz = (g.start.z + g.end.z) * 0.5;
-    const yerwada = isYerwadaArchBridge(g.name);
-    const ambedkar = isAmbedkarArchBridge(g.name);
-    const sangam = isSangamGirderBridge(g.name);
-    const mundhwa = isMundhwaArchBridge(g.name);
     const customDeck = true;
 
     if (yerwada) {
@@ -122,6 +164,9 @@ export function createBridges(dataset) {
         minD,
         maxD,
         dMid,
+        stations,
+        leftW,
+        rightW,
       });
     } else if (mundhwa) {
       addMundhwaArchSpan(bridge, group, {
@@ -154,16 +199,21 @@ export function createBridges(dataset) {
           minD,
           maxD,
           dMid,
+          stations,
+          leftW,
+          rightW,
         },
         girderTheme(g.name),
       );
     }
 
-    // Abutments stay on dry land — never drop a ramp into the river
-    for (const end of [
-      { p: g.start, outward: -1 },
-      { p: g.end, outward: 1 },
-    ]) {
+    // Abutments on dry land for masonry spans (girder spans build their own ramps).
+    for (const end of historic
+      ? [
+          { p: g.start, outward: -1 },
+          { p: g.end, outward: 1 },
+        ]
+      : []) {
       const ground = terrainHeightAt(end.p.x, end.p.z, stations);
       if (ground < SURFACE_Y + 0.6) continue;
       const drop = Math.max(0, deckY - ground);
@@ -272,97 +322,96 @@ export function createBridges(dataset) {
   }
 
   updateBridgePiers(group, state.depthExaggeration);
+  validateBridgeConnections(spans, dataset.osm?.roads || [], stations, group);
   return group;
 }
 
-/** Seat the deck on the OSM road that actually crosses here. */
-function snapSpanToRiverBanks(g, stations, roads) {
-  const mx = Number.isFinite(g.midX) ? g.midX : (g.start.x + g.end.x) * 0.5;
-  const mz = Number.isFinite(g.midZ) ? g.midZ : (g.start.z + g.end.z) * 0.5;
-  const st = nearestStation(mx, mz, stations);
-  const leftW = Math.max(14, st.wetHalfLeft ?? st.halfWidth ?? 40);
-  const rightW = Math.max(14, st.wetHalfRight ?? st.halfWidth ?? 40);
-  const cross = bestCrossingRoad(st, leftW, rightW, roads);
-  let ax = -st.flowZ;
-  let az = st.flowX;
-  let al = Math.hypot(ax, az) || 1;
-  ax /= al;
-  az /= al;
-  let start = { x: st.x - ax * (leftW + 18), z: st.z - az * (leftW + 18) };
-  let end = { x: st.x + ax * (rightW + 18), z: st.z + az * (rightW + 18) };
-  if (cross) {
-    start = { x: cross.left.x, z: cross.left.z };
-    end = { x: cross.right.x, z: cross.right.z };
-    ax = end.x - start.x;
-    az = end.z - start.z;
-    al = Math.hypot(ax, az) || 1;
-    ax /= al;
-    az /= al;
+function buildBridgeFromGIS(bridge, roads, stations) {
+  const startSnap = snapToRoadNetwork(bridge.start.x, bridge.start.z, roads);
+  const endSnap = snapToRoadNetwork(bridge.end.x, bridge.end.z, roads);
+  
+  const finalStart = startSnap ? startSnap.point : bridge.start;
+  const finalEnd = endSnap ? endSnap.point : bridge.end;
+  
+  if (startSnap && startSnap.distance <= 110) {
+    bridge.userData.startConnected = true;
   }
-  start = dryBankSeat(start.x, start.z, -ax, -az, stations);
-  end = dryBankSeat(end.x, end.z, ax, az, stations);
+  if (endSnap && endSnap.distance <= 110) {
+    bridge.userData.endConnected = true;
+  }
+  
+  const ax = finalEnd.x - finalStart.x;
+  const az = finalEnd.z - finalStart.z;
+  const al = Math.hypot(ax, az) || 1;
+  
   return {
-    ...g,
-    start,
-    end,
-    midX: st.x,
-    midZ: st.z,
-    axisX: ax,
-    axisZ: az,
-    lengthM: Math.hypot(end.x - start.x, end.z - start.z),
-    channelHalf: (leftW + rightW) * 0.5,
+    ...bridge,
+    start: finalStart,
+    end: finalEnd,
+    axisX: ax / al,
+    axisZ: az / al,
+    lengthM: al,
+    midX: (finalStart.x + finalEnd.x) * 0.5,
+    midZ: (finalStart.z + finalEnd.z) * 0.5,
   };
 }
 
-/** Walk inland until the ground is above the water, so abutments never sit in the channel. */
-function dryBankSeat(x, z, ix, iz, stations) {
-  let px = x;
-  let pz = z;
-  if (terrainHeightAt(px, pz, stations) >= SURFACE_Y + 0.7) return { x: px, z: pz };
-  const step = 3;
-  for (let i = 0; i < 12; i++) {
-    px += ix * step;
-    pz += iz * step;
-    if (terrainHeightAt(px, pz, stations) >= SURFACE_Y + 0.7) return { x: px, z: pz };
-  }
-  return { x: px, z: pz };
-}
-
-function bestCrossingRoad(st, leftW, rightW, roads) {
-  const px = -st.flowZ;
-  const pz = st.flowX;
-  const classW = { motorway: 6, trunk: 5, primary: 4, secondary: 3, tertiary: 2, residential: 1 };
+function snapToRoadNetwork(px, pz, roads) {
   let best = null;
-  let bestScore = -1e9;
-  for (const road of roads) {
-    const hw = road.highway || "";
-    if (/footway|path|steps|cycleway|pedestrian|service/.test(hw)) continue;
-    let leftPt = null;
-    let rightPt = null;
-    let leftD = 1e9;
-    let rightD = 1e9;
-    for (const v of road.vertices || []) {
-      const along = Math.abs((v.x - st.x) * st.flowX + (v.z - st.z) * st.flowZ);
-      if (along > 75) continue;
-      const signed = (v.x - st.x) * px + (v.z - st.z) * pz;
-      if (signed < -leftW - 4 && along < leftD) {
-        leftD = along;
-        leftPt = v;
-      }
-      if (signed > rightW + 4 && along < rightD) {
-        rightD = along;
-        rightPt = v;
-      }
+  for (const r of roads) {
+    if (!r.vertices || r.vertices.length < 2) continue;
+    const snap = nearestPointOnPolyline(px, pz, r.vertices);
+    if (!snap) continue;
+    if (!best || snap.distance < best.distance) {
+      best = snap;
     }
-    if (!leftPt || !rightPt) continue;
-    const span = Math.hypot(rightPt.x - leftPt.x, rightPt.z - leftPt.z);
-    if (span < leftW + rightW + 8) continue;
-    const score = (classW[hw] || 1) * 30 - (leftD + rightD) + span * 0.02;
-    if (score <= bestScore) continue;
-    bestScore = score;
-    best = { left: leftPt, right: rightPt, hw };
   }
   return best;
+}
+
+function nearestPointOnPolyline(px, pz, verts) {
+  let bestD = Infinity;
+  let bestP = null;
+  let bestSeg = -1;
+  for (let i = 0; i < verts.length - 1; i++) {
+    const ax = verts[i].x;
+    const az = verts[i].z;
+    const bx = verts[i+1].x;
+    const bz = verts[i+1].z;
+    
+    const abx = bx - ax;
+    const abz = bz - az;
+    const len2 = abx * abx + abz * abz;
+    if (len2 === 0) continue;
+    
+    let t = ((px - ax) * abx + (pz - az) * abz) / len2;
+    t = Math.max(0, Math.min(1, t));
+    const cx = ax + abx * t;
+    const cz = az + abz * t;
+    const d = Math.hypot(px - cx, pz - cz);
+    if (d < bestD) {
+      bestD = d;
+      bestP = { x: cx, z: cz };
+      bestSeg = i;
+    }
+  }
+  
+  if (!bestP) return null;
+  
+  const ax = verts[bestSeg].x;
+  const az = verts[bestSeg].z;
+  const bx = verts[bestSeg+1].x;
+  const bz = verts[bestSeg+1].z;
+  let tx = bx - ax;
+  let tz = bz - az;
+  const l = Math.hypot(tx, tz) || 1;
+  
+  return {
+    point: bestP,
+    distance: bestD,
+    segmentIndex: bestSeg,
+    tangent: { x: tx/l, z: tz/l }
+  };
 }
 
 /**
@@ -372,8 +421,9 @@ function collectBridgeSpans(dataset, ring, stations) {
   const spans = [];
   const used = [];
 
+  const roads = dataset.osm?.roads || [];
   for (const g of dataset.bridges || []) {
-    spans.push({
+    let bridge = {
       id: g.id,
       name: g.name,
       start: g.start,
@@ -382,8 +432,14 @@ function collectBridgeSpans(dataset, ring, stations) {
       widthM: g.widthM || 14,
       axisX: g.axisX,
       axisZ: g.axisZ,
-    });
-    used.push({ x: g.midX, z: g.midZ });
+      midX: g.midX,
+      midZ: g.midZ,
+      userData: { startConnected: false, endConnected: false }
+    };
+    
+    const built = buildBridgeFromGIS(bridge, roads, stations);
+    spans.push(built);
+    used.push({ x: built.midX, z: built.midZ });
   }
 
   return spans;

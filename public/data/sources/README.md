@@ -1077,7 +1077,7 @@ In accordance with **Scientific Integrity Mandates 7, 8, 9, 41, and 42**, all ex
 | **CWPRS Hydraulic Study Reports** | CWPRS Pune | **YES** | **NO** | NO | MSL (CWPRS Local Zero) | Sangam to Mundhwa | Government Technical Reports (Restricted) |
 | **Irrigation Dept / WRD Survey** | Water Resources Dept, Maharashtra | **YES** | **NO** | NO | MSL | Khadakwasla to Bund Garden | Departmental Archives Only |
 | **India-WRIS / CWC Hydrometry** | Central Water Commission (CWC) | **YES** | **NO** | NO | Documented Gauge Zero 540.0 m MSL | Bund Garden Gauge (028-IBHIMA) | `AUTHENTICATION_REQUIRED` (OAuth/Captcha) |
-| **Local Bathymetric Soundings** | Local Sonar Survey | **YES** | **YES** | YES | `UNVERIFIED_DATUM` (relative depth soundings) | 16.96 km (1,698 chainage stations) | Active in `public/data/depth_pixels.csv` |
+| **Local Bathymetric Soundings** | Local Sonar Survey | **YES** | **YES** | YES | `UNVERIFIED_DATUM` (relative depth soundings) | 16.96 km (1,698 chainage stations) | Active in `public/data/mula_mutha_water_depth.csv` |
 
 ## Rules on Scientific Defensibility
 1. **Never Fabricate Data**: Missing gauge feeds or HEC-RAS geometry files must return `UNAVAILABLE` or `AUTHENTICATION_REQUIRED`.

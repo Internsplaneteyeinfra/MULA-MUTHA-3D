@@ -65,45 +65,46 @@ export async function loadOsmBridges(url, frame, corridor) {
     const members = raw.filter((r) => group.ids.includes(r.osmId));
     if (!members.length) continue;
     members.forEach((m) => consumed.add(m.osmId));
-    const mx = members.reduce((s, m) => s + m.mid.x, 0) / members.length;
-    const mz = members.reduce((s, m) => s + m.mid.z, 0) / members.length;
-    merged.push(
-      makeSpan({
-        id: group.ids[0],
-        name: group.name,
-        highway: members[0].highway,
-        widthM: Math.max(group.widthM, ...members.map((m) => m.widthM)),
-        midX: mx,
-        midZ: mz,
-        stations,
-      }),
-    );
+    
+    // Combine vertices
+    let allVerts = [];
+    members.forEach(m => allVerts.push(...m.local));
+    
+    // Find extremes
+    let minX = allVerts[0], maxX = allVerts[0];
+    for (const v of allVerts) {
+      if (v.x < minX.x) minX = v;
+      if (v.x > maxX.x) maxX = v;
+    }
+    
+    merged.push({
+      id: group.ids[0],
+      name: group.name,
+      highway: members[0].highway,
+      widthM: Math.max(group.widthM, ...members.map((m) => m.widthM)),
+      midX: members.reduce((s, m) => s + m.mid.x, 0) / members.length,
+      midZ: members.reduce((s, m) => s + m.mid.z, 0) / members.length,
+      start: minX,
+      end: maxX,
+      source: "OpenStreetMap",
+      vertices: allVerts
+    });
   }
 
   for (const r of raw) {
     if (consumed.has(r.osmId)) continue;
-    // Skip tiny pedestrian stubs that aren't in a merge group and don't clearly cross
-    const osmLen = Math.hypot(
-      r.local[r.local.length - 1].x - r.local[0].x,
-      r.local[r.local.length - 1].z - r.local[0].z,
-    );
-    const st = nearestStation(r.mid.x, r.mid.z, stations);
-    const lat = Math.abs((r.mid.x - st.x) * -st.flowZ + (r.mid.z - st.z) * st.flowX);
-    // If stub is short and sits far off centerline on one bank, still snap to center (makeSpan)
-    if (osmLen < 40 && r.highway === "pedestrian" && lat > st.halfWidth * 0.35) {
-      // still include but snapped — better one deck than a broken stub
-    }
-    merged.push(
-      makeSpan({
-        id: r.osmId,
-        name: r.name,
-        highway: r.highway,
-        widthM: r.widthM,
-        midX: r.mid.x,
-        midZ: r.mid.z,
-        stations,
-      }),
-    );
+    merged.push({
+      id: r.osmId,
+      name: r.name,
+      highway: r.highway,
+      widthM: r.widthM,
+      midX: r.mid.x,
+      midZ: r.mid.z,
+      start: r.local[0],
+      end: r.local[r.local.length - 1],
+      source: "OpenStreetMap",
+      vertices: r.local
+    });
   }
 
   // Drop near-duplicates (same crossing within 70 m along corridor)
@@ -123,60 +124,6 @@ export async function loadOsmBridges(url, frame, corridor) {
 
   deduped.sort((a, b) => a.start.lon - b.start.lon);
   return deduped;
-}
-
-/**
- * Snap mid to corridor centerline and span bank→bank along flow-perpendicular.
- */
-function makeSpan({ id, name, highway, widthM, midX, midZ, stations }) {
-  const st = nearestStation(midX, midZ, stations);
-  // Always from channel center — never from a bank-side OSM stub mid
-  const cx = st.x;
-  const cz = st.z;
-  let ax = -st.flowZ;
-  let az = st.flowX;
-  const al = Math.hypot(ax, az) || 1;
-  ax /= al;
-  az /= al;
-
-  const half = Math.max(50, st.halfWidth || 40);
-  const bankPad = 48;
-  const halfSpan = half + bankPad;
-  const span = halfSpan * 2;
-
-  const start = { x: cx - ax * halfSpan, z: cz - az * halfSpan, lon: 0, lat: 0 };
-  const end = { x: cx + ax * halfSpan, z: cz + az * halfSpan, lon: 0, lat: 0 };
-  try {
-    const ll0 = localToLonLat(start.x, start.z);
-    const ll1 = localToLonLat(end.x, end.z);
-    start.lon = ll0.lon;
-    start.lat = ll0.lat;
-    end.lon = ll1.lon;
-    end.lat = ll1.lat;
-  } catch {
-    /* geoReference not ready during offline tests */
-  }
-  const midLl = localToLonLatSafe(cx, cz);
-
-  return {
-    id: String(id),
-    name,
-    osmName: name,
-    highway,
-    widthM: Math.max(14, widthM || 12),
-    source: "OpenStreetMap",
-    start,
-    end,
-    vertices: [start, end],
-    lengthM: span,
-    midX: cx,
-    midZ: cz,
-    midLon: midLl?.lon,
-    midLat: midLl?.lat,
-    axisX: ax,
-    axisZ: az,
-    channelHalf: half,
-  };
 }
 
 function localToLonLatSafe(x, z) {

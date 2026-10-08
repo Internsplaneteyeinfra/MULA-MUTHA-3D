@@ -3,7 +3,7 @@
 Independent Vite + Three.js geospatial flythrough.
 
 - KML polygon is the river alignment/boundary (`public/data/mula_mutha_river.kml`).
-- CSV is bathymetry (`public/data/depth_pixels.csv`).
+- CSV is bathymetry (`public/data/mula_mutha_water_depth.csv`).
 - Projection: WGS84 → EPSG:32643, then local meters.
 - Flow: Khadakwasla / upstream (west) → Sangam → downstream (east).
 - Do not merge with Hydrology V2 or `geospatial-mula-mutha`.
