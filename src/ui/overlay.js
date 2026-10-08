@@ -739,6 +739,7 @@ export function mountUI(root, {
     state.floodSimMessage = "";
     state.floodSimInfo = null;
     setLpFloodStatus("Idle", "");
+    updateDepthLegend(depthMin, depthMax);
     syncFloodSimStats();
     syncIllustrativeDisabled();
   }
@@ -784,6 +785,18 @@ export function mountUI(root, {
         : "ready";
     const msg = `Flood Ready · ${result.info?.scene_date || "scene"} · ${ha}`;
     bar.setStatus(msg, "ok");
+    if (result.info?.scene_date && bar.setDates) {
+      bar.setDates(result.info.scene_date, result.info.scene_date);
+    }
+    if (result.info?.max_depth_m != null) {
+      updateDepthLegend(0.5, Math.max(0.5, result.info.max_depth_m));
+    } else {
+      if (typeof hideDepthLegend === "function") hideDepthLegend();
+      else {
+        const dl = document.getElementById("depth-legend");
+        if (dl) dl.hidden = true;
+      }
+    }
     setLpFloodStatus("Complete", "ok");
     syncFloodSimStats();
     syncIllustrativeDisabled();
@@ -1018,7 +1031,18 @@ export function mountUI(root, {
     </div>
   `;
   root.appendChild(depthLegend);
-
+  
+  function updateDepthLegend(min, max) {
+    if (!depthLegend) return;
+    const ticks = depthLegend.querySelector(".depth-ticks");
+    if (!ticks) return;
+    const step = (max - min) / 5;
+    ticks.innerHTML = `
+      <span>Shallow</span>
+      ${Array.from({ length: 6 }, (_, i) => `<span>${(min + step * i).toFixed(2)}</span>`).join("")}
+      <span>Deep</span>
+    `;
+  }
   const scrub = root.querySelector("#scrub");
   const sceneLabel = root.querySelector("#scene-label");
   const pathScrub = root.querySelector("#path-scrub");

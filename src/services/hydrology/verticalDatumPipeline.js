@@ -124,6 +124,16 @@ export class VerticalDatumPipeline {
     const delta = wseMsl - (this.benchmark.gaugeZeroMslM + 1.72);
     return SURFACE_Y + delta * this.verticalExaggeration;
   }
+
+  /**
+   * Converts Three.js scene Y to physical MSL stage
+   * @param {number|null} sceneY
+   */
+  sceneYToWseMsl(sceneY) {
+    if (sceneY == null || !Number.isFinite(sceneY)) return null;
+    const delta = (sceneY - SURFACE_Y) / this.verticalExaggeration;
+    return delta + (this.benchmark.gaugeZeroMslM + 1.72);
+  }
 }
 
 export const verticalDatumPipeline = new VerticalDatumPipeline();

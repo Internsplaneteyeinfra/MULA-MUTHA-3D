@@ -1968,7 +1968,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           : state.depthExaggeration;
       const apiFloodActive = state.floodMode === "api" && !!apiFloodLayer.userData?.hasFlood;
       // Bathtub stage ignored while API flood is the active surface
-      const floodRise = apiFloodActive ? 0 : (state.floodRiseM ?? 0);
+      let floodRise = state.floodRiseM ?? 0;
+      if (apiFloodActive) {
+        const info = apiFloodLayer.userData.getInfo?.();
+        const p = apiFloodLayer.userData.getProgress?.() || 0;
+        floodRise = p * (info?.water_rise_m || 0);
+      }
       // Bank erosion: dark channel so neon green/yellow ribbon pops (reference look)
       const riverLook = cutaway
         ? "cutaway"

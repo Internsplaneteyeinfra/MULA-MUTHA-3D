@@ -222,6 +222,7 @@ const frag = /* glsl */ `
   }
 
   void main(){
+    if (vDepth < 0.0) discard;
     float depthT = clamp((vDepth - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
     depthT = smoothstep(0.0, 1.0, pow(depthT, 0.78));
     vec2 fdir = vFlow;

@@ -171,13 +171,19 @@ export async function postFloodWater({ kmlBlob, filename, start_date, end_date, 
 export async function downloadFloodWaterKml(kmlIdOrUrl) {
   const url = String(kmlIdOrUrl).startsWith("http")
     ? kmlIdOrUrl.replace(/^http:\/\//i, "https://")
+    : String(kmlIdOrUrl).startsWith("/")
+    ? `${API_BASE.replace(/\/$/, "")}${kmlIdOrUrl}`
     : `${API_BASE.replace(/\/$/, "")}/api/flood-water/kml/${kmlIdOrUrl}`;
   const res = await fetchWithAbort(
     url,
     { method: "GET", headers: { "ngrok-skip-browser-warning": "true" } },
     120_000,
   );
-  if (!res.ok) throw new Error(`Flood KML download failed (HTTP ${res.status})`);
+  if (!res.ok) {
+    const err = new Error(`Flood KML download failed (HTTP ${res.status})`);
+    err.status = res.status;
+    throw err;
+  }
   return res.text();
 }
 
@@ -188,6 +194,35 @@ export function parseFloodOverlayKml(kmlText) {
   if (!kmlText || typeof kmlText !== "string") {
     throw new Error("Empty flood KML.");
   }
+  
+  const polygons = [];
+  try {
+    const parser = new DOMParser();
+    const doc = parser.parseFromString(kmlText, "text/xml");
+    const polyNodes = doc.getElementsByTagName("Polygon");
+    
+    for (let i = 0; i < polyNodes.length; i++) {
+      const coordsNodes = polyNodes[i].getElementsByTagName("coordinates");
+      if (!coordsNodes || coordsNodes.length === 0) continue;
+      
+      const coordsStr = coordsNodes[0].textContent || "";
+      const pairs = coordsStr.trim().split(/\s+/);
+      const coords = [];
+      for (const pair of pairs) {
+        if (!pair) continue;
+        const parts = pair.split(",");
+        if (parts.length >= 2) {
+          coords.push({ lon: parseFloat(parts[0]), lat: parseFloat(parts[1]) });
+        }
+      }
+      if (coords.length > 2) {
+        polygons.push(coords);
+      }
+    }
+  } catch(e) {
+    console.error("Failed to parse KML polygons", e);
+  }
+
   const box = {};
   for (const key of ["north", "south", "east", "west"]) {
     const m = kmlText.match(
@@ -195,21 +230,42 @@ export function parseFloodOverlayKml(kmlText) {
     );
     if (m) box[key] = Number(m[1]);
   }
-  if (![box.north, box.south, box.east, box.west].every((n) => Number.isFinite(n))) {
-    throw new Error("Flood overlay KML missing LatLonBox.");
+  
+  if (polygons.length > 0) {
+    if (!Number.isFinite(box.north)) {
+      let n = -90, s = 90, e = -180, w = 180;
+      for (const poly of polygons) {
+        for (const pt of poly) {
+          if (pt.lat > n) n = pt.lat;
+          if (pt.lat < s) s = pt.lat;
+          if (pt.lon > e) e = pt.lon;
+          if (pt.lon < w) w = pt.lon;
+        }
+      }
+      box.north = n;
+      box.south = s;
+      box.east = e;
+      box.west = w;
+    }
+  }
+
+  if (polygons.length === 0 && ![box.north, box.south, box.east, box.west].every((n) => Number.isFinite(n))) {
+    throw new Error("Flood KML missing valid Polygons or LatLonBox.");
   }
 
   const hrefM = kmlText.match(
     /<(?:\w+:)?href>\s*(data:image\/png;base64,[^<\s]+)\s*<\/(?:\w+:)?href>/i,
   );
-  if (!hrefM) throw new Error("Flood overlay KML missing PNG GroundOverlay.");
+  const imageDataUrl = hrefM ? hrefM[1].trim() : null;
 
   return {
     north: box.north,
     south: box.south,
     east: box.east,
     west: box.west,
-    imageDataUrl: hrefM[1].trim(),
+    imageDataUrl,
+    polygons,
+    text: kmlText
   };
 }
 
@@ -227,6 +283,9 @@ function isFloodPixel(r, g, b, a) {
   // API Flood ≈ #FF0000 (allow anti-alias / compression / orange-red)
   if (r >= 120 && r > g + 25 && r > b + 25) return true;
   if (r >= 150 && g <= 110 && b <= 130 && r >= g && r >= b) return true;
+  // Accept blue/cyan flood pixels if the API uses them
+  if (b >= 100 && b > r + 20) return true;
+  if (g >= 100 && b >= 100 && g > r + 20) return true;
   return false;
 }
 
@@ -381,18 +440,46 @@ export function getFloodStatus() {
  */
 export function normalizeFloodResult(response, meta = {}) {
   validateFloodResponse(response);
+  
+  // As requested: Log the RAW response once during development to inspect missing fields
+  console.log("[JalNetra API] Raw Flood Response:", response);
+  
   const scenes = (response.datewise || [])
     .filter((d) => d?.kml_id)
     .map((d, index) => ({
       index,
       date: d.date || d.post_date || null,
+      rawResponse: d,
+      waterLevelData: {
+        initialWaterSurfaceElevation: typeof d.initial_water_level === "number" ? d.initial_water_level : null,
+        finalWaterSurfaceElevation: typeof d.final_water_level === "number" ? d.final_water_level : null,
+        waterRise: typeof d.water_rise === "number" ? d.water_rise : null,
+        stage: typeof d.stage === "number" ? d.stage : null,
+      },
+      waterSurfaceProfile: d.water_surface_profile || null,
+      floodDepthData: d.depth_data || null,
+      floodExtent: {
+        waterAreaHa: typeof d.water_area_ha === "number" ? d.water_area_ha : null,
+        floodAreaHa: typeof d.flood_area_ha === "number" ? d.flood_area_ha : null,
+      },
+      floodKML: {
+        filename: d.kml_filename || null,
+        id: d.kml_id,
+        downloadUrl: d.kml_download_url || null,
+      },
+      sourceMetadata: {
+        preDate: d.pre_date || null,
+        postDate: d.post_date || null,
+        categories: Array.isArray(d.categories) ? d.categories : [],
+      },
+      status: "NORMALIZED",
+      // Legacy UI fallbacks (do not rely on these for physical math)
       pre_date: d.pre_date || null,
       post_date: d.post_date || null,
-      flood_area_ha:
-        typeof d.flood_area_ha === "number" ? d.flood_area_ha : null,
-      water_area_ha:
-        typeof d.water_area_ha === "number" ? d.water_area_ha : null,
-      categories: Array.isArray(d.categories) ? d.categories : null,
+      flood_area_ha: typeof d.flood_area_ha === "number" ? d.flood_area_ha : null,
+      water_area_ha: typeof d.water_area_ha === "number" ? d.water_area_ha : null,
+      water_rise: typeof d.water_rise === "number" ? d.water_rise : null,
+      final_water_level: typeof d.final_water_level === "number" ? d.final_water_level : null,
       kml_id: d.kml_id,
       kml_filename: d.kml_filename || null,
       kml_download_url: d.kml_download_url || null,
@@ -436,11 +523,12 @@ export function normalizeFloodResult(response, meta = {}) {
 
 async function hydrateSceneRaster(scene, aoi, onProgress) {
   const kmlId = scene.kml_id;
+  const downloadTarget = scene.kml_download_url || kmlId;
   onProgress?.(`Receiving flood extent… (${scene.date || kmlId})`);
 
   let overlayKml = overlayKmlById.get(kmlId) || null;
   if (!overlayKml) {
-    overlayKml = await downloadFloodWaterKml(kmlId);
+    overlayKml = await downloadFloodWaterKml(downloadTarget);
     overlayKmlById.set(kmlId, overlayKml);
   }
 
@@ -449,13 +537,18 @@ async function hydrateSceneRaster(scene, aoi, onProgress) {
   );
   let overlay = memByKml?.overlay || scene.overlay;
   let raster = memByKml?.raster || scene.raster;
-  if (!overlay || !raster) {
+  if (!overlay || (!raster && overlay.imageDataUrl)) {
     onProgress?.("Building visualization…");
     overlay = parseFloodOverlayKml(overlayKml);
-    raster = await sampleFloodRaster(overlay, {
-      aoiPolygons: aoi.polygons,
-      stride: 3,
-    });
+    if (overlay.imageDataUrl) {
+      raster = await sampleFloodRaster(overlay, {
+        aoiPolygons: aoi.polygons,
+        stride: 3,
+      });
+    } else {
+      // Dummy raster object to satisfy checks downstream
+      raster = { mask: new Float32Array(0), width: 0, height: 0, fromPolygons: true };
+    }
   }
 
   return {
@@ -628,11 +721,21 @@ export async function fetchJalnetraFlood(options = {}) {
   const cached = options.skipCache ? null : readCache(key);
   if (cached?.response?.datewise?.length) {
     debug("storage cache hit", key);
-    return finalizeMulti(cached.response, {
-      fromCache: true,
-      start_date: cached.start_date || start_date,
-      end_date: cached.end_date || end_date,
-    });
+    try {
+      return await finalizeMulti(cached.response, {
+        fromCache: true,
+        start_date: cached.start_date || start_date,
+        end_date: cached.end_date || end_date,
+      });
+    } catch (err) {
+      if (err?.status === 404 || err?.message?.includes("404")) {
+        debug("cached KML expired, invalidating cache", key);
+        memoryResults.delete(key);
+        localStorage.removeItem(key);
+      } else {
+        throw err;
+      }
+    }
   }
 
   const kmlBlob = aoi.kmlBlob || prepared.kmlBlob;

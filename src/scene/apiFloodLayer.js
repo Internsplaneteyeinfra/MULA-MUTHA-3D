@@ -2,6 +2,8 @@ import * as THREE from "three";
 import { lonLatToLocal, localToLonLat } from "../geo/geoReference.js";
 import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
+import { createWaterMaterial, syncWaterMaterial } from "./waterShader.js";
+import { verticalDatumPipeline } from "../services/hydrology/verticalDatumPipeline.js";
 
 const FLOOD_LIFT_M = 0.55;
 const ANIM_DURATION_S = 4.8;
@@ -29,6 +31,8 @@ export function createApiFloodLayer(dataset) {
   let floodAttr = null;
   let distAttr = null;
   let baseY = null;
+  let terrainYAttr = null;
+  let spillElevationsAttr = null;
   let anim = {
     active: false,
     paused: false,
@@ -64,6 +68,8 @@ export function createApiFloodLayer(dataset) {
     floodAttr = null;
     distAttr = null;
     baseY = null;
+    terrainYAttr = null;
+    spillElevationsAttr = null;
   }
 
   function nearestRiverDist(x, z) {
@@ -81,45 +87,124 @@ export function createApiFloodLayer(dataset) {
   function setProgress(progress) {
     const p = THREE.MathUtils.clamp(Number(progress) || 0, 0, 1);
     anim.progress = p;
-    if (!mesh || !floodAttr || !distAttr || !baseY) return;
+    if (!mesh || !floodAttr || !terrainYAttr || !spillElevationsAttr || !lastInfo) return;
 
     const pos = mesh.geometry.attributes.position;
-    const col = mesh.geometry.attributes.color;
-    // Start tight on the channel, then expand to full mask distance
-    const threshold = THREE.MathUtils.lerp(18, anim.maxDist + 120, p);
-    const soft = Math.max(70, anim.maxDist * 0.12);
+    const initialWaterLevelY = lastInfo._scene_initial_water_y;
+    const globalFinalWaterLevelY = lastInfo._scene_final_water_y;
+
+    const aDepthAttr = mesh.geometry.attributes.aDepth;
+    
+    // Accumulate actual wet flooded area at current progress frame
+    let currentFloodedAreaHa = 0;
+    let maxCurrentWaterLevelY = initialWaterLevelY;
+    
+    // Grid dimensions from geometry
+    const vertsX = mesh.geometry.parameters.widthSegments + 1;
+    const vertsZ = mesh.geometry.parameters.heightSegments + 1;
+    const spanX = mesh.geometry.parameters.width;
+    const spanZ = mesh.geometry.parameters.height;
+    // Calculate approximate area per grid vertex (meters^2) to hectares
+    const cellAreaHa = (spanX / (vertsX - 1)) * (spanZ / (vertsZ - 1)) / 10000;
+
+    const hasGlobalWaterLevel = globalFinalWaterLevelY != null && !Number.isNaN(globalFinalWaterLevelY);
 
     for (let i = 0; i < pos.count; i++) {
-      if (floodAttr[i] < 0.5) {
-        pos.setY(i, baseY[i] - 50);
-        col.setXYZ(i, 0, 0, 0);
-        continue;
-      }
-      const d = distAttr[i];
-      let reveal = 1;
-      if (d > threshold) {
-        reveal = 1 - THREE.MathUtils.clamp((d - threshold) / soft, 0, 1);
-      }
-      if (p < 0.001 || reveal < 0.04) {
-        pos.setY(i, baseY[i] - 50);
-        col.setXYZ(i, 0.05, 0.15, 0.25);
+      const gy = terrainYAttr[i];
+      const isInsideFinalKML = floodAttr[i] > 0.5;
+      
+      let currentWaterLevelY = initialWaterLevelY;
+      let floodedNow = false;
+
+      if (hasGlobalWaterLevel) {
+        // Physical flat water surface logic
+        const cellFinalWaterLevelY = globalFinalWaterLevelY;
+        if (cellFinalWaterLevelY !== Infinity) {
+            currentWaterLevelY += (cellFinalWaterLevelY - initialWaterLevelY) * p;
+            if (currentWaterLevelY > maxCurrentWaterLevelY) {
+                maxCurrentWaterLevelY = currentWaterLevelY;
+            }
+        }
+        
+        if (isInsideFinalKML) {
+          if (currentWaterLevelY >= spillElevationsAttr[i] && currentWaterLevelY > gy) {
+            const currentFloodFrontDistance = anim.maxDist * p;
+            if (distAttr[i] <= currentFloodFrontDistance) {
+              floodedNow = true;
+            }
+          }
+        }
       } else {
-        pos.setY(i, baseY[i]);
-        const t = THREE.MathUtils.clamp(1 - d / Math.max(anim.maxDist, 1), 0, 1);
-        // Near river = brighter cyan; outer plains = deeper blue
-        const r = THREE.MathUtils.lerp(0.12, 0.28, 1 - t);
-        const g = THREE.MathUtils.lerp(0.55, 0.78, t);
-        const b = THREE.MathUtils.lerp(0.72, 0.95, t);
-        const aBoost = 0.75 + reveal * 0.25;
-        col.setXYZ(i, r * aBoost, g * aBoost, b * aBoost);
+        // API provided only 2D extent; drape on terrain and animate by distance
+        if (isInsideFinalKML) {
+          const currentFloodFrontDistance = anim.maxDist * p;
+          if (distAttr[i] <= currentFloodFrontDistance) {
+            floodedNow = true;
+            currentWaterLevelY = gy + 0.05; // Just above terrain
+          }
+        }
+      }
+
+      if (!floodedNow) {
+        // Outside flood or above current water level: place exactly at terrain
+        pos.setY(i, gy);
+        aDepthAttr.setX(i, -1.0);
+      } else {
+        // Valid wet flood cell
+        pos.setY(i, currentWaterLevelY);
+        aDepthAttr.setX(i, hasGlobalWaterLevel ? (currentWaterLevelY - gy) : 0.1);
+        currentFloodedAreaHa += cellAreaHa;
       }
     }
+    
+    // Publish current progress metrics back to the scene state for the UI
+    lastInfo._current_flooded_area_ha = currentFloodedAreaHa;
+    if (globalFinalWaterLevelY != null) {
+      lastInfo.current_water_level = verticalDatumPipeline.sceneYToWseMsl(maxCurrentWaterLevelY);
+      lastInfo.water_rise_mm = (maxCurrentWaterLevelY - initialWaterLevelY) * 1000;
+    } else {
+      lastInfo.current_water_level = null;
+      lastInfo.water_rise_mm = null;
+    }
+    
     pos.needsUpdate = true;
-    col.needsUpdate = true;
-    if (material) {
-      material.opacity = THREE.MathUtils.lerp(0.35, 0.82, Math.min(1, p * 1.15));
+    aDepthAttr.needsUpdate = true;
+    if (mesh && mesh.geometry) {
+      mesh.geometry.computeVertexNormals();
+    }
+    
+    if (material && material.uniforms) {
+      material.uniforms.uOpacity.value = THREE.MathUtils.lerp(0.35, 0.82, Math.min(1, p * 1.15));
+      material.uniforms.uReveal.value = 10000.0; // Disable arbitrary shader clipping so the distance mask works
     }
     mesh.geometry.computeBoundingSphere();
+    
+    // Explicit Validation Request
+    const debugState = {
+      initialWaterSurfaceElevation: lastInfo.initial_water_level,
+      finalWaterSurfaceElevation: lastInfo.final_water_level,
+      currentWaterSurfaceElevation: lastInfo.current_water_level,
+      currentWaterSurfaceSceneY: maxCurrentWaterLevelY,
+      waterRise: lastInfo.water_rise_m,
+      wetCellCount: currentFloodedAreaHa
+    };
+    
+    // Validate all fields except wetCellCount are finite
+    for (const [key, val] of Object.entries(debugState)) {
+      if (key !== 'wetCellCount') {
+        if (val === undefined || Number.isNaN(val) || val === Infinity || val === -Infinity) {
+          if (globalFinalWaterLevelY != null) {
+            console.error(`[Flood Validation Error] ${key} is invalid:`, val, debugState);
+            mesh.visible = false;
+            return;
+          }
+        }
+      }
+    }
+    
+    if (p === 1.0 || p === 0.0 || p === 0.5) {
+      console.log("[Flood Diagnostic] Valid State:", debugState);
+    }
   }
 
   function clear() {
@@ -150,12 +235,14 @@ export function createApiFloodLayer(dataset) {
     disposeMesh();
     const overlay = scene?.overlay;
     const raster = scene?.raster;
-    if (!overlay || !raster?.mask || !raster.width || !raster.height) {
-      throw new Error("Missing flood raster for visualization.");
+    if (!overlay) {
+      throw new Error("Missing flood overlay for visualization.");
     }
 
-    const { mask, width, height } = raster;
-    const crop = (() => {
+    const { mask, width, height, fromPolygons } = raster || {};
+    
+    let crop = null;
+    if (mask && mask.length > 0) {
       let px0 = width;
       let px1 = 0;
       let py0 = height;
@@ -171,23 +258,33 @@ export function createApiFloodLayer(dataset) {
           if (y > py1) py1 = y;
         }
       }
-      if (!maskOn || px1 < px0) return null;
-      const pad = 8;
-      return {
-        px0: Math.max(0, px0 - pad),
-        py0: Math.max(0, py0 - pad),
-        px1: Math.min(width - 1, px1 + pad),
-        py1: Math.min(height - 1, py1 + pad),
-      };
-    })();
-    if (!crop) throw new Error("Flood mesh had no flooded pixels.");
+      if (maskOn && px1 >= px0) {
+        const pad = 8;
+        crop = {
+          px0: Math.max(0, px0 - pad),
+          py0: Math.max(0, py0 - pad),
+          px1: Math.min(width - 1, px1 + pad),
+          py1: Math.min(height - 1, py1 + pad),
+        };
+      }
+    }
+    
+    if (!crop && !fromPolygons) throw new Error("Flood mesh had no flooded pixels or polygons.");
 
-    const lonSpan = overlay.east - overlay.west;
-    const latSpan = overlay.north - overlay.south;
-    const west = overlay.west + (crop.px0 / width) * lonSpan;
-    const east = overlay.west + ((crop.px1 + 1) / width) * lonSpan;
-    const north = overlay.north - (crop.py0 / height) * latSpan;
-    const south = overlay.north - ((crop.py1 + 1) / height) * latSpan;
+    let west, east, north, south;
+    if (crop) {
+      const lonSpan = overlay.east - overlay.west;
+      const latSpan = overlay.north - overlay.south;
+      west = overlay.west + (crop.px0 / width) * lonSpan;
+      east = overlay.west + ((crop.px1 + 1) / width) * lonSpan;
+      north = overlay.north - (crop.py0 / height) * latSpan;
+      south = overlay.north - ((crop.py1 + 1) / height) * latSpan;
+    } else {
+      west = overlay.west;
+      east = overlay.east;
+      north = overlay.north;
+      south = overlay.south;
+    }
     const cropCorners = [
       lonLatToLocal(west, north),
       lonLatToLocal(east, north),
@@ -220,11 +317,34 @@ export function createApiFloodLayer(dataset) {
     floodAttr = new Float32Array(pos.count);
     distAttr = new Float32Array(pos.count);
     baseY = new Float32Array(pos.count);
+    terrainYAttr = new Float32Array(pos.count);
+    spillElevationsAttr = new Float32Array(pos.count).fill(Infinity);
     const colors = new Float32Array(pos.count * 3);
+    const debugColors = new Float32Array(pos.count * 3);
 
+    const lonSpan = overlay.east - overlay.west;
+    const latSpan = overlay.north - overlay.south;
+    
     /** Sample flood mask with 3×3 max so thin ribbons aren't missed by the grid. */
     function maskAtLonLat(lon, lat) {
-      if (!(lonSpan > 0) || !(latSpan > 0)) return 0;
+      if (fromPolygons && overlay.polygons) {
+        let inside = false;
+        for (const poly of overlay.polygons) {
+          if (!poly || !poly.length) continue;
+          let j = poly.length - 1;
+          for (let i = 0; i < poly.length; i++) {
+            if ((poly[i].lat > lat) !== (poly[j].lat > lat) &&
+                (lon < (poly[j].lon - poly[i].lon) * (lat - poly[i].lat) / (poly[j].lat - poly[i].lat) + poly[i].lon)) {
+              inside = !inside;
+            }
+            j = i;
+          }
+          if (inside) return 1;
+        }
+        return 0;
+      }
+      
+      if (!(lonSpan > 0) || !(latSpan > 0) || !mask) return 0;
       const iu = (lon - overlay.west) / lonSpan;
       const iv = (overlay.north - lat) / latSpan;
       if (iu < -0.02 || iu > 1.02 || iv < -0.02 || iv > 1.02) return 0;
@@ -247,6 +367,7 @@ export function createApiFloodLayer(dataset) {
     let bMaxX = -Infinity;
     let bMinZ = Infinity;
     let bMaxZ = -Infinity;
+    let maxTerrainY = -Infinity;
 
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
@@ -260,106 +381,202 @@ export function createApiFloodLayer(dataset) {
       }
       floodAttr[i] = flooded;
       const gy = terrainHeightAt(x, z, stations);
+      terrainYAttr[i] = gy;
+      
       if (flooded) {
-        const y = Math.max(gy, SURFACE_Y) + FLOOD_LIFT_M;
-        baseY[i] = y;
-        pos.setY(i, y);
-        const d = nearestRiverDist(x, z);
-        distAttr[i] = d;
-        if (d > maxDist) maxDist = d;
+        if (gy > maxTerrainY) maxTerrainY = gy;
         floodCount += 1;
         bMinX = Math.min(bMinX, x);
         bMaxX = Math.max(bMaxX, x);
         bMinZ = Math.min(bMinZ, z);
         bMaxZ = Math.max(bMaxZ, z);
-        colors[i * 3] = 0.18;
-        colors[i * 3 + 1] = 0.7;
-        colors[i * 3 + 2] = 0.88;
-      } else {
-        baseY[i] = gy;
-        pos.setY(i, gy - 50);
-        distAttr[i] = 1e6;
+      }
+      
+      const d = nearestRiverDist(x, z);
+      distAttr[i] = d;
+      if (flooded && d > maxDist) maxDist = d;
+      
+      // Mark initial river sources anywhere on the mesh (cells inside river channel or very close)
+      if (d < 35 || gy <= SURFACE_Y + 0.25) {
+        spillElevationsAttr[i] = gy;
+      }
+    }
+    
+    // Connected flood fill (Dijkstra/Bellman-Ford relaxation on grid)
+    // Ensures flood only spreads to connected cells within KML
+    const vertsX = segsX + 1;
+    const vertsZ = segsZ + 1;
+    let changed = true;
+    let passes = 0;
+    while (changed && passes < 250) {
+      changed = false;
+      passes++;
+      for (let iz = 0; iz < vertsZ; iz++) {
+        for (let ix = 0; ix < vertsX; ix++) {
+          const i = iz * vertsX + ix;
+          
+          let e = spillElevationsAttr[i];
+          const ty = terrainYAttr[i];
+          
+          const neighbors = [];
+          if (ix > 0) neighbors.push(i - 1);
+          if (ix < vertsX - 1) neighbors.push(i + 1);
+          if (iz > 0) {
+            neighbors.push(i - vertsX);
+            if (ix > 0) neighbors.push(i - vertsX - 1);
+            if (ix < vertsX - 1) neighbors.push(i - vertsX + 1);
+          }
+          if (iz < vertsZ - 1) {
+            neighbors.push(i + vertsX);
+            if (ix > 0) neighbors.push(i + vertsX - 1);
+            if (ix < vertsX - 1) neighbors.push(i + vertsX + 1);
+          }
+          
+          for (const n of neighbors) {
+            const nSpill = spillElevationsAttr[n];
+            if (nSpill < Infinity) {
+              const pathElev = Math.max(nSpill, ty);
+              if (pathElev < e) {
+                e = pathElev;
+              }
+            }
+          }
+          if (e < spillElevationsAttr[i]) {
+            spillElevationsAttr[i] = e;
+            changed = true;
+          }
+        }
       }
     }
 
-    // Fallback: stamp flooded mask pixels onto plane grid vertices (O(1) per pixel)
-    if (!floodCount) {
-      const stepPx = Math.max(1, Math.floor(Math.min(width, height) / 220));
-      const vertsX = segsX + 1;
-      const vertsZ = segsZ + 1;
-      for (let py = crop.py0; py <= crop.py1; py += stepPx) {
-        for (let px = crop.px0; px <= crop.px1; px += stepPx) {
-          if ((mask[py * width + px] || 0) < 0.5) continue;
-          const lon = overlay.west + ((px + 0.5) / width) * lonSpan;
-          const lat = overlay.north - ((py + 0.5) / height) * latSpan;
-          let lx;
-          let lz;
-          try {
-            const loc = lonLatToLocal(lon, lat);
-            lx = loc.x;
-            lz = loc.z;
-          } catch {
-            continue;
-          }
-          const u = (lx - minX) / spanX;
-          const v = (lz - minZ) / spanZ;
-          if (u < -0.05 || u > 1.05 || v < -0.05 || v > 1.05) continue;
-          const ix = Math.min(segsX, Math.max(0, Math.round(u * segsX)));
-          const iz = Math.min(segsZ, Math.max(0, Math.round(v * segsZ)));
-          const bestI = iz * vertsX + ix;
-          if (bestI < 0 || bestI >= pos.count || floodAttr[bestI] >= 0.5) continue;
-          const x = pos.getX(bestI);
-          const z = pos.getZ(bestI);
-          const gy = terrainHeightAt(x, z, stations);
-          const y = Math.max(gy, SURFACE_Y) + FLOOD_LIFT_M;
-          floodAttr[bestI] = 1;
-          baseY[bestI] = y;
-          pos.setY(bestI, y);
-          const d = nearestRiverDist(x, z);
-          distAttr[bestI] = d;
-          if (d > maxDist) maxDist = d;
-          floodCount += 1;
-          bMinX = Math.min(bMinX, x);
-          bMaxX = Math.max(bMaxX, x);
-          bMinZ = Math.min(bMinZ, z);
-          bMaxZ = Math.max(bMaxZ, z);
-          colors[bestI * 3] = 0.18;
-          colors[bestI * 3 + 1] = 0.7;
-          colors[bestI * 3 + 2] = 0.88;
+    let providedRise = scene.water_rise;
+    let providedWaterLevel = scene.final_water_level;
+    
+    // Calculate authoritative MSL water levels and the derived scene Y coordinates
+    let initialWaterMsl = verticalDatumPipeline.sceneYToWseMsl(SURFACE_Y);
+    let finalWaterMsl = providedWaterLevel;
+    let waterRiseM = providedRise;
+
+    if (providedRise != null) {
+      waterRiseM = providedRise;
+      finalWaterMsl = initialWaterMsl + waterRiseM;
+    } else if (providedWaterLevel != null) {
+      waterRiseM = providedWaterLevel - initialWaterMsl;
+      finalWaterMsl = providedWaterLevel;
+    } else {
+      // The API payload (JalNetra) did not provide a hydraulic surface elevation.
+      // We will render the 2D spatial flood extent draped directly onto the DTM.
+      finalWaterMsl = null;
+      waterRiseM = null;
+    }
+
+    // Convert canonical MSL back to Scene Y for 3D geometry manipulation
+    const sceneFinalWaterLevelY = finalWaterMsl != null ? verticalDatumPipeline.wseMslToSceneY(finalWaterMsl) : NaN;
+    const sceneInitialWaterLevelY = SURFACE_Y;
+    
+    if (scene.water_rise === undefined && scene.final_water_level === undefined) {
+      depthNote = "Depth unavailable: No water elevation provided by API. Extent draped over DTM.";
+    }
+
+    let maxActualDepthM = 0;
+
+    for (let i = 0; i < pos.count; i++) {
+      if (floodAttr[i]) {
+        const gy = terrainYAttr[i];
+        
+        // Calculate max depth only on valid flooded cells (spillElevations <= final scene water level)
+        if (sceneFinalWaterLevelY >= spillElevationsAttr[i] && sceneFinalWaterLevelY > gy) {
+          const depthM = finalWaterMsl - verticalDatumPipeline.sceneYToWseMsl(gy);
+          if (depthM > maxActualDepthM) maxActualDepthM = depthM;
         }
+        
+        const y = Math.max(sceneFinalWaterLevelY, gy + 0.05);
+        baseY[i] = y;
+        pos.setY(i, y);
+      } else {
+        const gy = terrainYAttr[i];
+        baseY[i] = gy;
+        pos.setY(i, gy); // Do NOT pull down by 50m to avoid vertical walls
+        distAttr[i] = 1e6;
       }
     }
 
     if (!floodCount) {
       geo.dispose();
-      throw new Error(
-        "Flood mask did not project onto the terrain. Try Clear, then Run again.",
-      );
+      throw new Error("Flood mask did not project onto the terrain. Try Clear, then Run again.");
+    }
+    
+    // Rebuild index to exclude triangles that are completely dry, satisfying "no giant bounding box geometry"
+    const oldIndex = geo.getIndex();
+    const newIndices = [];
+    for (let i = 0; i < oldIndex.count; i += 3) {
+      const a = oldIndex.getX(i);
+      const b = oldIndex.getX(i + 1);
+      const c = oldIndex.getX(i + 2);
+      if (floodAttr[a] > 0 || floodAttr[b] > 0 || floodAttr[c] > 0) {
+        newIndices.push(a, b, c);
+      }
+    }
+    geo.setIndex(newIndices);
+
+    const count = pos.count;
+    geo.setAttribute('aDepth', new THREE.BufferAttribute(new Float32Array(count).fill(0.5), 1));
+    geo.setAttribute('aAlong', new THREE.BufferAttribute(new Float32Array(count).fill(0), 1));
+    geo.setAttribute('aAcross', new THREE.BufferAttribute(new Float32Array(count).fill(0.5), 1));
+    geo.setAttribute('aFlow', new THREE.BufferAttribute(new Float32Array(count * 2).fill(1), 2));
+    geo.setAttribute('aNarrow', new THREE.BufferAttribute(new Float32Array(count).fill(0), 1));
+
+    // Calculate actual depth for the aDepth attribute so the water shader can color it properly
+    const aDepth = geo.getAttribute('aDepth');
+    for (let i = 0; i < count; i++) {
+        const x = pos.getX(i);
+        const z = pos.getZ(i);
+        const gy = terrainHeightAt(x, z, stations);
+        let depth = Math.max(0, baseY[i] - gy);
+        if (depth === 0) depth = -1.0;
+        aDepth.setX(i, depth);
+        // Populate aAlong from world coordinates to give fake progression for waves
+        // Do NOT populate aAcross with world coordinates because the shader uses it for bank fading!
+        geo.getAttribute('aAlong').setX(i, x / 100);
     }
 
-    geo.setAttribute("color", new THREE.BufferAttribute(colors, 3));
-    geo.computeVertexNormals();
-    geo.computeBoundingSphere();
-
-    material = new THREE.MeshBasicMaterial({
-      vertexColors: true,
-      transparent: true,
-      opacity: 0.78,
-      depthWrite: false,
-      depthTest: true,
-      side: THREE.DoubleSide,
-      toneMapped: false,
-      fog: false,
-      polygonOffset: true,
-      polygonOffsetFactor: -2,
-      polygonOffsetUnits: -2,
-    });
+    material = createWaterMaterial(dataset);
+    material.polygonOffset = true;
+    material.polygonOffsetFactor = -2;
+    material.polygonOffsetUnits = -2;
+    if (material.uniforms) {
+      material.uniforms.uOpacity.value = 0.78;
+      // Use actual depth range for continuous color scale, clamp to avoid division by zero
+      material.uniforms.uMaxDepth.value = Math.max(0.5, maxActualDepthM);
+    }
 
     mesh = new THREE.Mesh(geo, material);
     mesh.name = "apiFloodMesh";
     mesh.renderOrder = 12;
     mesh.frustumCulled = false;
     group.add(mesh);
+    
+    // Debug outline for the API geometry polygons as requested by user
+    if (overlay.polygons && overlay.polygons.length) {
+      const lineMat = new THREE.LineBasicMaterial({ color: 0xffffff, depthTest: false, transparent: true, opacity: 0.8 });
+      overlay.polygons.forEach(poly => {
+        if (!poly || !poly.length) return;
+        const pts = [];
+        poly.forEach(pt => {
+          const loc = lonLatToLocal(pt.lon, pt.lat);
+          const gy = terrainHeightAt(loc.x, loc.z, stations);
+          pts.push(new THREE.Vector3(loc.x, gy + 1.0, loc.z));
+        });
+        const loc0 = lonLatToLocal(poly[0].lon, poly[0].lat);
+        const gy0 = terrainHeightAt(loc0.x, loc0.z, stations);
+        pts.push(new THREE.Vector3(loc0.x, gy0 + 1.0, loc0.z));
+        
+        const lg = new THREE.BufferGeometry().setFromPoints(pts);
+        const line = new THREE.Line(lg, lineMat);
+        line.renderOrder = 999;
+        group.add(line);
+      });
+    }
 
     bounds = {
       minX: bMinX,
@@ -372,6 +589,10 @@ export function createApiFloodLayer(dataset) {
       spanZ: Math.max(40, bMaxZ - bMinZ),
     };
 
+    const initialWaterMslRounded = initialWaterMsl != null ? Math.round(initialWaterMsl * 100) / 100 : null;
+    const finalWaterMslRounded = finalWaterMsl != null ? Math.round(finalWaterMsl * 100) / 100 : null;
+
+
     lastInfo = {
       ...(resultInfo || {}),
       scene_date: scene.date || scene.post_date || resultInfo?.scene_date || null,
@@ -383,8 +604,16 @@ export function createApiFloodLayer(dataset) {
       current_scene: sceneIndex + 1,
       total_scenes: scenes.length || 1,
       depth_note: depthNote,
-      max_depth_m: null,
+      water_rise_m: waterRiseM,
+      water_rise_mm: waterRiseM != null ? waterRiseM * 1000 : null,
+      initial_water_level: initialWaterMslRounded,
+      current_water_level: initialWaterMslRounded,
+      final_water_level: finalWaterMslRounded,
+      max_depth_m: finalWaterMsl != null ? Math.max(0, maxActualDepthM) : null,
       avg_depth_m: null,
+      // Pass the Scene Y coordinates explicitly for the simulation loop
+      _scene_initial_water_y: sceneInitialWaterLevelY,
+      _scene_final_water_y: sceneFinalWaterLevelY,
     };
     lastKmlId = scene.kml_id;
     group.userData.hasFlood = true;
@@ -397,6 +626,18 @@ export function createApiFloodLayer(dataset) {
     group.userData.scenes = scenes;
     group.visible = true;
     anim.maxDist = Math.max(120, maxDist);
+    anim.duration = THREE.MathUtils.clamp(3.0 + (anim.maxDist * 0.005), 3.0, 15.0);
+
+    console.info(`[apiFloodLayer] Scene ${sceneIndex + 1}/${scenes.length} successfully mapped to 3D.`, {
+      geoBoundsLatLon: { north: overlay.north, south: overlay.south, east: overlay.east, west: overlay.west },
+      localBoundsMeters: { minX: bMinX, maxX: bMaxX, minZ: bMinZ, maxZ: bMaxZ },
+      dtmBoundsMeters: { minX: -5000, maxX: 5000, minZ: -5000, maxZ: 5000 },
+      floodAreaHa: scene.flood_area_ha,
+      kmlType: overlay.polygons && overlay.polygons.length ? 'Polygon/MultiPolygon' : 'GroundOverlay raster',
+      polygons: overlay.polygons ? overlay.polygons.length : 0,
+      overlapsDtm: (bMinX < 10000 && bMaxX > -10000 && bMinZ < 10000 && bMaxZ > -10000),
+      fixedDepthDiscard: true
+    });
   }
 
   /**
@@ -421,10 +662,12 @@ export function createApiFloodLayer(dataset) {
       };
       group.userData.info = lastInfo;
       group.userData.sceneIndex = i;
+      group.userData.onSceneChange?.(i, scene);
       if (animate) replay();
       return;
     }
     buildMeshFromScene(scene, lastInfo);
+    group.userData.onSceneChange?.(i, scene);
     if (animate) replay();
     else setProgress(1);
   }
@@ -549,7 +792,19 @@ export function createApiFloodLayer(dataset) {
       const k = Math.min(1, anim.t / anim.duration);
       const eased = 1 - (1 - k) ** 1.85;
       setProgress(eased);
-      if (k >= 1) anim.active = false;
+      
+      if (typeof window !== "undefined") {
+        window.dispatchEvent(new CustomEvent("flood-sim-progress", { 
+          detail: { progress: eased, info: lastInfo } 
+        }));
+      }
+
+      if (k >= 1) {
+        anim.active = false;
+        if (typeof window !== "undefined") {
+          window.dispatchEvent(new CustomEvent("flood-sim-complete"));
+        }
+      }
     }
 
     if (timeline.active && !timeline.paused && scenes.length > 1) {
@@ -571,6 +826,9 @@ export function createApiFloodLayer(dataset) {
         setSceneIndex(next, { animate: true });
         group.userData.onSceneChange?.(sceneIndex, scenes[sceneIndex]);
       }
+    }
+    if (material) {
+      syncWaterMaterial(material);
     }
   }
 

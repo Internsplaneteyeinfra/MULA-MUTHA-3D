@@ -36,8 +36,9 @@ export function mountFloodResultPanel(root, handlers = {}) {
     return v;
   }
 
-  function row(label, value) {
-    return `<div class="flood-result-row"><span class="k">${label}</span><span class="v">${dash(value)}</span></div>`;
+  function row(label, value, id = null) {
+    const idAttr = id ? ` id="${id}"` : "";
+    return `<div class="flood-result-row"><span class="k">${label}</span><span class="v"${idAttr}>${dash(value)}</span></div>`;
   }
 
   function fmtHa(n) {
@@ -67,39 +68,39 @@ export function mountFloodResultPanel(root, handlers = {}) {
       return;
     }
 
-    const range =
-      info.start_date && info.end_date
-        ? info.start_date === info.end_date
-          ? info.start_date
-          : `${info.start_date} → ${info.end_date}`
-        : null;
-
-    const currentScene =
-      info.current_scene != null && info.total_scenes != null
-        ? `${info.current_scene} / ${info.total_scenes}`
-        : info.current_scene != null
-          ? String(info.current_scene)
-          : null;
+    const currentWater = info.current_water_level;
+    const finalWater = info.final_water_level;
+    const riseMm = info.water_rise_mm ?? 0;
+    
+    let riseStr = `+${Math.round(riseMm)} mm`;
+    if (riseMm >= 1000) {
+      riseStr = `+${(riseMm / 1000).toFixed(2)} m`;
+    }
 
     body.innerHTML = [
-      row("Status", info.status || "ready"),
-      row("Date Range", range),
-      row("Scene Date", info.scene_date),
-      row("Flood Area", fmtHa(info.flood_area_ha)),
-      row("Water Area", fmtHa(info.water_area_ha)),
-      row("Number of Scenes", info.scene_count ?? info.total_scenes),
-      row("Current Scene", currentScene),
-      row(
-        "Comparison Result",
-        info.comparison_count != null ? `${info.comparison_count} comparisons` : null,
-      ),
-      row("Buffer", typeof info.buffer_m === "number" ? `${info.buffer_m} m` : null),
-      row("Depth", info.depth_note || null),
-      row(
-        "Retrieved",
-        info.retrievedAt ? new Date(info.retrievedAt).toLocaleString() : null,
-      ),
-      info.fromCache ? row("Source", "Cached result") : "",
+      row("Date", info.scene_date || info.start_date, "flood-res-date"),
+      row("Initial Water", info.initial_water_level != null ? `${info.initial_water_level.toFixed(2)} m` : "—", "flood-res-initial-water"),
+      row("Current Water", currentWater != null ? `${currentWater.toFixed(2)} m` : "—", "flood-res-current-water"),
+      row("Water Rise", riseStr, "flood-res-water-rise"),
+      row("Final Water", finalWater != null ? `${finalWater.toFixed(2)} m` : "—", "flood-res-final-water"),
+      row("Flooded Area", fmtHa(info.flood_area_ha), "flood-res-flood-area"),
+      row("Max Depth", info.max_depth_m != null ? `${info.max_depth_m.toFixed(2)} m` : "—", "flood-res-max-depth"),
+      
+      // Progress UI placeholder (updated via events/DOM in overlay.js)
+      `<div class="flood-sim-progress-area" style="margin-top: 1rem; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 0.5rem;">
+        <div id="flood-anim-status" style="font-weight: bold; margin-bottom: 4px; font-size: 0.9em; color: var(--accent);">\${(info.initial_water_level == null || info.final_water_level == null) ? 'FLOOD DATA INCOMPLETE' : 'SIMULATION READY'}</div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom: 2px;">
+          <span id="flood-anim-rise-label">WATER RISE</span>
+          <span id="flood-anim-rise-val">+0 mm</span>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.85em; margin-bottom: 4px;">
+          <span id="flood-anim-front-label">FLOOD FRONT</span>
+          <span id="flood-anim-front-val">0%</span>
+        </div>
+        <div class="progress-bar-container" style="background: rgba(0,0,0,0.4); height: 8px; border-radius: 4px; overflow: hidden; width: 100%;">
+          <div id="flood-anim-bar" style="background: var(--accent, #4cc9f0); height: 100%; width: 0%; transition: width 0.1s linear;"></div>
+        </div>
+      </div>`
     ]
       .filter(Boolean)
       .join("");
@@ -131,6 +132,70 @@ export function mountFloodResultPanel(root, handlers = {}) {
   panel.querySelector("#flood-result-clear")?.addEventListener("click", () =>
     handlers.onClear?.(),
   );
+  
+  window.addEventListener("flood-sim-progress", (e) => {
+    if (panel.hidden) return;
+    const bar = panel.querySelector("#flood-anim-bar");
+    const riseVal = panel.querySelector("#flood-anim-rise-val");
+    const frontVal = panel.querySelector("#flood-anim-front-val");
+    const status = panel.querySelector("#flood-anim-status");
+    
+    // Also grab the static table values to make them live
+    const currentWaterSpan = panel.querySelector("#flood-res-current-water");
+    const waterRiseSpan = panel.querySelector("#flood-res-water-rise");
+    const floodAreaSpan = panel.querySelector("#flood-res-flood-area");
+    
+    if (bar && riseVal && frontVal && e.detail) {
+      const p = e.detail.progress;
+      const info = e.detail.info || {};
+      const riseMm = info.water_rise_mm ?? 0;
+      bar.style.width = `${Math.round(p * 100)}%`;
+      frontVal.textContent = `${Math.round(p * 100)}%`;
+      
+      const curRise = Math.round(riseMm * p);
+      let riseStr = `+${curRise} mm`;
+      if (curRise >= 1000) {
+        riseStr = `+${(curRise / 1000).toFixed(2)} m`;
+      }
+      riseVal.textContent = riseStr;
+      if (waterRiseSpan) waterRiseSpan.textContent = riseStr;
+      
+      if (currentWaterSpan) {
+        const initialLevel = info.initial_water_level ?? info.current_water_level ?? 0;
+        const curLevel = initialLevel + (riseMm / 1000) * p;
+        currentWaterSpan.textContent = `${curLevel.toFixed(2)} m`;
+      }
+      
+      if (floodAreaSpan) {
+        if (info._current_flooded_area_ha != null) {
+          const totalArea = info.flood_area_ha != null ? info.flood_area_ha.toFixed(2) : "—";
+          floodAreaSpan.textContent = `${info._current_flooded_area_ha.toFixed(2)} ha / ${totalArea} ha`;
+        } else if (info.flood_area_ha != null) {
+          const curArea = info.flood_area_ha * p;
+          floodAreaSpan.textContent = `${curArea.toFixed(2)} ha / ${info.flood_area_ha.toFixed(2)} ha`;
+        }
+      }
+      
+      const maxDepthSpan = panel.querySelector("#flood-res-max-depth");
+      if (maxDepthSpan && info.max_depth_m != null) {
+        maxDepthSpan.textContent = `${(info.max_depth_m * p).toFixed(2)} m`;
+      }
+      
+      if (status) {
+        status.textContent = "SIMULATING...";
+        status.style.color = "var(--accent)";
+      }
+    }
+  });
+  
+  window.addEventListener("flood-sim-complete", () => {
+    if (panel.hidden) return;
+    const status = panel.querySelector("#flood-anim-status");
+    if (status) {
+      status.textContent = "SIMULATION COMPLETE";
+      status.style.color = "var(--success, #4caf50)";
+    }
+  });
 
   return { el: panel, show, hide, updateScene };
 }
