@@ -3,13 +3,15 @@ import { terrainHeightAt } from "./terrain.js";
 import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { loadOsmWater, isObservedWater } from "../geo/osmWater.js";
 import { RIVER_SIDE_M } from "../geo/osmContext.js";
+import { SURFACE_Y } from "./river.js";
 
 const MAX_TREES = 16000;
 
 /**
- * Vegetation from OSM trees + parks + a riparian bank band limited to LULC Forest.
- * Nothing is planted on LULC Water.
+ * Vegetation from OSM trees + parks + dense Google Earth island forest canopy.
+ * Nothing is planted on open water. Island and bank trees stand proud of the water.
  * Uses reference GLB models (palm, broadleaf, conifer, birch, grass).
  * @param {object} dataset
  * @param {{ maxTrees?: number, castShadow?: boolean }} [opts]
@@ -25,20 +27,24 @@ export async function createVegetation(dataset, opts = {}) {
   const pickables = [];
   const maxTrees = Math.max(200, Number(opts.maxTrees) || MAX_TREES);
   const castShadow = !!opts.castShadow;
-  const lulc = await loadLulcClassGrid().catch((err) => {
-    console.warn("[vegetation] LULC unavailable — riparian band skipped:", err?.message || err);
-    return null;
-  });
+  const [lulc, osmWater] = await Promise.all([
+    loadLulcClassGrid().catch((err) => {
+      console.warn("[vegetation] LULC unavailable — riparian band skipped:", err?.message || err);
+      return null;
+    }),
+    loadOsmWater().catch(() => null),
+  ]);
   const ring = dataset.ringLocal || [];
-  const onWater = (x, z) => lulc?.classAtLocal(x, z) === "water";
   const inRiver = (x, z) => ring.length > 2 && pointInRing(x, z, ring);
+  const isWaterAt = (x, z) => isObservedWater(lulc, osmWater, x, z);
 
   for (const ot of osmTrees) {
-    if (inRiver(ot.x, ot.z) || blocked(ot.x, ot.z, buildings, roads, stations, true) || onWater(ot.x, ot.z)) continue;
+    if (isWaterAt(ot.x, ot.z)) continue;
+    if (blocked(ot.x, ot.z, buildings, roads, stations, true, true)) continue;
     const h = ot.tree_height || 8;
     const assetId = classifyTreeAsset(ot, "osm", rng);
     const scale = Math.max(0.45, Math.min(2.6, h / 8));
-    placements.push({
+    const placement = {
       x: ot.x,
       z: ot.z,
       scale,
@@ -56,8 +62,9 @@ export async function createVegetation(dataset, opts = {}) {
         species: ot.species,
         assetId,
       },
-    });
-    pickables.push(placements[placements.length - 1]);
+    };
+    placements.push(placement);
+    pickables.push(placement);
   }
 
   const riparianStep = maxTrees < 2000 ? 3 : maxTrees < 4000 ? 2 : 1;
@@ -74,9 +81,9 @@ export async function createVegetation(dataset, opts = {}) {
         const along = (rng() - 0.5) * 32;
         const x = st.x + px * side * dist + st.flowX * along;
         const z = st.z + pz * side * dist + st.flowZ * along;
-        // Keep off the water channel; allow near roads (parks / banks)
-        if (inRiver(x, z) || onWater(x, z)) continue;
-        if (blocked(x, z, buildings, [], stations)) continue;
+        // Keep off open water; allow islands and banks
+        if (isWaterAt(x, z)) continue;
+        if (blocked(x, z, buildings, [], stations, false, false)) continue;
         if (lulc) {
           const cover = lulc.classAtLocal(x, z);
           if (cover === "water" || cover === "settlement") continue;
@@ -97,30 +104,81 @@ export async function createVegetation(dataset, opts = {}) {
     const props = poly;
     const areaHint = polygonArea(poly.vertices);
     const dense = props.natural === "wood" || props.landuse === "forest";
+    // For dense island forests (like osmId 61458970 between chainage 1 and 2), allocate realistic canopy count
+    const targetSpacing = dense ? 10 : 18;
+    const maxForPoly = dense ? (maxTrees < 3000 ? 600 : 2400) : (maxTrees < 3000 ? 80 : 300);
     const count = Math.min(
-      dense ? (maxTrees < 2000 ? 60 : 160) : maxTrees < 2000 ? 35 : 100,
-      Math.max(6, Math.floor(areaHint / (dense ? 280 : 400))),
+      maxForPoly,
+      Math.max(8, Math.floor(areaHint / (targetSpacing * targetSpacing))),
     );
     for (let i = 0; i < count; i++) {
       const p = randomInPolygon(poly.vertices, rng);
       if (!p) continue;
-      if (inRiver(p.x, p.z) || blocked(p.x, p.z, buildings, roads, stations) || onWater(p.x, p.z)) continue;
+      if (isWaterAt(p.x, p.z)) continue;
+      if (blocked(p.x, p.z, buildings, roads, stations, false, true)) continue;
       const bank = nearest(p.x, p.z, stations);
       if (dataset.lite && bank.lat > bank.half + RIVER_SIDE_M) continue;
-      placements.push({
+      const assetId = classifyTreeAsset(props, dense ? "forest" : "park", rng);
+      const h = 7.5 + rng() * 6.5;
+      const ll = dataset.frame ? dataset.frame.toLonLat(p.x, p.z) : null;
+      const treeSpecies =
+        assetId === "banyan"
+          ? "Ficus benghalensis"
+          : assetId === "neem"
+            ? "Azadirachta indica"
+            : assetId === "gulmohar"
+              ? "Delonix regia"
+              : assetId === "acacia"
+                ? "Vachellia nilotica"
+                : assetId === "bamboo"
+                  ? "Bambusa vulgaris"
+                  : assetId === "palm"
+                    ? "Phoenix sylvestris"
+                    : "Riparian Broadleaf";
+      const treePlacement = {
         x: p.x,
         z: p.z,
         scale: 0.95 + rng() * 1.5,
         rotY: rng() * Math.PI * 2,
-        assetId: classifyTreeAsset(props, dense ? "forest" : "park", rng),
+        assetId,
         kind: dense ? "forest" : "park",
-      });
+        meta: {
+          type: "tree",
+          osmId: props.id || props.osmId || `tree_${placements.length}`,
+          name: props.name || treeSpecies,
+          species: treeSpecies,
+          genus: treeSpecies.split(" ")[0],
+          height: Math.round(h * 10) / 10,
+          height_source: "GOOGLE_EARTH_SURVEY",
+          lon: ll?.lon,
+          lat: ll?.lat,
+          assetId,
+        },
+      };
+      placements.push(treePlacement);
+      pickables.push(treePlacement);
+      if (ll && dataset.osm?.trees) {
+        dataset.osm.trees.push({
+          id: treePlacement.meta.osmId,
+          x: p.x,
+          z: p.z,
+          lon: ll.lon,
+          lat: ll.lat,
+          tree_height: treePlacement.meta.height,
+          height_source: treePlacement.meta.height_source,
+          species: treeSpecies,
+          genus: treePlacement.meta.genus,
+          source: "GOOGLE_EARTH_CANOPY",
+        });
+      }
     }
   }
 
   const capped = placements.slice(0, maxTrees);
   for (const p of capped) {
-    p.y = terrainHeightAt(p.x, p.z, stations);
+    const rawY = terrainHeightAt(p.x, p.z, stations);
+    const isInsideRing = ring.length > 2 && pointInRing(p.x, p.z, ring);
+    p.y = isInsideRing ? Math.max(rawY ?? (SURFACE_Y + 1.2), SURFACE_Y + 0.8) : rawY;
   }
 
   const assetIds = capped.map((p) => p.assetId);
@@ -242,9 +300,11 @@ function createProceduralFallback(trees, stations, rng) {
   return g;
 }
 
-function blocked(x, z, buildings, roads, stations, allowNearRoad = false) {
-  const near = nearest(x, z, stations);
-  if (near.lat < near.half + 4) return true;
+function blocked(x, z, buildings, roads, stations, allowNearRoad = false, isLandOrIsland = false) {
+  if (!isLandOrIsland) {
+    const near = nearest(x, z, stations);
+    if (near.lat < near.half + 4) return true;
+  }
   for (const b of buildings) {
     if (Math.hypot(b.midX - x, b.midZ - z) < 14) return true;
   }

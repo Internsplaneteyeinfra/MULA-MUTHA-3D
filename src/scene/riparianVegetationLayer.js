@@ -98,14 +98,15 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
     for (const c of cluster.cells) {
       if (c.kind !== FOREST) continue;
       const p = cells.cornerLocal(c.i + 0.5, c.j + 0.5);
-      const baseY = dataset.dtm?.sampleSceneXY?.(p.x, p.z) ?? (SURFACE_Y + 1);
-      // Spacing follows how deep the cell sits inside forest. Edges and mixed
-      // margins stay open; the interior is vegetation, not a planted grid.
-      const local = c.depth >= 4 ? 1 : c.depth >= 2 ? 0.45 : 0.16;
-      const asset = c.depth >= 2
+      const dtmH = dataset.dtm?.sampleSceneXY?.(p.x, p.z);
+      const baseY = Math.max(dtmH ?? (SURFACE_Y + 1.2), SURFACE_Y + 0.8);
+      const asset = c.depth >= 1
         ? riparianTreeAsset(rng)
-        : (rng() < 0.5 ? (rng() < 0.5 ? "grass" : "reeds") : (rng() < 0.5 ? "shrub" : riparianTreeAsset(rng)));
+        : (rng() < 0.35 ? "grass" : rng() < 0.65 ? "shrub" : riparianTreeAsset(rng));
       placements.push(treePlacement(c, cells, baseY, stations, info, asset, rng));
+      if (c.depth >= 2 && rng() < 0.55) {
+        placements.push(treePlacement(c, cells, baseY, stations, info, riparianTreeAsset(rng), rng));
+      }
     }
   }
 

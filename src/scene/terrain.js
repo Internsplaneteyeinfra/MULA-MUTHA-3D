@@ -63,7 +63,7 @@ export async function createTerrain(dataset) {
         const n1 = heights[i + 1];
         const n2 = heights[i - nx];
         const n3 = heights[i + nx];
-        if (y > SURFACE_Y + 2 && n0 > SURFACE_Y && n1 > SURFACE_Y && n2 > SURFACE_Y && n3 > SURFACE_Y) continue;
+        if (y > SURFACE_Y + 0.4 && n0 > SURFACE_Y && n1 > SURFACE_Y && n2 > SURFACE_Y && n3 > SURFACE_Y) continue;
         const avg = (y + n0 + n1 + n2 + n3) * 0.2;
         next[i] = y * 0.32 + avg * 0.68;
       }
@@ -258,15 +258,24 @@ function heightAt(x, z, stations, dtm = activeDtm) {
   const bankFalloff = THREE.MathUtils.smoothstep(lat / (half * 3.5), 0.35, 1);
   const proceduralBase = SURFACE_Y + 2 + hills * bankFalloff;
 
+  const cls = activeLulc?.classAtLocal?.(x, z);
+  const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop") && !observed;
+
   if (dtmY != null) {
     if (isWater) {
       return bedY != null ? bedY : targetWaterY;
+    }
+    if (isIslandLand) {
+      return Math.max(dtmY, SURFACE_Y + 0.8);
     }
     return dtmY;
   }
 
   if (isWater) {
     return bedY != null ? bedY : SURFACE_Y - 0.8;
+  }
+  if (isIslandLand) {
+    return Math.max(proceduralBase, SURFACE_Y + 1.2);
   }
   return proceduralBase;
 }

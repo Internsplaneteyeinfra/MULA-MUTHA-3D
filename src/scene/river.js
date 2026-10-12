@@ -289,6 +289,14 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across) {
       const i1 = i0 + 1;
       const i2 = i0 + cols;
       const i3 = i2 + 1;
+      const cx = (positions[i0 * 3] + positions[i1 * 3] + positions[i2 * 3] + positions[i3 * 3]) * 0.25;
+      const cz = (positions[i0 * 3 + 2] + positions[i1 * 3 + 2] + positions[i2 * 3 + 2] + positions[i3 * 3 + 2]) * 0.25;
+      const cls = lulc?.classAtLocal?.(cx, cz);
+      const isLand = cls === "forest" || cls === "settlement" || cls === "barren" || cls === "crop";
+      // If the quad is classified land or forest inside the river corridor, skip water mesh over it so islands stay dry
+      if (isLand && !osmWater?.isWaterAtLocal?.(cx, cz)) {
+        continue;
+      }
       indices.push(i0, i2, i1, i1, i2, i3);
     }
   }
