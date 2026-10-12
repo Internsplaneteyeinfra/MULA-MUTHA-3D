@@ -12,7 +12,7 @@
  *   "twin-state-change"  — {detail: TwinState}  whenever state changes
  *   "twin-asset-select"  — {detail: {id, asset}} when an asset is focused
  *
- * NEVER labels modelled data as LIVE — dischargeLabel is "LIVE" unless a gauge is connected.
+ * NEVER labels modelled data as LIVE — dischargeLabel is "Modelled" unless a gauge is connected.
  */
 
 import { getForecastEngine, FORECAST_HORIZONS } from "./forecastService.js";
@@ -199,7 +199,7 @@ function _computeState() {
     meanVelocity_ms: round2(_meanVelocity),
     totalVolume_m3: _totalVolume,
     dischargeSource: hydraulic.dischargeSource ?? "model",
-    dischargeLabel: hydraulic.dischargeLabel ?? "LIVE",
+    dischargeLabel: hydraulic.dischargeLabel ?? "Modelled",
     reachLenM: chainage_m?.length ? chainage_m[chainage_m.length - 1] : 0,
     modelled: false,
   };

@@ -141,12 +141,12 @@ function profileFor(tier) {
       chainageHz: 8,
       coordLabelHz: 3,
       softShadow: false,
-      maxTrees: 1200,
-      maxVegTypeTrees: 1800,
+      maxTrees: 2400,
+      maxVegTypeTrees: 3500,
       treeShadows: false,
       enableVegApi: true,
       enableFishing: true,
-      vegTypeStepM: 72,
+      vegTypeStepM: 48,
       lightTreesOnly: true,
     };
   }
@@ -164,12 +164,12 @@ function profileFor(tier) {
       chainageHz: 12,
       coordLabelHz: 5,
       softShadow: false,
-      maxTrees: 2200,
-      maxVegTypeTrees: 2800,
+      maxTrees: 5500,
+      maxVegTypeTrees: 8500,
       treeShadows: false,
       enableVegApi: true,
       enableFishing: true,
-      vegTypeStepM: 55,
+      vegTypeStepM: 36,
       lightTreesOnly: true,
     };
   }
@@ -186,12 +186,12 @@ function profileFor(tier) {
     chainageHz: 24,
     coordLabelHz: 10,
     softShadow: true,
-    maxTrees: 4500,
-    maxVegTypeTrees: 5500,
+    maxTrees: 11000,
+    maxVegTypeTrees: 15000,
     treeShadows: true,
     enableVegApi: true,
     enableFishing: true,
-    vegTypeStepM: 45,
+    vegTypeStepM: 28,
     lightTreesOnly: true,
   };
 }

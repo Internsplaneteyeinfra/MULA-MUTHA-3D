@@ -176,7 +176,7 @@ export class HydraulicProfileEngine {
         water_depth_m: createPhysicalValue(
           Math.round(h_normal * 100) / 100,
           "m",
-          PROVENANCE_STATUS.LIVE,
+          PROVENANCE_STATUS.MODELLED,
           "1D_MANNING_NORMAL_DEPTH",
           timestamp,
           `Manning n=${manningN} (${roughnessProv})`,
@@ -218,7 +218,7 @@ export class HydraulicProfileEngine {
         confidence: xsConfidence,
         provenance: {
           discharge: dischargeProvenance,
-          depth: PROVENANCE_STATUS.LIVE,
+          depth: PROVENANCE_STATUS.MODELLED,
           crossSection: xsProvenance,
           roughness: roughnessProv,
           datum: datumStatus.status,

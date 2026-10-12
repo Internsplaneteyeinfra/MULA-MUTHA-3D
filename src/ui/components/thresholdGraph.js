@@ -260,7 +260,7 @@ export function mountThresholdGraph(root) {
         allChainage,
         allWse,
         allWse72,
-        wseSource:    hydraulic.dischargeLabel ?? "LIVE",
+        wseSource:    hydraulic.dischargeLabel ?? "Modelled",
         wseProvenance: "LIVE",
       };
     } catch (err) {

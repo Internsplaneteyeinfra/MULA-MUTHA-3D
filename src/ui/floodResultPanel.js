@@ -130,6 +130,8 @@ export function mountFloodResultPanel(root, handlers = {}) {
     if (panel.scrollHeight > avail + 1) setCollapsed(true);
   }
 
+  let lastInfo = null;
+
   function show(info, opts = {}) {
     if (!info && !opts.error) {
       hide();
@@ -139,6 +141,7 @@ export function mountFloodResultPanel(root, handlers = {}) {
     if (opts.error) {
       hasLevels = false;
       shownKey = null;
+      lastInfo = null;
       const date = fmtYmd(opts.date);
       body.innerHTML = `<div class="frp-grid">${[
         rowHtml("flood-res-status", "Status", "Error"),
@@ -153,6 +156,7 @@ export function mountFloodResultPanel(root, handlers = {}) {
       return;
     }
 
+    lastInfo = info;
     shownKey = resultKey(info);
     hasLevels = validNumber(info.final_water_level) != null;
     const rows = floodResultRows(info);
@@ -176,12 +180,25 @@ export function mountFloodResultPanel(root, handlers = {}) {
 
   function hide() {
     panel.hidden = true;
+  }
+
+  function clear() {
+    panel.hidden = true;
+    lastInfo = null;
     shownKey = null;
     hasLevels = false;
     body.innerHTML = "";
   }
 
+  function reopen(info) {
+    const target = info || lastInfo;
+    if (target) {
+      show(target);
+    }
+  }
+
   function updateScene(info) {
+    if (info) lastInfo = info;
     if (panel.hidden || !info) return;
     show(info);
   }
@@ -251,7 +268,16 @@ export function mountFloodResultPanel(root, handlers = {}) {
     }
   });
 
-  return { el: panel, show, hide, updateScene, fit: fitToViewport };
+  return {
+    el: panel,
+    show,
+    hide,
+    clear,
+    reopen,
+    hasResult: () => !!lastInfo,
+    updateScene,
+    fit: fitToViewport,
+  };
 }
 
 /** Compat alias for previous mountFloodInfoPanel name */

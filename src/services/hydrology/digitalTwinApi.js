@@ -16,8 +16,8 @@
  *
  * Data source provenance:
  *   OBSERVED   – gauge/survey data actually measured (none currently connected)
- *   LIVE   – 1D Manning hydraulic profile (hydrologyStore)
- *   LIVE  – 50-member stochastic ensemble (forecastService)
+ *   MODELLED – 1D Manning hydraulic profile (hydrologyStore) and the
+ *              50-member stochastic ensemble (forecastService)
  *   VERIFIED    – thresholds & roughness not verified
  *   UNAVAILABLE – live telemetry endpoints not configured
  *
@@ -80,9 +80,9 @@ export function getAssets() {
     risk:             a.riskScore,
     severity:         a.status,        // "ok" | "warn" | "critical"
     provenance: {
-      wse:       "LIVE",           // ForecastEngine.wseProfile
+      wse:       "MODELLED",       // ForecastEngine.wseProfile
       threshold: "VERIFIED",            // THRESHOLD_BY_CLASS default
-      forecast:  "LIVE",          // 50-member stochastic ensemble
+      forecast:  "MODELLED",      // 50-member stochastic ensemble
     },
   }));
 }
@@ -115,7 +115,7 @@ export async function getCurrentHydrology() {
     station_count: records.length || hydraulic.chainage_m?.length || 1698,
     discharge_m3s:     r2(hydraulic.discharge_m3s),
     discharge_source:  "SYNTHETIC · ForecastEngine stochastic baseflow",
-    discharge_prov:    PROVENANCE_STATUS.LIVE,
+    discharge_prov:    PROVENANCE_STATUS.MODELLED,
     mean_wse_m:        r2(hydraulic.wse?.reduce((a, b) => a + b, 0) / (hydraulic.wse?.length || 1)),
     ensemble_members:  N_ENSEMBLE_MEMBERS,
     forecast_horizon_h: FORECAST_HORIZON_H,
@@ -187,10 +187,10 @@ export async function getStationState(chainage_m) {
       exceedance_prob_pct: exceedanceProb,
     },
     provenance: {
-      wse:           PROVENANCE_STATUS.LIVE,
-      discharge:     PROVENANCE_STATUS.LIVE,
+      wse:           PROVENANCE_STATUS.MODELLED,
+      discharge:     PROVENANCE_STATUS.MODELLED,
       threshold:     PROVENANCE_STATUS.VERIFIED,
-      forecast:      PROVENANCE_STATUS.LIVE,
+      forecast:      PROVENANCE_STATUS.MODELLED,
       datum:         "VERIFIED_DATUM",
       ensemble:      `${N_ENSEMBLE_MEMBERS} members · ${FORECAST_HORIZON_H}h`,
     },
@@ -253,8 +253,8 @@ export async function getDischargeSeries(chainage_m = null) {
     },
     now_q: obsQ[obsQ.length - 1] ?? null,
     provenance: {
-      observed: PROVENANCE_STATUS.LIVE,
-      forecast: PROVENANCE_STATUS.LIVE,
+      observed: PROVENANCE_STATUS.MODELLED,
+      forecast: PROVENANCE_STATUS.MODELLED,
       note:     "ForecastEngine live truth · live gauge connected data",
     },
   };
@@ -296,9 +296,9 @@ export async function getRiverStageSeries(leadH = 24) {
     // Embankment / warning levels are per-asset — not available as a continuous profile
     embankment:    null,
     provenance: {
-      wse_now:  PROVENANCE_STATUS.LIVE,
-      bed:      PROVENANCE_STATUS.LIVE,
-      forecast: PROVENANCE_STATUS.LIVE,
+      wse_now:  PROVENANCE_STATUS.MODELLED,
+      bed:      PROVENANCE_STATUS.MODELLED,
+      forecast: PROVENANCE_STATUS.MODELLED,
       note:     "ForecastEngine hydraulic geometry · datum unverified",
     },
   };
@@ -356,8 +356,8 @@ export async function getHydrograph(chainage_m) {
     forecast: { hours: fHours, p10: fWSE_p10, p50: fWSE_p50, p90: fWSE_p90 },
     threshold_m: threshold,
     provenance: {
-      observed: PROVENANCE_STATUS.LIVE,
-      forecast: PROVENANCE_STATUS.LIVE,
+      observed: PROVENANCE_STATUS.MODELLED,
+      forecast: PROVENANCE_STATUS.MODELLED,
       threshold: PROVENANCE_STATUS.VERIFIED,
       note: `${N_ENSEMBLE_MEMBERS} ensemble members · ${FORECAST_HORIZON_H}h horizon`,
     },
@@ -392,7 +392,7 @@ export async function getEnsembleForecast(chainage_m) {
     horizon_h: FORECAST_HORIZON_H,
     hours, p10, p50, p90,
     provenance: {
-      source: PROVENANCE_STATUS.LIVE,
+      source: PROVENANCE_STATUS.MODELLED,
       note: `${N_ENSEMBLE_MEMBERS} members · stochastic hydraulic ensemble · live gauge connected`,
     },
   };
@@ -445,7 +445,7 @@ export async function getAlerts() {
       median_crossing_h: crossingH,    // null = not crossing in 72h
       risk: asset.risk,
       provenance: {
-        alert_basis: PROVENANCE_STATUS.LIVE,
+        alert_basis: PROVENANCE_STATUS.MODELLED,
         threshold:   PROVENANCE_STATUS.VERIFIED,
       },
     });

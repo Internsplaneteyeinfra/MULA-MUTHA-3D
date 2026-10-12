@@ -6,8 +6,8 @@ import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 
-const MAX_INSTANCES = 9000;
-const DEFAULT_STEP_M = 55;
+const MAX_INSTANCES = 16000;
+const DEFAULT_STEP_M = 34;
 const BUILDING_CLEAR_M = 8;
 const RIVER_CLEAR_EXTRA_M = 2;
 const GROW_DURATION_S = 1.0;
@@ -199,12 +199,12 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
 
     const accept =
       kind === "trees"
-        ? rng() < 0.78
+        ? rng() < 0.90
         : kind === "shrub"
-          ? rng() < 0.65
+          ? rng() < 0.82
           : kind === "grass"
-            ? rng() < 0.5
-            : rng() < 0.62;
+            ? rng() < 0.70
+            : rng() < 0.82;
     if (!accept) return;
 
     const cluster = densifyCount(kind, rng);
@@ -217,7 +217,7 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
 
       if (blocked(x, z, buildings, roads, stations, lulc)) continue;
       const cover = lulc?.classAtLocal(x, z);
-      if (cover === "water" || cover === "settlement" || cover === "barren" || cover === "crop") continue;
+      if (cover === "water" || cover === "settlement") continue;
       if (riverRing && pointInRing(x, z, riverRing) && cover !== "forest") continue;
 
       const y = terrainHeightAt(x, z, stations);
@@ -364,10 +364,10 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
 }
 
 function densifyCount(kind, rng) {
-  if (kind === "trees") return 1 + (rng() < 0.4 ? 1 : 0);
-  if (kind === "mixed") return 1 + (rng() < 0.45 ? 1 : 0);
-  if (kind === "shrub") return 1 + (rng() < 0.35 ? 1 : 0);
-  return 1;
+  if (kind === "trees") return 2 + (rng() < 0.65 ? 1 : 0) + (rng() < 0.35 ? 1 : 0);
+  if (kind === "mixed") return 2 + (rng() < 0.70 ? 1 : 0) + (rng() < 0.35 ? 1 : 0);
+  if (kind === "shrub") return 2 + (rng() < 0.60 ? 1 : 0);
+  return 1 + (rng() < 0.50 ? 1 : 0);
 }
 
 function classToKind(raw = "") {
@@ -381,20 +381,33 @@ function classToKind(raw = "") {
 }
 
 function assetForKind(kind, rng) {
-  if (kind === "grass") return "grass";
-  if (kind === "shrub") return rng() < 0.7 ? "grass" : "birch";
+  if (kind === "grass") return rng() < 0.6 ? "grass" : "reeds";
+  if (kind === "shrub") {
+    const r = rng();
+    if (r < 0.45) return "shrub";
+    if (r < 0.72) return "bamboo";
+    if (r < 0.88) return "acacia";
+    return "grass";
+  }
   if (kind === "trees") {
     const roll = rng();
-    if (roll < 0.32) return "palm";
-    if (roll < 0.66) return "broadleaf";
-    return "conifer";
+    if (roll < 0.24) return "neem";
+    if (roll < 0.44) return "broadleaf";
+    if (roll < 0.62) return "banyan";
+    if (roll < 0.78) return "gulmohar";
+    if (roll < 0.90) return "palm";
+    return "acacia";
   }
+  // mixed / diverse
   const roll = rng();
-  if (roll < 0.28) return "grass";
-  if (roll < 0.5) return "birch";
-  if (roll < 0.72) return "broadleaf";
-  if (roll < 0.88) return "palm";
-  return "conifer";
+  if (roll < 0.18) return "neem";
+  if (roll < 0.34) return "gulmohar";
+  if (roll < 0.48) return "palm";
+  if (roll < 0.62) return "bamboo";
+  if (roll < 0.74) return "shrub";
+  if (roll < 0.86) return "broadleaf";
+  if (roll < 0.94) return "banyan";
+  return "reeds";
 }
 
 function scaleForKind(kind, rng) {

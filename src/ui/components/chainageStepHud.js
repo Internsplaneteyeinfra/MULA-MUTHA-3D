@@ -11,24 +11,18 @@ export function mountChainageStepHud(root, dataset) {
   );
   if (!points.length) return { el: null, update() {}, dispose() {} };
 
-  const intervalM =
-    Number(dataset?.chainageIntervalM) > 0
-      ? Math.round(dataset.chainageIntervalM)
-      : Math.max(
-          1,
-          Math.round(Math.abs((points[1]?.meters ?? 10) - (points[0]?.meters ?? 0))) || 10,
-        );
+  const intervalM = 10; // Strictly 10m steps (10m 10m only)
 
   const el = document.createElement("div");
   el.className = "hud chainage-step-hud map-chrome";
   el.id = "chainage-step-hud";
   el.setAttribute("role", "group");
-  el.setAttribute("aria-label", `${intervalM} meter chainage step`);
+  el.setAttribute("aria-label", "10 meter chainage step");
   el.hidden = true;
 
   el.innerHTML = `
     <button type="button" class="chainage-step-btn is-prev" id="chainage-step-prev"
-      title="Back ${intervalM} m" aria-label="Previous ${intervalM} m">
+      title="Back 10 m" aria-label="Previous 10 m">
       <span class="chainage-step-arrow" aria-hidden="true">←</span>
     </button>
     <div class="chainage-step-center">
@@ -36,7 +30,7 @@ export function mountChainageStepHud(root, dataset) {
       <span class="chainage-step-travel" id="chainage-step-travel" hidden></span>
     </div>
     <button type="button" class="chainage-step-btn is-next" id="chainage-step-next"
-      title="Forward ${intervalM} m" aria-label="Next ${intervalM} m">
+      title="Forward 10 m" aria-label="Next 10 m">
       <span class="chainage-step-arrow" aria-hidden="true">→</span>
     </button>
     <button type="button" class="chainage-step-btn is-explore" id="chainage-step-explore"
@@ -97,23 +91,23 @@ export function mountChainageStepHud(root, dataset) {
 
   function dispatchSelect(meters) {
     if (!Number.isFinite(meters)) return;
-    state.selectedChainageMeters = meters;
+    const m = Math.round(meters / 10) * 10;
+    state.selectedChainageMeters = m;
     state.showChainage = true;
     document.dispatchEvent(
-      new CustomEvent("chainage-select", { detail: { meters, focus: true } }),
+      new CustomEvent("chainage-select", { detail: { meters: m, focus: true, source: "hud-step" } }),
     );
   }
 
   function step(dir) {
     const sel = state.selectedChainageMeters;
     if (sel == null) return;
-    const targetMeters = sel + (dir * intervalM);
-    // Clamp to min/max
-    const minMeters = points[0]?.meters ?? 0;
-    const maxMeters = points[points.length - 1]?.meters ?? 0;
-    const clampedMeters = Math.max(minMeters, Math.min(maxMeters, targetMeters));
-    if (Math.abs(clampedMeters - sel) < 1) return;
-    dispatchSelect(clampedMeters);
+    const minMeters = Math.floor((points[0]?.meters ?? 0) / 10) * 10;
+    const maxMeters = Math.ceil((points[points.length - 1]?.meters ?? 0) / 10) * 10;
+    const currentSnapped = Math.round(sel / 10) * 10;
+    const targetMeters = Math.max(minMeters, Math.min(maxMeters, currentSnapped + dir * 10));
+    if (Math.abs(targetMeters - sel) < 0.5) return;
+    dispatchSelect(targetMeters);
   }
 
   prevBtn.addEventListener("click", (e) => {

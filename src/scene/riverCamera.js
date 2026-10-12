@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
+import { terrainHeightAt } from "./terrain.js";
 
 /**
  * River-aligned camera framing from KML centerline tangents.
@@ -119,24 +120,19 @@ export function pointAlongRiver(stations, u, distanceM) {
 }
 
 /**
- * Locked Chainage camera — eye-level boat / corridor view (reference screenshot).
- *
- * CRITICAL vs top-down aerial:
- *   - very low height (≈12–22 m) so banks fill the sides like the reference
- *   - look nearly horizontal (lookY ≈ camera eye) so horizon sits mid-frame
- *   - back distance keeps marker in mid-foreground, never under the camera
- *
- *   camera = P - D*BACK + UP*HEIGHT + side*LATERAL
- *   target = P + D*AHEAD  at near-eye height (not lookAt(P))
+ * Aerial-oblique chainage framing:
+ * - Stable elevation (42–60m) so banks, flood boundaries, and river geometry are unobstructed.
+ * - Positioned behind station along local tangent, looking ahead along the forward curve.
+ * - Enforces terrain and bank clearance so the camera never clips through hills or ground.
  */
 export function chainageGisAerialPose(stations, {
   u,
   x,
   z,
-  cameraHeight = 16,
-  cameraDistance = 55,
-  lookAheadDistance = 180,
-  lookY = SURFACE_Y + 12,
+  cameraHeight = 44,
+  cameraDistance = 95,
+  lookAheadDistance = 240,
+  lookY = SURFACE_Y + 6,
   lateralOffset = 0,
   outP,
   outL,
@@ -152,34 +148,38 @@ export function chainageGisAerialPose(stations, {
   const px = Number.isFinite(x) ? x : st.x;
   const pz = Number.isFinite(z) ? z : st.z;
 
-  // Local river direction from prev→next centerline (not world axes)
+  // Local river direction from smoothed centerline tangent
   const tan = smoothTangent(stations, uu, 0.045);
   const sideX = -tan.z;
   const sideZ = tan.x;
 
-  // Eye-level corridor band (reference): stay above water, never aerial
-  const h = THREE.MathUtils.clamp(cameraHeight, 10, 28);
-  let back = THREE.MathUtils.clamp(cameraDistance, 35, 100);
-  if (back < h * 2.5) back = h * 3;
-  // Near chainage start/end: do not step off the river onto dry bank
-  // (P - D*back at u≈0 places the camera upstream of 0+000).
+  const h = THREE.MathUtils.clamp(cameraHeight, 28, 85);
+  let back = THREE.MathUtils.clamp(cameraDistance, 55, 160);
   const alongM = Number.isFinite(st.along) ? st.along : uu * estimateRiverLength(stations);
   if (alongM < back + 20) {
-    back = Math.max(12, alongM * 0.55);
+    back = Math.max(25, alongM * 0.65);
   }
-  const aheadDist = THREE.MathUtils.clamp(lookAheadDistance, 100, 280);
+  const aheadDist = THREE.MathUtils.clamp(lookAheadDistance, 140, 380);
   const lateral = THREE.MathUtils.clamp(lateralOffset, -25, 25);
-  const eyeLookY = Number.isFinite(lookY) ? lookY : SURFACE_Y + Math.max(8, h * 0.75);
+  const eyeLookY = Number.isFinite(lookY) ? lookY : SURFACE_Y + 6;
 
-  // Walk along centerline so the camera stays in the river corridor
+  // Walk along centerline so camera follows the river curve
   const camPt = pointAlongRiver(stations, uu, -back);
   const lookPt = pointAlongRiver(stations, uu, aheadDist);
 
-  outP.set(
-    camPt.x + sideX * lateral,
-    SURFACE_Y + h,
-    camPt.z + sideZ * lateral,
-  );
+  const finalX = camPt.x + sideX * lateral;
+  const finalZ = camPt.z + sideZ * lateral;
+
+  // Enforce terrain clearance: never let camera dip into river banks or terrain
+  let terrainSafeY = SURFACE_Y + h;
+  try {
+    const groundY = terrainHeightAt(finalX, finalZ, stations);
+    if (Number.isFinite(groundY)) {
+      terrainSafeY = Math.max(terrainSafeY, groundY + 18);
+    }
+  } catch (_) {}
+
+  outP.set(finalX, terrainSafeY, finalZ);
   outL.set(lookPt.x, eyeLookY, lookPt.z);
   if (outUp) outUp.set(0, 1, 0);
   return tan;

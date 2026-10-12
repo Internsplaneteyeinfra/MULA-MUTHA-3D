@@ -17,13 +17,10 @@ export function mountChainageRuler(root, dataset) {
   if (!points.length) return { el: null, update() {}, dispose() {} };
 
   const majors = pickRulerStations(points);
-  const minM = Number(points[0].meters) || 0;
-  const maxM = Math.max(Number(points[points.length - 1].meters) || 0, minM + 1);
+  const minM = Math.floor((Number(points[0].meters) || 0) / 10) * 10;
+  const maxM = Math.ceil((Number(points[points.length - 1].meters) || 0) / 10) * 10;
   const spanM = Math.max(1, maxM - minM);
-  const intervalM =
-    Number(dataset?.chainageIntervalM) > 0
-      ? Math.round(dataset.chainageIntervalM)
-      : Math.max(1, Math.round(Math.abs((points[1]?.meters ?? 10) - (points[0]?.meters ?? 0))) || 10);
+  const intervalM = 10; // Strictly 10m steps (10m 10m only)
 
   const el = document.createElement("div");
   el.className = "hud chainage-ruler map-chrome chainage-ruler--track-only cr-premium";
@@ -60,7 +57,7 @@ export function mountChainageRuler(root, dataset) {
       <div class="chainage-ruler-track chainage-slider" role="list">
         <div class="cr-rail" aria-hidden="true"><div class="cr-fill" id="chainage-ruler-fill"></div></div>
         <div class="chainage-ruler-bands" id="chainage-ruler-bands" aria-hidden="true" hidden></div>
-        <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="${intervalM}" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river" />
+        <input class="chainage-ruler-input" id="chainage-ruler-input" type="range" min="${minM}" max="${maxM}" step="10" value="${state.selectedChainageMeters ?? minM}" aria-label="Select chainage along the river (10m steps)" />
         ${ticksHtml}
         ${destinationsHtml}
         <div class="chainage-ruler-cursor" id="chainage-ruler-cursor" hidden>
@@ -83,71 +80,71 @@ export function mountChainageRuler(root, dataset) {
   let dragDispatchTimer = 0;
   let lastDragDispatch = 0;
   let lastSel = undefined;
+  let isDraggingSlider = false;
 
-  function nearestIndex(meters) {
-    let lo = 0;
-    let hi = points.length - 1;
-    while (lo < hi) {
-      const mid = (lo + hi) >> 1;
-      if ((points[mid].meters ?? 0) < meters) lo = mid + 1;
-      else hi = mid;
-    }
-    if (lo > 0 && Math.abs((points[lo - 1].meters ?? 0) - meters) <= Math.abs((points[lo].meters ?? 0) - meters)) {
-      return lo - 1;
-    }
-    return lo;
+  function snap10m(meters) {
+    if (!Number.isFinite(meters)) return minM;
+    const rounded = Math.round(meters / 10) * 10;
+    return Math.min(maxM, Math.max(minM, rounded));
   }
 
-  function nearestPoint(meters) {
-    return points[nearestIndex(meters)];
-  }
-
-  function dispatchSelect(meters, { focus = true, dragging = false } = {}) {
+  function dispatchSelect(meters, { focus = true, dragging = false, source = "ruler" } = {}) {
     if (!Number.isFinite(meters)) return;
-    const m = Number(nearestPoint(meters)?.meters);
-    if (!Number.isFinite(m)) return;
+    const m = snap10m(meters);
     state.selectedChainageMeters = m;
     state.showChainage = true;
     document.dispatchEvent(
-      new CustomEvent("chainage-select", { detail: { meters: m, focus, dragging } }),
+      new CustomEvent("chainage-select", { detail: { meters: m, focus, dragging, source } }),
     );
   }
 
+  range?.addEventListener("pointerdown", () => {
+    isDraggingSlider = true;
+  });
+
   range?.addEventListener("input", () => {
-    pendingMeters = Number(nearestPoint(Number(range.value))?.meters);
+    isDraggingSlider = true;
+    const raw = Number(range.value);
+    const snapped = snap10m(raw);
+    range.value = String(snapped);
+    pendingMeters = snapped;
     if (inputRaf) return;
     inputRaf = requestAnimationFrame(() => {
       inputRaf = 0;
       state.selectedChainageMeters = pendingMeters;
       state.showChainage = true;
-      update();
-      const wait = Math.max(0, 50 - (performance.now() - lastDragDispatch));
+      updateVisuals(pendingMeters);
+      const now = performance.now();
+      const wait = Math.max(0, 32 - (now - lastDragDispatch));
       window.clearTimeout(dragDispatchTimer);
       dragDispatchTimer = window.setTimeout(() => {
         lastDragDispatch = performance.now();
         document.dispatchEvent(new CustomEvent("chainage-select", {
-          detail: { meters: pendingMeters, focus: true, dragging: true },
+          detail: { meters: pendingMeters, focus: true, dragging: true, source: "ruler-slider" },
         }));
       }, wait);
     });
   });
 
   const settleCamera = () => {
+    isDraggingSlider = false;
     window.clearTimeout(dragDispatchTimer);
     const raw = Number(range?.value);
     if (!Number.isFinite(raw)) return;
-    const m = Number(nearestPoint(raw)?.meters);
-    if (!Number.isFinite(m)) return;
+    const m = snap10m(raw);
     if (range) range.value = String(m);
-    dispatchSelect(m, { focus: true, dragging: false });
+    dispatchSelect(m, { focus: true, dragging: false, source: "ruler-slider" });
   };
   range?.addEventListener("change", settleCamera);
   range?.addEventListener("pointerup", settleCamera);
+  range?.addEventListener("pointercancel", settleCamera);
+  range?.addEventListener("blur", settleCamera);
 
   el.addEventListener("click", (e) => {
     const btn = e.target.closest("[data-meters]");
     if (!btn) return;
-    dispatchSelect(Number(btn.dataset.meters));
+    const m = snap10m(Number(btn.dataset.meters));
+    dispatchSelect(m, { focus: true, dragging: false, source: "ruler-tick" });
   });
 
   /** Hide tick labels that would collide with a kept neighbour (ends always kept). */
@@ -172,19 +169,11 @@ export function mountChainageRuler(root, dataset) {
   ro.observe(track);
   requestAnimationFrame(layoutTicks);
 
-  function update() {
-    const show = state.showChainage !== false && !state.cinematicActive;
-    el.hidden = !show;
-    if (!show) return;
-
-    const sel = state.selectedChainageMeters;
-    if (sel === lastSel) return;
-    lastSel = sel;
-
-    const hasSel = Number.isFinite(sel);
-    const activeTick = hasSel ? majors[nearestMajor(sel)] : null;
+  function updateVisuals(meters) {
+    const hasSel = Number.isFinite(meters);
+    const activeTick = hasSel ? majors[nearestMajor(meters)] : null;
     for (const t of tickEls) {
-      const on = !!activeTick && Number(t.dataset.meters) === activeTick.meters && Math.abs(activeTick.meters - sel) <= 500;
+      const on = !!activeTick && Number(t.dataset.meters) === activeTick.meters && Math.abs(activeTick.meters - meters) <= 500;
       t.classList.toggle("is-active", on);
       t.classList.toggle("active", on);
     }
@@ -194,8 +183,7 @@ export function mountChainageRuler(root, dataset) {
       fill.style.width = "0%";
       return;
     }
-    const clamped = Math.min(maxM, Math.max(minM, sel));
-    if (range) range.value = String(clamped);
+    const clamped = Math.min(maxM, Math.max(minM, meters));
     const pct = ((clamped - minM) / spanM) * 100;
     cursor.style.left = `${pct}%`;
     cursor.classList.toggle("is-edge-start", pct <= 3);
@@ -203,9 +191,40 @@ export function mountChainageRuler(root, dataset) {
     cursor.hidden = false;
     fill.style.width = `${pct}%`;
 
-    const label = interpolateChainage(points, sel)?.label || metersToStation(sel);
+    const label = interpolateChainage(points, clamped)?.label || metersToStation(clamped);
     cursorLabel.textContent = String(label).replace(/^\+/, "");
   }
+
+  function update() {
+    const show = state.showChainage !== false && !state.cinematicActive;
+    el.hidden = !show;
+    if (!show) return;
+
+    const sel = state.selectedChainageMeters;
+    if (sel === lastSel) return;
+    lastSel = sel;
+
+    if (Number.isFinite(sel)) {
+      const clamped = snap10m(sel);
+      if (range && !isDraggingSlider) range.value = String(clamped);
+      updateVisuals(clamped);
+    } else {
+      updateVisuals(null);
+    }
+  }
+
+  function onJourneyProgress(e) {
+    if (isDraggingSlider) return;
+    const j = e.detail;
+    if (!j) {
+      update();
+      return;
+    }
+    const cur = snap10m(j.currentChainage);
+    if (range && !isDraggingSlider) range.value = String(cur);
+    updateVisuals(j.currentChainage);
+  }
+  document.addEventListener("river-journey-progress", onJourneyProgress);
 
   function nearestMajor(meters) {
     let best = 0;
@@ -259,6 +278,7 @@ export function mountChainageRuler(root, dataset) {
     window.cancelAnimationFrame(inputRaf);
     window.clearTimeout(dragDispatchTimer);
     document.removeEventListener("chainage-bands", onBands);
+    document.removeEventListener("river-journey-progress", onJourneyProgress);
     ro.disconnect();
     el.remove();
   }

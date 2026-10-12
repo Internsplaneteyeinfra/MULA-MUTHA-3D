@@ -445,7 +445,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   async function loadRiparianVegetation() {
     const qNow = quality.get();
     const layer = await createRiparianVegetationLayer(dataset, {
-      maxTrees: qNow.tier === "low" ? 1200 : 2600,
+      maxTrees: qNow.tier === "low" ? 1800 : 4200,
       castShadow: !!qNow.treeShadows,
     });
     riparianLayer = layer;
@@ -472,8 +472,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const qNow = quality.get();
       const layer = await createPermanentVegetationTypeTrees(dataset, {
         animate: false,
-        maxInstances: qNow.maxVegTypeTrees || 3500,
-        stepM: qNow.vegTypeStepM || 55,
+        maxInstances: qNow.maxVegTypeTrees || 8500,
+        stepM: qNow.vegTypeStepM || 34,
         castShadow: !!qNow.treeShadows,
       });
       if (vegTypePermanent?.userData?.dispose) {
@@ -505,7 +505,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   prefetchTreeAssets();
   const loadUrbanLayers = async () => {
     try {
-        const lowTier = quality.get().tier === "low";
+      const lowTier = quality.get().tier === "low";
       // Lite OSM still loads trees/vegetation; only skips heavy extras
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
         const osm = await dataset.loadOsmLater({ lite: dataset.lite === true || lowTier });
@@ -528,7 +528,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
       // Always plant trees — density follows quality profile
       const qNow = quality.get();
-      const maxTrees = qNow.maxTrees || (lowTier ? 1200 : 2800);
+      const maxTrees = qNow.maxTrees || (lowTier ? 2400 : 5500);
       createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows })
         .then((gTrees) => {
       treesResult = gTrees;
@@ -682,31 +682,29 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
 
   // Eye-level corridor (reference screenshot): low boat height, nearly flat look.
-  // Height 16 / back 55 / ahead 180 / lookY ≈ eye → horizon mid-frame, marker mid-foreground.
-  // Ruler drags snap; discrete chainage picks travel the river (see riverJourney.js).
+  // Aerial-oblique corridor framing: stable altitude, unobstructed river view, forward look
   function chainageCameraOptions(_point, dragging = false) {
     return {
-      cameraHeight: 16,
-      cameraDistance: 55,
-      lookAheadDistance: 180,
-      lookY: SURFACE_Y + 12,
+      cameraHeight: 44,
+      cameraDistance: 95,
+      lookAheadDistance: 240,
+      lookY: SURFACE_Y + 6,
       lateralOffset: 0,
-      fov: 58,
+      fov: 52,
       dur: 0,
       transitLift: 0,
-      ease: "outCubic",
+      ease: "inOutCubic",
       dragging: !!dragging,
     };
   }
 
   /**
    * River journeys for discrete chainage picks (ticks, prev/next, step arrows, twin clicks):
-   * the camera travels the centerline between chainages, turning to face upstream on long
-   * backward trips, and settles into the inspection pose. See riverJourney.js.
+   * the camera travels the centerline between chainages, settling into the aerial-oblique
+   * inspection pose. See riverJourney.js.
    */
-  /** Camera must already be at eye level near the river to travel it; otherwise fly in directly. */
-  const CHAIN_FLIGHT_NEAR_M = 260;
-  const CHAIN_FLIGHT_MAX_EYE_Y = 90;
+  const CHAIN_FLIGHT_NEAR_M = 360;
+  const CHAIN_FLIGHT_MAX_EYE_Y = 140;
   const journey = createRiverJourney({ dataset, getBridges: () => bridgeLabels.items() });
   let chainFocusM = null;
 
@@ -749,12 +747,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const p = interpolateChainage(dataset.chainage, toM);
     const hydroId = hydrologyLayer.userData?.getActiveId?.();
     const floodOn = !!(apiFloodLayer.visible || climateImpactLayer.visible);
-    if (floodOn || hydroId === "geology") return { height: 26, back: 85 };
+    if (floodOn || hydroId === "geology") return { height: 56, back: 125, ahead: 280 };
     const nearBridge = (bridgeLabels.items() || []).some(
       (b) => Number.isFinite(b.x) && p && Math.hypot(b.x - p.x, b.z - p.z) < 160,
     );
-    if (nearBridge) return { height: 22, back: 70 };
-    return null;
+    if (nearBridge) return { height: 48, back: 105, ahead: 250 };
+    return { height: 44, back: 95, ahead: 240 };
   }
 
   function nearestChainageToCamera() {
@@ -776,11 +774,26 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
 
   function startChainFlight(toM, opts = {}) {
+    const p = interpolateChainage(dataset.chainage, toM);
+    if (!p || p.x == null) return null;
+
+    // When coming from high overview or far from river, smoothly fly into corridor
+    const near = cameraNearChainage(chainFocusM);
+    if (!near && !journey.active) {
+      chainFocusM = toM;
+      state.selectedChainageMeters = toM;
+      cam.focusOnXZ(p.x, p.z, {
+        cameraHeight: 44,
+        cameraDistance: 95,
+        lookAheadDistance: 240,
+        fov: 52,
+      });
+      return null;
+    }
+
     const fromM = journey.active
       ? journey.active.currentChainage
-      : cameraNearChainage(chainFocusM)
-        ? chainFocusM
-        : nearestChainageToCamera();
+      : (chainFocusM ?? nearestChainageToCamera());
     const c = cam.camera;
     if (cam.controls) cam.controls.enabled = false;
     const tr = journey.start(fromM, toM, { p: c.position, l: cam.controls.target }, {
@@ -789,16 +802,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     });
     setJourneyTarget(tr.targetChainage, toM, opts.requestedM);
     publishJourney(tr);
-    console.info("[RiverJourney]", {
-      mode: tr.mode,
-      from: tr.startChainage,
-      to: tr.targetChainage,
-      direction: tr.direction > 0 ? "FORWARD" : "BACKWARD",
-      chordDirection: tr.chordDirection,
-      distance_m: Math.round(tr.distance),
-      duration_s: +tr.duration.toFixed(2),
-      reorient: tr.reorient,
-    });
     return tr;
   }
 
@@ -1512,24 +1515,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         return;
       }
 
-      state.selectedChainageMeters = p.meters;
       cancelChainFlight();
       chainFocusM = p.meters;
-
-      const startY = cam.camera?.position?.y ?? 0;
-      const eyeH = 16;
-      // Gentle descent arc when coming down from map altitude.
-      const descentLift =
-        wasMap2d || startY > eyeH + 120
-          ? Math.min(420, Math.max(90, (startY - eyeH) * 0.22))
-          : 0;
+      state.selectedChainageMeters = p.meters;
 
       cam.focusOnXZ?.(p.x, p.z, {
         ...chainageCameraOptions(p, false),
-        dur: 4.2,
-        ease: "inOutQuint",
-        transitLift: descentLift,
+        dur: wasMap2d ? 2.0 : 1.4,
       });
+
       document.dispatchEvent(
         new CustomEvent("chainage-select", {
           detail: { meters: p.meters, notes: false, focus: false },
@@ -1766,8 +1760,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     focusFloodSimulation() {
       const b = apiFloodLayer.userData?.getBounds?.();
       if (!b) return;
-      // Gentle pan only — preserve viewing angle
-      cam.focusOnXZ?.(b.cx, b.cz, { dur: 1.15 });
+      const span = Math.hypot(b.spanX || 200, b.spanZ || 200);
+      const floodHeight = THREE.MathUtils.clamp(span * 0.55, 65, 220);
+      const floodBack = THREE.MathUtils.clamp(span * 0.75, 110, 340);
+      cam.focusOnXZ?.(b.cx, b.cz, {
+        cameraHeight: floodHeight,
+        cameraDistance: floodBack,
+        lookAheadDistance: 80,
+        dur: 1.6,
+      });
     },
     applyWaterPreset,
     getWaterDebugInfo: () => getWaterDebugInfo(river.material, dataset),

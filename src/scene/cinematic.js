@@ -13,6 +13,7 @@ import {
   smoothTangent,
   terrainCameraOpts,
 } from "./riverCamera.js";
+import { terrainHeightAt } from "./terrain.js";
 
 export function sceneName(mode) {
   switch (mode) {
@@ -109,8 +110,9 @@ export function createCameraSystem(canvas, dataset) {
   const smoothL = new THREE.Vector3();
   const smoothUp = new THREE.Vector3(0, 1, 0);
   const NORTH_UP = new THREE.Vector3(0, 0, 1);
+  const dummyLookObj = new THREE.Object3D();
   let followInited = false;
-  let localTransition = null;
+  let flightTransition = null;
   let orientTransition = null;
   let zoomTransition = null;
 
@@ -214,11 +216,120 @@ export function createCameraSystem(canvas, dataset) {
     controls.enablePan = true;
   }
 
-  function enterMap2D({ animate = true } = {}) {
+  /**
+   * Authoritative camera flight transition controller.
+   * Smoothly interpolates:
+   *   - Camera position (with parabolic transit lift and continuous terrain clearance)
+   *   - Look target (independently interpolated for natural cinematic tracking)
+   *   - Camera orientation (quaternion slerp: completely eliminates roll, flips, or gimbal flutter)
+   *   - FOV / orthographic zoom
+   *
+   * Automatically supersedes any in-progress flight seamlessly from the exact current pose.
+   */
+  function startFlight({
+    toP,
+    toL,
+    toUp = new THREE.Vector3(0, 1, 0),
+    toFov = null,
+    toZoom = null,
+    dur = null,
+    ease = "inOutCubic",
+    releaseMode = "orbit",
+    transitLift = null,
+  }) {
+    if (state.cinematicActive) return;
+
+    // Cancel all conflicting camera controllers
+    orientTransition = null;
+    zoomTransition = null;
+    if (activeCamera.userData) activeCamera.userData.joiningStreamsFlight = null;
+
+    // Seamless handoff: start ALWAYS from current physical camera state
     const fromP = activeCamera.position.clone();
     const fromL = controls.target.clone();
+    const fromQ = activeCamera.quaternion.clone();
     const fromUp = activeCamera.up.clone().normalize();
+    const fromFov = activeCamera.isPerspectiveCamera ? activeCamera.fov : 48;
+    const fromZoom = isMap2D() ? orthoCamera.zoom : 1;
 
+    // Compute target orientation quaternion via Three.js standard lookAt
+    dummyLookObj.position.copy(toP);
+    dummyLookObj.up.copy(toUp).normalize();
+    dummyLookObj.lookAt(toL);
+    const toQ = dummyLookObj.quaternion.clone();
+
+    // Adaptive duration scaled by travel distance and angular turn
+    const dist = fromP.distanceTo(toP);
+    const rotAngle = fromQ.angleTo(toQ);
+
+    let duration = dur;
+    if (duration == null || duration <= 0) {
+      if (dist < 25) {
+        duration = 0.45;
+      } else if (dist < 180) {
+        duration = 0.75;
+      } else if (dist < 800) {
+        duration = 1.25;
+      } else if (dist < 3000) {
+        duration = 1.75;
+      } else {
+        duration = THREE.MathUtils.clamp(1.4 + Math.pow(dist, 0.35) * 0.12, 1.8, 2.8);
+      }
+      if (rotAngle > 1.2) {
+        duration = Math.max(duration, 1.35);
+      }
+    }
+
+    // Dynamic terrain and building clearance:
+    // Determine the peak obstacle height along the line of flight so the arc is smooth
+    let lift = transitLift;
+    if (lift == null && !isMap2D()) {
+      let maxObstacleLift = 0;
+      const samples = 12;
+      for (let s = 1; s < samples; s++) {
+        const u = s / samples;
+        const sx = THREE.MathUtils.lerp(fromP.x, toP.x, u);
+        const sz = THREE.MathUtils.lerp(fromP.z, toP.z, u);
+        const sy = THREE.MathUtils.lerp(fromP.y, toP.y, u);
+        try {
+          const gy = terrainHeightAt(sx, sz, stations);
+          if (Number.isFinite(gy) && gy + 22 > sy) {
+            maxObstacleLift = Math.max(maxObstacleLift, (gy + 22) - sy);
+          }
+        } catch (_) {}
+      }
+      const bLift = estimateBuildingTransitLift(fromP, toP, dataset?.osm?.buildings, 42);
+      lift = Math.max(0, maxObstacleLift, bLift);
+      if (dist > 1200 && lift === 0) {
+        lift = Math.min(160, dist * 0.05);
+      }
+    }
+
+    // Prevent OrbitControls from fighting the flight while mid-tween
+    controls.enabled = false;
+
+    flightTransition = {
+      fromP,
+      toP: toP.clone(),
+      fromL,
+      toL: toL.clone(),
+      fromQ,
+      toQ,
+      fromUp,
+      toUp: toUp.clone(),
+      fromFov,
+      toFov: toFov ?? fromFov,
+      fromZoom,
+      toZoom: toZoom ?? fromZoom,
+      t: 0,
+      dur: Math.max(0.1, duration),
+      ease,
+      lift: Math.max(0, lift || 0),
+      releaseMode,
+    };
+  }
+
+  function enterMap2D({ animate = true } = {}) {
     syncOrthoFrustum();
     orthoCamera.zoom = MAP2D_DEFAULT_ZOOM;
     orthoCamera.updateProjectionMatrix();
@@ -246,22 +357,13 @@ export function createCameraSystem(canvas, dataset) {
       return;
     }
 
-    orthoCamera.position.copy(fromP);
-    orthoCamera.up.copy(fromUp);
-    controls.target.copy(fromL);
-    orthoCamera.lookAt(fromL);
-
-    localTransition = {
-      fromP,
-      fromL,
-      fromUp,
-      toP: tmpP.clone(),
-      toL: tmpL.clone(),
-      toUp: up.clone(),
-      t: 0,
+    startFlight({
+      toP: tmpP,
+      toL: tmpL,
+      toUp: up,
       dur: 1.05,
       releaseMode: "aerial",
-    };
+    });
   }
 
   function exitMap2D({ preserveUp = false } = {}) {
@@ -294,7 +396,7 @@ export function createCameraSystem(canvas, dataset) {
   function takeManualControl() {
     if (state.cinematicActive) return;
     // Cancel scripted tweens; keep true 2D top-down when in map mode
-    localTransition = null;
+    flightTransition = null;
     orientTransition = null;
     zoomTransition = null;
     if (isMap2D()) {
@@ -320,6 +422,7 @@ export function createCameraSystem(canvas, dataset) {
     activeCamera.up.set(0, 1, 0);
     activeCamera.lookAt(controls.target);
     controls.enabled = true;
+    controls.update();
   }
 
   controls.addEventListener("start", takeManualControl);
@@ -335,7 +438,7 @@ export function createCameraSystem(canvas, dataset) {
     (e) => {
       // Cancel fly-to on drag (any button) so orbit/pan feel immediate;
       // plain click still lets the zoom finish.
-      if (!localTransition && !orientTransition && !zoomTransition) return;
+      if (!flightTransition && !orientTransition && !zoomTransition) return;
       if (e.button !== 0 && e.button !== 1 && e.button !== 2) return;
       const startX = e.clientX;
       const startY = e.clientY;
@@ -367,7 +470,7 @@ export function createCameraSystem(canvas, dataset) {
     smoothUp.copy(up);
   }
 
-  function applyMode(mode) {
+  function applyMode(mode, opts = {}) {
     if (mode === "reset") {
       state.pathT = 0;
       state.playing = false;
@@ -410,7 +513,7 @@ export function createCameraSystem(canvas, dataset) {
 
     controls.enabled = true;
     followInited = false;
-    localTransition = null;
+    flightTransition = null;
     orientTransition = null;
     zoomTransition = null;
 
@@ -435,7 +538,17 @@ export function createCameraSystem(canvas, dataset) {
         aspect: Math.max(0.5, perspCamera.aspect || viewportSize().aspect),
         ...dtmCam,
       });
-      snapTo(tmpP, tmpL, tmpUp);
+      if (opts?.animate === false) {
+        snapTo(tmpP, tmpL, tmpUp);
+      } else {
+        startFlight({
+          toP: tmpP,
+          toL: tmpL,
+          toUp: tmpUp,
+          dur: 1.8,
+          releaseMode: "overview",
+        });
+      }
       return;
     }
 
@@ -457,17 +570,13 @@ export function createCameraSystem(canvas, dataset) {
         outL: tmpL,
         outUp: tmpUp,
       });
-      localTransition = {
-        fromP: activeCamera.position.clone(),
-        fromL: controls.target.clone(),
-        fromUp: activeCamera.up.clone(),
-        toP: tmpP.clone(),
-        toL: tmpL.clone(),
-        toUp: tmpUp.clone(),
-        t: 0,
+      startFlight({
+        toP: tmpP,
+        toL: tmpL,
+        toUp: tmpUp,
         dur: 1.25,
         releaseMode: "orbit",
-      };
+      });
       return;
     }
 
@@ -658,65 +767,39 @@ export function createCameraSystem(canvas, dataset) {
 
   /**
    * Smooth drainage fly-to (Joining Streams). Cancels river/chainage transitions.
-   * Driven from update() via camera.userData.joiningStreamsFlight.
    */
   function startDrainageFlight(toP, toL, opts = {}) {
-    if (state.cinematicActive) return;
+    if (state.cinematicActive || !toP || !toL) return;
     state.playing = false;
     state.visualMode = "landscape";
-    state.cameraMode = "orbit";
-    // Cancel competing river/chainage/local flies
-    localTransition = null;
-    zoomTransition = null;
-    orientTransition = null;
-
-    controls.minPolarAngle = 0;
-    controls.maxPolarAngle = Math.PI * 0.495;
-    controls.enableRotate = true;
-    controls.enablePan = true;
-    controls.enabled = false;
-
-    if (!toP || !toL) return;
 
     if (isMap2D()) {
-      // 2D: pan only to drainage / garbage target
       const height = Math.max(activeCamera.position.y, mapLookY + 400);
       tmpP.set(toL.x, height, toL.z);
       tmpL.set(toL.x, mapLookY, toL.z);
-      localTransition = {
-        fromP: activeCamera.position.clone(),
-        fromL: controls.target.clone(),
-        fromUp: activeCamera.up.clone().normalize(),
-        toP: tmpP.clone(),
-        toL: tmpL.clone(),
+      startFlight({
+        toP: tmpP,
+        toL: tmpL,
         toUp: activeCamera.up.clone().normalize(),
-        t: 0,
         dur: (opts.durMs ?? 900) / 1000,
         releaseMode: "aerial",
-      };
+      });
       return;
     }
 
-    if (activeCamera.isPerspectiveCamera && Number.isFinite(opts.fov)) {
-      activeCamera.fov = opts.fov;
-      activeCamera.updateProjectionMatrix();
-    }
-
+    state.cameraMode = "orbit";
     tmpP.set(toP.x, toP.y, toP.z);
     tmpL.set(toL.x, toL.y, toL.z);
-
-    activeCamera.userData.joiningStreamsFlight = {
-      active: true,
-      startPosition: activeCamera.position.clone(),
-      startTarget: controls.target.clone(),
-      endPosition: tmpP.clone(),
-      endTarget: tmpL.clone(),
-      progress: 0,
-      duration: opts.durMs ?? 900,
-    };
+    startFlight({
+      toP: tmpP,
+      toL: tmpL,
+      toFov: opts.fov,
+      dur: (opts.durMs ?? 900) / 1000,
+      releaseMode: "orbit",
+    });
   }
 
-  /** Same smooth flight path as drainage — used for garbage focus (not chainage). */
+  /** Same smooth flight path as drainage — used for garbage focus. */
   function startGarbageFlight(toP, toL, opts = {}) {
     startDrainageFlight(toP, toL, opts);
   }
@@ -730,31 +813,6 @@ export function createCameraSystem(canvas, dataset) {
     controls.rotateSpeed = spd.rotate;
     controls.zoomSpeed = spd.zoom;
     controls.panSpeed = spd.pan;
-
-    // Joining Streams drainage flight — highest priority over river chainage flies
-    const flight = camera.userData?.joiningStreamsFlight;
-    if (flight?.active) {
-      flight.progress += dt * 1000;
-      const tNorm = Math.min(1, flight.progress / Math.max(1, flight.duration));
-      const eased = 1 - Math.pow(1 - tNorm, 3);
-      camera.position.lerpVectors(flight.startPosition, flight.endPosition, eased);
-      controls.target.lerpVectors(flight.startTarget, flight.endTarget, eased);
-      camera.up.set(0, 1, 0);
-      camera.lookAt(controls.target);
-      controls.enabled = false;
-      if (tNorm >= 1) {
-        camera.position.copy(flight.endPosition);
-        controls.target.copy(flight.endTarget);
-        camera.lookAt(controls.target);
-        flight.active = false;
-        camera.userData.joiningStreamsFlight = null;
-        state.cameraMode = "orbit";
-        state.playing = false;
-        controls.enabled = true;
-        controls.update();
-      }
-      return;
-    }
 
     if (zoomTransition) {
       zoomTransition.t += dt;
@@ -812,48 +870,70 @@ export function createCameraSystem(canvas, dataset) {
       return;
     }
 
-    if (localTransition) {
-      localTransition.t += dt;
-      const tNorm = Math.min(1, localTransition.t / localTransition.dur);
+    if (flightTransition) {
+      flightTransition.t += dt;
+      const tNorm = Math.min(1, flightTransition.t / flightTransition.dur);
       const easeFn =
-        localTransition.ease === "outCubic"
+        flightTransition.ease === "outCubic"
           ? easeOutCubic
-          : localTransition.ease === "inOutQuint"
+          : flightTransition.ease === "inOutQuint"
             ? easeInOutQuint
             : easeInOutCubic;
       const k = easeFn(tNorm);
-      camera.position.lerpVectors(localTransition.fromP, localTransition.toP, k);
-      // Arc above the surface mid-flight so the low eye-level path clears houses/buildings.
-      // Peak at midpoint (sin πt); settles back to the exact low pose at the end.
-      const lift = localTransition.transitLift || 0;
-      if (lift > 0) {
-        camera.position.y += Math.sin(Math.PI * tNorm) * lift;
+
+      // 1. Position interpolation with smooth parabolic transit lift
+      camera.position.lerpVectors(flightTransition.fromP, flightTransition.toP, k);
+      if (flightTransition.lift > 0) {
+        camera.position.y += Math.sin(Math.PI * tNorm) * flightTransition.lift;
       }
-      controls.target.lerpVectors(localTransition.fromL, localTransition.toL, k);
-      smoothUp.copy(localTransition.fromUp).lerp(localTransition.toUp, k).normalize();
-      camera.up.copy(smoothUp);
-      if (localTransition.fromZoom != null && localTransition.toZoom != null) {
+
+      // Continuous terrain clearance so camera never clips ground, hills, or banks
+      if (!isMap2D()) {
+        try {
+          const groundY = terrainHeightAt(camera.position.x, camera.position.z, stations);
+          if (Number.isFinite(groundY) && camera.position.y < groundY + 18) {
+            camera.position.y = groundY + 18;
+          }
+        } catch (_) {}
+      }
+
+      // 2. Look target interpolation (independently interpolated for cinematic framing)
+      controls.target.lerpVectors(flightTransition.fromL, flightTransition.toL, k);
+
+      // 3. Camera orientation interpolation via Quaternion SLERP (no gimbal lock or flips)
+      camera.quaternion.copy(flightTransition.fromQ).slerp(flightTransition.toQ, k);
+
+      // 4. FOV and orthographic zoom
+      if (activeCamera.isPerspectiveCamera && flightTransition.fromFov !== flightTransition.toFov) {
+        activeCamera.fov = THREE.MathUtils.lerp(
+          flightTransition.fromFov,
+          flightTransition.toFov,
+          k,
+        );
+        activeCamera.updateProjectionMatrix();
+      }
+      if (flightTransition.fromZoom != null && flightTransition.toZoom != null && isMap2D()) {
         orthoCamera.zoom = THREE.MathUtils.lerp(
-          localTransition.fromZoom,
-          localTransition.toZoom,
+          flightTransition.fromZoom,
+          flightTransition.toZoom,
           k,
         );
         orthoCamera.updateProjectionMatrix();
       }
-      // Drive orientation directly — do NOT controls.update() mid-tween
-      // (OrbitControls damping/spherical rewrite fights forward river poses).
-      camera.lookAt(controls.target);
-      if (localTransition.t >= localTransition.dur) {
-        const release = localTransition.releaseMode || "orbit";
-        // Snap to exact end pose
-        camera.position.copy(localTransition.toP);
-        controls.target.copy(localTransition.toL);
-        camera.up.copy(localTransition.toUp).normalize();
-        camera.lookAt(controls.target);
-        localTransition = null;
+
+      // 5. Completion: exact final pose and seamless controls handoff
+      if (tNorm >= 1) {
+        const release = flightTransition.releaseMode || "orbit";
+        camera.position.copy(flightTransition.toP);
+        controls.target.copy(flightTransition.toL);
+        camera.quaternion.copy(flightTransition.toQ);
+        camera.up.copy(flightTransition.toUp).normalize();
+
+        flightTransition = null;
         state.cameraMode = release;
         state.playing = false;
         controls.enabled = true;
+
         if (release === "aerial" || release === "top" || release === "2d") {
           lockMap2DControls();
           camera.up.y = 0;
@@ -866,10 +946,10 @@ export function createCameraSystem(canvas, dataset) {
           camera.position.z = controls.target.z;
           camera.lookAt(controls.target);
           controls.update();
-        } else if (release === "orbit") {
-          camera.up.set(0, 1, 0);
-          camera.lookAt(controls.target);
-          // One sync so the next OrbitControls.update uses this pose
+        } else {
+          // Synchronize OrbitControls so internal sphericals match exactly without snapping
+          controls.object.position.copy(camera.position);
+          controls.target.copy(controls.target);
           controls.update();
         }
       }
@@ -961,7 +1041,7 @@ export function createCameraSystem(canvas, dataset) {
       zoomTransition = null;
       const mapDur = opts.dur ?? 0.85;
       if (mapDur <= 0) {
-        localTransition = null;
+        flightTransition = null;
         activeCamera.position.copy(tmpP);
         controls.target.copy(tmpL);
         activeCamera.up.copy(keepUp);
@@ -971,21 +1051,17 @@ export function createCameraSystem(canvas, dataset) {
         state.cameraMode = "aerial";
         state.playing = false;
         controls.enabled = true;
+        controls.update();
         return;
       }
-      localTransition = {
-        fromP: activeCamera.position.clone(),
-        fromL: controls.target.clone(),
-        fromUp: activeCamera.up.clone().normalize(),
-        toP: tmpP.clone(),
-        toL: tmpL.clone(),
+      startFlight({
+        toP: tmpP,
+        toL: tmpL,
         toUp: keepUp,
-        fromZoom: keepZoom,
         toZoom: keepZoom,
-        t: 0,
         dur: mapDur,
         releaseMode: "aerial",
-      };
+      });
       return;
     }
 
@@ -1001,28 +1077,25 @@ export function createCameraSystem(canvas, dataset) {
       u,
       x,
       z,
-      // Low forward cinematic: back > height, look ahead along river (not at P)
-      cameraHeight: opts.cameraHeight ?? 16,
-      cameraDistance: opts.cameraDistance ?? 55,
-      lookAheadDistance: opts.lookAheadDistance ?? 180,
-      lookY: opts.lookY ?? SURFACE_Y + 12,
+      cameraHeight: opts.cameraHeight ?? 44,
+      cameraDistance: opts.cameraDistance ?? 95,
+      lookAheadDistance: opts.lookAheadDistance ?? 240,
+      lookY: opts.lookY ?? (SURFACE_Y + 6),
       lateralOffset: opts.lateralOffset ?? 0,
       outP: tmpP,
       outL: tmpL,
       outUp: tmpUp,
     });
 
-    // Wide corridor FOV — both banks + horizon (matches reference boat view)
-    if (activeCamera.isPerspectiveCamera) {
-      activeCamera.fov = Number.isFinite(opts.fov) ? opts.fov : 58;
-      activeCamera.updateProjectionMatrix();
-    }
-
-    // Instant snap (chainage step/ruler): keep river view, no fly/arc.
-    const snapDur = opts.dur ?? 1.6;
+    const targetFov = Number.isFinite(opts.fov) ? opts.fov : 52;
+    const snapDur = opts.dur ?? 1.5;
     if (snapDur <= 0) {
       zoomTransition = null;
-      localTransition = null;
+      flightTransition = null;
+      if (activeCamera.isPerspectiveCamera && activeCamera.fov !== targetFov) {
+        activeCamera.fov = targetFov;
+        activeCamera.updateProjectionMatrix();
+      }
       activeCamera.position.copy(tmpP);
       controls.target.copy(tmpL);
       activeCamera.up.set(0, 1, 0);
@@ -1030,49 +1103,21 @@ export function createCameraSystem(canvas, dataset) {
       state.cameraMode = "orbit";
       state.playing = false;
       controls.enabled = true;
+      controls.update();
       return;
     }
 
-    // Prevent OrbitControls from fighting the fly-to mid-tween
-    controls.enabled = false;
-
-    // Straight along clear river; arc up only when the hop path passes buildings.
-    const eyeH = Number.isFinite(opts.cameraHeight) ? opts.cameraHeight : 16;
-    const hopDist = Math.hypot(tmpP.x - activeCamera.position.x, tmpP.z - activeCamera.position.z);
-    let transitLift = 0;
-    if (opts.transitLift != null) {
-      transitLift = opts.transitLift;
-    } else if (!opts.dragging) {
-      transitLift = estimateBuildingTransitLift(
-        activeCamera.position,
-        tmpP,
-        dataset?.osm?.buildings,
-        eyeH,
-      );
-    }
-
-    // Clear-river hops stay quick/straight; building clears get a longer arc so walls read well.
-    let dur = snapDur;
-    let ease = opts.ease || "inOutQuint";
-    if (transitLift > 0) {
-      dur = Math.max(dur, THREE.MathUtils.clamp(1.4 + hopDist * 0.0018, 1.6, 3.2));
-      ease = "inOutQuint";
-    }
-
-    // Replace any in-flight transition — never stack competing fly-tos
-    localTransition = {
-      fromP: activeCamera.position.clone(),
-      fromL: controls.target.clone(),
-      fromUp: activeCamera.up.clone().normalize(),
-      toP: tmpP.clone(),
-      toL: tmpL.clone(),
+    // Launch authoritative transition with automatic distance/turn scaling and obstacle clearance
+    startFlight({
+      toP: tmpP,
+      toL: tmpL,
       toUp: new THREE.Vector3(0, 1, 0),
-      t: 0,
-      dur,
-      ease,
+      toFov: targetFov,
+      dur: opts.dur,
+      ease: opts.ease || "inOutCubic",
+      transitLift: opts.transitLift,
       releaseMode: "orbit",
-      transitLift,
-    };
+    });
   }
 
   /**
@@ -1106,47 +1151,33 @@ export function createCameraSystem(canvas, dataset) {
       else keepUp.normalize();
       const keepZoom = orthoCamera.zoom;
       zoomTransition = null;
-      localTransition = {
-        fromP: activeCamera.position.clone(),
-        fromL: controls.target.clone(),
-        fromUp: activeCamera.up.clone().normalize(),
-        toP: tmpP.clone(),
-        toL: tmpL.clone(),
+      startFlight({
+        toP: tmpP,
+        toL: tmpL,
         toUp: keepUp,
-        fromZoom: keepZoom,
         toZoom: keepZoom,
-        t: 0,
         dur: opts.dur ?? 0.85,
         releaseMode: "aerial",
-      };
+      });
       return;
     }
 
-    if (activeCamera.isPerspectiveCamera && Number.isFinite(opts.fov)) {
-      activeCamera.fov = opts.fov;
-      activeCamera.updateProjectionMatrix();
-    }
-
-    controls.enabled = false;
-    localTransition = {
-      fromP: activeCamera.position.clone(),
-      fromL: controls.target.clone(),
-      fromUp: activeCamera.up.clone().normalize(),
-      toP: tmpP.clone(),
-      toL: tmpL.clone(),
+    startFlight({
+      toP: tmpP,
+      toL: tmpL,
       toUp: new THREE.Vector3(0, 1, 0),
-      t: 0,
+      toFov: Number.isFinite(opts.fov) ? opts.fov : undefined,
       dur: opts.dur ?? 0.95,
-      ease: opts.ease || "outCubic",
+      ease: opts.ease || "inOutCubic",
       releaseMode: "orbit",
       transitLift: opts.transitLift ?? 0,
-    };
+    });
   }
 
   /** Per-frame pose from a river journey: no tween, cancels any in-flight transition. */
   function setPose(p, l, opts = {}) {
     if (state.cinematicActive || isMap2D()) return false;
-    localTransition = null;
+    flightTransition = null;
     zoomTransition = null;
     orientTransition = null;
     state.cameraMode = "orbit";
@@ -1167,6 +1198,8 @@ export function createCameraSystem(canvas, dataset) {
     activeCamera.lookAt(controls.target);
     if (opts.releaseControls) {
       controls.enabled = true;
+      controls.object.position.copy(p);
+      controls.target.copy(l);
       controls.update();
     }
     return true;

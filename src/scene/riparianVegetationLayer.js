@@ -102,8 +102,9 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
       // Spacing follows how deep the cell sits inside forest. Edges and mixed
       // margins stay open; the interior is vegetation, not a planted grid.
       const local = c.depth >= 4 ? 1 : c.depth >= 2 ? 0.45 : 0.16;
-      if (rng() >= treeChance * local) continue;
-      const asset = c.depth >= 2 ? riparianTreeAsset(rng) : (rng() < 0.45 ? "grass" : riparianTreeAsset(rng));
+      const asset = c.depth >= 2
+        ? riparianTreeAsset(rng)
+        : (rng() < 0.5 ? (rng() < 0.5 ? "grass" : "reeds") : (rng() < 0.5 ? "shrub" : riparianTreeAsset(rng)));
       placements.push(treePlacement(c, cells, baseY, stations, info, asset, rng));
     }
   }
@@ -416,20 +417,21 @@ function treePlacement(c, grid, baseY, stations, info, assetId, rng) {
   const half = Math.sqrt(grid.cellArea) * 0.45;
   const x = c.x + (rng() - 0.5) * 2 * half;
   const z = c.z + (rng() - 0.5) * 2 * half;
-  // Sit on the island surface. Using the surrounding DTM here lifts the canopy onto the banks
-  // and hides the open water channel beside the island.
   const y = baseY;
-  const scale = assetId === "grass" ? 0.7 + rng() * 0.7 : 0.85 + rng() * 0.35;
-  const heightM = assetId === "grass" ? 1.4 + rng() * 1.2 : 6.5 + rng() * 4;
+  const isPlant = assetId === "grass" || assetId === "reeds" || assetId === "shrub";
+  const scale = isPlant ? 0.8 + rng() * 0.6 : 0.9 + rng() * 0.4;
+  const heightM = isPlant ? (assetId === "shrub" ? 2.8 + rng() * 1.0 : 1.6 + rng() * 1.0) : 7.5 + rng() * 5.0;
   return { x, y: y + 0.05, z, rotY: rng() * Math.PI * 2, scale, heightM, assetId, info };
 }
 
 function riparianTreeAsset(rng) {
   const r = rng();
-  if (r < 0.62) return "broadleaf";
-  if (r < 0.8) return "birch";
-  if (r < 0.92) return "palm";
-  return "conifer";
+  if (r < 0.26) return "bamboo";
+  if (r < 0.48) return "neem";
+  if (r < 0.66) return "palm";
+  if (r < 0.80) return "acacia";
+  if (r < 0.92) return "broadleaf";
+  return "banyan";
 }
 
 async function buildTreeBatches(placements, castShadow, rng) {

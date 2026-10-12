@@ -12,7 +12,7 @@ import { mountWeatherOverview } from "../../weather/WeatherOverview.js";
 import { state } from "../../state.js";
 
 /**
- * Top-right LIVE WEATHER + always-on BOD/COD + chainage-live discharge.
+ * Top-right LIVE WEATHER + always-on BOD/COD + chainage-local modelled discharge.
  * Weather icon opens Open-Meteo past/future detail graphs.
  */
 export function mountWeatherWidget(root) {
@@ -23,10 +23,10 @@ export function mountWeatherWidget(root) {
     <button type="button" class="weather-icon" id="weather-icon-btn" title="Open live weather details" aria-label="Open live weather details">
       ${lucideHtml(CloudSun, { size: 18 })}
     </button>
-    <div class="weather-wq" aria-label="Live discharge, BOD and COD at selected chainage">
-      <div class="weather-wq-head">LIVE REACH</div>
-      <div class="weather-wq-row is-q">
-        <i data-short="Q">Discharge</i>
+    <div class="weather-wq" aria-label="Modelled discharge, BOD and COD at selected chainage">
+      <div class="weather-wq-head">RIVER REACH</div>
+      <div class="weather-wq-row is-q" title="Modelled — synthetic hydrograph, no river gauge connected">
+        <i data-short="Q*">Q (model)</i>
         <b id="weather-discharge">—</b>
         <em id="weather-discharge-unit">m³/s</em>
       </div>
@@ -193,7 +193,7 @@ export function mountWeatherWidget(root) {
       if (serial !== dischargeSerial) return;
       dischargeEl.textContent = formatMetricNumber(q, 1);
       if (dischargeUnitEl) dischargeUnitEl.hidden = !Number.isFinite(q);
-      dischargeEl.title = `Live discharge at chainage ${Math.round(meters)} m`;
+      dischargeEl.title = `Modelled discharge at chainage ${Math.round(meters)} m — not a gauge reading`;
       document.dispatchEvent(
         new CustomEvent("chainage-discharge", { detail: { meters, q } }),
       );

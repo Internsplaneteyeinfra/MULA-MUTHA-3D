@@ -17,7 +17,7 @@ export function mountChainagePanel(root, dataset) {
   el.id = "chainage-panel";
   el.hidden = true;
   el.setAttribute("aria-label", "Chainage");
-  const intervalM = Number(dataset?.chainageIntervalM) > 0 ? Math.round(dataset.chainageIntervalM) : 10;
+  const intervalM = 10;
 
   el.innerHTML = `
     <header class="chainage-panel-header">

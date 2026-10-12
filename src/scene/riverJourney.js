@@ -2,14 +2,15 @@ import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { interpolateChainage } from "../geo/chainage.js";
 import { pointAlongRiver, smoothTangent, stationAt } from "./riverCamera.js";
+import { terrainHeightAt } from "./terrain.js";
 
 /**
  * Chainage-to-chainage travel along the river corridor.
  *
  * The camera anchor walks the chainage centerline (never a straight chord across land);
- * the pose at every instant is the same eye-level inspection pose as
- * `chainageGisAerialPose` (16 m up, 55 m back, 180 m ahead), mirrored when the camera
- * faces upstream. Water flow is untouched — only the camera moves.
+ * the pose at every instant is the same aerial-oblique inspection pose as
+ * `chainageGisAerialPose` (44 m up, 95 m back, 240 m ahead).
+ * Water flow is untouched — only the camera moves.
  */
 export const CameraMode = Object.freeze({
   IDLE: "idle",
@@ -20,36 +21,55 @@ export const CameraMode = Object.freeze({
   FULL_RIVER_JOURNEY: "full-river-journey",
 });
 
-const MIN_DUR_S = 1.8;
-const MAX_DUR_S = 16;
+const MIN_DUR_S = 0.42;
+const MAX_DUR_S = 3.2;
 /** Full "Explore River" cruise speed along the centerline. */
-const EXPLORE_M_PER_S = 220;
-/** Backward trips shorter than this reverse while facing downstream (no double 180° turn). */
-const REORIENT_MIN_M = 2000;
-/** Extra time given to trips that turn to face upstream and back, so each turn takes ~0.8 s+. */
-const REORIENT_EXTRA_S = 1.8;
-/** Share of the trip spent blending from wherever the user left the camera. */
-const START_BLEND = 0.24;
+const EXPLORE_M_PER_S = 240;
+/** Default share of trip spent blending from user camera if far from river. */
+const START_BLEND = 0.08;
 /** Time constant of the travel-heading low-pass (tight bends at cruise speed). */
-const HEADING_TAU_S = 0.22;
+const HEADING_TAU_S = 0.18;
 /** Minimum eye distance inside the bank line. */
 const CHANNEL_MARGIN_M = 6;
 
-const BASE_POSE = { height: 16, back: 55, ahead: 180, lookAbove: 12, fov: 58 };
+const BASE_POSE = { height: 44, back: 95, ahead: 240, lookAbove: 6, fov: 52 };
 
 export function transitionDuration(distanceM) {
   const d = Math.max(0, distanceM);
-  return THREE.MathUtils.clamp(1.6 + d / 140, MIN_DUR_S, MAX_DUR_S);
+  if (d <= 15) return 0.42; // Swift, flowing 10m step
+  if (d <= 50) return 0.65;
+  if (d <= 150) return 0.90;
+  if (d <= 600) return 1.30;
+  // Natural power curve for medium/large distances: smooth start, silky cruise, gentle settle
+  return THREE.MathUtils.clamp(0.85 + Math.pow(d, 0.35) * 0.12, 0.42, MAX_DUR_S);
 }
 
-/** Trapezoidal speed profile: ease-in, cruise, ease-out. `accel` 0 starts at cruise speed. */
-export function travelProgress(t, accel = 0.28, decel = 0.32) {
-  const vmax = 1 / (1 - accel / 2 - decel / 2);
+/**
+ * Continuous SmoothStep / Quintic ease-in-out profile:
+ * Zero start jerk, continuous acceleration, smooth cruise, and gentle deceleration.
+ * Eliminates the abrupt "tab and go" mechanical snap.
+ */
+export function travelProgress(t, accel = 0.22, decel = 0.26) {
   if (t <= 0) return 0;
   if (t >= 1) return 1;
-  if (accel > 0 && t < accel) return (0.5 * vmax * t * t) / accel;
-  if (t <= 1 - decel) return vmax * (accel / 2 + (t - accel));
-  return 1 - (0.5 * vmax * (1 - t) ** 2) / decel;
+  const a = Math.max(0.01, accel);
+  const d = Math.max(0.01, decel);
+  const vmax = 1 / (1 - a * 0.5 - d * 0.5);
+
+  if (t < a) {
+    // Smooth Quintic ramp-in: zero jerk at t=0
+    const p = t / a;
+    const smoothRamp = p * p * p * (10 - 15 * p + 6 * p * p); // smoothstep5
+    return (0.5 * vmax * a) * smoothRamp;
+  }
+  if (t <= 1 - d) {
+    // Constant speed cruise
+    return (0.5 * vmax * a) + vmax * (t - a);
+  }
+  // Smooth Quintic ramp-out: zero jerk at arrival
+  const p = (1 - t) / d;
+  const smoothRamp = p * p * p * (10 - 15 * p + 6 * p * p);
+  return 1 - (0.5 * vmax * d) * smoothRamp;
 }
 
 const smooth01 = (e0, e1, x) => {
@@ -235,15 +255,31 @@ export function createRiverJourney({ dataset, getBridges }) {
     const chordDot = (b.x - a.x) * flow.flowX + (b.z - a.z) * flow.flowZ;
     const distance = Math.abs(toM - fromM);
     const explore = opts.mode === CameraMode.FULL_RIVER_JOURNEY;
-    const reorient = !explore && direction < 0 && distance >= REORIENT_MIN_M;
-    let startBlend = START_BLEND;
-    if (startPose?.p && a) {
+    const isDrag = !!opts.dragging;
+    const reorient = false;
+
+    let startBlend = 0.04;
+    if (isDrag || opts.continuing) {
+      startBlend = 0; // Already on river corridor, move immediately
+    } else if (startPose?.p && a) {
       const away = Math.hypot(startPose.p.x - a.x, startPose.p.z - a.z);
-      if (away > 160) startBlend = THREE.MathUtils.clamp(0.24 + (away - 160) / 3500, 0.24, 0.42);
+      if (away > 80) startBlend = THREE.MathUtils.clamp(0.08 + (away - 80) / 3000, 0.08, 0.22);
+      else startBlend = 0.04;
     }
-    const duration = explore
-      ? Math.max(8, distance / EXPLORE_M_PER_S)
-      : (opts.duration ?? transitionDuration(distance)) + (reorient ? REORIENT_EXTRA_S : 0);
+
+    let duration;
+    if (explore) {
+      duration = Math.max(8, distance / EXPLORE_M_PER_S);
+    } else if (isDrag) {
+      // Fluid, continuous tracking while user scrubs bottom chainage slider
+      duration = THREE.MathUtils.clamp(0.24 + distance / 800, 0.24, 0.50);
+    } else {
+      duration = opts.duration ?? transitionDuration(distance);
+    }
+
+    const accel = isDrag ? 0.12 : (opts.continuing ? 0.10 : explore ? 0.18 : 0.22);
+    const decel = isDrag ? 0.16 : (explore ? 0.18 : 0.26);
+
     const mode = explore
       ? CameraMode.FULL_RIVER_JOURNEY
       : direction > 0 ? CameraMode.FORWARD_TRAVEL : CameraMode.BACKWARD_TRAVEL;
@@ -256,12 +292,13 @@ export function createRiverJourney({ dataset, getBridges }) {
       distance,
       duration,
       mode,
+      isDrag,
       t: 0,
-      accel: opts.continuing ? 0.12 : explore ? 0.12 : 0.36,
-      decel: explore ? 0.14 : 0.4,
+      accel,
+      decel,
       startBlend,
       reorient,
-      lift: explore ? 6 : Math.min(5, distance * 0.0018),
+      lift: explore ? 5 : Math.min(2.0, distance * 0.0008),
       targetPose: { ...BASE_POSE, ...(opts.targetPose || {}) },
       startPose: startPose && { p: startPose.p.clone(), l: startPose.l.clone() },
       path: { fromM, toM, along: "chainage centerline", samples: Math.ceil(distance / 10) + 1 },
@@ -328,6 +365,14 @@ export function createRiverJourney({ dataset, getBridges }) {
       }
       clampToChannel(outP);
 
+      // Enforce terrain clearance: never let camera dip into river banks or terrain
+      try {
+        const groundY = terrainHeightAt(outP.x, outP.z, stations);
+        if (Number.isFinite(groundY) && outP.y < groundY + 18) {
+          outP.y = groundY + 18;
+        }
+      } catch (_) {}
+
       const blend = tr.startBlend || START_BLEND;
       if (tr.startPose && tr.t < blend) {
         const k = smooth01(0, blend, tr.t);
@@ -340,7 +385,8 @@ export function createRiverJourney({ dataset, getBridges }) {
       const rz = outL.z - outP.z;
       const yaw = Math.atan2(rz, rx);
       if (tr.yaw == null) tr.yaw = yaw;
-      tr.yaw += wrapAngle(yaw - tr.yaw) * (1 - Math.exp(-stepDt / HEADING_TAU_S));
+      const tau = tr.isDrag ? 0.12 : HEADING_TAU_S;
+      tr.yaw += wrapAngle(yaw - tr.yaw) * (1 - Math.exp(-stepDt / tau));
       const heading = tr.yaw + wrapAngle(yaw - tr.yaw) * smooth01(0.86, 1, tr.t);
       const len = Math.hypot(rx, rz);
       outL.x = outP.x + Math.cos(heading) * len;

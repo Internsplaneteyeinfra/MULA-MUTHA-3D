@@ -7,8 +7,8 @@
  * Runs entirely in the browser against public/data/naditwin/*.json.
  * Does NOT depend on river_digital_twin2-main or localhost:8080.
  *
- * LIVE discharge UI — chainage-local Q from the hydraulic engine.
- * Replace getLiveDischargeAtChainage / currentHydraulic later with gauge/API.
+ * Discharge here is MODELLED: a seeded synthetic hydrograph, not a gauge reading.
+ * Replace getLiveDischargeAtChainage / currentHydraulic with gauge/API data before labelling it live.
  */
 
 const PAST_HOURS = 72;
@@ -267,7 +267,7 @@ class ForecastEngine {
 
   /**
    * Current hydraulic snapshot. When `meters` is set, discharge is chainage-local.
-   * UI treats this as LIVE (swap engine later for gauge/API).
+   * Synthetic model output — label as modelled until a gauge/API replaces the engine.
    * @param {number} [meters]
    */
   currentHydraulic(meters) {
@@ -281,8 +281,8 @@ class ForecastEngine {
       discharge_reach_m3s: q0,
       discharge_chainage_m: hasLocal ? this.chainageM[cell] : null,
       discharge_cell: hasLocal ? cell : null,
-      dischargeSource: "live",
-      dischargeLabel: "Live",
+      dischargeSource: "model",
+      dischargeLabel: "Modelled",
       chainage_m: this.chainageM.slice(),
       bed: this.bed.slice(),
       wse: wse.slice(),

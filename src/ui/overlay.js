@@ -651,6 +651,7 @@ export function mountUI(root, {
     onReplay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),
     onFocus: () => window.__MM_SCENE__?.focusFloodSimulation?.(),
     onClear: () => clearApiFloodUi(),
+    onClose: () => toggleFloodBar(false),
   });
 
   const floodPlayback = mountFloodPlaybackControls(root, {
@@ -746,7 +747,7 @@ export function mountUI(root, {
     if (window.__MM_SCENE__?.apiFloodLayer?.userData?.hasFlood) {
       window.__MM_SCENE__?.clearFloodSimulation?.();
     }
-    floodInfo.hide();
+    floodInfo.clear?.();
     floodPlayback.setLoadedDate(null);
     resetApiFloodState();
   }
@@ -755,7 +756,7 @@ export function mountUI(root, {
     floodRequestSeq += 1;
     cancelJalnetraFloodRequest("scene");
     window.__MM_SCENE__?.clearFloodSimulation?.();
-    floodInfo.hide();
+    floodInfo.clear?.();
     floodPlayback.setLoadedDate(null);
     floodPlayback.setSelected(null, { focus: false });
     floodPlayback.setStatus("");
@@ -872,12 +873,14 @@ export function mountUI(root, {
         state.floodSimStatus = "error";
         setLpFloodStatus("Error", "error");
         floodPlayback.setStatus(state.apiFlood.error, "error");
-        floodInfo.show(null, {
-          error: true,
-          date: ymd,
-          message: state.apiFlood.error,
-          errorDetails: err?.stack ? String(err.message) : String(err),
-        });
+        if (state.showFloodBar) {
+          floodInfo.show(null, {
+            error: true,
+            date: ymd,
+            message: state.apiFlood.error,
+            errorDetails: err?.stack ? String(err.message) : String(err),
+          });
+        }
       }
       syncFloodSimStats();
       syncIllustrativeDisabled();
@@ -920,7 +923,8 @@ export function mountUI(root, {
     apply(result);
     const scenes = result.scenes || [];
     state.floodMode = "api";
-    root.classList.add("api-flood-mode", "flood-sim-open");
+    root.classList.add("api-flood-mode");
+    root.classList.toggle("flood-sim-open", !!state.showFloodBar);
     root.querySelectorAll(".fishing-panel, .hud.fishing-panel").forEach((el) => {
       el.hidden = true;
     });
@@ -948,11 +952,16 @@ export function mountUI(root, {
     // Stored on the layer's info object so later scene/progress syncs keep the same rows.
     layerInfo.status_label = result.catalog?.fromCache ? "Stored · cached" : "Stored";
     state.floodSimInfo = layerInfo;
-    floodInfo.show(layerInfo);
+    if (state.showFloodBar) {
+      floodInfo.show(layerInfo);
+      floodPlayback.show();
+    } else {
+      floodInfo.updateScene(layerInfo);
+      floodPlayback.hide();
+    }
     const date = validYmd(layerInfo.scene_date);
     floodPlayback.setLoadedDate(date);
     floodPlayback.setProgress(0);
-    if (state.showFloodBar) floodPlayback.show();
     // The selected-date line already shows date + area; keep the status slot for loading / errors.
     floodPlayback.setStatus("");
     if (layerInfo?.max_depth_m != null) {
@@ -1160,18 +1169,25 @@ export function mountUI(root, {
   function toggleFloodBar(force) {
     const open = force ?? !state.showFloodBar;
     state.showFloodBar = open;
-    if (floodPlayback?.el) floodPlayback.el.hidden = !open;
     nav.setFloodPressed?.(open);
     root.classList.toggle("flood-sim-open", !!open);
-    
+
     if (open) {
       // Hide fishing HUD so it doesn't stack over flood result / playback
       root.querySelectorAll(".fishing-panel, .hud.fishing-panel").forEach((el) => {
         el.hidden = true;
       });
+      floodPlayback.show();
+      const activeInfo = state.floodSimInfo || state.apiFlood?.result?.info;
+      if (floodInfo.hasResult?.() || activeInfo) {
+        floodInfo.reopen?.(activeInfo);
+      }
       openFloodTimeline();
+    } else {
+      floodPlayback.hide();
+      floodInfo.hide();
     }
-    
+
     if (!open && state.floodMode !== "api") {
       root.classList.remove("api-flood-mode");
     }

@@ -153,13 +153,22 @@ function classToKind(name = "") {
 }
 
 function assetForKind(kind, rng) {
-  if (kind === "grass") return "grass";
-  if (kind === "shrub") return rng() < 0.55 ? "grass" : "birch";
+  if (kind === "grass") return rng() < 0.65 ? "grass" : "reeds";
+  if (kind === "shrub") {
+    const r = rng();
+    if (r < 0.45) return "shrub";
+    if (r < 0.72) return "bamboo";
+    if (r < 0.88) return "acacia";
+    return "grass";
+  }
   if (kind === "trees") {
     const roll = rng();
-    if (roll < 0.34) return "palm";
-    if (roll < 0.67) return "broadleaf";
-    return "conifer";
+    if (roll < 0.24) return "neem";
+    if (roll < 0.44) return "broadleaf";
+    if (roll < 0.62) return "banyan";
+    if (roll < 0.78) return "gulmohar";
+    if (roll < 0.90) return "palm";
+    return "acacia";
   }
   return classifyTreeAsset({}, "park", rng);
 }

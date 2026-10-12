@@ -456,9 +456,9 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-overview">
         <div class="hip-summary-cards">
           <div class="hip-card">
-            <div class="hip-card__label">Upstream Discharge (LIVE)</div>
+            <div class="hip-card__label">Upstream Discharge (MODELLED)</div>
             <div class="hip-card__value">${discharge}</div>
-            <div class="hip-card__prov">${rd?.discharge_prov ?? "LIVE"} · live gauge connected</div>
+            <div class="hip-card__prov">${rd?.discharge_prov ?? "MODELLED"} · no gauge connected</div>
           </div>
           <div class="hip-card">
             <div class="hip-card__label">Reach Length</div>
@@ -473,7 +473,7 @@ export function mountHydroIntelPanel(root) {
           <div class="hip-card">
             <div class="hip-card__label">Ensemble</div>
             <div class="hip-card__value" style="font-size:11px">${ensStr}</div>
-            <div class="hip-card__prov">LIVE</div>
+            <div class="hip-card__prov">MODELLED</div>
           </div>
         </div>
 
@@ -481,7 +481,7 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-station-block">
           <div class="hip-station-title">${stLabel}</div>
           <div class="hip-kv-grid">
-            <div class="hip-kv"><span class="k">Rel. WSE (LIVE)</span><span class="v" style="color:${C.wse}">${wseNow}</span></div>
+            <div class="hip-kv"><span class="k">Rel. WSE (MODELLED)</span><span class="v" style="color:${C.wse}">${wseNow}</span></div>
             <div class="hip-kv"><span class="k">Threshold (VERIFIED)</span><span class="v" style="color:${C.threshold}">${thr}</span></div>
             <div class="hip-kv"><span class="k">Margin</span><span class="v" style="color:${marginColor}">${marginStr}</span></div>
             <div class="hip-kv"><span class="k">Risk</span><span class="v">${risk}</span></div>
@@ -491,8 +491,8 @@ export function mountHydroIntelPanel(root) {
             <div class="hip-kv"><span class="k">Ensemble</span><span class="v" style="font-size:9px">${ensStr}</span></div>
           </div>
           <div class="hip-prov-grid">
-            <div><span class="pk">WSE</span><span class="pv">${sd?.provenance?.wse ?? "LIVE"}</span></div>
-            <div><span class="pk">Discharge</span><span class="pv">${sd?.provenance?.discharge ?? "LIVE"}</span></div>
+            <div><span class="pk">WSE</span><span class="pv">${sd?.provenance?.wse ?? "MODELLED"}</span></div>
+            <div><span class="pk">Discharge</span><span class="pv">${sd?.provenance?.discharge ?? "MODELLED"}</span></div>
             <div><span class="pk">Threshold</span><span class="pv">${sd?.provenance?.threshold ?? "VERIFIED"}</span></div>
             <div><span class="pk">Datum</span><span class="pv" style="color:#ff4d4f">${sd?.provenance?.datum ?? "VERIFIED"}</span></div>
           </div>
@@ -552,8 +552,8 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Discharge — Today &nbsp;<span class="hip-sub">CH ${stLabel}</span></div>
         <div class="hip-legend">
-          ${legendItem(C.observed, "Simulated past Q (LIVE)")}
-          ${legendItem(C.forecast, "Forecast P50 (LIVE)", true)}
+          ${legendItem(C.observed, "Simulated past Q (MODELLED)")}
+          ${legendItem(C.forecast, "Forecast P50 (MODELLED)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
         </div>
         <div class="hip-svg-wrap">
@@ -649,10 +649,10 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">River Stage — Sangam → Downstream</div>
         <div class="hip-legend">
-          ${legendItem(C.wse, "Relative WSE (LIVE)")}
-          ${legendItem(C.forecast, "Forecast P50 (LIVE)", true)}
+          ${legendItem(C.wse, "Relative WSE (MODELLED)")}
+          ${legendItem(C.forecast, "Forecast P50 (MODELLED)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
-          ${legendItem(C.bed, "Inferred bed (LIVE)")}
+          ${legendItem(C.bed, "Inferred bed (MODELLED)")}
           ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
@@ -744,8 +744,8 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Hydrograph at CH ${d.station_label}</div>
         <div class="hip-legend">
-          ${legendItem(C.observed, "Simulated past WSE (LIVE)")}
-          ${legendItem(C.forecast, "Forecast P50 (LIVE)", true)}
+          ${legendItem(C.observed, "Simulated past WSE (MODELLED)")}
+          ${legendItem(C.forecast, "Forecast P50 (MODELLED)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
           ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
@@ -866,8 +866,8 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Threshold Status — CH ${sd.station_label}</div>
         <div class="hip-legend">
-          ${legendItem(SC[sev], "Relative WSE Now (LIVE)")}
-          ${legendItem(SC[sev72] ?? C.ok, "+72h P50 (LIVE)")}
+          ${legendItem(SC[sev], "Relative WSE Now (MODELLED)")}
+          ${legendItem(SC[sev72] ?? C.ok, "+72h P50 (MODELLED)")}
           ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
@@ -897,9 +897,9 @@ export function mountHydroIntelPanel(root) {
           <div class="hip-kv"><span class="k">Exceedance</span><span class="v">${f?.exceedance_prob_pct != null ? f.exceedance_prob_pct + "%" : "—"}</span></div>
         </div>
         <div class="hip-prov-row">
-          WSE: <strong>${prov?.wse ?? "LIVE"}</strong> · 
+          WSE: <strong>${prov?.wse ?? "MODELLED"}</strong> · 
           Threshold: <strong>${prov?.threshold ?? "VERIFIED"}</strong> · 
-          Forecast: <strong>${prov?.forecast ?? "LIVE"}</strong>
+          Forecast: <strong>${prov?.forecast ?? "MODELLED"}</strong>
         </div>
       </div>`;
   }
@@ -942,8 +942,8 @@ export function mountHydroIntelPanel(root) {
           <span class="hip-sub">${d.members} members · ${d.horizon_h}h horizon</span>
         </div>
         <div class="hip-legend">
-          ${legendItem(C.forecast, "P50 Median (LIVE)", true)}
-          ${legendItem(C.ok, "P10–P90 Uncertainty (LIVE)")}
+          ${legendItem(C.forecast, "P50 Median (MODELLED)", true)}
+          ${legendItem(C.ok, "P10–P90 Uncertainty (MODELLED)")}
           ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
         </div>
         <div class="hip-svg-wrap">
@@ -996,7 +996,7 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-graph-section">
           <div class="hip-graph-title">Active Alerts</div>
           <div class="hip-empty" style="color:${C.ok}">✓ No active threshold exceedances</div>
-          <div class="hip-prov-row">Source: <strong>LIVE</strong> · Threshold: <strong>VERIFIED</strong></div>
+          <div class="hip-prov-row">Source: <strong>MODELLED</strong> · Threshold: <strong>VERIFIED</strong></div>
         </div>`;
       return;
     }
@@ -1031,7 +1031,7 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-graph-section">
         <div class="hip-graph-title">Active Alerts <span class="hip-sub">${alerts.length} active</span></div>
         <div class="hip-alerts-list">${rows}</div>
-        <div class="hip-prov-row">Alert basis: <strong>LIVE</strong> · Thresholds: <strong>VERIFIED CLASS DEFAULTS</strong></div>
+        <div class="hip-prov-row">Alert basis: <strong>MODELLED</strong> · Thresholds: <strong>VERIFIED CLASS DEFAULTS</strong></div>
       </div>`;
   }
 
@@ -1075,7 +1075,7 @@ export function mountHydroIntelPanel(root) {
         </div>
         <div class="hip-mb-body">${rows}</div>
         <div class="hip-prov-row">
-          WSE: <strong>LIVE</strong> · Threshold: <strong>VERIFIED</strong> · Forecast: <strong>LIVE</strong>
+          WSE: <strong>MODELLED</strong> · Threshold: <strong>VERIFIED</strong> · Forecast: <strong>MODELLED</strong>
         </div>
       </div>`;
   }
@@ -1170,7 +1170,7 @@ export function mountHydroIntelPanel(root) {
         <!-- Controls row -->
         <div class="hip-controls-row">
           <div class="hip-mode-btns">
-            <button id="hip-mode-live" class="hip-mode-btn active">LIVE</button>
+            <button id="hip-mode-live" class="hip-mode-btn active" title="Current modelled state — no live gauge connected">CURRENT</button>
             <button id="hip-mode-hist" class="hip-mode-btn">HISTORIC</button>
           </div>
           <div id="hip-hist-wrap" class="hip-hist-wrap" hidden>

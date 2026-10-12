@@ -188,8 +188,8 @@ export function mountDigitalTwinPanel(root) {
     profileSyncTimer = window.setTimeout(() => {
       refreshHydrologyProfile({
         discharge_m3s: q,
-        source: "LIVE_REACH",
-        provenance: PROVENANCE_STATUS.LIVE,
+        source: "MODELLED_REACH — synthetic forecast engine (no gauge connected)",
+        provenance: PROVENANCE_STATUS.MODELLED,
       }).catch(() => {});
     }, 280);
   }

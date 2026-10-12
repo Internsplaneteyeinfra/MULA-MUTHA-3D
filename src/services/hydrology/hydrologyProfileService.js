@@ -52,7 +52,7 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
           refreshHydrologyProfile({
             discharge_m3s: liveData.Q_total,
             source: `LIVE_RAINFALL_RUNOFF — ${liveData.weatherDescription ?? ""} — ${liveData.currentRain_mm_hr ?? 0} mm/hr`,
-            provenance: PROVENANCE_STATUS.LIVE,
+            provenance: PROVENANCE_STATUS.MODELLED,
           });
           console.info(
             `[LiveHydrology] Profile updated: Q=${liveData.Q_total.toFixed(1)} m³/s`,
@@ -101,15 +101,15 @@ export async function refreshHydrologyProfile(customParams = {}) {
       if (live?.available && Number.isFinite(live.Q_runoff) && live.Q_runoff > 0.5) {
         Q = live.Q_total;
         source = `LIVE_RAINFALL_RUNOFF — ${live.weatherDescription ?? ""} — ${live.currentRain_mm_hr ?? 0} mm/hr`;
-        provenance = PROVENANCE_STATUS.LIVE;
+        provenance = PROVENANCE_STATUS.MODELLED;
       } else {
         try {
           const { getLiveDischargeAtChainage } = await import("../forecastService.js");
           const liveQ = await getLiveDischargeAtChainage(0);
           if (Number.isFinite(liveQ) && liveQ > 0) {
             Q = liveQ;
-            source = "LIVE_REACH";
-            provenance = PROVENANCE_STATUS.LIVE;
+            source = "MODELLED_REACH — synthetic forecast engine (no gauge connected)";
+            provenance = PROVENANCE_STATUS.MODELLED;
           }
         } catch {
           /* fall through */
@@ -117,7 +117,7 @@ export async function refreshHydrologyProfile(customParams = {}) {
         if (Q == null) {
           Q = 65.0;
           source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
-          provenance = PROVENANCE_STATUS.MODELLED ?? PROVENANCE_STATUS.VERIFIED;
+          provenance = PROVENANCE_STATUS.MODELLED;
         }
       }
     }

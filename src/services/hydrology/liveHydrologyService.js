@@ -111,7 +111,7 @@ export async function fetchLiveHydrology() {
     const hourlyPrecip = data.hourly?.precipitation ?? [];
     const hourlyData   = hourlyTimes.map((t, i) => ({
       t: new Date(t).getTime(),
-      mm: (Number(hourlyPrecip[i]) || 0) * (60 / 1), // already mm/hr
+      mm: Number(hourlyPrecip[i]) || 0, // hourly sum in mm == mm/hr
     }));
 
     const laggedIntensity = _effectiveRainfallIntensity(hourlyData);

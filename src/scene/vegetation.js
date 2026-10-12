@@ -5,7 +5,7 @@ import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { RIVER_SIDE_M } from "../geo/osmContext.js";
 
-const MAX_TREES = 11000;
+const MAX_TREES = 16000;
 
 /**
  * Vegetation from OSM trees + parks + a riparian bank band limited to LULC Forest.
@@ -61,26 +61,30 @@ export async function createVegetation(dataset, opts = {}) {
   }
 
   const riparianStep = maxTrees < 2000 ? 3 : maxTrees < 4000 ? 2 : 1;
-  const riparianDens = maxTrees < 2000 ? 0.55 : maxTrees < 4000 ? 0.75 : 0.9;
-  for (let i = 0; lulc && i < stations.length; i += riparianStep) {
+  const riparianDens = maxTrees < 2000 ? 0.65 : maxTrees < 4000 ? 0.82 : 0.95;
+  for (let i = 0; i < stations.length; i += riparianStep) {
     const st = stations[i];
     for (const side of [-1, 1]) {
       const px = -st.flowZ;
       const pz = st.flowX;
       if (rng() > riparianDens) continue;
-      const n = maxTrees < 2000 ? 1 + Math.floor(rng() * 2) : 2 + Math.floor(rng() * 3);
+      const n = maxTrees < 2000 ? 1 + Math.floor(rng() * 2) : 2 + Math.floor(rng() * 4);
       for (let k = 0; k < n; k++) {
-        const dist = st.halfWidth + 6 + rng() * 48;
-        const along = (rng() - 0.5) * 28;
+        const dist = st.halfWidth + 4 + rng() * 60;
+        const along = (rng() - 0.5) * 32;
         const x = st.x + px * side * dist + st.flowX * along;
         const z = st.z + pz * side * dist + st.flowZ * along;
         // Keep off the water channel; allow near roads (parks / banks)
+        if (inRiver(x, z) || onWater(x, z)) continue;
         if (blocked(x, z, buildings, [], stations)) continue;
-        if (lulc.classAtLocal(x, z) !== "forest") continue;
+        if (lulc) {
+          const cover = lulc.classAtLocal(x, z);
+          if (cover === "water" || cover === "settlement") continue;
+        }
         placements.push({
           x,
           z,
-          scale: 1.05 + rng() * 1.35,
+          scale: 0.95 + rng() * 1.35,
           rotY: rng() * Math.PI * 2,
           assetId: classifyTreeAsset({}, "riparian", rng),
           kind: "riparian",
@@ -94,8 +98,8 @@ export async function createVegetation(dataset, opts = {}) {
     const areaHint = polygonArea(poly.vertices);
     const dense = props.natural === "wood" || props.landuse === "forest";
     const count = Math.min(
-      dense ? (maxTrees < 2000 ? 40 : 100) : maxTrees < 2000 ? 25 : 70,
-      Math.max(4, Math.floor(areaHint / (dense ? 400 : 520))),
+      dense ? (maxTrees < 2000 ? 60 : 160) : maxTrees < 2000 ? 35 : 100,
+      Math.max(6, Math.floor(areaHint / (dense ? 280 : 400))),
     );
     for (let i = 0; i < count; i++) {
       const p = randomInPolygon(poly.vertices, rng);
