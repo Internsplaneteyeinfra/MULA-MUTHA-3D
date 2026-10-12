@@ -19,9 +19,9 @@ import { mountSiltAnalysisOverlay } from "./components/siltAnalysisOverlay.js";
 import { mountJoiningStreamsNav } from "./components/joiningStreamsNav.js";
 import { mountChainageStepHud } from "./components/chainageStepHud.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
-import { mountFloodSimulationToolbar } from "./floodSimulationToolbar.js";
 import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
+import { validYmd, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
 import { mountDigitalTwinPanel } from "./components/digitalTwinPanel.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
 import { mountCrossSectionModal } from "./components/crossSectionModal.js";
@@ -30,14 +30,14 @@ import { isDigitalTwinActive } from "./dtMode.js";
 import { mountHydroIntelPanel } from "./components/hydroIntelPanel.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
 import {
-  runFloodSimulation,
   cancelJalnetraFloodRequest,
-  shiftApiDate,
-  todayApiDate,
-  getFloodStatus,
+  fetchFloodCatalog,
+  loadFloodSimulationForDate,
+  getFloodSceneForDate,
 } from "../services/jalnetraFloodService.js";
 
-const cancelFloodSimulationRequest = cancelJalnetraFloodRequest;
+/** Re-check JalNetra for new scenes when the cached catalog is older than this. */
+const FLOOD_CATALOG_MAX_AGE_MS = 10 * 60 * 1000;
 
 function tipEsc(s) {
   return String(s ?? "")
@@ -654,34 +654,38 @@ export function mountUI(root, {
   });
 
   const floodPlayback = mountFloodPlaybackControls(root, {
+    onSelectDate: (ymd) => selectFloodDate(ymd),
+    onGenerate: (ymd) => generateFloodDate(ymd),
+    onRefresh: () => refreshFloodCatalog({ force: true }),
     onPlay: () => {
       state.apiFlood.isPlaying = true;
-      // Multi-date: spread each scene river→outward; single: same reveal
-      window.__MM_SCENE__?.playFloodTimeline?.();
+      window.__MM_SCENE__?.resumeFloodSimulation?.();
     },
     onPause: () => {
       state.apiFlood.isPlaying = false;
       window.__MM_SCENE__?.pauseFloodSimulation?.();
     },
     onReplay: () => {
-      state.apiFlood.currentScene = 0;
       state.apiFlood.isPlaying = true;
-      window.__MM_SCENE__?.setFloodScene?.(0, { animate: true });
-      // If only one scene, ensure reveal runs
-      if ((state.apiFlood.scenes?.length || 0) < 2) {
-        window.__MM_SCENE__?.replayFloodSimulation?.();
-      } else {
-        window.__MM_SCENE__?.playFloodTimeline?.();
-      }
-      floodPlayback.setIndex(0);
-      syncApiFloodFromLayer();
+      window.__MM_SCENE__?.replayFloodSimulation?.();
     },
-    onSeek: (index) => {
-      state.apiFlood.currentScene = index;
-      // Scrub jumps to full extent for that date (instant)
-      window.__MM_SCENE__?.setFloodScene?.(index, { animate: false });
-      syncApiFloodFromLayer();
+    onReset: () => {
+      state.apiFlood.isPlaying = false;
+      window.__MM_SCENE__?.resetFloodSimulation?.();
     },
+    onScrub: (p) => {
+      state.apiFlood.isPlaying = false;
+      window.__MM_SCENE__?.setFloodProgress?.(p);
+    },
+  });
+  window.addEventListener("flood-sim-progress", (e) => {
+    const p = e.detail?.progress;
+    state.apiFlood.progress = p;
+    floodPlayback.setProgress(p);
+  });
+  window.addEventListener("flood-sim-complete", () => {
+    state.apiFlood.isPlaying = false;
+    floodPlayback.setProgress(1);
   });
 
   function setLpFloodStatus(text, kind = "") {
@@ -710,21 +714,17 @@ export function mountUI(root, {
       const idx = window.__MM_SCENE__?.apiFloodLayer?.userData?.getSceneIndex?.() ?? state.apiFlood.currentScene;
       state.apiFlood.currentScene = idx;
       state.apiFlood.currentDate = info.scene_date || null;
-      floodPlayback.setIndex(idx);
     }
     syncFloodSimStats();
   }
 
-  function clearApiFloodUi() {
-    window.__MM_SCENE__?.clearFloodSimulation?.();
-    floodBar?.setStatus("");
-    floodInfo.hide();
-    floodPlayback.hide();
-    root.classList.remove("api-flood-mode");
-    if (!state.showFloodBar) root.classList.remove("flood-sim-open");
+  /** Monotonic token: only the newest date request may touch the scene / UI. */
+  let floodRequestSeq = 0;
+
+  function resetApiFloodState(status = "idle") {
     state.apiFlood = {
       ...state.apiFlood,
-      status: "idle",
+      status,
       result: null,
       scenes: [],
       currentScene: 0,
@@ -735,16 +735,184 @@ export function mountUI(root, {
       errorDetails: null,
       message: "",
     };
-    state.floodSimStatus = "idle";
+    state.floodSimStatus = status;
     state.floodSimMessage = "";
     state.floodSimInfo = null;
+  }
+
+  /** Remove the previously loaded date's flood so it can never show under a new selection. */
+  function dropLoadedFlood() {
+    window.__MM_SCENE__?.pauseFloodSimulation?.();
+    if (window.__MM_SCENE__?.apiFloodLayer?.userData?.hasFlood) {
+      window.__MM_SCENE__?.clearFloodSimulation?.();
+    }
+    floodInfo.hide();
+    floodPlayback.setLoadedDate(null);
+    resetApiFloodState();
+  }
+
+  function clearApiFloodUi() {
+    floodRequestSeq += 1;
+    cancelJalnetraFloodRequest("scene");
+    window.__MM_SCENE__?.clearFloodSimulation?.();
+    floodInfo.hide();
+    floodPlayback.setLoadedDate(null);
+    floodPlayback.setSelected(null, { focus: false });
+    floodPlayback.setStatus("");
+    if (!state.showFloodBar) floodPlayback.hide();
+    root.classList.remove("api-flood-mode");
+    if (!state.showFloodBar) root.classList.remove("flood-sim-open");
+    resetApiFloodState();
     setLpFloodStatus("Idle", "");
     updateDepthLegend(depthMin, depthMax);
     syncFloodSimStats();
     syncIllustrativeDisabled();
   }
 
-  async function applyFloodResult(result, bar) {
+  function isAbortError(err) {
+    return err?.name === "AbortError" || /cancel/i.test(err?.message || "");
+  }
+
+  /**
+   * Show the cached catalog immediately, then re-check JalNetra when it is stale
+   * (or when forced). Returns the freshest catalog, or null on failure.
+   */
+  async function refreshFloodCatalog({ force = false } = {}) {
+    if (!force) {
+      try {
+        const cached = await fetchFloodCatalog({ force: false });
+        if (cached) {
+          floodPlayback.setCatalog(cached);
+          if (cached.fetchedAt && Date.now() - cached.fetchedAt < FLOOD_CATALOG_MAX_AGE_MS) {
+            return cached;
+          }
+        }
+      } catch (err) {
+        console.warn("[Flood] cached catalog unavailable", err?.message || err);
+      }
+    }
+    floodPlayback.setRefreshing(true);
+    try {
+      const cat = await fetchFloodCatalog({
+        force: true,
+        onProgress: (msg) => {
+          if (state.apiFlood.status !== "loading") floodPlayback.setStatus(msg, "loading");
+        },
+      });
+      floodPlayback.setCatalog(cat, { resetExpired: true });
+      if (state.apiFlood.status !== "loading") {
+        floodPlayback.setStatus(
+          cat.scenes.length ? "" : "JalNetra returned no Sentinel-1 flood scenes for this AOI.",
+          "",
+        );
+      }
+      return cat;
+    } catch (err) {
+      if (isAbortError(err)) return null;
+      const had = !!floodPlayback.getCatalog();
+      floodPlayback.setStatus(
+        `Catalog refresh failed: ${err?.message || err}${had ? " — showing last known catalog." : ""}`,
+        "error",
+      );
+      return null;
+    } finally {
+      floodPlayback.setRefreshing(false);
+    }
+  }
+
+  /** Fetch and display exactly one date; supersedes any in-flight date request. */
+  async function selectFloodDate(ymd) {
+    const seq = ++floodRequestSeq;
+    cancelJalnetraFloodRequest("scene");
+    dropLoadedFlood();
+    floodPlayback.setSelected(ymd);
+    const catalog = floodPlayback.getCatalog();
+    const scene = getFloodSceneForDate(catalog, ymd);
+    if (!scene) {
+      floodPlayback.setStatus(`${ymd}: ${floodPlayback.dayStatus(ymd).reason}`, "");
+      setLpFloodStatus("Idle", "");
+      syncFloodSimStats();
+      return null;
+    }
+
+    floodPlayback.setProcessing(ymd, true);
+    floodPlayback.setBusy(true);
+    state.apiFlood.status = "loading";
+    state.floodSimStatus = "loading";
+    setLpFloodStatus("Running", "loading");
+    const onProgress = (msg) => {
+      if (seq !== floodRequestSeq) return;
+      state.apiFlood.message = msg;
+      floodPlayback.setStatus(msg, "loading");
+      syncFloodSimStats();
+    };
+    onProgress(`Loading ${ymd}…`);
+    try {
+      const result = await loadFloodSimulationForDate(ymd, { catalog, onProgress });
+      if (seq !== floodRequestSeq) return null;
+      await applyFloodResult(result);
+      return result;
+    } catch (err) {
+      if (seq !== floodRequestSeq) return null;
+      resetApiFloodState();
+      setLpFloodStatus("Idle", "");
+      if (isAbortError(err)) {
+        floodPlayback.setStatus("");
+      } else if (err?.code === "EXPIRED") {
+        floodPlayback.markExpired(scene.kml_id);
+        floodPlayback.setStatus(`${err.message} Use Generate Simulation to re-run it.`, "error");
+      } else if (err?.code === "NO_FLOOD") {
+        floodPlayback.markNoFlood(ymd);
+        floodPlayback.setStatus(err.message, "");
+      } else if (err?.code === "NOT_IN_CATALOG") {
+        floodPlayback.setStatus(err.message, "");
+      } else {
+        state.apiFlood.status = "error";
+        state.apiFlood.error = err?.message || "Flood simulation could not be completed.";
+        state.floodSimStatus = "error";
+        setLpFloodStatus("Error", "error");
+        floodPlayback.setStatus(state.apiFlood.error, "error");
+        floodInfo.show(null, {
+          error: true,
+          date: ymd,
+          message: state.apiFlood.error,
+          errorDetails: err?.stack ? String(err.message) : String(err),
+        });
+      }
+      syncFloodSimStats();
+      syncIllustrativeDisabled();
+      return null;
+    } finally {
+      if (seq === floodRequestSeq || floodPlayback.getSelected() !== ymd) {
+        floodPlayback.setProcessing(ymd, false);
+      }
+      if (seq === floodRequestSeq) floodPlayback.setBusy(false);
+    }
+  }
+
+  /** Expired product: re-run JalNetra processing (fresh kml_ids), then load the date. */
+  async function generateFloodDate(ymd) {
+    floodPlayback.setProcessing(ymd, true);
+    floodPlayback.setStatus(`Re-running JalNetra processing for ${ymd} (≈40 s)…`, "loading");
+    const cat = await refreshFloodCatalog({ force: true });
+    floodPlayback.setProcessing(ymd, false);
+    if (!cat || floodPlayback.getSelected() !== ymd) return null;
+    if (!getFloodSceneForDate(cat, ymd)) {
+      floodPlayback.setStatus(`After regeneration JalNetra no longer lists a scene for ${ymd}.`, "error");
+      return null;
+    }
+    return selectFloodDate(ymd);
+  }
+
+  /** Panel opened: refresh the catalog and, if nothing is loaded, show the latest real scene. */
+  async function openFloodTimeline() {
+    await refreshFloodCatalog();
+    const cat = floodPlayback.getCatalog();
+    if (!state.showFloodBar || floodPlayback.getSelected() || state.apiFlood.currentDate) return;
+    if (cat?.latestDate) await selectFloodDate(cat.latestDate);
+  }
+
+  async function applyFloodResult(result) {
     const apply = window.__MM_SCENE__?.applyFloodSimulation;
     if (typeof apply !== "function") {
       throw new Error("3D scene is not ready yet. Wait for the map to finish loading, then try again.");
@@ -762,7 +930,7 @@ export function mountUI(root, {
       result,
       scenes,
       currentScene: result.currentScene ?? 0,
-      currentDate: result.info?.scene_date || null,
+      currentDate: result.scene?.date || result.info?.scene_date || null,
       isPlaying: true,
       progress: 0,
       error: null,
@@ -776,20 +944,19 @@ export function mountUI(root, {
     state.showFloodSimulation = true;
     setChecked("flood-sim", true);
     window.__MM_SCENE__?.apiFloodLayer?.setVisible?.(true);
-    floodInfo.show(result.info);
-    floodPlayback.setScenes(scenes, result.currentScene ?? 0);
-    if (scenes.length >= 2) floodPlayback.show();
-    const ha =
-      typeof result.info?.flood_area_ha === "number"
-        ? `${result.info.flood_area_ha.toFixed(2)} ha`
-        : "ready";
-    const msg = `Flood Ready · ${result.info?.scene_date || "scene"} · ${ha}`;
-    bar.setStatus(msg, "ok");
-    if (result.info?.scene_date && bar.setDates) {
-      bar.setDates(result.info.scene_date, result.info.scene_date);
-    }
-    if (result.info?.max_depth_m != null) {
-      updateDepthLegend(0.5, Math.max(0.5, result.info.max_depth_m));
+    const layerInfo = window.__MM_SCENE__?.apiFloodLayer?.userData?.getInfo?.() || result.info || {};
+    // Stored on the layer's info object so later scene/progress syncs keep the same rows.
+    layerInfo.status_label = result.catalog?.fromCache ? "Stored · cached" : "Stored";
+    state.floodSimInfo = layerInfo;
+    floodInfo.show(layerInfo);
+    const date = validYmd(layerInfo.scene_date);
+    floodPlayback.setLoadedDate(date);
+    floodPlayback.setProgress(0);
+    if (state.showFloodBar) floodPlayback.show();
+    // The selected-date line already shows date + area; keep the status slot for loading / errors.
+    floodPlayback.setStatus("");
+    if (layerInfo?.max_depth_m != null) {
+      updateDepthLegend(0.5, Math.max(0.5, layerInfo.max_depth_m));
     } else {
       if (typeof hideDepthLegend === "function") hideDepthLegend();
       else {
@@ -804,100 +971,13 @@ export function mountUI(root, {
     setTimeout(() => window.__MM_SCENE__?.focusFloodSimulation?.(), 80);
   }
 
-  async function executeFloodRun(opts, bar) {
-    cancelFloodSimulationRequest();
-    state.apiFlood.status = "loading";
-    state.apiFlood.error = null;
-    state.apiFlood.errorDetails = null;
-    state.floodSimStatus = "loading";
-    state.floodSimMessage = "Preparing KML…";
-    bar.setStatus("Preparing KML…", "loading");
-    setLpFloodStatus("Running", "loading");
-    try {
-      const result = await runFloodSimulation({
-        ...opts,
-        onProgress: (msg) => {
-          bar.setStatus(msg, "loading");
-          const st = getFloodStatus();
-          state.apiFlood.status = st.status === "ready" ? "running" : st.status;
-          state.apiFlood.message = msg;
-          state.floodSimStatus = /receiv|build|visual|overlay/i.test(msg || "")
-            ? "processing"
-            : "loading";
-          setLpFloodStatus(
-            st.status === "loading" ? "Running" : "Running",
-            "loading",
-          );
-        },
-      });
-      bar.setStatus("Building visualization…", "loading");
-      setLpFloodStatus("Running", "loading");
-      await applyFloodResult(result, bar);
-      return result;
-    } catch (err) {
-      const aborted =
-        err?.name === "AbortError" || /cancel/i.test(err?.message || "");
-      const st = getFloodStatus();
-      if (!aborted) {
-        state.apiFlood.status = "error";
-        state.apiFlood.error = "Flood simulation could not be completed.";
-        state.apiFlood.errorDetails = st.details || err?.message || String(err);
-        state.floodSimStatus = "error";
-        state.floodSimMessage = state.apiFlood.error;
-        bar.setStatus(state.apiFlood.error, "error");
-        setLpFloodStatus("Error", "error");
-        floodInfo.show(null, {
-          error: true,
-          errorDetails: state.apiFlood.errorDetails,
-        });
-      } else {
-        state.apiFlood.status = "idle";
-        state.floodSimStatus = "idle";
-        bar.setStatus("");
-        setLpFloodStatus("Idle", "");
-      }
-      syncIllustrativeDisabled();
-      throw err;
-    } finally {
-      bar.setBusy?.(false);
-    }
-  }
-
-  const floodBar = mountFloodSimulationToolbar(root, {
-    onRun: async ({ start_date, end_date }) => {
-      await executeFloodRun(
-        {
-          start_date,
-          end_date,
-          preferDate: end_date,
-          autoWiden: true,
-        },
-        floodBar,
-      );
-    },
-    onToday: async ({ start_date, end_date, preferDate }) => {
-      const end = end_date || todayApiDate();
-      const start = start_date || shiftApiDate(end, -45);
-      floodBar.setDates(start, end);
-      await executeFloodRun(
-        {
-          start_date: start,
-          end_date: end,
-          preferDate: preferDate || end,
-          autoWiden: true,
-        },
-        floodBar,
-      );
-    },
-  });
-  // Hidden until Flood map-control is pressed
-  if (floodBar?.el) floodBar.el.hidden = !state.showFloodBar;
-
   window.__MM_FLOOD__ = {
     clear: clearApiFloodUi,
-    play: () => window.__MM_SCENE__?.playFloodSimulation?.(),
+    play: () => window.__MM_SCENE__?.resumeFloodSimulation?.(),
     replay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),
-    run: (opts) => executeFloodRun(opts, floodBar),
+    selectDate: (ymd) => selectFloodDate(ymd),
+    refresh: () => refreshFloodCatalog({ force: true }),
+    run: (opts = {}) => (opts.date ? selectFloodDate(opts.date) : openFloodTimeline()),
   };
 
   function syncFloodSimStats() {
@@ -914,15 +994,17 @@ export function mountUI(root, {
       return;
     }
     if (!info) {
-      el.textContent = "Use the top Flood Simulation bar to run.";
+      el.textContent = "Open Flood Playback and pick an available date.";
       return;
     }
-    const bits = [];
-    if (info.scene_date) bits.push(info.scene_date);
-    if (typeof info.flood_area_ha === "number") bits.push(`${info.flood_area_ha.toFixed(2)} ha flood`);
-    if (typeof info.water_area_ha === "number") bits.push(`${info.water_area_ha.toFixed(2)} ha water`);
-    if (info.total_scenes > 1) bits.push(`${info.current_scene || 1}/${info.total_scenes} scenes`);
-    el.textContent = bits.join(" · ") || "Flood extent loaded.";
+    const flood = fmtHa(info.flood_area_ha);
+    const water = fmtHa(info.water_area_ha);
+    el.textContent =
+      joinValid([
+        fmtYmd(info.scene_date),
+        flood && `${flood} flood`,
+        water && `${water} water`,
+      ]) || "Flood extent loaded.";
   }
 
   let chainPanel = null;
@@ -1078,19 +1160,18 @@ export function mountUI(root, {
   function toggleFloodBar(force) {
     const open = force ?? !state.showFloodBar;
     state.showFloodBar = open;
-    if (floodBar?.el) floodBar.el.hidden = !open;
+    if (floodPlayback?.el) floodPlayback.el.hidden = !open;
     nav.setFloodPressed?.(open);
     root.classList.toggle("flood-sim-open", !!open);
-    // When opening Flood controls, keep the toolbar easy to find
-    if (open && floodBar?.el) {
-      floodBar.el.classList.add("is-open");
+    
+    if (open) {
       // Hide fishing HUD so it doesn't stack over flood result / playback
       root.querySelectorAll(".fishing-panel, .hud.fishing-panel").forEach((el) => {
         el.hidden = true;
       });
-    } else if (floodBar?.el) {
-      floodBar.el.classList.remove("is-open");
+      openFloodTimeline();
     }
+    
     if (!open && state.floodMode !== "api") {
       root.classList.remove("api-flood-mode");
     }

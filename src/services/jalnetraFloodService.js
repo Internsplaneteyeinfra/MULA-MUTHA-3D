@@ -3,9 +3,12 @@
  *
  * Exact OpenAPI contract (POST /api/flood-water):
  *   multipart/form-data
- *   - kml: file (application/octet-stream) — required
- *   - start_date: string YYYY-MM-DD — required
- *   - end_date: string YYYY-MM-DD — required
+ *   - kml: file (application/octet-stream) — the ONLY field.
+ *   Backend description: "No date input: fixed range 1 June 2026 → today …
+ *   Pre/post dates follow Sentinel-1 image sequence."
+ *   There is no per-date generation and no catalog endpoint: every POST
+ *   reprocesses the whole backend window, and `datewise` lists one row per
+ *   real Sentinel-1 acquisition. That list is the availability catalog.
  *
  * Response (observed 200, synchronous — no job polling):
  *   {
@@ -21,8 +24,9 @@
  * Spatial product: GET /api/flood-water/kml/{kml_id}
  *   → KML GroundOverlay PNG + LatLonBox
  *   Blue ≈ permanent/common water · Red ≈ flood (extent only — no depth field)
+ *   Expired id → HTTP 404 "KML not found or expired. Run POST /api/flood-water again."
  *
- * Empty Sentinel coverage → HTTP 404.
+ * No water level, water rise or depth field exists anywhere in the response.
  */
 
 import { formatApiDate } from "../utils/dateRange.js";
@@ -34,69 +38,59 @@ const API_BASE =
   "https://jalnetra-software-production.up.railway.app";
 
 const FLOOD_WATER_URL = `${API_BASE.replace(/\/$/, "")}/api/flood-water`;
-const CACHE_PREFIX = "jalnetra-flood-v1";
+const CACHE_PREFIX = "jalnetra-flood-v4";
+try {
+  if (typeof localStorage !== "undefined") {
+    for (let i = localStorage.length - 1; i >= 0; i--) {
+      const k = localStorage.key(i);
+      if (k && k.startsWith("jalnetra-flood-") && !k.startsWith(CACHE_PREFIX)) {
+        localStorage.removeItem(k);
+      }
+    }
+  }
+} catch {}
 const REQUEST_TIMEOUT_MS = 300_000;
-const MAX_WIDEN_DAYS = 75;
 
-/** @type {Map<string, any>} */
-const memoryResults = new Map();
-/** @type {Map<string, string>} */
-const overlayKmlById = new Map();
 /** @type {Promise<any> | null} */
 let aoiPromise = null;
 
 const isDev = typeof import.meta !== "undefined" && !!import.meta.env?.DEV;
 
-/** @type {AbortController | null} */
-let activeController = null;
+/**
+ * One in-flight request per channel, so a scene download never aborts a
+ * catalog refresh (and vice versa), while a newer request on the same
+ * channel supersedes the stale one.
+ * @type {Map<string, AbortController>}
+ */
+const activeControllers = new Map();
 
 function debug(...args) {
   if (isDev) console.info("[jalnetra-flood]", ...args);
 }
 
-function cacheKey(aoiHash, startDate, endDate) {
-  return `${CACHE_PREFIX}-${aoiHash}-${startDate}-${endDate}`;
-}
-
-function readCache(key) {
-  try {
-    const raw = localStorage.getItem(key);
-    if (!raw) return null;
-    return JSON.parse(raw);
-  } catch {
-    return null;
-  }
-}
-
-function writeCache(key, value) {
-  try {
-    localStorage.setItem(key, JSON.stringify(value));
-  } catch (err) {
-    debug("cache write failed", err?.message || err);
-  }
-}
-
-export function cancelJalnetraFloodRequest() {
-  if (activeController) {
-    activeController.abort();
-    activeController = null;
+/** Abort the request on `channel`, or every flood request when omitted. */
+export function cancelJalnetraFloodRequest(channel) {
+  for (const [ch, ctrl] of activeControllers) {
+    if (channel && ch !== channel) continue;
+    ctrl.abort();
+    activeControllers.delete(ch);
   }
 }
 
 /** @deprecated alias */
 export const cancelFloodSimulationRequest = cancelJalnetraFloodRequest;
 
-async function fetchWithAbort(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS) {
-  cancelJalnetraFloodRequest();
+async function fetchWithAbort(url, options = {}, timeoutMs = REQUEST_TIMEOUT_MS, channel = "default") {
+  cancelJalnetraFloodRequest(channel);
   const ctrl = new AbortController();
-  activeController = ctrl;
+  activeControllers.set(channel, ctrl);
   const timer = setTimeout(() => ctrl.abort(), timeoutMs);
   const { signal: _ignored, ...rest } = options;
   try {
     return await fetch(url, { ...rest, signal: ctrl.signal });
   } finally {
     clearTimeout(timer);
-    if (activeController === ctrl) activeController = null;
+    if (activeControllers.get(channel) === ctrl) activeControllers.delete(channel);
   }
 }
 
@@ -121,19 +115,11 @@ export function shiftApiDate(ymd, deltaDays) {
 /**
  * POST multipart flood-water request using exact Swagger field names.
  */
-export async function postFloodWater({ kmlBlob, filename, start_date, end_date, signal }) {
+export async function postFloodWater({ kmlBlob, filename, signal }) {
   if (!kmlBlob) throw new Error("Flood API requires a KML AOI file.");
-  if (!isValidApiDate(start_date) || !isValidApiDate(end_date)) {
-    throw new Error("Invalid date. Use YYYY-MM-DD for start and end.");
-  }
-  if (start_date > end_date) {
-    throw new Error("Start date must be on or before end date.");
-  }
 
   const form = new FormData();
   form.append("kml", kmlBlob, filename || "aoi.kml");
-  form.append("start_date", start_date);
-  form.append("end_date", end_date);
 
   const res = await fetchWithAbort(
     FLOOD_WATER_URL,
@@ -144,6 +130,7 @@ export async function postFloodWater({ kmlBlob, filename, start_date, end_date, 
       signal,
     },
     REQUEST_TIMEOUT_MS,
+    "catalog",
   );
 
   let body = null;
@@ -178,10 +165,16 @@ export async function downloadFloodWaterKml(kmlIdOrUrl) {
     url,
     { method: "GET", headers: { "ngrok-skip-browser-warning": "true" } },
     120_000,
+    "scene",
   );
   if (!res.ok) {
-    const err = new Error(`Flood KML download failed (HTTP ${res.status})`);
+    const err = new Error(
+      res.status === 404
+        ? "This date's flood product has expired on the JalNetra server."
+        : `Flood KML download failed (HTTP ${res.status})`,
+    );
     err.status = res.status;
+    if (res.status === 404) err.code = "EXPIRED";
     throw err;
   }
   return res.text();
@@ -350,10 +343,6 @@ export async function sampleFloodRaster(overlay, { aoiPolygons = [], stride = 3 
   };
 }
 
-function isNoScenesError(err) {
-  return /no sentinel|no scenes|not found/i.test(err?.message || "");
-}
-
 function validateFloodResponse(response) {
   if (!response || typeof response !== "object") {
     throw new Error("Invalid flood API response.");
@@ -361,23 +350,6 @@ function validateFloodResponse(response) {
   if (!Array.isArray(response.datewise) || !response.datewise.length) {
     throw new Error("Flood API returned no datewise scenes.");
   }
-}
-
-function pickBestScene(datewise, preferDate) {
-  const list = Array.isArray(datewise) ? datewise.filter((d) => d?.kml_id) : [];
-  if (!list.length) return null;
-  if (!preferDate) return list[list.length - 1];
-  let best = list[0];
-  let bestScore = Infinity;
-  for (const row of list) {
-    const d = row.date || row.post_date || "";
-    const score = Math.abs(Date.parse(d) - Date.parse(preferDate)) || 0;
-    if (score < bestScore) {
-      bestScore = score;
-      best = row;
-    }
-  }
-  return best;
 }
 
 function buildInfo(response, scene, meta = {}) {
@@ -441,9 +413,8 @@ export function getFloodStatus() {
 export function normalizeFloodResult(response, meta = {}) {
   validateFloodResponse(response);
   
-  // As requested: Log the RAW response once during development to inspect missing fields
-  console.log("[JalNetra API] Raw Flood Response:", response);
-  
+  debug("raw flood response", response);
+
   const scenes = (response.datewise || [])
     .filter((d) => d?.kml_id)
     .map((d, index) => ({
@@ -521,71 +492,254 @@ export function normalizeFloodResult(response, meta = {}) {
   };
 }
 
-async function hydrateSceneRaster(scene, aoi, onProgress) {
-  const kmlId = scene.kml_id;
-  const downloadTarget = scene.kml_download_url || kmlId;
-  onProgress?.(`Receiving flood extent… (${scene.date || kmlId})`);
+/** kml_id → downloaded + rasterised flood product (session cache). */
+const sceneProducts = new Map();
+/** @type {any | null} */
+let catalogMemory = null;
+/** @type {Promise<any> | null} */
+let catalogInflight = null;
 
-  let overlayKml = overlayKmlById.get(kmlId) || null;
-  if (!overlayKml) {
-    overlayKml = await downloadFloodWaterKml(downloadTarget);
-    overlayKmlById.set(kmlId, overlayKml);
-  }
+function catalogKey(aoiHash) {
+  return `${CACHE_PREFIX}-catalog-${aoiHash}`;
+}
 
-  const memByKml = [...memoryResults.values()].find(
-    (r) => r?.scene?.kml_id === kmlId && r?.overlay && r?.raster,
-  );
-  let overlay = memByKml?.overlay || scene.overlay;
-  let raster = memByKml?.raster || scene.raster;
-  if (!overlay || (!raster && overlay.imageDataUrl)) {
-    onProgress?.("Building visualization…");
-    overlay = parseFloodOverlayKml(overlayKml);
-    if (overlay.imageDataUrl) {
-      raster = await sampleFloodRaster(overlay, {
-        aoiPolygons: aoi.polygons,
-        stride: 3,
-      });
-    } else {
-      // Dummy raster object to satisfy checks downstream
-      raster = { mask: new Float32Array(0), width: 0, height: 0, fromPolygons: true };
-    }
-  }
+function dayNumber(ymd) {
+  const [y, m, d] = String(ymd).split("-").map(Number);
+  return Math.round(Date.UTC(y, m - 1, d) / 86_400_000);
+}
 
+async function resolveAoi(options = {}) {
+  if (!aoiPromise) aoiPromise = loadAoiKml(options.aoiOpts);
+  const loaded = options.aoi || (await aoiPromise);
+  const prepared = prepareAoiFromKml(loaded.text, { filename: loaded.filename });
   return {
-    ...scene,
-    overlay,
-    overlayKml,
-    raster,
+    ...loaded,
+    polygons: prepared.polygons,
+    geojson: prepared.geojson,
+    aoiHash: loaded.aoiHash || hashAoiGeometry(prepared.polygons),
+    kmlBlob: prepared.kmlBlob,
+    filename: loaded.filename || prepared.filename,
   };
 }
 
 /**
- * Primary entry: original AOI KML → JalNetra → normalized multi-scene result.
+ * Availability catalog built only from rows JalNetra actually returned.
+ * Dates absent from `scenes` have no Sentinel-1 acquisition in the backend window.
+ */
+function buildCatalog(response, aoiHash, meta) {
+  if (!response || typeof response !== "object") {
+    throw new Error("Invalid flood API response.");
+  }
+  const scenes = (Array.isArray(response.datewise) ? response.datewise : [])
+    .filter((d) => d?.kml_id && isValidApiDate(d.date || d.post_date))
+    .map((d) => ({
+      date: d.date || d.post_date,
+      pre_date: d.pre_date || null,
+      post_date: d.post_date || null,
+      flood_area_ha: typeof d.flood_area_ha === "number" ? d.flood_area_ha : null,
+      water_area_ha: typeof d.water_area_ha === "number" ? d.water_area_ha : null,
+      categories: Array.isArray(d.categories) ? d.categories : [],
+      kml_id: d.kml_id,
+      kml_filename: d.kml_filename || null,
+      kml_download_url: d.kml_download_url || null,
+    }))
+    .sort((a, b) => (a.date < b.date ? -1 : a.date > b.date ? 1 : 0));
+
+  const gaps = [];
+  for (let i = 1; i < scenes.length; i++) {
+    gaps.push(dayNumber(scenes[i].date) - dayNumber(scenes[i - 1].date));
+  }
+  gaps.sort((a, b) => a - b);
+  const cadenceDays = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+  const latestDate = scenes.length ? scenes[scenes.length - 1].date : null;
+
+  return {
+    aoiHash,
+    windowStart: isValidApiDate(response.start_date) ? response.start_date : null,
+    windowEnd: isValidApiDate(response.end_date) ? response.end_date : null,
+    fetchedAt: meta.fetchedAt,
+    fromCache: !!meta.fromCache,
+    scenes,
+    earliestDate: scenes.length ? scenes[0].date : null,
+    latestDate,
+    cadenceDays,
+    nextExpectedDate:
+      latestDate && cadenceDays ? shiftApiDate(latestDate, cadenceDays) : null,
+    bufferM: typeof response.buffer_m === "number" ? response.buffer_m : null,
+    logic: typeof response.logic === "string" ? response.logic : null,
+    response,
+  };
+}
+
+export function getFloodSceneForDate(catalog, ymd) {
+  return catalog?.scenes?.find((s) => s.date === ymd) || null;
+}
+
+/** True when this session already holds the date's flood product (instant load). */
+export function hasLoadedFloodProduct(scene) {
+  return !!scene?.kml_id && sceneProducts.has(scene.kml_id);
+}
+
+export function isFloodCatalogRefreshing() {
+  return !!catalogInflight;
+}
+
+/**
+ * Discover which dates JalNetra has flood products for.
+ * `force: false` returns the last known catalog (memory → localStorage) without
+ * a network call; `force: true` re-runs POST /api/flood-water, which is the only
+ * way the backend publishes new scenes and fresh kml_ids.
+ */
+export async function fetchFloodCatalog({ force = false, onProgress } = {}) {
+  const aoi = await resolveAoi();
+  const key = catalogKey(aoi.aoiHash);
+
+  if (!force) {
+    if (catalogMemory?.aoiHash === aoi.aoiHash) return catalogMemory;
+    try {
+      const raw = JSON.parse(localStorage.getItem(key) || "null");
+      if (raw?.response) {
+        catalogMemory = buildCatalog(raw.response, aoi.aoiHash, {
+          fetchedAt: raw.fetchedAt,
+          fromCache: true,
+        });
+        return catalogMemory;
+      }
+    } catch {
+      /* fall through to network */
+    }
+  }
+
+  if (catalogInflight) return catalogInflight;
+  catalogInflight = (async () => {
+    onProgress?.("Checking JalNetra for Sentinel-1 flood scenes…");
+    let response;
+    try {
+      response = await postFloodWater({ kmlBlob: aoi.kmlBlob, filename: aoi.filename });
+    } catch (err) {
+      if (err?.name === "AbortError") throw new Error("Flood catalog request cancelled.");
+      throw err;
+    }
+    const fetchedAt = Date.now();
+    try {
+      localStorage.setItem(key, JSON.stringify({ response, fetchedAt }));
+    } catch (err) {
+      debug("catalog cache write failed", err?.message || err);
+    }
+    catalogMemory = buildCatalog(response, aoi.aoiHash, { fetchedAt, fromCache: false });
+    debug("catalog", {
+      scenes: catalogMemory.scenes.length,
+      window: [catalogMemory.windowStart, catalogMemory.windowEnd],
+      latest: catalogMemory.latestDate,
+    });
+    return catalogMemory;
+  })().finally(() => {
+    catalogInflight = null;
+  });
+  return catalogInflight;
+}
+
+async function loadSceneProduct(scene, aoi, onProgress) {
+  const cached = sceneProducts.get(scene.kml_id);
+  if (cached) return cached;
+  onProgress?.(`Downloading flood extent for ${scene.date}…`);
+  const overlayKml = await downloadFloodWaterKml(scene.kml_download_url || scene.kml_id);
+  onProgress?.("Building visualization…");
+  const overlay = parseFloodOverlayKml(overlayKml);
+  const raster = overlay.imageDataUrl
+    ? await sampleFloodRaster(overlay, { aoiPolygons: aoi.polygons, stride: 3 })
+    : {
+        mask: new Float32Array(0),
+        width: 0,
+        height: 0,
+        fromPolygons: true,
+        floodPixels: overlay.polygons.length,
+      };
+  const product = { overlay, overlayKml, raster };
+  sceneProducts.set(scene.kml_id, product);
+  return product;
+}
+
+function codedError(message, code) {
+  const err = new Error(message);
+  err.code = code;
+  return err;
+}
+
+/**
+ * Load exactly one date's flood simulation from the catalog.
+ * Throws with `code`:
+ *   NOT_IN_CATALOG — JalNetra has no Sentinel-1 scene for this date
+ *   EXPIRED        — scene is listed but its KML product expired (regenerate)
+ *   NO_FLOOD       — scene exists but contains no flood-class pixels
+ */
+export async function loadFloodSimulationForDate(ymd, { catalog, onProgress } = {}) {
+  const aoi = await resolveAoi();
+  const cat = catalog || (await fetchFloodCatalog({ onProgress }));
+  const scene = getFloodSceneForDate(cat, ymd);
+  if (!scene) {
+    throw codedError(`JalNetra has no Sentinel-1 flood scene for ${ymd}.`, "NOT_IN_CATALOG");
+  }
+  const { overlay, overlayKml, raster } = await loadSceneProduct(scene, aoi, onProgress);
+  if (!raster?.floodPixels) {
+    throw codedError(
+      `Sentinel-1 shows no flood-class pixels on ${ymd}` +
+        (scene.water_area_ha != null ? ` (water ${scene.water_area_ha.toFixed(1)} ha).` : "."),
+      "NO_FLOOD",
+    );
+  }
+
+  const fullScene = { ...scene, index: 0, overlay, overlayKml, raster };
+  const info = buildInfo(cat.response, fullScene, { fromCache: cat.fromCache });
+  info.source = "Sentinel-1 VH change detection · JalNetra Flood API";
+  info.catalog_updated_at = cat.fetchedAt ? new Date(cat.fetchedAt).toISOString() : null;
+  info.current_scene = 1;
+  info.total_scenes = 1;
+
+  return {
+    aoi,
+    response: cat.response,
+    scene: fullScene,
+    scenes: [fullScene],
+    currentScene: 0,
+    overlay,
+    overlayKml,
+    raster,
+    info,
+    catalog: cat,
+    depthAvailable: false,
+    disclaimer: "Flood extent generated from JalNetra Flood API results.",
+  };
+}
+
+/**
+ * Regenerate an expired date: re-run the backend processing (fresh kml_ids for
+ * every scene in its window), then load the date only if it is still listed.
+ */
+export async function regenerateFloodSimulationForDate(ymd, { onProgress } = {}) {
+  onProgress?.("Regenerating flood products on JalNetra…");
+  const cat = await fetchFloodCatalog({ force: true, onProgress });
+  if (!getFloodSceneForDate(cat, ymd)) {
+    throw codedError(
+      `After regeneration JalNetra no longer lists a Sentinel-1 scene for ${ymd}.`,
+      "NOT_IN_CATALOG",
+    );
+  }
+  return loadFloodSimulationForDate(ymd, { catalog: cat, onProgress });
+}
+
+/**
+ * Compat entry used by window.__MM_FLOOD__.run: loads the requested (or latest)
+ * catalog date, regenerating once if its cached product has expired.
  */
 export async function runFloodSimulation(options = {}) {
   setFloodStatus("loading", "Preparing KML…");
+  const onProgress = (msg) => {
+    options.onProgress?.(msg);
+    setFloodStatus("running", msg || "Analysing flood conditions…");
+  };
   try {
-    const onProgress = (msg) => {
-      options.onProgress?.(msg);
-      const lower = String(msg || "").toLowerCase();
-      if (lower.includes("preparing") || lower.includes("aoi") || lower.includes("kml")) {
-        setFloodStatus("loading", msg || "Preparing KML…");
-      } else if (lower.includes("contact") || lower.includes("analys") || lower.includes("widen")) {
-        setFloodStatus("running", msg || "Analysing flood conditions…");
-      } else if (lower.includes("receiv") || lower.includes("download") || lower.includes("overlay")) {
-        setFloodStatus("running", msg || "Receiving flood extent…");
-      } else if (lower.includes("build") || lower.includes("sampl") || lower.includes("visual")) {
-        setFloodStatus("running", msg || "Building visualization…");
-      } else {
-        setFloodStatus("running", msg || "Analysing flood conditions…");
-      }
-    };
-
-    const result = await fetchJalnetraFlood({
-      ...options,
-      onProgress,
-      loadAllScenes: options.loadAllScenes !== false,
-    });
+    const result = await fetchJalnetraFlood({ ...options, onProgress });
     setFloodStatus("ready", "Flood Ready");
     return result;
   } catch (err) {
@@ -593,201 +747,28 @@ export async function runFloodSimulation(options = {}) {
       setFloodStatus("idle", "");
       throw err;
     }
-    setFloodStatus(
-      "error",
-      "Flood simulation could not be completed.",
-      err?.message || String(err),
-    );
+    setFloodStatus("error", "Flood simulation could not be completed.", err?.message || String(err));
     throw err;
   }
 }
 
-/**
- * Full pipeline: Mula–Mutha AOI KML → JalNetra Flood API → overlay → flood mask.
- * Synchronous HTTP. Caches by AOI hash + date range.
- * Returns multi-scene payload when loadAllScenes is true (default).
- */
 export async function fetchJalnetraFlood(options = {}) {
-  let start_date = options.start_date || options.startDate;
-  let end_date = options.end_date || options.endDate;
-  const preferDate = options.preferDate || end_date;
-  const autoWiden = options.autoWiden !== false;
-  const loadAllScenes = options.loadAllScenes !== false;
   const onProgress = typeof options.onProgress === "function" ? options.onProgress : null;
-
-  if (!isValidApiDate(start_date) || !isValidApiDate(end_date)) {
-    throw new Error("Invalid date. Use YYYY-MM-DD for start and end.");
-  }
-  if (start_date > end_date) {
-    throw new Error("Start date must be on or before end date.");
-  }
-
   onProgress?.("Preparing KML…");
-  if (!aoiPromise) aoiPromise = loadAoiKml(options.aoiOpts);
-  const loaded = options.aoi || (await aoiPromise);
-
-  const prepared = prepareAoiFromKml(loaded.text, { filename: loaded.filename });
-  const aoi = {
-    ...loaded,
-    polygons: prepared.polygons,
-    geojson: prepared.geojson,
-    aoiHash: loaded.aoiHash || hashAoiGeometry(prepared.polygons),
-    kmlBlob: prepared.kmlBlob,
-  };
-  const key = cacheKey(aoi.aoiHash, start_date, end_date);
-
-  debug("AOI", {
-    url: aoi.url,
-    filename: aoi.filename,
-    polygons: aoi.polygons.length,
-    aoiHash: aoi.aoiHash,
-  });
-  debug("date range", { start_date, end_date, preferDate, autoWiden });
-
-  if (!options.skipCache && memoryResults.has(key)) {
-    debug("memory hit", key);
-    onProgress?.("Using cached flood…");
-    const hit = memoryResults.get(key);
-    return {
-      ...hit,
-      info: buildInfo(hit.response, hit.scene, {
-        start_date,
-        end_date,
-        fromCache: true,
-      }),
-    };
+  const catalog = await fetchFloodCatalog({ force: !!options.skipCache, onProgress });
+  if (!catalog.scenes.length) {
+    throw codedError("JalNetra returned no Sentinel-1 flood scenes for this AOI.", "NOT_IN_CATALOG");
   }
-
-  async function finalizeMulti(response, meta) {
-    const normalized = normalizeFloodResult(response, {
-      ...meta,
-      preferDate,
-    });
-    onProgress?.("Receiving flood extent…");
-
-    const hydrated = [];
-    for (let i = 0; i < normalized.scenes.length; i++) {
-      if (!loadAllScenes && i !== normalized.currentScene) {
-        hydrated.push({ ...normalized.scenes[i] });
-        continue;
-      }
-      const scene = await hydrateSceneRaster(normalized.scenes[i], aoi, onProgress);
-      hydrated.push(scene);
+  const want = options.date || options.preferDate;
+  const date = getFloodSceneForDate(catalog, want)?.date || catalog.latestDate;
+  try {
+    return await loadFloodSimulationForDate(date, { catalog, onProgress });
+  } catch (err) {
+    if (err?.code === "EXPIRED" && catalog.fromCache) {
+      return regenerateFloodSimulationForDate(date, { onProgress });
     }
-
-    let currentScene = normalized.currentScene;
-    if (!hydrated[currentScene]?.raster?.floodPixels) {
-      const alt = hydrated.findIndex((s) => s.raster?.floodPixels > 0);
-      if (alt >= 0) currentScene = alt;
-    }
-
-    const active = hydrated[currentScene];
-    if (!active?.overlay || !active?.raster) {
-      throw new Error("Flood overlay contained no usable flood geometry.");
-    }
-    if (!active.raster.floodPixels) {
-      throw new Error("Flood overlay contained no flood-class pixels.");
-    }
-
-    const info = buildInfo(response, active, {
-      start_date: meta.start_date ?? start_date,
-      end_date: meta.end_date ?? end_date,
-      fromCache: !!meta.fromCache,
-    });
-    info.scene_count = normalized.scene_count;
-    info.comparison_count = normalized.comparison_count;
-    info.buffer_m = normalized.buffer_m;
-    info.current_scene = currentScene + 1;
-    info.total_scenes = hydrated.length;
-
-    const result = {
-      aoi,
-      response,
-      scene: active,
-      scenes: hydrated,
-      currentScene,
-      overlay: active.overlay,
-      overlayKml: active.overlayKml,
-      raster: active.raster,
-      info,
-      normalized,
-      depthAvailable: false,
-      disclaimer: "Flood extent generated from JalNetra Flood API results.",
-    };
-    memoryResults.set(key, result);
-    return result;
+    throw err;
   }
-
-  const cached = options.skipCache ? null : readCache(key);
-  if (cached?.response?.datewise?.length) {
-    debug("storage cache hit", key);
-    try {
-      return await finalizeMulti(cached.response, {
-        fromCache: true,
-        start_date: cached.start_date || start_date,
-        end_date: cached.end_date || end_date,
-      });
-    } catch (err) {
-      if (err?.status === 404 || err?.message?.includes("404")) {
-        debug("cached KML expired, invalidating cache", key);
-        memoryResults.delete(key);
-        localStorage.removeItem(key);
-      } else {
-        throw err;
-      }
-    }
-  }
-
-  const kmlBlob = aoi.kmlBlob || prepared.kmlBlob;
-  let response = null;
-  let usedStart = start_date;
-  let lastErr = null;
-  const widenSteps = autoWiden ? Math.ceil(MAX_WIDEN_DAYS / 15) : 0;
-
-  for (let step = 0; step <= widenSteps; step++) {
-    if (step > 0) {
-      usedStart = shiftApiDate(start_date, -15 * step);
-      debug("widening start_date", { usedStart, end_date, step });
-    }
-    onProgress?.(
-      step === 0
-        ? "Analysing flood conditions…"
-        : `Widening date range for Sentinel-1 (attempt ${step + 1})…`,
-    );
-    try {
-      response = await postFloodWater({
-        kmlBlob,
-        filename: aoi.filename || prepared.filename,
-        start_date: usedStart,
-        end_date,
-      });
-      start_date = usedStart;
-      lastErr = null;
-      break;
-    } catch (err) {
-      lastErr = err;
-      if (err?.name === "AbortError") throw new Error("Flood simulation cancelled.");
-      if (!isNoScenesError(err) || step === widenSteps) throw err;
-    }
-  }
-  if (!response) throw lastErr || new Error("Flood API unavailable.");
-
-  validateFloodResponse(response);
-
-  writeCache(key, {
-    response,
-    scene: pickBestScene(response.datewise, preferDate),
-    start_date,
-    end_date,
-    aoiHash: aoi.aoiHash,
-    cachedAt: Date.now(),
-  });
-
-  return finalizeMulti(response, {
-    fromCache: false,
-    start_date,
-    end_date,
-  });
 }
 
 /** @deprecated Prefer runFloodSimulation */

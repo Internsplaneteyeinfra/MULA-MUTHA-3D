@@ -16,8 +16,8 @@ export const WATER_PRESETS = {
     waterOpacity: 0.65,
     reflectionStrength: 0.68,
     waveHighlight: 0.85,
-    shallowColor: "#7ed9f3",
-    deepColor: "#1870c9",
+    shallowColor: "#75dcd0",
+    deepColor: "#07558d",
   },
   glassyCalm: {
     label: "Glassy Calm",
@@ -34,8 +34,8 @@ export const WATER_PRESETS = {
     waterOpacity: 0.92,
     reflectionStrength: 0.72,
     waveHighlight: 0.45,
-    shallowColor: "#83dcf2",
-    deepColor: "#1d69ae",
+    shallowColor: "#8ae4d8",
+    deepColor: "#087faf",
   },
   naturalRiver: {
     label: "Natural River",
@@ -52,8 +52,8 @@ export const WATER_PRESETS = {
     waterOpacity: 0.94,
     reflectionStrength: 0.52,
     waveHighlight: 0.82,
-    shallowColor: "#3fc5e8",
-    deepColor: "#064c97",
+    shallowColor: "#42c8c0",
+    deepColor: "#07558d",
   },
   windRipples: {
     label: "Wind Ripples",
@@ -70,8 +70,8 @@ export const WATER_PRESETS = {
     waterOpacity: 0.92,
     reflectionStrength: 0.58,
     waveHighlight: 0.9,
-    shallowColor: "#58c9e9",
-    deepColor: "#0b579f",
+    shallowColor: "#5fd4ca",
+    deepColor: "#07558d",
   },
   cinematic: {
     label: "Cinematic",
@@ -88,8 +88,8 @@ export const WATER_PRESETS = {
     waterOpacity: 0.95,
     reflectionStrength: 0.72,
     waveHighlight: 0.88,
-    shallowColor: "#48c4eb",
-    deepColor: "#063f86",
+    shallowColor: "#4ccfc4",
+    deepColor: "#064e84",
   },
 };
 

@@ -19,4 +19,10 @@ export {
   runFloodSimulation,
   getFloodStatus,
   normalizeFloodResult,
+  fetchFloodCatalog,
+  loadFloodSimulationForDate,
+  regenerateFloodSimulationForDate,
+  getFloodSceneForDate,
+  hasLoadedFloodProduct,
+  isFloodCatalogRefreshing,
 } from "./jalnetraFloodService.js";

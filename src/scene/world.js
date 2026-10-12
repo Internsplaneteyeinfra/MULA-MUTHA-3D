@@ -452,7 +452,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     layer.userData.syncToWater(river.mesh, lastFlood);
     scene.add(layer);
     for (const c of layer.userData.clusters) {
-      if (c.areaM2 >= RIPARIAN_LABEL_MIN_M2) bridgeLabels.addArea("RIPARIAN / VEGETATED AREA", c.anchor, c.probe);
+      // Intentionally not adding "RIPARIAN / VEGETATED AREA" label per user request
     }
   }
 
@@ -904,23 +904,21 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     if (e.detail?.focus === false) return;
     if (m == null) return;
 
-    const p = interpolateChainage(dataset.chainage, m);
+    // Strictly snap chainage to 10m steps (10m 10m only)
+    const snappedM = Math.round(Number(m) / 10) * 10;
+    const p = interpolateChainage(dataset.chainage, snappedM);
     if (!p || p.x == null) return;
     const dragging = !!e.detail?.dragging;
     if (isMap2DMode()) {
       cancelChainFlight();
       chainFocusM = p.meters;
-      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 1.15, ease: "inOutQuint" });
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 0.65, ease: "outCubic" });
       return;
     }
     if (state.garbageSelectionActive) return;
-    if (dragging) {
-      cancelChainFlight();
-      chainFocusM = p.meters;
-      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, true), dur: 0 });
-      return;
-    }
-    startChainFlight(p.meters, { requestedM: m });
+
+    // Move smoothly and swiftly along the river corridor (never teleporting across land)
+    startChainFlight(p.meters, { requestedM: snappedM, dragging });
   });
 
   let lastChainMoveTime = 0;
@@ -1704,7 +1702,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         throw err;
       }
       apiFloodLayer.setVisible(state.showFloodSimulation !== false && state.apiFlood?.showLayer !== false);
-      state.floodSimInfo = result?.info || apiFloodLayer.userData?.info || null;
+      state.floodSimInfo = apiFloodLayer.userData?.info || result?.info || null;
       state.floodSimStatus = "ready";
       apiFloodLayer.userData.onSceneChange = (idx, scene) => {
         state.apiFlood.currentScene = idx;
@@ -1727,6 +1725,30 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     pauseFloodSimulation() {
       apiFloodLayer.pause?.();
+    },
+    /** Continue the loaded simulation from its current progress (restarts only if finished). */
+    resumeFloodSimulation() {
+      if (!apiFloodLayer.userData?.hasFlood) return;
+      apiFloodLayer.setVisible(state.showFloodSimulation !== false);
+      apiFloodLayer.play();
+    },
+    /** Stop playback and put the simulation clock back at the river (0). */
+    resetFloodSimulation() {
+      window.__MM_SCENE__.setFloodProgress(0);
+    },
+    /** Scrub the simulation clock (0 = river, 1 = full API extent). Pauses playback. */
+    setFloodProgress(p) {
+      if (!apiFloodLayer.userData?.hasFlood) return;
+      apiFloodLayer.pause?.();
+      apiFloodLayer.setProgress?.(p);
+      window.dispatchEvent(
+        new CustomEvent("flood-sim-progress", {
+          detail: {
+            progress: apiFloodLayer.userData.getProgress?.() ?? p,
+            info: apiFloodLayer.userData.getInfo?.(),
+          },
+        }),
+      );
     },
     setFloodScene(index, opts = {}) {
       const animate = opts.animate === true;
