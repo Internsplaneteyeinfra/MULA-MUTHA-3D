@@ -54,6 +54,12 @@ export function hasDiscreteGpu() {
   return /nvidia|geforce|rtx |gtx |radeon|amd |arc a\d/.test(r);
 }
 
+export function isMobileOrLaptopGpu() {
+  const r = gpuRendererName().toLowerCase();
+  if (!r) return false;
+  return /laptop|mobile|max-q|gtx 16|rtx 3050|rtx 2050|rtx 4050|iris|uhd|intel/.test(r);
+}
+
 export function isIntegratedGpu() {
   const r = gpuRendererName().toLowerCase();
   if (!r) return false;
@@ -64,12 +70,12 @@ export function isIntegratedGpu() {
 /** True 8 GB iGPU laptops — not 16 GB workstations (API also reports 8). */
 export function isModestRamDevice() {
   if (isLowMemoryDevice()) return true;
-  if (hasDiscreteGpu()) return false;
+  if (hasDiscreteGpu() && !isMobileOrLaptopGpu()) return false;
   const memoryGb = Number(navigator.deviceMemory || 0);
-  return memoryGb > 0 && memoryGb <= 8 && isIntegratedGpu();
+  return (memoryGb > 0 && memoryGb <= 8) || isIntegratedGpu() || isMobileOrLaptopGpu();
 }
 
-/** Lite DTM/OSM only on constrained machines. 16 GB + discrete GPU stays full on production. */
+/** Lite DTM/OSM only on constrained machines. */
 export function shouldUseLiteAssets() {
   try {
     if (new URLSearchParams(location.search).has("fullTerrain")) return false;
@@ -89,10 +95,14 @@ function readForcedTier() {
 
 export function createQualityProfile() {
   const forced = readForcedTier();
-  // Full features always (fish, bridge names, vegetation). GPU extras only step down.
-  let tier =
-    forced ||
-    (shouldUseLiteAssets() ? "medium" : "high");
+  // On production or laptop/mobile GPUs, default to smooth 60fps "medium" profile
+  // All features (trees, models, water shaders, fish, labels) stay visible; heavy tree shadow maps are omitted.
+  let defaultTier = "medium";
+  if (hasDiscreteGpu() && !isMobileOrLaptopGpu() && !isProductionHost()) {
+    defaultTier = "high";
+  }
+
+  let tier = forced || defaultTier;
 
   const settings = () => profileFor(tier);
 
@@ -112,15 +122,15 @@ export function createQualityProfile() {
       if (!dt || dt <= 0 || dt > 0.25) return;
       const fps = 1 / dt;
       fpsSamples.push(fps);
-      if (fpsSamples.length > 40) fpsSamples.shift();
+      if (fpsSamples.length > 30) fpsSamples.shift();
       const now = performance.now();
-      if (now - lastAdapt < 1800 || fpsSamples.length < 22) return;
+      if (now - lastAdapt < 1500 || fpsSamples.length < 18) return;
       lastAdapt = now;
       const avg = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
-      if (avg < 32 && tier === "high") {
+      if (avg < 45 && tier === "high") {
         tier = "medium";
         fpsSamples = [];
-        console.info("[perf] Shadows off for smoothness — fish and labels stay on");
+        console.info("[perf] Switched to smooth profile (shadows disabled, full visual features retained)");
       }
     },
   };
@@ -153,7 +163,7 @@ function profileFor(tier) {
   if (tier === "medium") {
     return {
       tier,
-      pixelRatioMax: 1.1,
+      pixelRatioMax: 1.0,
       antialias: true,
       shadows: false,
       shadowMapSize: 1024,
