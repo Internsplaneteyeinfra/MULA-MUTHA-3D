@@ -69,7 +69,7 @@ export function mountWeatherDetailPanel(root) {
     el.innerHTML = panelShell({
       title: "Live Weather",
       subtitle: `${resolved.label ? `${escapeHtml(resolved.label)} · ` : ""}${resolved.lat.toFixed(4)}°N, ${resolved.lon.toFixed(4)}°E`,
-      body: `<p class="weather-detail-loading">Loading Open-Meteo · past ${PAST_DAYS} / next ${FUTURE_DAYS} days…</p>`,
+      body: `<p class="weather-detail-loading">Loading weather · past ${PAST_DAYS} / next ${FUTURE_DAYS} days…</p>`,
     });
     bindClose();
 
@@ -80,7 +80,7 @@ export function mountWeatherDetailPanel(root) {
       if (serial !== loadSerial) return;
       el.innerHTML = panelShell({
         title: "Live Weather",
-        subtitle: `${resolved.label ? `${escapeHtml(resolved.label)} · ` : ""}Open-Meteo · past ${series.pastDays} days · next ${series.futureDays} days`,
+        subtitle: `${resolved.label ? `${escapeHtml(resolved.label)} · ` : ""}past ${series.pastDays} days · next ${series.futureDays} days`,
         body: renderBody(series),
       });
       bindClose();
@@ -96,7 +96,7 @@ export function mountWeatherDetailPanel(root) {
       const msg = err?.message ? String(err.message) : "Weather series unavailable";
       el.innerHTML = panelShell({
         title: "Live Weather",
-        subtitle: "Open-Meteo",
+        subtitle: "",
         body: `<p class="weather-detail-error">${escapeHtml(msg)}</p>
           <p class="weather-detail-note">Check network access to api.open-meteo.com, then retry.</p>
           <div class="weather-detail-retry-row">
@@ -159,7 +159,7 @@ export function mountWeatherDetailPanel(root) {
           <strong>${escapeHtml(metric)}</strong>
           <span>${escapeHtml(label)}</span>
           <b>${escapeHtml(value)} <em>${escapeHtml(unit)}</em></b>
-          <small>${escapeHtml(kindText)} · live Open-Meteo</small>`;
+          <small>${escapeHtml(kindText)}</small>`;
 
         const panelRect = panel.getBoundingClientRect();
         const tipW = tip.offsetWidth || 160;
@@ -330,7 +330,7 @@ function renderBody(series) {
   const banner = `
     <div class="weather-detail-banner">
       <span class="weather-detail-live">LIVE API</span>
-      <span>Open-Meteo · ${escapeHtml(rangeStart)} → ${escapeHtml(rangeEnd)}</span>
+      <span>${escapeHtml(rangeStart)} → ${escapeHtml(rangeEnd)}</span>
       <span>Fetched ${escapeHtml(fetchedAt)} IST</span>
     </div>`;
 
@@ -372,7 +372,7 @@ function renderBody(series) {
     .join("");
 
   return `${banner}${legend}<div class="weather-detail-grid">${grid}</div>
-    <p class="weather-detail-note">Hover any chart to inspect each day · Live Open-Meteo Forecast + Air Quality APIs</p>`;
+    <p class="weather-detail-note">Hover any chart to inspect each day</p>`;
 }
 
 function renderChart(days, values, color, unit, todayIdx, asBars, metricTitle = "") {

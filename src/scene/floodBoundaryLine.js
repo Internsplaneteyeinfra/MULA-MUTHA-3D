@@ -1,11 +1,11 @@
 import * as THREE from "three";
 
-const LINE_COLOR = new THREE.Color("#EF4444");
-const HIGHLIGHT_COLOR = new THREE.Color("#FCA5A5");
-const LINE_WIDTH_PX = 1.5;
-const LINE_OPACITY = 0.72;
-/** Covers the flood sheet's vertex wave amplitude; depth priority comes from the eye-ward pull. */
-const LIFT_M = 0.12;
+const LINE_COLOR = new THREE.Color("#FF3030");
+const HIGHLIGHT_COLOR = new THREE.Color("#FF6B6B");
+const LINE_WIDTH_PX = 2.0;
+const LINE_OPACITY = 0.95;
+/** Sits closely on the flood perimeter; subtle rendering offset prevents z-fighting without detachment. */
+const LIFT_M = 0.03;
 const PULSE_PERIOD_M = 140.0;
 const PULSE_SPEED_MPS = 45.0;
 
@@ -23,10 +23,10 @@ const vert = /* glsl */ `
   varying float vReveal;
 
   vec3 towardCamera(vec3 v) {
-    // Pull toward the eye by a distance-scaled amount so the line wins over the
-    // water sheet and draped terrain without a constant NDC depth bias.
+    // Subtle distance-scaled pull toward the eye so the perimeter line renders cleanly
+    // over the draped terrain and flood surface without visibly shifting from GIS geometry.
     float d = length(v);
-    return v - (v / max(d, 1e-4)) * min(3.0, 0.0025 * d);
+    return v - (v / max(d, 1e-4)) * min(1.2, 0.0012 * d);
   }
 
   void main() {
@@ -256,5 +256,15 @@ export function createFloodBoundaryLine({ positions, indices, reveal, isGridBord
     u.uPulseAmt.value = 1 - THREE.MathUtils.smoothstep(progress, 0.96, 1.0);
   };
   mesh.userData.segmentCount = segCount;
+  const flat = new Float32Array(segCount * 4);
+  for (let s = 0; s < segCount; s++) {
+    const ia = segs[s * 4];
+    const ib = segs[s * 4 + 1];
+    flat[s * 4] = positions[ia * 3];
+    flat[s * 4 + 1] = positions[ia * 3 + 2];
+    flat[s * 4 + 2] = positions[ib * 3];
+    flat[s * 4 + 3] = positions[ib * 3 + 2];
+  }
+  mesh.userData.segmentsXZ = flat;
   return mesh;
 }

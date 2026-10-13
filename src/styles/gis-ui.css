@@ -2842,18 +2842,23 @@
   position: fixed;
   /* Sit clear of left River Data stack so panels never overlap */
   left: calc(clamp(10px, 1.2vw, 22px) + clamp(190px, 17vw, 235px) + 16px);
-  top: 50%;
+  top: clamp(100px, 16vh, 180px);
   z-index: 1200;
   width: min(360px, calc(100vw - 28px));
   max-width: calc(100vw - 280px);
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
+  overflow-x: hidden;
   opacity: 0;
-  transform: translateY(-46%) scale(0.98);
+  transform: translateY(-8px) scale(0.98);
   pointer-events: none;
   transition: opacity 220ms ease, transform 220ms ease;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 200, 220, 0.3) transparent;
 }
 .river-profile-popup.is-open {
   opacity: 1;
-  transform: translateY(-50%) scale(1);
+  transform: translateY(0) scale(1);
   pointer-events: auto;
 }
 .river-profile-popup[hidden] {
@@ -3657,9 +3662,10 @@
 }
 @media (max-height: 720px) {
   .river-profile-popup {
-    top: auto;
-    bottom: max(96px, calc(env(safe-area-inset-bottom) + 72px));
-    transform: translateY(10px) scale(0.98);
+    top: clamp(80px, 12vh, 120px);
+    bottom: auto;
+    max-height: calc(100vh - 120px);
+    transform: translateY(-6px) scale(0.98);
   }
   .river-profile-popup.is-open {
     transform: translateY(0) scale(1);
@@ -7611,7 +7617,20 @@
   box-sizing: border-box;
   max-height: calc(100vh - 150px);
   overflow-y: auto;
-  overflow-x: visible;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: rgba(120, 200, 220, 0.25) transparent;
+}
+.left-ui-stack::-webkit-scrollbar {
+  width: 4px;
+  height: 0;
+}
+.left-ui-stack::-webkit-scrollbar-track {
+  background: transparent;
+}
+.left-ui-stack::-webkit-scrollbar-thumb {
+  background: rgba(120, 200, 220, 0.25);
+  border-radius: 4px;
 }
 #ui-root.gis-ui > .left-ui-stack {
   pointer-events: none;

@@ -212,25 +212,33 @@ const frag = /* glsl */ `
 
   // Continuous depth tint: Normalized to available range.
   // Smooth single gradient (no piecewise knees) → no visible colour bands.
-  // Turquoise only in the truly shallow fringe; rich blue takes over quickly
-  // so the channel reads deep blue, not mint (reference palette).
+  // Natural deep dark blue palette around #063568, #07558D, and #087FAF
+  // with smooth depth-based blending (no flat turquoise sheet).
   vec3 depthColor(float d){
+    if (uIsFlood > 0.5) {
+      float t = clamp((d - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
+      float te = smoothstep(0.0, 1.0, t);
+      // Hazard red spectrum for inundated floodwater within valid API footprint:
+      // Shallow edges: coral-red (#FF4444) -> deep inundated zones: rich crimson/ruby (#8E0000)
+      vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.35, te));
+      c = mix(c, uC2, smoothstep(0.20, 0.65, te));
+      c = mix(c, uC3, smoothstep(0.55, 1.0, te));
+      float edgeBlend = 1.0 - smoothstep(0.0, 8.0, vEdgeDist);
+      c = mix(c, uC0, edgeBlend * 0.35);
+      return c;
+    }
+
     float t = clamp((d - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
     float te = smoothstep(0.0, 1.0, t);
 
-    // Continuous depth transitions from glowing edge aqua to deep royal blue
-    vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.25, te));   // #75DCD0 -> #42C8C0 (radiant shallow flood)
-    c = mix(c, uC2, smoothstep(0.18, 0.60, te));          // -> #168FC1 (ocean blue)
-    c = mix(c, uC3, smoothstep(0.50, 1.0, te));           // -> #07558D (deep river channel)
+    // Natural deep dark blue river water: #087FAF (shallow) -> #07558D (mid) -> #063568 (deep)
+    vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.35, te));
+    c = mix(c, uC2, smoothstep(0.25, 0.70, te));
+    c = mix(c, uC3, smoothstep(0.55, 1.0, te));
 
     // Gentle bank lightening so the shoreline blends seamlessly into terrain
-    if (uIsFlood > 0.5) {
-      float edgeBlend = 1.0 - smoothstep(0.0, 12.0, vEdgeDist);
-      c = mix(c, uC0, edgeBlend * 0.45);
-    } else {
-      float edgeAmt = abs(vAcross * 2.0 - 1.0);
-      c = mix(c, uC0, smoothstep(0.82, 1.0, edgeAmt) * 0.3);
-    }
+    float edgeAmt = abs(vAcross * 2.0 - 1.0);
+    c = mix(c, uC0, smoothstep(0.85, 1.0, edgeAmt) * 0.25);
 
     return c;
   }
@@ -270,15 +278,20 @@ const frag = /* glsl */ `
       + sin(s * 0.92 - flow * 2.6 + 1.2) * 0.3
       + sin(s * 1.4 + c * 0.18 - flow * 2.1 + 2.0) * 0.1;
     float lightBand = pow(0.5 + 0.5 * streak, 2.4);
-    float riverOnly = 1.0 - step(0.5, uIsFlood);
-    col += vec3(0.22, 0.34, 0.42) * lightBand * 0.055 * anim * riverOnly;
-
-    // Sparse, faint sun glints — river only, never on flood sheets
     float crest = 0.5 + 0.5 * sin(s * 0.7 - flow * 2.2 + sin(s * 0.31 + c * 0.4) * 1.7);
-    float sparkle = pow(max(crest, 0.0), 6.0) * anim * step(1.5, uQuality) * riverOnly;
-    col += vec3(0.65, 0.82, 0.9) * sparkle * 0.035;
+    float sparkle = pow(max(crest, 0.0), 6.0) * anim * step(1.5, uQuality);
 
-    col += vec3(0.08, 0.14, 0.2) * clamp(vWave * 2.5, 0.0, 0.06) * uWaveHighlight * riverOnly;
+    // Dynamic wave ripples, flow and highlights for both river and floodwater
+    if (uIsFlood > 0.5) {
+      // Dynamic moving wave highlights in warm crest tint on red floodwater
+      float floodWaveHighlight = clamp(vWave * 4.5, 0.0, 0.15) * uWaveHighlight;
+      col += vec3(1.0, 0.45, 0.45) * (lightBand * 0.12 * anim + floodWaveHighlight);
+      col += vec3(1.0, 0.7, 0.7) * sparkle * 0.08;
+    } else {
+      col += vec3(0.22, 0.34, 0.42) * lightBand * 0.055 * anim;
+      col += vec3(0.65, 0.82, 0.9) * sparkle * 0.035;
+      col += vec3(0.08, 0.14, 0.2) * clamp(vWave * 2.5, 0.0, 0.06) * uWaveHighlight;
+    }
 
     float edge = abs(vAcross * 2.0 - 1.0);
     float foam = smoothstep(0.9, 1.0, edge) * (1.0 - depthT) * 0.05
@@ -314,7 +327,8 @@ const frag = /* glsl */ `
                + pow(max(dot(N, H), 0.0), 28.0) * 0.04 * uReflectionStrength * glitter;
     spec = min(spec, 0.38);
     col = mix(baseCol, col, 0.95);
-    col = col * (1.0 - fresnel * 0.18) + uSkyColor * fresnel * 0.35 + vec3(0.95, 0.98, 1.0) * spec;
+    vec3 skyRefl = mix(uSkyColor, vec3(1.0, 0.84, 0.84), uIsFlood);
+    col = col * (1.0 - fresnel * 0.18) + skyRefl * fresnel * 0.35 + vec3(0.95, 0.98, 1.0) * spec;
 
     // -----------------------------------------------------------
     // DEPTH-BASED UNDERWATER TRANSMISSION
@@ -337,26 +351,28 @@ const frag = /* glsl */ `
     alpha *= mix(0.08, 1.0, revealMask);
     alpha *= mix(1.0, 0.92, clamp(wake * 0.35, 0.0, 1.0));
 
-    // From below the surface the sheet is a back face — keep it as water, not a window onto green DTM.
-    if (!gl_FrontFacing && uSiltMode < 0.5) {
+    // From below the surface the sheet is a back face — keep river water as blue, not a window onto green DTM.
+    // Flood water must NEVER be overridden with blue water tint.
+    if (!gl_FrontFacing && uSiltMode < 0.5 && uIsFlood < 0.5) {
       col = mix(col, vec3(0.16, 0.42, 0.5), 0.72);
       alpha = max(alpha, mix(0.70, 0.92, depthT));
     }
 
-    // API flood: the sheet ends exactly at the mesh edge and at the reveal front.
-    // Both edges must stay opaque enough to meet the red perimeter with no dry strip.
+    // API flood: translucent water surface within the valid API flood footprint.
+    // Allows terrain texture to remain visible while giving clear hazard red depth tint.
     if (uIsFlood > 0.5) {
-      alpha *= mix(0.72, 1.0, smoothstep(0.0, 6.0, vEdgeDist));
+      alpha = clamp(mix(0.50, 0.78, depthT) * uOpacity, 0.35, 0.85);
+      alpha *= mix(0.85, 1.0, smoothstep(0.0, 6.0, vEdgeDist));
       float ahead = vRiverDist - uFloodProgressDist;
       float aa = max(fwidth(vRiverDist), 1e-3);
       float wet = 1.0 - smoothstep(-0.5 * aa, 0.5 * aa, ahead);
       if (wet < 0.002) discard;
-      alpha *= mix(0.62, 1.0, smoothstep(0.0, 18.0, -ahead));
-      // Same field and threshold as the cut above, so the line is the visible water edge.
+      alpha *= mix(0.70, 1.0, smoothstep(0.0, 18.0, -ahead));
+      // Leading reveal front uses thin red line matching the perimeter
       float frontPx = -ahead / aa;
       float frontLine = (1.0 - smoothstep(1.0, 2.0, frontPx)) * uFrontLine;
-      col = mix(col, uFrontColor, frontLine * 0.85);
-      alpha = mix(alpha, max(alpha, 0.78), frontLine);
+      col = mix(col, uFrontColor, frontLine * 0.90);
+      alpha = mix(alpha, max(alpha, 0.92), frontLine);
       alpha *= wet;
     }
 
@@ -402,11 +418,13 @@ export function createWaterMaterial(dataset) {
   const preset = WATER_PRESETS[state.waterPreset || DEFAULT_WATER_PRESET] || WATER_PRESETS.calmRealistic;
   const piers = Array.from({ length: PIER_MAX }, () => new THREE.Vector4());
   
-  // Premium flood visualization palette based on actual depth
-  const c0 = new THREE.Color("#75dcd0"); // Very shallow edges (soft aqua)
-  const c1 = new THREE.Color("#42c8c0"); // Shallow floodwater (turquoise)
-  const c2 = new THREE.Color("#168fc1"); // Medium-depth (clear ocean blue)
-  const c3 = new THREE.Color("#07558d"); // Deep river (rich deep blue)
+  const isFlood = !!dataset?.isFlood;
+  // Natural deep dark blue river palette: #087FAF -> #07558D -> #063568
+  // Flood inundation palette: radiant hazard red within valid API extent
+  const c0 = isFlood ? new THREE.Color("#FF4444") : new THREE.Color("#087FAF"); // Shallow fringe
+  const c1 = isFlood ? new THREE.Color("#E53935") : new THREE.Color("#07558D"); // Shallow/mid
+  const c2 = isFlood ? new THREE.Color("#C62828") : new THREE.Color("#06477B"); // Mid/deep
+  const c3 = isFlood ? new THREE.Color("#8E0000") : new THREE.Color("#063568"); // Deep channel
 
   return new THREE.ShaderMaterial({
     vertexShader: vert,
@@ -436,10 +454,10 @@ export function createWaterMaterial(dataset) {
       uShowDepth: { value: 1 },
       uCutaway: { value: 0 },
       uShowFlowVis: { value: state.flowVisibility ?? 0.55 },
-      uOpacity: { value: preset.waterOpacity ?? state.waterOpacity },
+      uOpacity: { value: preset.waterOpacity ?? state.waterOpacity ?? 0.82 },
       uReveal: { value: 1.2 },
       uRevealSoft: { value: 0.045 },
-      uReflectionStrength: { value: preset.reflectionStrength ?? 0.55 },
+      uReflectionStrength: { value: preset.reflectionStrength ?? 0.65 },
       uWaveHighlight: { value: preset.waveHighlight ?? 0.75 },
       uQuality: { value: qualityToFloat(state.waterQuality || "high") },
       uSiltMode: { value: 0 },
@@ -461,7 +479,7 @@ export function createWaterMaterial(dataset) {
       uIsFlood: { value: dataset.isFlood ? 1.0 : 0.0 },
       uFloodProgressDist: { value: 10000.0 },
       uFrontLine: { value: 0 },
-      uFrontColor: { value: new THREE.Color("#EF4444") },
+      uFrontColor: { value: new THREE.Color("#FF3030") },
     },
   });
 }
@@ -503,17 +521,17 @@ export function syncWaterMaterial(material) {
   // (set from actual flood depth + simulation progress in apiFloodLayer).
   if (isFlood) return;
 
-  u.uOpacity.value = num("waterOpacity", preset?.waterOpacity ?? 0.48);
-  u.uReflectionStrength.value = num("reflectionStrength", preset?.reflectionStrength ?? 0.55);
+  u.uOpacity.value = num("waterOpacity", preset?.waterOpacity ?? 0.82);
+  u.uReflectionStrength.value = num("reflectionStrength", preset?.reflectionStrength ?? 0.65);
   u.uWaveHighlight.value = num("waveHighlight", preset?.waveHighlight ?? 0.75);
 
-  const shallowHex = state.shallowWaterColor || preset?.shallowColor || "#75dcd0";
-  const deepHex = state.deepWaterColor || preset?.deepColor || "#07558d";
+  const shallowHex = state.shallowWaterColor || preset?.shallowColor || "#087FAF";
+  const deepHex = state.deepWaterColor || preset?.deepColor || "#063568";
   _shallowScratch.set(shallowHex);
   _deepScratch.set(deepHex);
   u.uC0.value.copy(_shallowScratch);
-  u.uC1.value.copy(_midScratch.copy(_shallowScratch).lerp(_deepScratch, 0.4));
-  u.uC2.value.copy(_midScratch.copy(_shallowScratch).lerp(_deepScratch, 0.72));
+  u.uC1.value.copy(_midScratch.copy(_shallowScratch).lerp(_deepScratch, 0.35));
+  u.uC2.value.copy(_midScratch.copy(_shallowScratch).lerp(_deepScratch, 0.70));
   u.uC3.value.copy(_deepScratch);
 }
 

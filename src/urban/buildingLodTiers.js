@@ -39,40 +39,13 @@ function centerOf(group) {
 
 /**
  * Every OSM footprint tier stays visible with full opacity.
- * HLOD supplements distant skyline only when camera is very high.
+ * HLOD supplements distant skyline only when camera is high.
  */
 export function updateBuildingLodVisibility(buildingRoot, camera) {
   if (!buildingRoot?.userData?.lod) return;
-  const { hero, near, mid, distant, hlod } = buildingRoot.userData.lod;
-
-  _camPos.copy(camera.position);
-  const camH = _camPos.y;
-
-  setGroupOpacity(hero, 1);
-  setGroupOpacity(near, 1);
-  setGroupOpacity(mid, 1);
-  setGroupOpacity(distant, 1);
-
-  if (hero) hero.visible = true;
-  if (near) near.visible = true;
-  if (mid) mid.visible = true;
-  if (distant) distant.visible = true;
+  const { hlod } = buildingRoot.userData.lod;
   if (hlod) {
-    hlod.visible = camH > 1800;
-    setGroupOpacity(hlod, camH > 2200 ? 0.75 : 0.55);
+    const camH = camera.position.y;
+    hlod.visible = camH > 1600;
   }
-}
-
-function setGroupOpacity(group, opacity) {
-  if (!group) return;
-  group.traverse((obj) => {
-    if (obj.material) {
-      const mats = Array.isArray(obj.material) ? obj.material : [obj.material];
-      for (const m of mats) {
-        if (!m.userData._baseOpacity) m.userData._baseOpacity = m.opacity ?? 1;
-        m.opacity = m.userData._baseOpacity * opacity;
-        m.transparent = opacity < 0.98;
-      }
-    }
-  });
 }

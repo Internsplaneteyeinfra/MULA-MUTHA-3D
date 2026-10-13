@@ -75,7 +75,7 @@ export function isModestRamDevice() {
   return (memoryGb > 0 && memoryGb <= 8) || isIntegratedGpu() || isMobileOrLaptopGpu();
 }
 
-/** Lite DTM/OSM only on constrained machines. */
+/** Lite DTM/OSM only on constrained machines, production hosts, or mobile/integrated GPUs. */
 export function shouldUseLiteAssets() {
   try {
     if (new URLSearchParams(location.search).has("fullTerrain")) return false;
@@ -83,7 +83,13 @@ export function shouldUseLiteAssets() {
   } catch {
     /* ignore */
   }
-  return isModestRamDevice() || isLowMemoryDevice();
+  return (
+    isProductionHost() ||
+    isMobileOrLaptopGpu() ||
+    isIntegratedGpu() ||
+    isModestRamDevice() ||
+    isLowMemoryDevice()
+  );
 }
 
 function readForcedTier() {
@@ -151,8 +157,8 @@ function profileFor(tier) {
       chainageHz: 8,
       coordLabelHz: 3,
       softShadow: false,
-      maxTrees: 2400,
-      maxVegTypeTrees: 3500,
+      maxTrees: 2000,
+      maxVegTypeTrees: 2800,
       treeShadows: false,
       enableVegApi: true,
       enableFishing: true,
@@ -168,18 +174,18 @@ function profileFor(tier) {
       shadows: false,
       shadowMapSize: 1024,
       preserveDrawingBuffer: false,
-      targetFps: 50,
-      labelHz: 10,
+      targetFps: 60,
+      labelHz: 12,
       lodHz: 6,
-      chainageHz: 12,
-      coordLabelHz: 5,
+      chainageHz: 14,
+      coordLabelHz: 6,
       softShadow: false,
-      maxTrees: 5500,
-      maxVegTypeTrees: 8500,
+      maxTrees: 3800,
+      maxVegTypeTrees: 5200,
       treeShadows: false,
       enableVegApi: true,
       enableFishing: true,
-      vegTypeStepM: 36,
+      vegTypeStepM: 38,
       lightTreesOnly: true,
     };
   }

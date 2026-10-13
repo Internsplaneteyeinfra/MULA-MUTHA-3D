@@ -14,10 +14,10 @@ export const state = {
 
   riverMode: "flowing",
 
-  animateWater: false,
+  animateWater: true,
 
   /** Calm cinematic river waves (from Alembic motion intent → GPU on KML mesh). */
-  waterAnimEnabled: false,
+  waterAnimEnabled: true,
   waterPreset: "calmRealistic",
   waterQuality: "high",
   waterOverallSpeed: 0.55,
@@ -30,8 +30,8 @@ export const state = {
   flowStrength: 0.85,
   reflectionStrength: 0.58,
   waveHighlight: 0.78,
-  shallowWaterColor: "#7ed9f3",
-  deepWaterColor: "#1870c9",
+  shallowWaterColor: "#087FAF",
+  deepWaterColor: "#063568",
   showWaterDebug: false,
   /** Metres above normal river surface (SURFACE_Y) — illustrative bathtub only. */
   floodRiseM: 0,
@@ -184,7 +184,7 @@ export const state = {
   cinematicBridgeFocus: null,
   cinematicInfo: null,
   showCoordinateGrid: false,
-  cameraMode: "overview",
+  cameraMode: "aerial",
   visualMode: "landscape",
   elapsed: 0,
   hover: null,

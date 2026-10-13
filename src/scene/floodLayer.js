@@ -34,9 +34,9 @@ export function createFloodLayer(dataset) {
   geo.computeVertexNormals();
 
   const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color("#2a6fa8"),
+    color: new THREE.Color("#DC2626"),
     transparent: true,
-    opacity: 0.38,
+    opacity: 0.44,
     roughness: 0.18,
     metalness: 0.05,
     transmission: 0.22,

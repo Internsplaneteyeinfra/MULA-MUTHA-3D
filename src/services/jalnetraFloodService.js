@@ -193,23 +193,49 @@ export function parseFloodOverlayKml(kmlText) {
     const parser = new DOMParser();
     const doc = parser.parseFromString(kmlText, "text/xml");
     const polyNodes = doc.getElementsByTagName("Polygon");
-    
-    for (let i = 0; i < polyNodes.length; i++) {
-      const coordsNodes = polyNodes[i].getElementsByTagName("coordinates");
-      if (!coordsNodes || coordsNodes.length === 0) continue;
-      
-      const coordsStr = coordsNodes[0].textContent || "";
-      const pairs = coordsStr.trim().split(/\s+/);
+
+    const parseCoords = (text) => {
+      if (!text) return [];
+      const pairs = text.trim().split(/\s+/);
       const coords = [];
       for (const pair of pairs) {
         if (!pair) continue;
         const parts = pair.split(",");
         if (parts.length >= 2) {
-          coords.push({ lon: parseFloat(parts[0]), lat: parseFloat(parts[1]) });
+          const lon = parseFloat(parts[0]);
+          const lat = parseFloat(parts[1]);
+          if (Number.isFinite(lon) && Number.isFinite(lat)) {
+            coords.push({ lon, lat });
+          }
         }
       }
-      if (coords.length > 2) {
-        polygons.push(coords);
+      return coords;
+    };
+    
+    for (let i = 0; i < polyNodes.length; i++) {
+      const pNode = polyNodes[i];
+      let outerRing = [];
+      const outerNodes = pNode.getElementsByTagName("outerBoundaryIs");
+      if (outerNodes.length > 0) {
+        const cNodes = outerNodes[0].getElementsByTagName("coordinates");
+        if (cNodes.length > 0) outerRing = parseCoords(cNodes[0].textContent);
+      } else {
+        const cNodes = pNode.getElementsByTagName("coordinates");
+        if (cNodes.length > 0) outerRing = parseCoords(cNodes[0].textContent);
+      }
+      
+      const holes = [];
+      const innerNodes = pNode.getElementsByTagName("innerBoundaryIs");
+      for (let j = 0; j < innerNodes.length; j++) {
+        const cNodes = innerNodes[j].getElementsByTagName("coordinates");
+        if (cNodes.length > 0) {
+          const hole = parseCoords(cNodes[0].textContent);
+          if (hole.length > 2) holes.push(hole);
+        }
+      }
+      
+      if (outerRing.length > 2) {
+        polygons.push({ outer: outerRing, holes });
       }
     }
   } catch(e) {
@@ -228,7 +254,7 @@ export function parseFloodOverlayKml(kmlText) {
     if (!Number.isFinite(box.north)) {
       let n = -90, s = 90, e = -180, w = 180;
       for (const poly of polygons) {
-        for (const pt of poly) {
+        for (const pt of poly.outer) {
           if (pt.lat > n) n = pt.lat;
           if (pt.lat < s) s = pt.lat;
           if (pt.lon > e) e = pt.lon;
@@ -272,13 +298,14 @@ function loadImage(src) {
 }
 
 function isFloodPixel(r, g, b, a) {
-  if (a < 8) return false;
-  // API Flood ≈ #FF0000 (allow anti-alias / compression / orange-red)
-  if (r >= 120 && r > g + 25 && r > b + 25) return true;
-  if (r >= 150 && g <= 110 && b <= 130 && r >= g && r >= b) return true;
-  // Accept blue/cyan flood pixels if the API uses them
-  if (b >= 100 && b > r + 20) return true;
-  if (g >= 100 && b >= 100 && g > r + 20) return true;
+  if (a < 12) return false;
+  // Flood water is explicitly indicated in RED in the satellite / KML overlay product.
+  // Permanent river water is BLUE (b > r + 15), which is represented by the 3D river mesh.
+  // Red pixels strictly represent newly inundated floodwater / water rise.
+  if (r >= 95 && r > g * 1.18 && r > b * 1.18) return true;
+  if (r >= 120 && r > g + 16 && r > b + 16) return true;
+  if (r >= 140 && g <= 130 && b <= 130) return true;
+  if (r > 150 && (r - g) > 35 && (r - b) > 35) return true;
   return false;
 }
 
@@ -301,22 +328,48 @@ export async function sampleFloodRaster(overlay, { aoiPolygons = [], stride = 3 
   const samples = [];
   let floodPixels = 0;
 
+  // Area actually mapped by the overlay (full-resolution red pixels × true pixel footprint).
+  let rawFloodPx = 0;
+  for (let i = 0; i < data.length; i += 4) {
+    if (isFloodPixel(data[i], data[i + 1], data[i + 2], data[i + 3])) rawFloodPx += 1;
+  }
+  const mLat = ((overlay.north - overlay.south) * Math.PI) / 180 * 6371000;
+  const mLon =
+    ((overlay.east - overlay.west) * Math.PI) / 180 * 6371000 *
+    Math.cos((((overlay.north + overlay.south) / 2) * Math.PI) / 180);
+  const mappedFloodHa = (rawFloodPx * (mLat * mLon)) / (width * height) / 1e4;
+
   // Mask at reduced resolution for faster mesh sampling (still smooth at map scale)
   const maskW = Math.min(width, 512);
   const maskH = Math.min(height, 256);
-  const mask = new Float32Array(maskW * maskH);
+  const rawMask = new Uint8Array(maskW * maskH);
   const sx = width / maskW;
   const sy = height / maskH;
 
   for (let my = 0; my < maskH; my++) {
-    const y0 = Math.min(height - 1, Math.floor(my * sy));
+    const y0 = Math.floor(my * sy);
+    const y1 = Math.min(height, Math.ceil((my + 1) * sy));
     for (let mx = 0; mx < maskW; mx++) {
-      const x0 = Math.min(width - 1, Math.floor(mx * sx));
-      const i = (y0 * width + x0) * 4;
-      const on = isFloodPixel(data[i], data[i + 1], data[i + 2], data[i + 3]) ? 1 : 0;
-      mask[my * maskW + mx] = on;
+      const x0 = Math.floor(mx * sx);
+      const x1 = Math.min(width, Math.ceil((mx + 1) * sx));
+      let on = 0;
+      for (let py = y0; py < y1 && !on; py++) {
+        for (let px = x0; px < x1 && !on; px++) {
+          const i = (py * width + px) * 4;
+          if (isFloodPixel(data[i], data[i + 1], data[i + 2], data[i + 3])) {
+            on = 1;
+          }
+        }
+      }
+      rawMask[my * maskW + mx] = on;
       if (on) floodPixels += 1;
     }
+  }
+
+  // Keep exact satellite / API flood footprint without artificial dilation
+  const mask = new Float32Array(maskW * maskH);
+  for (let i = 0; i < mask.length; i++) {
+    mask[i] = rawMask[i];
   }
 
   // Sparse AOI samples for emptiness check only
@@ -336,7 +389,9 @@ export async function sampleFloodRaster(overlay, { aoiPolygons = [], stride = 3 
   return {
     samples,
     floodPixels,
+    mappedFloodHa: Number.isFinite(mappedFloodHa) ? mappedFloodHa : null,
     mask,
+    floodMask: mask,
     width: maskW,
     height: maskH,
     overlay,

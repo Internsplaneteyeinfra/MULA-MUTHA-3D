@@ -71,6 +71,8 @@ export function createApiFloodLayer(dataset) {
   };
 
   function disposeMesh() {
+    group.userData.hasFlood = false;
+    group.hasFlood = false;
     if (mesh) {
       group.remove(mesh);
       mesh.geometry?.dispose?.();
@@ -185,7 +187,7 @@ export function createApiFloodLayer(dataset) {
     }
     
     if (material && material.uniforms) {
-      material.uniforms.uOpacity.value = THREE.MathUtils.lerp(0.3, 0.62, Math.min(1, p * 1.15));
+      material.uniforms.uOpacity.value = THREE.MathUtils.lerp(0.80, 0.94, Math.min(1, p * 1.15));
       material.uniforms.uReveal.value = 10000.0;
       if (material.uniforms.uFloodProgressDist) {
         material.uniforms.uFloodProgressDist.value = currentFloodFrontDistance;
@@ -240,7 +242,9 @@ export function createApiFloodLayer(dataset) {
   }
 
   function clear() {
+    const hadFlood = !!mesh;
     disposeMesh();
+    if (hadFlood) document.dispatchEvent(new CustomEvent("flood-geometry-cleared"));
     group.visible = false;
     anim.active = false;
     anim.paused = false;
@@ -271,7 +275,7 @@ export function createApiFloodLayer(dataset) {
       throw new Error("Missing flood overlay for visualization.");
     }
 
-    const { mask, width, height, fromPolygons } = raster || {};
+    const { mask, floodMask, width, height, fromPolygons } = raster || {};
     
     let crop = null;
     if (mask && mask.length > 0) {
@@ -358,23 +362,48 @@ export function createApiFloodLayer(dataset) {
     const lonSpan = overlay.east - overlay.west;
     const latSpan = overlay.north - overlay.south;
     
+    function pointInRing(lon, lat, ring) {
+      if (!ring || ring.length < 3) return false;
+      let inside = false;
+      let j = ring.length - 1;
+      for (let i = 0; i < ring.length; i++) {
+        if ((ring[i].lat > lat) !== (ring[j].lat > lat) &&
+            (lon < (ring[j].lon - ring[i].lon) * (lat - ring[i].lat) / (ring[j].lat - ring[i].lat) + ring[i].lon)) {
+          inside = !inside;
+        }
+        j = i;
+      }
+      return inside;
+    }
+
+    function pointInFloodPolygons(lon, lat, polys) {
+      if (!polys || !polys.length) return false;
+      for (const p of polys) {
+        if (!p) continue;
+        const outer = p.outer || (Array.isArray(p) ? p : null);
+        if (!outer) continue;
+        if (pointInRing(lon, lat, outer)) {
+          // If point falls inside any inner hole ring, it is unflooded dry land
+          if (p.holes && p.holes.length) {
+            let inHole = false;
+            for (const h of p.holes) {
+              if (pointInRing(lon, lat, h)) {
+                inHole = true;
+                break;
+              }
+            }
+            if (inHole) continue;
+          }
+          return true;
+        }
+      }
+      return false;
+    }
+
     /** Continuous bilinear interpolation of flood mask for smooth non-blocky gradients. */
     function maskAtLonLat(lon, lat) {
       if (fromPolygons && overlay.polygons) {
-        let inside = false;
-        for (const poly of overlay.polygons) {
-          if (!poly || !poly.length) continue;
-          let j = poly.length - 1;
-          for (let i = 0; i < poly.length; i++) {
-            if ((poly[i].lat > lat) !== (poly[j].lat > lat) &&
-                (lon < (poly[j].lon - poly[i].lon) * (lat - poly[i].lat) / (poly[j].lat - poly[i].lat) + poly[i].lon)) {
-              inside = !inside;
-            }
-            j = i;
-          }
-          if (inside) return 1.0;
-        }
-        return 0.0;
+        return pointInFloodPolygons(lon, lat, overlay.polygons) ? 1.0 : 0.0;
       }
       
       if (!(lonSpan > 0) || !(latSpan > 0) || !mask) return 0.0;
@@ -396,35 +425,83 @@ export function createApiFloodLayer(dataset) {
       return (v00 * (1 - tx) + v10 * tx) * (1 - ty) + (v01 * (1 - tx) + v11 * tx) * ty;
     }
 
+    /** Continuous bilinear interpolation of red flood mask (1.0 = flood, 0.0 = river water or dry). */
+    function floodAtLonLat(lon, lat) {
+      if (fromPolygons) return 1.0;
+      if (!(lonSpan > 0) || !(latSpan > 0) || !floodMask) return 0.0;
+      const iu = (lon - overlay.west) / lonSpan;
+      const iv = (overlay.north - lat) / latSpan;
+      if (iu < 0.0 || iu > 1.0 || iv < 0.0 || iv > 1.0) return 0.0;
+      const fx = iu * (width - 1);
+      const fy = iv * (height - 1);
+      const x0 = Math.floor(fx);
+      const y0 = Math.floor(fy);
+      const x1 = Math.min(width - 1, x0 + 1);
+      const y1 = Math.min(height - 1, y0 + 1);
+      const tx = fx - x0;
+      const ty = fy - y0;
+      const v00 = floodMask[y0 * width + x0] || 0;
+      const v10 = floodMask[y0 * width + x1] || 0;
+      const v01 = floodMask[y1 * width + x0] || 0;
+      const v11 = floodMask[y1 * width + x1] || 0;
+      return (v00 * (1 - tx) + v10 * tx) * (1 - ty) + (v01 * (1 - tx) + v11 * tx) * ty;
+    }
+
+    const isFloodGrid = new Float32Array(pos.count);
     let maxDist = 1;
     let floodCount = 0;
+    let sumFloodX = 0;
+    let sumFloodZ = 0;
     let bMinX = Infinity;
     let bMaxX = -Infinity;
     let bMinZ = Infinity;
     let bMaxZ = -Infinity;
     let maxTerrainY = -Infinity;
+    let floodOnlyCount = 0;
+    let sumFloodOnlyX = 0;
+    let sumFloodOnlyZ = 0;
+    let bMinFloodX = Infinity;
+    let bMaxFloodX = -Infinity;
+    let bMinFloodZ = Infinity;
+    let bMaxFloodZ = -Infinity;
 
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
       let flooded = 0;
+      let isFloodVal = 0;
       try {
         const ll = localToLonLat(x, z);
         flooded = maskAtLonLat(ll.lon, ll.lat);
+        isFloodVal = floodAtLonLat(ll.lon, ll.lat);
       } catch {
         flooded = 0;
+        isFloodVal = 0;
       }
       floodAttr[i] = flooded;
+      isFloodGrid[i] = isFloodVal;
       const gy = terrainHeightAt(x, z, stations);
       terrainYAttr[i] = gy;
       
       if (flooded) {
         if (gy > maxTerrainY) maxTerrainY = gy;
         floodCount += 1;
+        sumFloodX += x;
+        sumFloodZ += z;
         bMinX = Math.min(bMinX, x);
         bMaxX = Math.max(bMaxX, x);
         bMinZ = Math.min(bMinZ, z);
         bMaxZ = Math.max(bMaxZ, z);
+
+        if (isFloodVal > 0.25) {
+          floodOnlyCount += 1;
+          sumFloodOnlyX += x;
+          sumFloodOnlyZ += z;
+          bMinFloodX = Math.min(bMinFloodX, x);
+          bMaxFloodX = Math.max(bMaxFloodX, x);
+          bMinFloodZ = Math.min(bMinFloodZ, z);
+          bMaxFloodZ = Math.max(bMaxFloodZ, z);
+        }
       }
       
       const d = nearestRiverDist(x, z);
@@ -625,7 +702,15 @@ export function createApiFloodLayer(dataset) {
     const getPointData = (ix, iz) => {
         const i = iz * distVertsX + ix;
         const d = distAttr[i] || 0;
-        return { x: pos.getX(i), z: pos.getZ(i), f: floodAttr[i] || 0, d, dl: d, e: edgeDistGrid[i] || 0 };
+        return {
+          x: pos.getX(i),
+          z: pos.getZ(i),
+          f: floodAttr[i] || 0,
+          isFlood: isFloodGrid[i] || 0,
+          d,
+          dl: d,
+          e: edgeDistGrid[i] || 0
+        };
     };
     
     // Smooth linear interpolation along cell edges based on continuous mask values
@@ -636,6 +721,7 @@ export function createApiFloodLayer(dataset) {
             x: p1.x + (p2.x - p1.x) * t,
             z: p1.z + (p2.z - p1.z) * t,
             e: 0,
+            isFlood: p1.isFlood + (p2.isFlood - p1.isFlood) * t,
             d: p1.d + (p2.d - p1.d) * t,
             // Shoreline points are reached when the flooded side of the edge is.
             dl: p1.f >= 0.5 ? p1.d : p2.d,
@@ -701,6 +787,7 @@ export function createApiFloodLayer(dataset) {
     const finalNarrow = new Float32Array(msCount).fill(0);
     const finalEdgeDist = new Float32Array(msCount);
     const finalRiverDist = new Float32Array(msCount);
+    const finalIsFlood = new Float32Array(msCount);
     // One reveal field for the water sheet and its red perimeter. Shoreline points take
     // the flooded side's distance (not a blend with dry cells); spill-unreachable cells
     // are still API extent, so they fill in at 100%.
@@ -713,20 +800,26 @@ export function createApiFloodLayer(dataset) {
         let depth;
         if (hasWaterLevel) {
           const waterSurface = Math.max(sceneFinalWaterLevelY, SURFACE_Y);
-          y = Math.max(waterSurface, gy + 0.02);
+          y = Math.max(waterSurface, gy + 0.03);
           depth = Math.max(0.0, waterSurface - gy);
         } else {
-          // Shading only (shoreline → interior); never reported as a measured depth.
-          y = Math.max(SURFACE_Y, gy + 0.12);
+          // Precise elevation alignment:
+          // Over river bed (gy <= SURFACE_Y), meet river surface (SURFACE_Y) cleanly (+0.015m).
+          // Over floodplain terrain (gy > SURFACE_Y), drape 0.03m above DTM to prevent z-fighting without floating.
+          y = gy <= SURFACE_Y ? (SURFACE_Y + 0.015) : (gy + 0.03);
           depth = Math.min(1, pt.e / (cellM * 8)) * EXTENT_SHADE_DEPTH_M;
         }
         finalPos[i * 3] = pt.x;
         finalPos[i * 3 + 1] = y;
         finalPos[i * 3 + 2] = pt.z;
         finalDepth[i] = depth;
-        finalAlong[i] = pt.x / 100;
+        finalAlong[i] = (pt.x * 0.015 + pt.z * 0.008);
+        finalAcross[i] = 0.5 + Math.sin(pt.z * 0.02) * 0.25;
+        finalFlow[i * 2] = 1.0;
+        finalFlow[i * 2 + 1] = 0.3;
         finalEdgeDist[i] = pt.e;
         finalRiverDist[i] = Number.isFinite(pt.dl) && pt.dl < 1e5 ? Math.min(pt.dl, frontMax) : frontMax;
+        finalIsFlood[i] = pt.isFlood ?? 0.0;
     }
     
     geo.setIndex(msIndices);
@@ -738,27 +831,27 @@ export function createApiFloodLayer(dataset) {
     geo.setAttribute('aNarrow', new THREE.BufferAttribute(finalNarrow, 1));
     geo.setAttribute('aEdgeDist', new THREE.BufferAttribute(finalEdgeDist, 1));
     geo.setAttribute('aRiverDist', new THREE.BufferAttribute(finalRiverDist, 1));
+    geo.setAttribute('aIsFlood', new THREE.BufferAttribute(finalIsFlood, 1));
 
     // Generate smooth normals to remove faceted/stepped appearance
     geo.computeVertexNormals();
 
     material = createWaterMaterial({ ...dataset, isFlood: true });
+    material.side = THREE.DoubleSide;
     material.polygonOffset = true;
-    material.polygonOffsetFactor = -2;
-    material.polygonOffsetUnits = -2;
+    material.polygonOffsetFactor = -1.5;
+    material.polygonOffsetUnits = -1.5;
     if (material.uniforms) {
-      material.uniforms.uOpacity.value = 0.82; // Rich fluid body like reference image
+      material.uniforms.uOpacity.value = 0.76; // Translucent fluid water body, not opaque paint
       material.uniforms.uAnimEnabled.value = 1.0;
-      material.uniforms.uOverallSpeed.value = 0.35; // Gentle low-frequency waves
-      material.uniforms.uWaveHighlight.value = 0.40; // Sparkling sunlight glints
+      material.uniforms.uOverallSpeed.value = 0.65; // Active animated wave ripples
+      material.uniforms.uWaveHighlight.value = 0.75; // Sparkling sunlight glints on flood water
       material.uniforms.uReflectionStrength.value = 0.70; // Glassy Fresnel reflection
       material.uniforms.uIsFlood.value = 1.0;
 
-      // Exact vibrant palette requested matching reference image:
-      material.uniforms.uC0.value.set("#75DCD0"); // Soft glowing aqua — shallowest flood edge
-      material.uniforms.uC1.value.set("#42C8C0"); // Radiant turquoise — shallow flood plains
-      material.uniforms.uC2.value.set("#168FC1"); // Clear electric ocean blue — mid depths
-      material.uniforms.uC3.value.set("#07558D"); // Deep rich royal blue — channel & deep water
+      if (material.uniforms.uFrontColor) {
+        material.uniforms.uFrontColor.value.set("#FF3030"); // Crisp thin red leading crest
+      }
 
       // Use actual depth range for continuous color scale, clamp to avoid division by zero
       material.uniforms.uMaxDepth.value = hasWaterLevel
@@ -769,9 +862,11 @@ export function createApiFloodLayer(dataset) {
     mesh = new THREE.Mesh(geo, material);
     mesh.name = "apiFloodMesh";
     mesh.userData.cellAreaHa = (spanX / segsX) * (spanZ / segsZ) / 10000;
-    mesh.renderOrder = 12;
+    mesh.renderOrder = 18;
     mesh.frustumCulled = false;
     group.add(mesh);
+    group.userData.hasFlood = true;
+    group.hasFlood = true;
 
     const gx0 = cx - spanX / 2;
     const gx1 = cx + spanX / 2;
@@ -787,9 +882,11 @@ export function createApiFloodLayer(dataset) {
         Math.abs(x - gx1) < BORDER_EPS ||
         Math.abs(z - gz0) < BORDER_EPS ||
         Math.abs(z - gz1) < BORDER_EPS,
+      isFlood: finalIsFlood,
     });
     if (boundary) group.add(boundary);
     revealSorted = Float32Array.from(finalRiverDist).sort();
+    queueMicrotask(() => document.dispatchEvent(new CustomEvent("flood-geometry-ready")));
     
     const DEBUG_FLOOD_GEOMETRY = false;
     
@@ -815,15 +912,18 @@ export function createApiFloodLayer(dataset) {
       });
     }
 
+    const centroidX = floodOnlyCount > 0 ? (sumFloodOnlyX / floodOnlyCount) : (floodCount > 0 ? (sumFloodX / floodCount) : (bMinX + bMaxX) * 0.5);
+    const centroidZ = floodOnlyCount > 0 ? (sumFloodOnlyZ / floodOnlyCount) : (floodCount > 0 ? (sumFloodZ / floodCount) : (bMinZ + bMaxZ) * 0.5);
+    const useFloodBounds = floodOnlyCount > 0;
     bounds = {
-      minX: bMinX,
-      maxX: bMaxX,
-      minZ: bMinZ,
-      maxZ: bMaxZ,
-      cx: (bMinX + bMaxX) * 0.5,
-      cz: (bMinZ + bMaxZ) * 0.5,
-      spanX: Math.max(40, bMaxX - bMinX),
-      spanZ: Math.max(40, bMaxZ - bMinZ),
+      minX: useFloodBounds ? bMinFloodX : bMinX,
+      maxX: useFloodBounds ? bMaxFloodX : bMaxX,
+      minZ: useFloodBounds ? bMinFloodZ : bMinZ,
+      maxZ: useFloodBounds ? bMaxFloodZ : bMaxZ,
+      cx: centroidX,
+      cz: centroidZ,
+      spanX: Math.max(60, (useFloodBounds ? bMaxFloodX - bMinFloodX : bMaxX - bMinX)),
+      spanZ: Math.max(60, (useFloodBounds ? bMaxFloodZ - bMinFloodZ : bMaxZ - bMinZ)),
     };
 
     const initialWaterMslRounded = initialWaterMsl != null ? Math.round(initialWaterMsl * 100) / 100 : null;
@@ -835,6 +935,7 @@ export function createApiFloodLayer(dataset) {
       scene_date: scene.date || scene.post_date || resultInfo?.scene_date || null,
       flood_area_ha: scene.flood_area_ha ?? resultInfo?.flood_area_ha ?? null,
       water_area_ha: scene.water_area_ha ?? resultInfo?.water_area_ha ?? null,
+      mapped_flood_area_ha: raster?.mappedFloodHa ?? null,
       pre_date: scene.pre_date ?? null,
       post_date: scene.post_date ?? null,
       kml_id: scene.kml_id,
@@ -895,6 +996,7 @@ export function createApiFloodLayer(dataset) {
         scene_date: scene.date || scene.post_date,
         flood_area_ha: scene.flood_area_ha,
         water_area_ha: scene.water_area_ha,
+        mapped_flood_area_ha: scene.raster?.mappedFloodHa ?? null,
         current_scene: i + 1,
         total_scenes: scenes.length,
       };
@@ -1047,7 +1149,7 @@ export function createApiFloodLayer(dataset) {
     if (material) {
       syncWaterMaterial(material);
       // Surface ripples run on scene time so they keep moving while progression is paused.
-      material.uniforms.uTime.value = state.elapsed ?? 0;
+      material.uniforms.uTime.value = (state.elapsed != null && Number.isFinite(state.elapsed)) ? state.elapsed : performance.now() * 0.001;
     }
 
     if (timeline.active && !timeline.paused && scenes.length > 1) {
@@ -1097,6 +1199,46 @@ export function createApiFloodLayer(dataset) {
   group.userData.getProgress = () => anim.progress;
   group.userData.getSceneIndex = () => sceneIndex;
   group.userData.getScenes = () => scenes;
+  /** Real flooded grid cells + perimeter segments (scene metres) for the compare thumbnails. */
+  group.userData.getThumbnailData = () => {
+    if (!mesh || !floodAttr || !distAttr) return null;
+    const pos = mesh.geometry.attributes.position;
+    const finalY = lastInfo?._scene_final_water_y;
+    const hasLevel = Number.isFinite(finalY);
+    const ox = mesh.position.x;
+    const oz = mesh.position.z;
+    const xs = [];
+    const zs = [];
+    const ds = [];
+    for (let i = 0; i < floodAttr.length; i++) {
+      if (floodAttr[i] <= 0.5) continue;
+      if (hasLevel && !(finalY > terrainYAttr[i])) continue;
+      xs.push(pos.getX(i) + ox);
+      zs.push(pos.getZ(i) + oz);
+      ds.push(Math.min(distAttr[i], anim.maxDist));
+    }
+    return {
+      xs,
+      zs,
+      ds,
+      frontAt: floodFrontDistance,
+      segs: boundary?.userData?.segmentsXZ || null,
+      segOffset: [ox, oz],
+    };
+  };
+
+  Object.defineProperty(group.userData, "hasFlood", {
+    get() { return !!mesh && group.children.includes(mesh); },
+    set(v) {},
+    enumerable: true,
+    configurable: true,
+  });
+  Object.defineProperty(group, "hasFlood", {
+    get() { return !!mesh && group.children.includes(mesh); },
+    set(v) {},
+    enumerable: true,
+    configurable: true,
+  });
 
   return group;
 }

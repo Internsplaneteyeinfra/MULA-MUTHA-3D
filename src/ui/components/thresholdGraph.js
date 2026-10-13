@@ -66,12 +66,6 @@ export function mountThresholdGraph(root) {
         <div class="tg-metric-row"><span class="k">+72 h Margin</span><span class="v" id="tg-val-p72margin">—</span></div>
         <div class="tg-metric-row"><span class="k">Risk Score</span><span class="v" id="tg-val-risk">—</span></div>
 
-        <div class="tg-divider"></div>
-        <h4 class="tg-section-title">PROVENANCE</h4>
-        <div class="tg-metric-row"><span class="k">WSE Source</span><span class="v tg-prov" id="tg-val-wseprov">—</span></div>
-        <div class="tg-metric-row"><span class="k">Threshold Basis</span><span class="v tg-prov" id="tg-val-thrprov">—</span></div>
-        <div class="tg-metric-row"><span class="k">Forecast Model</span><span class="v tg-prov" id="tg-val-fcastprov">—</span></div>
-
         <!-- Risk bar -->
         <div class="tg-divider"></div>
         <div class="tg-risk-wrap">

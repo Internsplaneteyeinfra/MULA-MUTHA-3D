@@ -99,9 +99,13 @@ export function createLoadingScene(canvas) {
     if (disposed) return;
     const dt = Math.min(0.05, (now - last) / 1000);
     last = now;
-    progress = (progress + dt * 0.022) % 1;
-    const point = flightPath.getPointAt(progress);
-    const ahead = flightPath.getPointAt((progress + 0.006) % 1);
+    progress = ((progress + dt * 0.022) % 1 + 1) % 1;
+    const point = flightPath.getPointAt(Math.max(0, Math.min(1, progress)));
+    const ahead = flightPath.getPointAt(Math.max(0, Math.min(1, (progress + 0.006) % 1)));
+    if (!point || !ahead) {
+      requestAnimationFrame(render);
+      return;
+    }
     tangent.subVectors(ahead, point).normalize();
     nextTangent.copy(tangent);
     butterflyRoot.position.copy(point);

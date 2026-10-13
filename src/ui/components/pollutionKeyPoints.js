@@ -43,6 +43,16 @@ export function mountPollutionKeyPoints(root) {
       el.innerHTML = "";
       return;
     }
+    const isLoaded = window.__MM_SCENE__?.isPollutionLoaded ? window.__MM_SCENE__.isPollutionLoaded() : true;
+    if (!isLoaded) {
+      el.innerHTML = `
+        <div class="pollution-side-center" style="padding: 6px 16px;">
+          <strong class="pollution-side-name" style="font-size: 13px;">Loading pollution locations…</strong>
+        </div>
+      `;
+      el.hidden = false;
+      return;
+    }
     const list = sides();
     if (!list.length) {
       el.hidden = true;
@@ -189,7 +199,20 @@ export function mountPollutionKeyPoints(root) {
     sideIndex = 0;
     siteIndex = 0;
     render();
-    focusCurrent();
+    if (window.__MM_SCENE__?.isPollutionLoaded?.()) {
+      focusCurrent();
+    } else {
+      const poll = window.setInterval(() => {
+        if (window.__MM_SCENE__?.isPollutionLoaded?.()) {
+          window.clearInterval(poll);
+          if (visible) {
+            render();
+            focusCurrent();
+          }
+        }
+      }, 80);
+      window.setTimeout(() => window.clearInterval(poll), 10000);
+    }
   }
 
   function hide() {

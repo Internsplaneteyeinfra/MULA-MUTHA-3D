@@ -87,6 +87,7 @@ export function createRiver(dataset) {
   surfGeo.setAttribute("aNarrow", new THREE.Float32BufferAttribute(bath.narrow, 1));
   surfGeo.setAttribute("aWidth", new THREE.Float32BufferAttribute(bath.widthM, 1));
   surfGeo.setAttribute("aCurve", new THREE.Float32BufferAttribute(bath.curve, 1));
+  surfGeo.setAttribute("aIsFlood", new THREE.Float32BufferAttribute(new Float32Array(n).fill(0), 1));
   surfGeo.setIndex(bath.indices);
   surfGeo.computeVertexNormals();
 
@@ -393,6 +394,7 @@ function applyRibbonToRiver(river, dataset, bath) {
   surfGeo.setAttribute("aNarrow", new THREE.Float32BufferAttribute(bath.narrow, 1));
   surfGeo.setAttribute("aWidth", new THREE.Float32BufferAttribute(bath.widthM, 1));
   surfGeo.setAttribute("aCurve", new THREE.Float32BufferAttribute(bath.curve, 1));
+  surfGeo.setAttribute("aIsFlood", new THREE.Float32BufferAttribute(new Float32Array(n).fill(0), 1));
   surfGeo.setIndex(new THREE.BufferAttribute(bath.indices, 1));
   surfGeo.computeVertexNormals();
 

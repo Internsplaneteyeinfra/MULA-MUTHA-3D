@@ -118,13 +118,24 @@ export function createCameraSystem(canvas, dataset) {
 
   const COMPASS_AZIMUTH = {
     n: Math.PI,
-    ne: Math.PI * 0.75,
-    e: Math.PI * 0.5,
-    se: Math.PI * 0.25,
+    ne: -Math.PI * 0.75,
+    e: -Math.PI * 0.5,
+    se: -Math.PI * 0.25,
     s: 0,
-    sw: -Math.PI * 0.25,
-    w: -Math.PI * 0.5,
-    nw: -Math.PI * 0.75,
+    sw: Math.PI * 0.25,
+    w: Math.PI * 0.5,
+    nw: Math.PI * 0.75,
+  };
+
+  const COMPASS_2D_UP = {
+    n: new THREE.Vector3(0, 0, 1),
+    ne: new THREE.Vector3(Math.SQRT1_2, 0, Math.SQRT1_2),
+    e: new THREE.Vector3(1, 0, 0),
+    se: new THREE.Vector3(Math.SQRT1_2, 0, -Math.SQRT1_2),
+    s: new THREE.Vector3(0, 0, -1),
+    sw: new THREE.Vector3(-Math.SQRT1_2, 0, -Math.SQRT1_2),
+    w: new THREE.Vector3(-1, 0, 0),
+    nw: new THREE.Vector3(-Math.SQRT1_2, 0, Math.SQRT1_2),
   };
 
   function st(u) {
@@ -236,6 +247,7 @@ export function createCameraSystem(canvas, dataset) {
     ease = "inOutCubic",
     releaseMode = "orbit",
     transitLift = null,
+    swapToOrtho = false,
   }) {
     if (state.cinematicActive) return;
 
@@ -309,6 +321,7 @@ export function createCameraSystem(canvas, dataset) {
     controls.enabled = false;
 
     flightTransition = {
+      swapToOrtho,
       fromP,
       toP: toP.clone(),
       fromL,
@@ -329,17 +342,68 @@ export function createCameraSystem(canvas, dataset) {
     };
   }
 
-  function enterMap2D({ animate = true } = {}) {
-    syncOrthoFrustum();
+  /** True top-down fit of the whole river corridor (used for the first/initial 2D view). */
+  const corridorFit = (() => {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const s of stations) {
+      if (!Number.isFinite(s.x) || !Number.isFinite(s.z)) continue;
+      minX = Math.min(minX, s.x);
+      maxX = Math.max(maxX, s.x);
+      minZ = Math.min(minZ, s.z);
+      maxZ = Math.max(maxZ, s.z);
+    }
+    if (!Number.isFinite(minX)) return overviewBounds;
+    return { spanX: maxX - minX, spanZ: maxZ - minZ, cx: (minX + maxX) / 2, cz: (minZ + maxZ) / 2 };
+  })();
+
+  function fullExtentViewH(aspect = viewportSize().aspect) {
+    const spanX = Math.max(80, corridorFit.spanX || 0);
+    const spanZ = Math.max(80, corridorFit.spanZ || 0);
+    const margin = 1.04;
+    return Math.max(spanZ * margin, (spanX * margin) / Math.max(0.5, aspect), 900);
+  }
+
+  function syncOrthoFrustumFullExtent(aspect = viewportSize().aspect) {
+    const spanX = Math.max(80, corridorFit.spanX || 0);
+    const spanZ = Math.max(80, corridorFit.spanZ || 0);
+    const margin = 1.04;
+    const viewHByX = (spanX * margin) / Math.max(0.5, aspect);
+    const viewH = Math.max(spanZ * margin, viewHByX, 900);
+    const viewW = viewH * aspect;
+    orthoCamera.left = -viewW * 0.5;
+    orthoCamera.right = viewW * 0.5;
+    orthoCamera.top = viewH * 0.5;
+    orthoCamera.bottom = -viewH * 0.5;
+    orthoCamera.near = 1;
+    orthoCamera.far = 200000;
+    orthoCamera.updateProjectionMatrix();
+  }
+
+  let map2DIsFullExtent = false;
+
+  function enterMap2D({ animate = true, fullExtent = false } = {}) {
+    map2DIsFullExtent = fullExtent;
+    if (fullExtent) syncOrthoFrustumFullExtent();
+    else syncOrthoFrustum();
     orthoCamera.zoom = MAP2D_DEFAULT_ZOOM;
     orthoCamera.updateProjectionMatrix();
 
-    activeCamera = orthoCamera;
-    controls.object = orthoCamera;
-    lockMap2DControls();
+    // Coming from a perspective camera: fly *that* camera to a nadir pose whose view
+    // height equals the ortho frustum, then swap. Flying the ortho camera through the
+    // 3D→top-down arc passes the horizon and renders only the empty 2D background.
+    const fromPersp = animate && activeCamera === perspCamera;
+    if (!fromPersp) {
+      activeCamera = orthoCamera;
+      controls.object = orthoCamera;
+      lockMap2DControls();
+    }
 
-    const focus = map2dFocusXZ();
-    const up = map2dUpAt(focus.u);
+    // Full-extent entry frames the whole corridor (north-up); normal 2D entry
+    // keeps the inspection-scale framing centred on selection / hover / mid corridor.
+    const focus = fullExtent
+      ? { x: corridorFit.cx, z: corridorFit.cz }
+      : map2dFocusXZ();
+    const up = fullExtent ? new THREE.Vector3(0, 0, 1) : map2dUpAt(focus.u);
     tmpP.set(focus.x, mapLookY + mapAltitude, focus.z);
     tmpL.set(focus.x, mapLookY, focus.z);
     tmpUp.copy(up);
@@ -354,6 +418,22 @@ export function createCameraSystem(canvas, dataset) {
 
     if (!animate) {
       snapTo(tmpP, tmpL, tmpUp);
+      return;
+    }
+
+    if (fromPersp) {
+      const viewH = fullExtent ? fullExtentViewH() : MAP2D_VIEW_HEIGHT_M;
+      const alt = viewH / (2 * Math.tan(THREE.MathUtils.degToRad(perspCamera.fov) * 0.5));
+      tmpP.set(focus.x, mapLookY + alt, focus.z);
+      startFlight({
+        toP: tmpP,
+        toL: tmpL,
+        toUp: up,
+        dur: 1.4,
+        transitLift: 0,
+        releaseMode: "aerial",
+        swapToOrtho: true,
+      });
       return;
     }
 
@@ -374,7 +454,13 @@ export function createCameraSystem(canvas, dataset) {
       }
       return;
     }
-    perspCamera.position.copy(orthoCamera.position);
+    {
+      // Match the ortho view height so the swap to perspective does not zoom-pop.
+      const viewH = (orthoCamera.top - orthoCamera.bottom) / Math.max(0.05, orthoCamera.zoom);
+      const alt = viewH / (2 * Math.tan(THREE.MathUtils.degToRad(perspCamera.fov) * 0.5));
+      perspCamera.position.set(controls.target.x, controls.target.y + alt, controls.target.z);
+      preserveUp = true;
+    }
     if (preserveUp) {
       // Keep map bearing for a continuous 2D→3D fly (avoids an instant world-up snap).
       perspCamera.up.copy(orthoCamera.up);
@@ -393,8 +479,25 @@ export function createCameraSystem(canvas, dataset) {
     }
   }
 
+  function completeSwapToOrtho(ft) {
+    flightTransition = null;
+    activeCamera = orthoCamera;
+    controls.object = orthoCamera;
+    lockMap2DControls();
+    orthoCamera.zoom = MAP2D_DEFAULT_ZOOM;
+    orthoCamera.updateProjectionMatrix();
+    snapTo(ft.toP, ft.toL, ft.toUp);
+    state.cameraMode = ft.releaseMode || "aerial";
+    state.playing = false;
+    controls.enabled = true;
+  }
+
   function takeManualControl() {
-    if (state.cinematicActive) return;
+    if (flightTransition?.swapToOrtho) completeSwapToOrtho(flightTransition);
+    if (state.cinematicActive) {
+      state.cinematicActive = false;
+      state.cinematicPaused = false;
+    }
     // Cancel scripted tweens; keep true 2D top-down when in map mode
     flightTransition = null;
     orientTransition = null;
@@ -415,7 +518,7 @@ export function createCameraSystem(canvas, dataset) {
       controls.enabled = true;
       return;
     }
-    if (state.cameraMode === "follow" || state.cameraMode === "local") {
+    if (state.cameraMode === "follow" || state.cameraMode === "local" || state.cameraMode === "overview") {
       state.playing = false;
       state.cameraMode = "orbit";
     }
@@ -518,7 +621,7 @@ export function createCameraSystem(canvas, dataset) {
     zoomTransition = null;
 
     if (mode === "aerial" || mode === "top" || mode === "2d") {
-      enterMap2D({ animate: true });
+      enterMap2D({ animate: opts?.animate !== false, fullExtent: !!opts?.fullExtent });
       return;
     }
 
@@ -637,7 +740,8 @@ export function createCameraSystem(canvas, dataset) {
     }
   }
 
-  applyMode("overview");
+  // First view on load: true 2D top-down of the whole corridor (VIEW → 3D flies in from here).
+  applyMode("aerial", { animate: false, fullExtent: true });
 
   function shortestAzimuthDelta(from, to) {
     let d = to - from;
@@ -662,42 +766,52 @@ export function createCameraSystem(canvas, dataset) {
       camera.position.x = controls.target.x;
       camera.position.z = controls.target.z;
       camera.position.y = Math.max(Math.abs(spherical.radius), mapLookY + 200);
+    } else {
+      camera.up.set(0, 1, 0);
     }
     camera.lookAt(controls.target);
     controls.update();
   }
 
   function rotateToCompass(direction, duration = 0.5) {
-    if (state.cinematicActive) return;
+    if (state.cinematicActive) {
+      state.cinematicActive = false;
+      state.cinematicPaused = false;
+    }
     const key = String(direction || "n").toLowerCase();
-    const targetTheta = COMPASS_AZIMUTH[key];
-    if (targetTheta == null) return;
     takeManualControl();
-    localTransition = null;
-    const camera = activeCamera;
+    orientTransition = null;
+    zoomTransition = null;
+
     if (isMap2D()) {
-      // Spin map bearing while staying perfectly vertical (north = +Z up on screen)
-      const fromUp = camera.up.clone().normalize();
-      const angle = key === "n" ? 0 : -targetTheta;
-      const toUp = new THREE.Vector3(Math.sin(angle), 0, Math.cos(angle)).normalize();
+      const toUp = COMPASS_2D_UP[key] || COMPASS_2D_UP.n;
+      const camera = activeCamera;
+      const fromUp = camera.up.clone();
+      fromUp.y = 0;
+      if (fromUp.lengthSq() < 1e-8) fromUp.copy(NORTH_UP);
+      else fromUp.normalize();
+
+      const fromAngle = Math.atan2(fromUp.x, fromUp.z);
+      const toAngle = Math.atan2(toUp.x, toUp.z);
+      const deltaAngle = shortestAzimuthDelta(fromAngle, toAngle);
+
       orientTransition = {
         map2d: true,
-        fromUp,
-        toUp,
+        fromAngle,
+        deltaAngle,
         t: 0,
         dur: duration,
       };
       return;
     }
+
+    const targetTheta = COMPASS_AZIMUTH[key] ?? COMPASS_AZIMUTH.n;
     const sph = cameraOffsetSpherical();
     orientTransition = {
       fromTheta: sph.theta,
       toTheta: sph.theta + shortestAzimuthDelta(sph.theta, targetTheta),
-      phi: sph.phi,
+      phi: Math.max(0.15, Math.min(Math.PI * 0.49, sph.phi)),
       radius: sph.radius,
-      fromUp: camera.up.clone(),
-      toUp: new THREE.Vector3(0, 1, 0),
-      resetUp: key === "n",
       t: 0,
       dur: duration,
     };
@@ -708,9 +822,12 @@ export function createCameraSystem(canvas, dataset) {
   }
 
   function zoomBy(factor, duration = 0.4) {
-    if (state.cinematicActive) return;
-    localTransition = null;
+    if (state.cinematicActive) {
+      state.cinematicActive = false;
+      state.cinematicPaused = false;
+    }
     orientTransition = null;
+    zoomTransition = null;
     if (isMap2D()) {
       // Map zoom: change orthographic zoom only — never tilt
       const fromZoom = orthoCamera.zoom;
@@ -760,7 +877,8 @@ export function createCameraSystem(canvas, dataset) {
     perspCamera.aspect = aspect;
     perspCamera.updateProjectionMatrix();
     const prevZoom = orthoCamera.zoom;
-    syncOrthoFrustum(aspect);
+    if (map2DIsFullExtent) syncOrthoFrustumFullExtent(aspect);
+    else syncOrthoFrustum(aspect);
     orthoCamera.zoom = prevZoom;
     orthoCamera.updateProjectionMatrix();
   }
@@ -799,9 +917,90 @@ export function createCameraSystem(canvas, dataset) {
     });
   }
 
-  /** Same smooth flight path as drainage — used for garbage focus. */
+  /**
+   * Dedicated ground-level, corridor-aware flight between pollution locations.
+   * Stays at stable terrain/water height throughout transition, never elevates into sky.
+   */
   function startGarbageFlight(toP, toL, opts = {}) {
-    startDrainageFlight(toP, toL, opts);
+    if (isMap2D()) {
+      state.cameraMode = "aerial";
+      tmpP.set(toP.x, Math.max(toP.y, 450), toP.z);
+      tmpL.set(toL.x, toL.y, toL.z);
+      startFlight({
+        toP: tmpP,
+        toL: tmpL,
+        dur: Math.min(1.4, Math.max(0.6, opts.durMs ? opts.durMs / 1000 : 1.0)),
+        releaseMode: "aerial",
+        transitLift: 0,
+      });
+      return;
+    }
+
+    // Cancel conflicting transitions
+    orientTransition = null;
+    zoomTransition = null;
+    if (activeCamera.userData) activeCamera.userData.joiningStreamsFlight = null;
+
+    // Start seamlessly from CURRENT physical camera state (handles superseding mid-transition)
+    const fromP = activeCamera.position.clone();
+    const fromL = controls.target.clone();
+    const fromQ = activeCamera.quaternion.clone();
+    const fromUp = activeCamera.up.clone().normalize();
+    const fromFov = activeCamera.isPerspectiveCamera ? activeCamera.fov : 48;
+
+    // Ensure destination camera pose respects terrain elevation
+    const destGround = stations?.length ? terrainHeightAt(toP.x, toP.z, stations) : SURFACE_Y;
+    const baseDestGround = Math.max(SURFACE_Y, Number.isFinite(destGround) ? destGround : SURFACE_Y);
+    const safeToP = new THREE.Vector3(toP.x, Math.max(toP.y, baseDestGround + 12), toP.z);
+    const safeToL = new THREE.Vector3(toL.x, toL.y, toL.z);
+
+    dummyLookObj.position.copy(safeToP);
+    dummyLookObj.up.set(0, 1, 0);
+    dummyLookObj.lookAt(safeToL);
+    const toQ = dummyLookObj.quaternion.clone();
+
+    const straightDist = Math.hypot(safeToP.x - fromP.x, safeToP.z - fromP.z);
+    let duration;
+    if (opts.dur != null && opts.dur > 0) {
+      duration = opts.dur;
+    } else if (straightDist < 60) {
+      duration = 1.0;
+    } else if (straightDist < 250) {
+      duration = 1.4;
+    } else if (straightDist < 800) {
+      duration = 1.9;
+    } else if (straightDist < 2500) {
+      duration = 2.4;
+    } else {
+      duration = 2.8;
+    }
+
+    const uFrom = stations?.length ? nearestStationU(stations, fromP.x, fromP.z) : null;
+    const uTo = stations?.length ? nearestStationU(stations, safeToP.x, safeToP.z) : null;
+
+    controls.enabled = false;
+    state.cameraMode = "orbit";
+
+    flightTransition = {
+      isGarbageFlight: true,
+      fromP,
+      toP: safeToP,
+      fromL,
+      toL: safeToL,
+      fromQ,
+      toQ,
+      fromUp,
+      toUp: new THREE.Vector3(0, 1, 0),
+      fromFov,
+      toFov: opts.fov ?? fromFov,
+      t: 0,
+      dur: Math.max(0.2, duration),
+      uFrom,
+      uTo,
+      straightDist,
+      releaseMode: "orbit",
+      lift: 0,
+    };
   }
 
   function update(dt) {
@@ -833,8 +1032,9 @@ export function createCameraSystem(canvas, dataset) {
         camera.lookAt(controls.target);
         controls.update();
       } else {
+        const curRadius = THREE.MathUtils.lerp(zoomTransition.fromRadius, zoomTransition.toRadius, k);
         const sph = new THREE.Spherical(
-          THREE.MathUtils.lerp(zoomTransition.fromRadius, zoomTransition.toRadius, k),
+          curRadius,
           zoomTransition.phi,
           zoomTransition.theta,
         );
@@ -848,23 +1048,20 @@ export function createCameraSystem(canvas, dataset) {
       orientTransition.t += dt;
       const k = easeInOutCubic(Math.min(1, orientTransition.t / orientTransition.dur));
       if (orientTransition.map2d) {
-        camera.up.copy(orientTransition.fromUp).lerp(orientTransition.toUp, k).normalize();
+        const curAngle = orientTransition.fromAngle + orientTransition.deltaAngle * k;
+        camera.up.set(Math.sin(curAngle), 0, Math.cos(curAngle)).normalize();
         camera.position.x = controls.target.x;
         camera.position.z = controls.target.z;
         camera.lookAt(controls.target);
         controls.update();
       } else {
+        const curTheta = THREE.MathUtils.lerp(orientTransition.fromTheta, orientTransition.toTheta, k);
         const sph = new THREE.Spherical(
           orientTransition.radius,
           orientTransition.phi,
-          THREE.MathUtils.lerp(orientTransition.fromTheta, orientTransition.toTheta, k),
+          curTheta,
         );
         applySpherical(sph);
-        if (orientTransition.resetUp) {
-          camera.up.copy(orientTransition.fromUp).lerp(orientTransition.toUp, k).normalize();
-          camera.lookAt(controls.target);
-        }
-        controls.update();
       }
       if (orientTransition.t >= orientTransition.dur) orientTransition = null;
       return;
@@ -880,6 +1077,106 @@ export function createCameraSystem(canvas, dataset) {
             ? easeInOutQuint
             : easeInOutCubic;
       const k = easeFn(tNorm);
+
+      if (flightTransition.isGarbageFlight) {
+        let curX, curZ;
+        const uFrom = flightTransition.uFrom;
+        const uTo = flightTransition.uTo;
+        const useCorridor =
+          stations?.length &&
+          uFrom != null &&
+          uTo != null &&
+          Math.abs(uTo - uFrom) > 0.015 &&
+          flightTransition.straightDist > 200;
+
+        if (useCorridor) {
+          const u_k = THREE.MathUtils.lerp(uFrom, uTo, k);
+          const st = stationAt(stations, u_k);
+          const st0 = stationAt(stations, uFrom);
+          const st1 = stationAt(stations, uTo);
+          const off0X = flightTransition.fromP.x - st0.x;
+          const off0Z = flightTransition.fromP.z - st0.z;
+          const off1X = flightTransition.toP.x - st1.x;
+          const off1Z = flightTransition.toP.z - st1.z;
+          curX = st.x + THREE.MathUtils.lerp(off0X, off1X, k);
+          curZ = st.z + THREE.MathUtils.lerp(off0Z, off1Z, k);
+        } else {
+          curX = THREE.MathUtils.lerp(flightTransition.fromP.x, flightTransition.toP.x, k);
+          curZ = THREE.MathUtils.lerp(flightTransition.fromP.z, flightTransition.toP.z, k);
+        }
+
+        // Terrain-aware stable ground-level height (no sky excursions!)
+        const groundY = stations?.length ? terrainHeightAt(curX, curZ, stations) : SURFACE_Y;
+        const surfaceY = Math.max(SURFACE_Y, Number.isFinite(groundY) ? groundY : SURFACE_Y);
+
+        const startGroundY = stations?.length ? terrainHeightAt(flightTransition.fromP.x, flightTransition.fromP.z, stations) : SURFACE_Y;
+        const endGroundY = stations?.length ? terrainHeightAt(flightTransition.toP.x, flightTransition.toP.z, stations) : SURFACE_Y;
+        const startBase = Number.isFinite(startGroundY) ? Math.max(SURFACE_Y, startGroundY) : SURFACE_Y;
+        const endBase = Number.isFinite(endGroundY) ? Math.max(SURFACE_Y, endGroundY) : SURFACE_Y;
+        const startEye = Math.max(25, flightTransition.fromP.y - startBase);
+        const endEye = Math.max(25, flightTransition.toP.y - endBase);
+        const eyeClearance = THREE.MathUtils.lerp(startEye, endEye, k);
+
+        let curY = surfaceY + eyeClearance;
+
+        // Bridge clearance: smoothly clear over bridge decks if crossing a bridge
+        const bridgeList = dataset?.bridgeSpans || dataset?.bridges || [];
+        for (let i = 0; i < bridgeList.length; i++) {
+          const br = bridgeList[i];
+          if (br.midX != null && br.midZ != null) {
+            const bDist = Math.hypot(br.midX - curX, br.midZ - curZ);
+            const bSpan = (br.lengthM || 60) * 0.5 + 16;
+            if (bDist < bSpan) {
+              const deckY = br.deckY || 20;
+              if (curY < deckY + 4.5) {
+                const bridgeLift = Math.max(0, (deckY + 4.5) - curY);
+                const factor = Math.max(0, 1 - (bDist / bSpan));
+                curY += bridgeLift * factor;
+              }
+            }
+          }
+        }
+
+        // Building clearance: prevent clipping near OSM buildings
+        const bldgs = dataset?.osm?.buildings || [];
+        for (let i = 0; i < bldgs.length; i++) {
+          const b = bldgs[i];
+          if (b.midX != null && b.midZ != null) {
+            const bd = Math.hypot(b.midX - curX, b.midZ - curZ);
+            if (bd < 24) {
+              const bh = Math.max(8, Number(b.heightM) || 12);
+              if (curY < bh + 5) {
+                const bLift = (bh + 5) - curY;
+                const factor = Math.max(0, 1 - (bd / 24));
+                curY += bLift * factor;
+              }
+            }
+          }
+        }
+
+        camera.position.set(curX, curY, curZ);
+
+        // Interpolate look-at target together:
+        controls.target.lerpVectors(flightTransition.fromL, flightTransition.toL, k);
+        camera.lookAt(controls.target);
+
+        if (activeCamera.isPerspectiveCamera && flightTransition.fromFov !== flightTransition.toFov) {
+          activeCamera.fov = THREE.MathUtils.lerp(flightTransition.fromFov, flightTransition.toFov, k);
+          activeCamera.updateProjectionMatrix();
+        }
+
+        if (tNorm >= 1) {
+          camera.position.copy(flightTransition.toP);
+          controls.target.copy(flightTransition.toL);
+          camera.lookAt(controls.target);
+          controls.update();
+          controls.enabled = true;
+          state.cameraMode = flightTransition.releaseMode || "orbit";
+          state.playing = false;
+          flightTransition = null;
+        }
+        return;
+      }
 
       // 1. Position interpolation with smooth parabolic transit lift
       camera.position.lerpVectors(flightTransition.fromP, flightTransition.toP, k);
@@ -924,6 +1221,10 @@ export function createCameraSystem(canvas, dataset) {
       // 5. Completion: exact final pose and seamless controls handoff
       if (tNorm >= 1) {
         const release = flightTransition.releaseMode || "orbit";
+        if (flightTransition.swapToOrtho) {
+          completeSwapToOrtho(flightTransition);
+          return;
+        }
         camera.position.copy(flightTransition.toP);
         controls.target.copy(flightTransition.toL);
         camera.quaternion.copy(flightTransition.toQ);
@@ -1011,6 +1312,14 @@ export function createCameraSystem(canvas, dataset) {
     }
 
     controls.update();
+    if (!isMap2D()) {
+      try {
+        const groundY = terrainHeightAt(camera.position.x, camera.position.z, stations);
+        if (Number.isFinite(groundY) && camera.position.y < groundY + 8) {
+          camera.position.y = groundY + 8;
+        }
+      } catch (_) {}
+    }
   }
 
   /**

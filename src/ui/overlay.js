@@ -21,6 +21,7 @@ import { mountChainageStepHud } from "./components/chainageStepHud.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
 import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
+import { mountFloodComparePanel } from "./components/floodComparePanel.js";
 import { validYmd, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
 import { mountDigitalTwinPanel } from "./components/digitalTwinPanel.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
@@ -323,7 +324,6 @@ export function createTooltip(root) {
             ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}°</span></div>` : ""}
             ${info.distanceToRiver != null ? `<div class="kv"><span class="k">Distance to River</span><span class="v">${Number(info.distanceToRiver).toFixed(1)} m</span></div>` : ""}
             <div class="kv"><span class="k">Status</span><span class="v">${status}</span></div>
-            <div class="kv"><span class="k">Source</span><span class="v">KML</span></div>
             ${info.displayType ? `<div class="kv"><span class="k">Type</span><span class="v">${esc(info.displayType)}</span></div>` : ""}
           </div>
           <em class="tip-garbage-foot">${info.garbageSelected ? "Selected · click elsewhere to clear" : "Hover preview · click to select"}</em>
@@ -399,7 +399,6 @@ export function createTooltip(root) {
           <div class="kv"><span class="k">MODE</span><span class="v">Relative</span></div>
           <div class="kv"><span class="k">DEPTH</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
           ${info.riverMeasure ? "" : tipRows([
-            ["DEPTH SOURCE", info.depthSource],
             ["CHAINAGE", info.chainageLabel],
             ["WIDTH", tipNum(info.widthM, 1, " m")],
           ])}
@@ -417,7 +416,6 @@ export function createTooltip(root) {
             ["Name", info.name],
             [isTree ? "Species" : "Type", isTree ? info.species ?? info.genus : info.building],
             ["Height", tipNum(info.height, 1, " m")],
-            ["Height source", info.height_source],
             ["Levels", info.levels],
             ["Footprint", tipNum(info.footprintM2, 0, " m²")],
             ["Amenity", info.amenity],
@@ -438,15 +436,12 @@ export function createTooltip(root) {
           <div class="kv"><span class="k">Water Surface</span><span class="v">${info.waterSurface != null ? Number(info.waterSurface).toFixed(2) + " m" : "—"}</span></div>
           <div class="kv"><span class="k">Survey Depth</span><span class="v depth">${info.surveyDepthM != null ? Number(info.surveyDepthM).toFixed(2) + " m" : "—"}</span></div>
           <div class="kv"><span class="k">Dynamic Depth</span><span class="v">${info.dynamicDepthM != null ? Number(info.dynamicDepthM).toFixed(2) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Bed Elevation</span><span class="v">${info.bedElevationMsl != null ? Number(info.bedElevationMsl).toFixed(2) + " m MSL" : "— (Unverified Datum)"}</span></div>
+          <div class="kv"><span class="k">Bed Elevation</span><span class="v">${info.bedElevationMsl != null ? Number(info.bedElevationMsl).toFixed(2) + " m MSL" : "—"}</span></div>
           <div class="kv"><span class="k">Cross-Section Area</span><span class="v">${info.crossSectionAreaM2 != null ? Number(info.crossSectionAreaM2).toFixed(1) + " m²" : "—"}</span></div>
           <div class="kv"><span class="k">Hydraulic Radius</span><span class="v">${info.hydraulicRadiusM != null ? Number(info.hydraulicRadiusM).toFixed(2) + " m" : "—"}</span></div>
           <div class="kv"><span class="k">Discharge (Q)</span><span class="v">${info.dischargeM3s != null ? Number(info.dischargeM3s).toFixed(1) + " m³/s" : "—"}</span></div>
           <div class="kv"><span class="k">Velocity (v)</span><span class="v">${info.velocityMs != null ? Number(info.velocityMs).toFixed(2) + " m/s" : "—"}</span></div>
           <div class="kv"><span class="k">Froude (Fr)</span><span class="v">${info.froudeNumber != null ? Number(info.froudeNumber).toFixed(2) : "—"}</span></div>
-          <div class="kv"><span class="k">Provenance</span><span class="v" style="color:var(--accent);font-weight:600">${info.status ?? "UNAVAILABLE"}</span></div>
-          <div class="kv"><span class="k">Source</span><span class="v" style="font-size:10px">${info.source ?? "—"}</span></div>
-          <div class="kv"><span class="k">Confidence</span><span class="v">${info.confidence ?? "MEDIUM"}</span></div>
           <button id="tip-cs-btn" style="margin-top:8px;width:100%;background:rgba(79,200,235,0.2);border:1px solid rgba(79,200,235,0.4);color:#00f2fe;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
             📊 View Cross-Section Geometry
           </button>
@@ -503,7 +498,6 @@ export function createTooltip(root) {
         <div class="kv"><span class="k">Water depth</span><span class="v depth">${info.depth.toFixed(2)} m</span></div>
         <div class="kv"><span class="k">Bed relative depth</span><span class="v depth">${(-info.depth).toFixed(2)} m</span></div>
         <div class="kv"><span class="k">Mode</span><span class="v">Relative</span></div>
-        <div class="kv"><span class="k">Depth source</span><span class="v">${info.depthLabel ?? info.kind}</span></div>
         <div class="kv"><span class="k">Flow direction</span><span class="v">${info.flowDirection ?? "—"}</span></div>
         <div class="kv"><span class="k">Nearest fishing</span><span class="v">${info.nearestFishing ?? "—"}</span></div>
         <div class="kv"><span class="k">Nearest bridge</span><span class="v">${info.nearestBridge ?? "—"}</span></div>
@@ -595,7 +589,7 @@ export function mountUI(root, {
   mountProjectIdentity(root);
   mountAnalyticsControls(root, dataset);
   const weather = mountWeatherWidget(root);
-  const riverData = mountRiverDataPanel(leftStack, dataset);
+  const riverData = mountRiverDataPanel(leftStack, dataset, root);
   // River Data stays first; Bank Erosion (if already reparented) follows.
   if (leftStack.firstElementChild !== riverData.el) {
     leftStack.prepend(riverData.el);
@@ -654,6 +648,7 @@ export function mountUI(root, {
     onClose: () => toggleFloodBar(false),
   });
 
+  mountFloodComparePanel(root, { dataset });
   const floodPlayback = mountFloodPlaybackControls(root, {
     onSelectDate: (ymd) => selectFloodDate(ymd),
     onGenerate: (ymd) => generateFloodDate(ymd),
@@ -1032,7 +1027,6 @@ export function mountUI(root, {
     },
     on3D: () => {
       map2dData?.leave();
-      onCamera("overview");
       let mid = 8000;
       const ch = dataset?.chainage;
       if (ch && ch.length) {
@@ -1347,7 +1341,7 @@ export function mountUI(root, {
         window.__MM_SCENE__?.depthZonesLayer?.userData?.playReveal?.();
         const stats = window.__MM_SCENE__?.getDepthZonesStats?.();
         statsEl.textContent = stats?.raster
-          ? `BATHYMETRY · ${stats.depthRange[0].toFixed(2)}–${stats.depthRange[1].toFixed(2)} m · ${stats.source}`
+          ? `BATHYMETRY · ${stats.depthRange[0].toFixed(2)}–${stats.depthRange[1].toFixed(2)} m`
           : "SURVEY / INTERPOLATED DEPTH · visualized by measured depth_m.";
       }
     }

@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { state } from "../state.js";
 import { createTerrain, terrainHeightAt } from "./terrain.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
+import { createRiverPerimeterLine } from "./riverPerimeterLine.js";
 import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
 import { setWaterSiltMode } from "./waterShader.js";
 import { createUrban } from "./urban.js";
@@ -144,15 +145,26 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return m === "aerial" || m === "top" || m === "2d";
   }
 
-  /** Crisp GIS lighting — no fog/haze (Overview keeps atmosphere). */
+  const map2dBackground = new THREE.Color(MAP2D_SURROUND);
+
+  /**
+   * Crisp GIS lighting. Fog and the shadow-casting light stay assigned (density /
+   * shadow intensity go to 0 instead): toggling either changes every lit material's
+   * shader key, so each 2D↔3D switch would recompile all programs and render blank
+   * (clear-colour) frames while they link.
+   */
+  let map2dClarityOn = false;
   function applyMap2DClarity() {
-    scene.fog = null;
+    map2dClarityOn = true;
+    if (scene.fog !== groundFog) scene.fog = groundFog;
+    groundFog.density = 0;
     atmosphericSky.setVisible(false);
-    scene.background = new THREE.Color(MAP2D_SURROUND);
+    if (scene.background !== map2dBackground) scene.background = map2dBackground;
     hemi.intensity = LIGHT_MAP2D.hemi;
     sun.intensity = LIGHT_MAP2D.sun;
     fill.intensity = LIGHT_MAP2D.fill;
-    sun.castShadow = false;
+    sun.castShadow = q.shadows && state.skyEnabled !== false;
+    sun.shadow.intensity = 0;
     renderer.toneMappingExposure = 1.22;
   }
 
@@ -161,10 +173,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     scene.background = null;
     atmosphericSky.setVisible(state.skyEnabled !== false);
     sun.castShadow = q.shadows && state.skyEnabled !== false;
+    if (map2dClarityOn) {
+      map2dClarityOn = false;
+      hemi.intensity = LIGHT_DEFAULT.hemi;
+      sun.intensity = LIGHT_DEFAULT.sun;
+      fill.intensity = LIGHT_DEFAULT.fill;
+      sun.shadow.intensity = 1;
+    }
   }
 
   const terrain = await createTerrain(dataset);
   const kmlSkeleton = createKmlSkeleton(dataset);
+  const riverPerimeter = createRiverPerimeterLine(dataset);
+  scene.add(riverPerimeter);
   const river = createRiver(dataset);
   const [landCover, osmWater] = await Promise.all([
     loadLulcClassGrid(),
@@ -305,7 +326,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   let lastWaterYChangeTime = performance.now();
 
   // Bootstrap dedicated hydrology profile service
-  initHydrologyProfileService(dataset.chainage).then(() => {
+  const hydrologyProfileReady = initHydrologyProfileService(dataset.chainage).then(() => {
     console.info("[HydrologyProfileService] Ready with physical 1D hydraulic engine");
   }).catch((err) => console.warn("[HydrologyProfileService] Init deferred:", err));
 
@@ -338,7 +359,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   });
 
   // Bootstrap the digital twin service and wire marker updates
-  initDigitalTwin().then((twinState) => {
+  const digitalTwinReady = initDigitalTwin().then((twinState) => {
     if (twinState?.assets) assetMarkers.update(twinState.assets);
   }).catch((err) => console.warn("[DigitalTwin] init deferred:", err));
   document.addEventListener("twin-state-change", (e) => {
@@ -529,7 +550,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       // Always plant trees — density follows quality profile
       const qNow = quality.get();
       const maxTrees = qNow.maxTrees || (lowTier ? 2400 : 5500);
-      createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows })
+      const pending = [];
+      pending.push(createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows })
         .then((gTrees) => {
       treesResult = gTrees;
       treesGroup.add(gTrees);
@@ -541,15 +563,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
             green: dataset.osm?.green?.length || 0,
           });
         })
-        .catch((err) => console.warn("Vegetation GLB load:", err?.message || err));
+        .catch((err) => console.warn("Vegetation GLB load:", err?.message || err)));
 
       // Permanent trees from project vegetation_type.kml overlay (always on)
-      loadPermanentVegetationTypeTrees().catch((err) =>
+      pending.push(loadPermanentVegetationTypeTrees().catch((err) =>
         console.warn("Permanent vegetation type trees:", err?.message || err),
-      );
-      loadRiparianVegetation().catch((err) =>
+      ));
+      pending.push(loadRiparianVegetation().catch((err) =>
         console.warn("[riparian] vegetation unavailable:", err?.message || err),
-      );
+      ));
+      await Promise.allSettled(pending);
     } catch (err) {
       console.warn("Progressive urban/vegetation load:", err.message);
     }
@@ -608,11 +631,13 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
 
   // Yield one frame so the canvas can present, then load the 50 m river-side strip.
-  requestAnimationFrame(() => {
-    setTimeout(loadUrbanLayers, 50);
+  const urbanDone = new Promise((resolve) => {
+    requestAnimationFrame(() => {
+      setTimeout(() => loadUrbanLayers().finally(resolve), 50);
+    });
   });
 
-    createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
+    const fishingDone = createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
       .then((sys) => {
         fishing = sys;
         fishGroup.add(sys.group);
@@ -622,6 +647,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         }
       })
       .catch((err) => console.warn("Fishing system load:", err.message));
+
+  const hydrologyDone = Promise.allSettled([hydrologyProfileReady, digitalTwinReady]);
+  const whenReady = Promise.allSettled([urbanDone, fishingDone, hydrologyDone]);
 
   // Click a red chainage pin to select it; hover THAT pin for station/meters.
   // Everywhere else, river water-depth hover stays (inspect).
@@ -691,7 +719,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       lookY: SURFACE_Y + 6,
       lateralOffset: 0,
       fov: 52,
-      dur: 0,
+      dur: dragging ? 0 : 0.85,
       transitLift: 0,
       ease: "inOutCubic",
       dragging: !!dragging,
@@ -855,7 +883,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const p0 = interpolateChainage(chain, first);
       journey.cancel();
       chainFocusM = first;
-      cam.focusOnXZ?.(p0.x, p0.z, { ...chainageCameraOptions(p0, false), dur: 0 });
+      cam.focusOnXZ?.(p0.x, p0.z, { ...chainageCameraOptions(p0, false), dur: 1.0 });
       fromM = first;
     }
     startChainFlight(last, { mode: CameraMode.FULL_RIVER_JOURNEY });
@@ -918,10 +946,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, dragging), dur: dragging ? 0 : 0.65, ease: "outCubic" });
       return;
     }
-    if (state.garbageSelectionActive) return;
+    if (dragging) {
+      cancelChainFlight();
+      chainFocusM = p.meters;
+      state.selectedChainageMeters = p.meters;
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, true), dur: 0 });
+      return;
+    }
 
     // Move smoothly and swiftly along the river corridor (never teleporting across land)
-    startChainFlight(p.meters, { requestedM: snappedM, dragging });
+    startChainFlight(p.meters, { requestedM: snappedM, dragging: false });
   });
 
   let lastChainMoveTime = 0;
@@ -1039,6 +1073,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     cam.resize?.(w, h);
     renderer.setSize(w, h, false);
     kmlSkeleton.userData?.setResolution?.(w, h);
+    riverPerimeter.userData?.setResolution?.(w, h);
     mainStemLayer.userData?.setResolution?.(w, h);
     // Keep Overview framed to KML after aspect changes
     if (state.cameraMode === "overview" && !cinematic.isActive()) {
@@ -1047,17 +1082,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   }
   window.addEventListener("resize", resize);
   resize();
-  // Initial load: start close to the authoritative river centerline.
-  cam.applyMode("overview");
-  const initialChainage = dataset.chainage?.[0];
-  if (initialChainage?.x != null && initialChainage?.z != null) {
-    state.selectedChainageMeters = initialChainage.meters;
-    chainFocusM = initialChainage.meters;
-    cam.focusOnXZ(initialChainage.x, initialChainage.z, {
-      ...chainageCameraOptions(initialChainage),
-      dur: 0.9,
-    });
-  }
+  // Initial load: true 2D top-down of the whole corridor. VIEW → 3D flies to mid-chainage.
+  // Leave selectedChainageMeters/chainFocusM unset — overlay.js defaults the HUD to the
+  // corridor midpoint, and the VIEW → 3D handler falls back to that same midpoint.
+  cam.applyMode("aerial", { animate: false, fullExtent: true });
 
   let lastExag = state.depthExaggeration;
   let lastVisual = state.visualMode;
@@ -1287,6 +1315,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     clearGarbageSelection() {
       state.garbageSelectionActive = false;
       hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.clearSelection?.();
+    },
+    isPollutionLoaded() {
+      return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.isLoaded?.() ?? false;
     },
     setGarbageDensityVisible(v) {
       return hydrologyLayer.userData?.getPollutionLayer?.()?.userData?.setShowDensity?.(v);
@@ -1708,12 +1739,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       };
     },
     playFloodSimulation() {
-      if (!apiFloodLayer.userData?.hasFlood) return;
+      if (!apiFloodLayer.userData?.hasFlood && !apiFloodLayer.hasFlood && !apiFloodLayer.children.length) return;
       apiFloodLayer.setVisible(state.showFloodSimulation !== false);
       apiFloodLayer.replay();
     },
     playFloodTimeline() {
-      if (!apiFloodLayer.userData?.hasFlood) return;
+      if (!apiFloodLayer.userData?.hasFlood && !apiFloodLayer.hasFlood && !apiFloodLayer.children.length) return;
       apiFloodLayer.setVisible(state.showFloodSimulation !== false);
       apiFloodLayer.playTimeline?.();
     },
@@ -1722,7 +1753,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     /** Continue the loaded simulation from its current progress (restarts only if finished). */
     resumeFloodSimulation() {
-      if (!apiFloodLayer.userData?.hasFlood) return;
+      if (!apiFloodLayer.userData?.hasFlood && !apiFloodLayer.hasFlood && !apiFloodLayer.children.length) return;
       apiFloodLayer.setVisible(state.showFloodSimulation !== false);
       apiFloodLayer.play();
     },
@@ -1732,7 +1763,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     /** Scrub the simulation clock (0 = river, 1 = full API extent). Pauses playback. */
     setFloodProgress(p) {
-      if (!apiFloodLayer.userData?.hasFlood) return;
+      if (!apiFloodLayer.userData?.hasFlood && !apiFloodLayer.hasFlood && !apiFloodLayer.children.length) return;
       apiFloodLayer.pause?.();
       apiFloodLayer.setProgress?.(p);
       window.dispatchEvent(
@@ -1758,15 +1789,17 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       window.__MM_SCENE__.exitApiFloodMode();
     },
     focusFloodSimulation() {
+      if (cinematic.isActive()) cinematic.stop();
+      state.cinematicActive = false;
       const b = apiFloodLayer.userData?.getBounds?.();
-      if (!b) return;
+      if (!b || !Number.isFinite(b.cx) || !Number.isFinite(b.cz)) return;
       const span = Math.hypot(b.spanX || 200, b.spanZ || 200);
-      const floodHeight = THREE.MathUtils.clamp(span * 0.55, 65, 220);
-      const floodBack = THREE.MathUtils.clamp(span * 0.75, 110, 340);
+      const floodHeight = THREE.MathUtils.clamp(span * 0.45, 60, 240);
+      const floodBack = THREE.MathUtils.clamp(span * 0.65, 100, 320);
       cam.focusOnXZ?.(b.cx, b.cz, {
         cameraHeight: floodHeight,
         cameraDistance: floodBack,
-        lookAheadDistance: 80,
+        lookAheadDistance: 60,
         dur: 1.6,
       });
     },
@@ -1938,14 +1971,27 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   };
 
   return {
+    whenReady,
     setCamera: (mode) => {
       if (cinematic.isActive()) cinematic.finish();
       cam.applyMode(mode);
     },
-    rotateCompass: (dir) => cam.rotateToCompass(dir),
-    resetOrientation: () => cam.resetOrientation(),
-    zoomIn: () => cam.zoomIn(),
-    zoomOut: () => cam.zoomOut(),
+    rotateCompass: (dir) => {
+      if (cinematic.isActive()) cinematic.finish();
+      cam.rotateToCompass(dir);
+    },
+    resetOrientation: () => {
+      if (cinematic.isActive()) cinematic.finish();
+      cam.resetOrientation();
+    },
+    zoomIn: () => {
+      if (cinematic.isActive()) cinematic.finish();
+      cam.zoomIn();
+    },
+    zoomOut: () => {
+      if (cinematic.isActive()) cinematic.finish();
+      cam.zoomOut();
+    },
     startWaterFlow: () => {
       cam.ensurePerspective?.();
       cinematic.start();
@@ -2087,7 +2133,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         state.floodMode === "api" &&
         state.showFloodSimulation !== false &&
         state.apiFlood?.showLayer !== false &&
-        !!apiFloodLayer.userData?.hasFlood;
+        (!!apiFloodLayer.userData?.hasFlood || !!apiFloodLayer.hasFlood || !!apiFloodLayer.children.length);
       apiFloodLayer.visible = showFloodSim;
       if (showFloodSim) apiFloodLayer.update?.(dt);
       if (urbanResult) urbanResult.visible = true;
@@ -2156,7 +2202,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         if (!journey.active) cam.update(dt);
       }
       const h = cam.camera.position.y;
-      if (isMap2DMode() && !state.cinematicActive) {
+      if (isMap2DMode() && !state.cinematicActive && cam.camera.isOrthographicCamera) {
         // True 2D GIS view — no fog, haze, or atmospheric wash
         setUnderwaterLook(false);
         applyMap2DClarity();

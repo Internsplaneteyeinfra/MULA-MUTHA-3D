@@ -25,7 +25,7 @@ export function mountWeatherWidget(root) {
     </button>
     <div class="weather-wq" aria-label="Modelled discharge, BOD and COD at selected chainage">
       <div class="weather-wq-head">RIVER REACH</div>
-      <div class="weather-wq-row is-q" title="Modelled — synthetic hydrograph, no river gauge connected">
+      <div class="weather-wq-row is-q">
         <i data-short="Q*">Q (model)</i>
         <b id="weather-discharge">—</b>
         <em id="weather-discharge-unit">m³/s</em>

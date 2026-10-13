@@ -42,6 +42,16 @@ const FIELDS = [
         : null,
   },
   { id: "flood-res-flood-area", label: "Flood area", get: (i) => fmtHa(i.flood_area_ha) },
+  {
+    id: "flood-res-mapped-area",
+    label: "Mapped extent",
+    // Only when the overlay maps materially less than the API headline, so the map is never overstated.
+    get: (i) => {
+      const m = Number(i.mapped_flood_area_ha);
+      const a = Number(i.flood_area_ha);
+      return Number.isFinite(m) && Number.isFinite(a) && a > 0 && Math.abs(m - a) / a > 0.2 ? fmtHa(m) : null;
+    },
+  },
   { id: "flood-res-water-area", label: "Water area", get: (i) => fmtHa(i.water_area_ha) },
   { id: "flood-res-initial-water", label: "Initial water", get: (i) => fmtMeters(i.initial_water_level) },
   { id: "flood-res-final-water", label: "Final water", get: (i) => fmtMeters(i.final_water_level) },
@@ -49,7 +59,6 @@ const FIELDS = [
   { id: "flood-res-water-rise", label: "Water rise", get: (i) => fmtRiseMm(i.water_rise_mm) },
   { id: "flood-res-max-depth", label: "Max depth", get: (i) => fmtMeters(i.max_depth_m) },
   { id: "flood-res-updated", label: "Updated", get: (i) => fmtTimestamp(i.catalog_updated_at) },
-  { id: "flood-res-source", label: "Source", wide: true, get: (i) => validText(i.source) },
 ];
 
 function rowHtml(id, label, value, wide = false) {

@@ -32,8 +32,8 @@ export async function createTerrain(dataset) {
   const width = b.spanX;
   const depth = b.spanZ;
   const lite = dataset.lite === true;
-  const segsX = activeDtm ? (lite ? 360 : 720) : (lite ? 240 : 512);
-  const segsZ = activeDtm ? (lite ? 180 : 360) : (lite ? 120 : 256);
+  const segsX = activeDtm ? (lite ? 300 : 540) : (lite ? 180 : 360);
+  const segsZ = activeDtm ? (lite ? 150 : 270) : (lite ? 90 : 180);
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(b.cx, 0, b.cz);

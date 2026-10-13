@@ -79,22 +79,23 @@ export async function createBuildingSystem(dataset) {
   const allRecs = [...heroRecs, ...nearRecs, ...midRecs, ...distantRecs];
   auditBuildingSample(allRecs, stations, 20);
 
+  const isLite = dataset.lite === true;
   const heroGroup = buildFootprintTier(heroRecs, stations, {
     name: "buildingsHero",
-    maxCount: LOD.HERO_MAX,
-    individualHero: true,
+    maxCount: isLite ? 80 : LOD.HERO_MAX,
+    individualHero: !isLite,
     roofSlab: true,
   });
 
   const nearGroup = buildFootprintTier(nearRecs, stations, {
     name: "buildingsNear",
-    maxCount: LOD.NEAR_MAX,
+    maxCount: isLite ? 1600 : LOD.NEAR_MAX,
     roofSlab: true,
   });
 
   const midGroup = buildFootprintTier(midRecs, stations, {
     name: "buildingsMid",
-    maxCount: LOD.MID_MAX,
+    maxCount: isLite ? 2400 : LOD.MID_MAX,
     roofSlab: true,
     useMidMaterial: true,
   });
@@ -105,7 +106,7 @@ export async function createBuildingSystem(dataset) {
   group.add(heroGroup);
   group.add(nearGroup);
   group.add(midGroup);
-  group.add(distantGroup);
+  if (!isLite) group.add(distantGroup);
   group.add(hlodGroup);
 
   group.userData.lod = {
@@ -117,9 +118,9 @@ export async function createBuildingSystem(dataset) {
   };
 
   const doorPlacements = [...heroRecs, ...nearRecs].sort((a, b) => a.dist - b.dist);
-  group.add(createDoorInstances(doorPlacements, dataset, { maxDoors: 2200, corridorM: LOD.NEAR_M }));
+  group.add(createDoorInstances(doorPlacements, dataset, { maxDoors: isLite ? 350 : 2200, corridorM: LOD.NEAR_M }));
 
-  const roofSubset = doorPlacements.filter((r) => r.dist < 650).slice(0, 1100);
+  const roofSubset = doorPlacements.filter((r) => r.dist < 650).slice(0, isLite ? 200 : 1100);
   group.add(createRooftopDetails(roofSubset, stations));
 
   console.info("Urban buildings (4-tier OSM footprints)", {

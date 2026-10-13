@@ -70,22 +70,23 @@ async function boot() {
     const tooltip = createTooltip(uiRoot);
     mountCinematicOverlays(uiRoot, dataset);
 
-    let sceneReady = false;
+    // Keep the loader up until buildings, trees, fishing, hydrology and live data are in.
     const app = await createWorld(canvas, dataset, tooltip, {
       onCoreReady() {
-        if (sceneReady) return;
-        sceneReady = true;
-        progress(1, "Ready");
-        loading.classList.add("hidden");
-        loadingScene.setVisible(false);
+        progress(0.97, "Loading buildings, roads and vegetation…");
       },
     });
 
-    if (!sceneReady) {
-      progress(1, "Ready");
-      loading.classList.add("hidden");
-      loadingScene.setVisible(false);
-    }
+    const firstLiveData = Promise.race([
+      new Promise((resolve) => {
+        let weather = false;
+        let discharge = false;
+        const check = () => weather && discharge && resolve();
+        document.addEventListener("chainage-weather", () => { weather = true; check(); }, { once: true });
+        document.addEventListener("chainage-discharge", () => { discharge = true; check(); }, { once: true });
+      }),
+      new Promise((resolve) => setTimeout(resolve, 8000)),
+    ]);
 
     mountUI(uiRoot, {
       dataset,
@@ -101,27 +102,32 @@ async function boot() {
     });
 
     let last = performance.now();
-    let frameBudget = 0;
     let paused = false;
     document.addEventListener("visibilitychange", () => {
       paused = document.hidden;
       last = performance.now();
-      frameBudget = 0;
     });
     function loop(now) {
       requestAnimationFrame(loop);
       if (paused) return;
       const rawDt = (now - last) / 1000;
       last = now;
-      const q = app.getQuality?.() || { targetFps: 60 };
-      const minDt = 1 / Math.max(24, q.targetFps || 60);
-      frameBudget += rawDt;
-      if (frameBudget < minDt * 0.88) return;
-      const dt = Math.min(0.033, frameBudget);
-      frameBudget = 0;
+      // Clamp dt between 1ms and 100ms to gracefully handle tab pauses or brief frame spikes
+      const dt = Math.min(0.1, Math.max(0.001, rawDt));
       app.update(dt);
     }
     requestAnimationFrame(loop);
+
+    // Scene renders behind the loader so shaders/textures warm up before reveal.
+    await Promise.race([
+      Promise.all([app.whenReady, firstLiveData]),
+      new Promise((resolve) => setTimeout(resolve, 60000)),
+    ]);
+    progress(0.995, "Finalising…");
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 400))));
+    progress(1, "Ready");
+    loading.classList.add("hidden");
+    loadingScene.setVisible(false);
   } catch (err) {
     console.error("[boot] failed — full stack:", err);
     if (err?.stack) console.error(err.stack);

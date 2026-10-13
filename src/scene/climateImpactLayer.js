@@ -12,9 +12,10 @@ import { SURFACE_Y } from "./river.js";
 import { applyDrapeDepth } from "./drapeDepth.js";
 
 const MAX_POINTS_PER_CLASS = 14000;
-const FLOOD_COLOR = new THREE.Color("#c2372a");
-const WATER_COLOR = new THREE.Color("#2f9bd6");
-/** Soft radial disc texture for heatmap instances (world-meter sized). */
+const FLOOD_COLOR = new THREE.Color("#EF4444"); // Vibrant scarlet red matching Google Earth flood indicator
+const WATER_COLOR = new THREE.Color("#1E88E5"); // Saturated blue for baseline water
+
+/** Clean antialiased circular disc texture for seamless sheet coverage without white burnout. */
 let heatSprite = null;
 
 function getHeatSprite() {
@@ -24,13 +25,16 @@ function getHeatSprite() {
   canvas.width = size;
   canvas.height = size;
   const ctx = canvas.getContext("2d");
-  const g = ctx.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
+  const r = size / 2;
+  const g = ctx.createRadialGradient(r, r, r * 0.62, r, r, r);
   g.addColorStop(0, "rgba(255,255,255,1)");
-  g.addColorStop(0.4, "rgba(255,255,255,0.75)");
-  g.addColorStop(0.75, "rgba(255,255,255,0.2)");
+  g.addColorStop(0.82, "rgba(255,255,255,0.95)");
+  g.addColorStop(0.96, "rgba(255,255,255,0.30)");
   g.addColorStop(1, "rgba(255,255,255,0)");
   ctx.fillStyle = g;
-  ctx.fillRect(0, 0, size, size);
+  ctx.beginPath();
+  ctx.arc(r, r, r, 0, Math.PI * 2);
+  ctx.fill();
   heatSprite = new THREE.CanvasTexture(canvas);
   heatSprite.needsUpdate = true;
   heatSprite.colorSpace = THREE.SRGBColorSpace;
@@ -123,26 +127,26 @@ export function createClimateImpactLayer(dataset) {
     info = payload?.period || null;
     currentPeriodId = payload?.period?.id ?? null;
     const stations = dataset?.corridor?.stations || [];
-    const floodColor = payload?.classes?.flood?.color
-      ? new THREE.Color(payload.classes.flood.color)
-      : FLOOD_COLOR;
+    // Authoritative Flood Inundation RED: vibrant scarlet red matching Google Earth hazard indication
+    const floodColor = FLOOD_COLOR;
     const waterColor = payload?.classes?.water?.color
       ? new THREE.Color(payload.classes.water.color)
       : WATER_COLOR;
 
-    // World-space soft discs (not KML polygons) — readable from overview like RiverEye heat
-    floodPts = buildHeatMesh(payload?.flood || [], floodColor, stations, 32, 0.72);
-    waterPts = buildHeatMesh(payload?.water || [], waterColor, stations, 26, 0.55);
+    // Sentinel-1 / RiverEye sample points are on a 10m grid.
+    // radiusM = 13.5m seamlessly bridges adjacent points into a continuous solid polygon sheet.
+    floodPts = buildHeatMesh(payload?.flood || [], floodColor, stations, 13.5, 0.90, true);
+    waterPts = buildHeatMesh(payload?.water || [], waterColor, stations, 13.5, 0.65, false);
     if (floodPts) {
       floodPts.name = "climateFloodHeat";
       floodPts.visible = showFlood;
-      floodPts.renderOrder = 32;
+      floodPts.renderOrder = 36; // Drawn strictly on top of water so red flood is never obscured
       heatGroup.add(floodPts);
     }
     if (waterPts) {
       waterPts.name = "climateWaterHeat";
       waterPts.visible = showWater;
-      waterPts.renderOrder = 31;
+      waterPts.renderOrder = 30;
       heatGroup.add(waterPts);
     }
     syncVisibility();
@@ -207,14 +211,14 @@ export function createClimateImpactLayer(dataset) {
   }
 
   /**
-   * Instanced soft discs in meters — stays visible at overview (Points vanish when tiny).
-   * RiverEye source is lon/lat sample points, not KML polygons.
+   * Seamless draped flood/water discs in meters.
+   * Uses NormalBlending so overlapping grid points form a rich solid sheet without white burnout.
    */
-  function buildHeatMesh(pairs, color, stations, radiusM, opacity) {
+  function buildHeatMesh(pairs, color, stations, radiusM, opacity, isFlood = false) {
     if (!pairs.length) return null;
     const step = Math.max(1, Math.ceil(pairs.length / MAX_POINTS_PER_CLASS));
     const capacity = Math.ceil(pairs.length / step);
-    const yFlat = SURFACE_Y + 2.0;
+    const yFlat = SURFACE_Y + (isFlood ? 0.35 : 0.15);
     const positions = [];
     for (let i = 0; i < pairs.length; i += step) {
       const [lon, lat] = pairs[i];
@@ -227,7 +231,7 @@ export function createClimateImpactLayer(dataset) {
       } catch {
         continue;
       }
-      const ground = sampleGroundY(x, z, stations, 1.4);
+      const ground = sampleGroundY(x, z, stations, isFlood ? 0.40 : 0.20);
       const y = Math.max(yFlat, ground);
       positions.push(x, y, z);
       if (positions.length / 3 >= capacity) break;
@@ -242,11 +246,13 @@ export function createClimateImpactLayer(dataset) {
       map: getHeatSprite(),
       transparent: true,
       opacity,
-      blending: THREE.AdditiveBlending,
+      blending: THREE.NormalBlending,
       side: THREE.DoubleSide,
+      depthTest: true,
+      depthWrite: false,
       toneMapped: false,
     });
-    applyDrapeDepth(mat);
+    applyDrapeDepth(mat, 2.8);
     const mesh = new THREE.InstancedMesh(geo, mat, count);
     const m = new THREE.Matrix4();
     const p = new THREE.Vector3();

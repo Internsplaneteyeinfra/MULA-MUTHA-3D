@@ -110,7 +110,7 @@ export function mountClimateImpactHud(root) {
   }
 
   function layerDefs() {
-    const floodColor = index?.classes?.flood?.color || "#c2372a";
+    const floodColor = "#EF4444";
     const waterColor = index?.classes?.water?.color || "#2f9bd6";
     return [
       {
@@ -252,7 +252,7 @@ export function mountClimateImpactHud(root) {
     const waterHa = Number(p.water_area_ha);
     const maxF = Math.max(...periods.map((x) => Number(x.flood_area_ha) || 0), 1);
     const maxW = Math.max(...periods.map((x) => Number(x.water_area_ha) || 0), 1);
-    const floodColor = index?.classes?.flood?.color || "#c2372a";
+    const floodColor = "#EF4444";
     const waterColor = index?.classes?.water?.color || "#2f9bd6";
 
     const bars = periods

@@ -184,7 +184,7 @@ function renderResult(r, hotspot, dataset) {
              <span class="silt-cv">${formatSiltArea(c.areaM2, true)}</span> <span class="silt-cp">${pct(c.pct, 0)}</span></li>`,
          )
          .join("")}</ul>
-       <p class="silt-note">Silt area = cells with a silt class (Low–Very High) in ${text(r.source?.classification)}.</p>`
+       <p class="silt-note">Silt area = cells with a silt class (Low–Very High).</p>`
     : `<div class="silt-hero">${DASH}</div>${note(
         null,
         r.outsideExtent ? "Polygon is outside the silt raster extent" : "Silt dataset unavailable inside polygon",
@@ -222,7 +222,7 @@ function thicknessSection(r) {
     vi?.status === "DERIVED"
       ? `${kv("Min / Mean / Max", [vi.min, vi.mean, vi.max].map((v) => formatSiltValue(v, { digits: 1 })).join(" / "))}
          ${kv("Median", formatSiltValue(vi.median, { digits: 1 }))}
-         <p class="silt-note">Volume-surface value on 0–${formatSiltValue(vi.scaleMax)} scale · unit unconfirmed in source · not thickness.</p>`
+         <p class="silt-note">Volume-surface value on 0–${formatSiltValue(vi.scaleMax)} scale.</p>`
       : note(vi?.note, "Volume surface unavailable");
 
   // Bathymetric depth section
@@ -268,9 +268,8 @@ function hotspotSection(r, hotspot, dataset) {
       ${kv("Lat", formatSiltValue(hotspot.lat, { digits: 6 }))}
       ${kv("Lon", formatSiltValue(hotspot.lon, { digits: 6 }))}
       ${kv("Silt value", isMissingSiltValue(hotspot.classLabel) ? DASH : `${text(hotspot.classLabel)} class`)}
-      ${kv("Vol. surface", isMissingSiltValue(hotspot.volumeIndex) ? DASH : `${formatSiltValue(hotspot.volumeIndex, { digits: 1 })} (unit unconfirmed)`)}
+      ${kv("Vol. surface", isMissingSiltValue(hotspot.volumeIndex) ? DASH : `${formatSiltValue(hotspot.volumeIndex, { digits: 1 })}`)}
       ${kv("Bed depth", isMissingSiltValue(hotspot.depthM) ? DASH : formatSiltValue(hotspot.depthM, { digits: 2, unit: " m" }))}
-      ${kv("Source", text(hotspot.source))}
       ${kv("Verification", badge(hotspot.status))}
     </div>`;
   }
@@ -289,19 +288,17 @@ function verificationSection(r) {
   const bdStatus = bd?.status ?? "UNAVAILABLE";
   const bdNote = bd?.status === "INTERPOLATED" ? "Nearest-neighbour from bathymetry CSV · not silt thickness" : "Not in project data";
   const rows = [
-    ["Silt classes", r.silt ? "DERIVED" : "UNAVAILABLE", r.silt ? "Colour-decoded from source KMZ raster" : "No valid cells"],
-    ["Volume surface", viDerived ? "DERIVED" : "UNAVAILABLE", viDerived ? "Colour-decoded · unit unconfirmed" : "No decoded values inside polygon"],
+    ["Silt classes", r.silt ? "DERIVED" : "UNAVAILABLE", r.silt ? "Derived from classified raster" : "No valid cells"],
+    ["Volume surface", viDerived ? "DERIVED" : "UNAVAILABLE", viDerived ? "Colour-decoded" : "No decoded values inside polygon"],
     ["River bed depth", bdStatus, bdNote],
     ["Silt thickness", "UNAVAILABLE", "No dedicated silt-thickness layer in project data"],
     ["Field survey", "UNAVAILABLE", "No ground-truth silt observations"],
   ];
-  const src = [r.source?.classification, r.source?.volume].filter((s) => !isMissingSiltValue(s));
   return sec(
     "Verification",
     `<ul class="silt-verif">${rows
       .map(([k, s, n]) => `<li><span>${k}</span> ${badge(s)} <small>${escapeSiltHtml(n)}</small></li>`)
-      .join("")}</ul>
-     ${src.length ? `<p class="silt-note">Source: ${src.map(escapeSiltHtml).join(" · ")}</p>` : ""}`,
+      .join("")}</ul>`,
   );
 }
 

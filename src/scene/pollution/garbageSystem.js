@@ -223,8 +223,8 @@ export function createGarbageSystem({ stations = [] } = {}) {
     const side = list.find((s) => s.id === sideId) || list[0];
     if (!side) return null;
 
-    // Filter markers to this side so the view reads as one named cluster
-    renderer.setSideFilter?.(side.id);
+    // Do NOT filter out other sides: show all valid pollution locations across the whole study area
+    renderer.setSideFilter?.(null);
     setLabelsEnabled(true);
 
     const sites = side.sites || [];
@@ -297,21 +297,23 @@ export function createGarbageSystem({ stations = [] } = {}) {
   }
 
   function focusGarbage(record) {
-    if (!record) return;
+    if (!record || !Number.isFinite(record.x ?? record.homeX)) return;
     const pose = computeGarbageCameraPose(record, {
       isMap2D: !!window.__MM_SCENE__?.isMap2D?.(),
     });
     console.info("[GarbageSystem] Camera focus:", record.id, pose.toL);
-    // Prefer dedicated garbage flight; fall back to drainage-style flight
+    // Dedicated garbage flight with ground-level terrain tracking
     if (typeof window.__MM_SCENE__?.startGarbageFlight === "function") {
       window.__MM_SCENE__.startGarbageFlight(pose.toP, pose.toL, {
         durMs: pose.durMs,
         fov: pose.fov,
+        record,
       });
     } else if (typeof window.__MM_SCENE__?.startDrainageFlight === "function") {
       window.__MM_SCENE__.startDrainageFlight(pose.toP, pose.toL, {
         durMs: pose.durMs,
         fov: pose.fov,
+        record,
       });
     }
   }

@@ -27,7 +27,24 @@ export function nearestPollutionSide(lon, lat, sides = POLLUTION_KEY_SIDES) {
 }
 
 /**
- * Assign each record to a side; return side summaries with sites sorted west→east.
+ * Check if a garbage record is in or near the river water.
+ */
+export function isWaterAssociated(r) {
+  if (!r) return false;
+  // If explicitly classified as Outside River, definitely not in or near water
+  if (r.associationStatus === "Outside River") return false;
+  if (r.onWater) return true;
+  if (r.associationStatus === "River" || r.associationStatus === "Near River") return true;
+  if (r.isRiverAssociated) return true;
+  if (r.distanceToRiver != null && Number.isFinite(r.distanceToRiver)) {
+    return r.distanceToRiver <= 45;
+  }
+  return false;
+}
+
+/**
+ * Assign each water-associated record to a side; return side summaries with sites sorted west→east.
+ * Records that are NOT in or near water are excluded from the arrow tour.
  * @param {object[]} records
  */
 export function buildPollutionSides(records = []) {
@@ -41,10 +58,14 @@ export function buildPollutionSides(records = []) {
 
   for (const r of records) {
     const side = nearestPollutionSide(r.lon, r.lat);
-    const bucket = byId.get(side.id);
-    if (!bucket) continue;
     r.sideId = side.id;
     r.sideName = side.name;
+
+    // Whatever is not in or near water: do NOT show in arrow navigation
+    if (!isWaterAssociated(r)) continue;
+
+    const bucket = byId.get(side.id);
+    if (!bucket) continue;
     bucket.sites.push({
       id: r.id,
       name: r.displayLabel || r.name || `Site ${r.sourceIndex ?? r.id}`,
@@ -57,8 +78,7 @@ export function buildPollutionSides(records = []) {
   }
 
   for (const b of buckets) {
-    // Geographic order along corridor (lon west→east), then lat — not chainage,
-    // because many western sites snap to the same CH 0+000.
+    // Geographic order along corridor (lon west→east), then lat
     b.sites.sort((a, c) => {
       const dLon = (a.lon ?? 0) - (c.lon ?? 0);
       if (Math.abs(dLon) > 1e-7) return dLon;
@@ -72,5 +92,12 @@ export function buildPollutionSides(records = []) {
     }
   }
 
-  return buckets;
+  // Only return sides that have water-associated sites for arrow navigation
+  const activeBuckets = buckets.filter((b) => b.count > 0);
+  activeBuckets.forEach((b, idx) => {
+    b.index = idx + 1;
+  });
+
+  return activeBuckets.length ? activeBuckets : buckets;
 }
+

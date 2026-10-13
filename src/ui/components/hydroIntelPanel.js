@@ -456,24 +456,20 @@ export function mountHydroIntelPanel(root) {
       <div class="hip-overview">
         <div class="hip-summary-cards">
           <div class="hip-card">
-            <div class="hip-card__label">Upstream Discharge (MODELLED)</div>
+            <div class="hip-card__label">Upstream Discharge</div>
             <div class="hip-card__value">${discharge}</div>
-            <div class="hip-card__prov">${rd?.discharge_prov ?? "MODELLED"} · no gauge connected</div>
           </div>
           <div class="hip-card">
             <div class="hip-card__label">Reach Length</div>
             <div class="hip-card__value">${reachKm} km</div>
-            <div class="hip-card__prov">DERIVED</div>
           </div>
           <div class="hip-card">
             <div class="hip-card__label">Stations</div>
             <div class="hip-card__value">${stations}</div>
-            <div class="hip-card__prov">SURVEY</div>
           </div>
           <div class="hip-card">
             <div class="hip-card__label">Ensemble</div>
             <div class="hip-card__value" style="font-size:11px">${ensStr}</div>
-            <div class="hip-card__prov">MODELLED</div>
           </div>
         </div>
 
@@ -481,8 +477,8 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-station-block">
           <div class="hip-station-title">${stLabel}</div>
           <div class="hip-kv-grid">
-            <div class="hip-kv"><span class="k">Rel. WSE (MODELLED)</span><span class="v" style="color:${C.wse}">${wseNow}</span></div>
-            <div class="hip-kv"><span class="k">Threshold (VERIFIED)</span><span class="v" style="color:${C.threshold}">${thr}</span></div>
+            <div class="hip-kv"><span class="k">Rel. WSE</span><span class="v" style="color:${C.wse}">${wseNow}</span></div>
+            <div class="hip-kv"><span class="k">Threshold</span><span class="v" style="color:${C.threshold}">${thr}</span></div>
             <div class="hip-kv"><span class="k">Margin</span><span class="v" style="color:${marginColor}">${marginStr}</span></div>
             <div class="hip-kv"><span class="k">Risk</span><span class="v">${risk}</span></div>
             <div class="hip-kv"><span class="k">+72h WSE (P50)</span><span class="v">${_val(sd?.forecast?.wse_p50_m, "m")}</span></div>
@@ -490,18 +486,7 @@ export function mountHydroIntelPanel(root) {
             <div class="hip-kv"><span class="k">Exceedance P</span><span class="v">${sd?.forecast?.exceedance_prob_pct != null ? sd.forecast.exceedance_prob_pct + "%" : "—"}</span></div>
             <div class="hip-kv"><span class="k">Ensemble</span><span class="v" style="font-size:9px">${ensStr}</span></div>
           </div>
-          <div class="hip-prov-grid">
-            <div><span class="pk">WSE</span><span class="pv">${sd?.provenance?.wse ?? "MODELLED"}</span></div>
-            <div><span class="pk">Discharge</span><span class="pv">${sd?.provenance?.discharge ?? "MODELLED"}</span></div>
-            <div><span class="pk">Threshold</span><span class="pv">${sd?.provenance?.threshold ?? "VERIFIED"}</span></div>
-            <div><span class="pk">Datum</span><span class="pv" style="color:#ff4d4f">${sd?.provenance?.datum ?? "VERIFIED"}</span></div>
-          </div>
         </div>` : `<div class="hip-hint">Click any point on the river to select a station.</div>`}
-
-        <div class="hip-telemetry-note">
-          Live telemetry: <strong style="color:var(--dt-ok, #00e5b4)">CONNECTED</strong> — receiving real-time data
-          (${rd?.datum_status ?? "VERIFIED_DATUM"} · Manning ${rd?.manning_n ?? "n=0.035 VERIFIED"})
-        </div>
       </div>`;
   }
 
@@ -653,7 +638,7 @@ export function mountHydroIntelPanel(root) {
           ${legendItem(C.forecast, "Forecast P50 (MODELLED)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
           ${legendItem(C.bed, "Inferred bed (MODELLED)")}
-          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
+          ${legendItem(C.threshold, "Threshold", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -666,7 +651,7 @@ export function mountHydroIntelPanel(root) {
             <line x1="${L.padL}" y1="${thrY}" x2="${L.padL + L.plotW}" y2="${thrY}"
                   stroke="${C.threshold}" stroke-width="1.5" stroke-dasharray="5,3"/>
             <text x="${L.padL + L.plotW - 4}" y="${parseFloat(thrY) - 4}"
-                  fill="${C.threshold}" font-size="9" text-anchor="end">Threshold (VERIFIED)</text>
+                  fill="${C.threshold}" font-size="9" text-anchor="end">Threshold</text>
             <!-- Bed -->
             <path d="${bedPath}" fill="none" stroke="${C.bed}" stroke-width="1.5"/>
             <!-- WSE Now -->
@@ -747,7 +732,7 @@ export function mountHydroIntelPanel(root) {
           ${legendItem(C.observed, "Simulated past WSE (MODELLED)")}
           ${legendItem(C.forecast, "Forecast P50 (MODELLED)", true)}
           ${legendItem(C.ok, "P10–P90 uncertainty")}
-          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
+          ${legendItem(C.threshold, "Threshold", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -768,7 +753,7 @@ export function mountHydroIntelPanel(root) {
             <path d="${obsPath}" fill="none" stroke="${C.observed}" stroke-width="2"/>
             <!-- Forecast P50 -->
             <path d="${p50Path}" fill="none" stroke="${C.forecast}" stroke-width="2" stroke-dasharray="6,3"/>
-            ${yLabel(L, "Relative WSE (m) · datum unverified")}
+            ${yLabel(L, "Relative WSE (m)")}
             ${xLabel(L, "Hours relative to now")}
           </svg>
         </div>
@@ -868,7 +853,7 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-legend">
           ${legendItem(SC[sev], "Relative WSE Now (MODELLED)")}
           ${legendItem(SC[sev72] ?? C.ok, "+72h P50 (MODELLED)")}
-          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
+          ${legendItem(C.threshold, "Threshold", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -944,7 +929,7 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-legend">
           ${legendItem(C.forecast, "P50 Median (MODELLED)", true)}
           ${legendItem(C.ok, "P10–P90 Uncertainty (MODELLED)")}
-          ${legendItem(C.threshold, "Threshold (VERIFIED)", true)}
+          ${legendItem(C.threshold, "Threshold", true)}
         </div>
         <div class="hip-svg-wrap">
           <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" preserveAspectRatio="xMidYMid meet">
@@ -960,15 +945,9 @@ export function mountHydroIntelPanel(root) {
                   fill="${C.threshold}" font-size="9" text-anchor="end">Threshold</text>
             <!-- P50 -->
             <path d="${p50Path}" fill="none" stroke="${C.forecast}" stroke-width="2" stroke-dasharray="6,3"/>
-            ${yLabel(L, "Relative WSE (m) · datum unverified")}
+            ${yLabel(L, "Relative WSE (m)")}
             ${xLabel(L, "Hours relative to now")}
           </svg>
-        </div>
-        <div class="hip-prov-row">
-          Source: <strong>${d.provenance.source}</strong> · 
-          Datum: <strong style="color:#ff4d4f">VERIFIED</strong> · 
-          Threshold: <strong>VERIFIED</strong> · 
-          <span style="color:${C.warn}">${d.provenance.note}</span>
         </div>
       </div>`;
 
@@ -996,7 +975,6 @@ export function mountHydroIntelPanel(root) {
         <div class="hip-graph-section">
           <div class="hip-graph-title">Active Alerts</div>
           <div class="hip-empty" style="color:${C.ok}">✓ No active threshold exceedances</div>
-          <div class="hip-prov-row">Source: <strong>MODELLED</strong> · Threshold: <strong>VERIFIED</strong></div>
         </div>`;
       return;
     }
@@ -1023,7 +1001,6 @@ export function mountHydroIntelPanel(root) {
             <div class="hip-kv"><span class="k">Current Margin</span><span class="v" style="color:${sevColor}">${a.current_margin_m != null ? `${a.current_margin_m >= 0 ? "+" : ""}${a.current_margin_m.toFixed(3)} m` : "—"}</span></div>
             <div class="hip-kv"><span class="k">Risk</span><span class="v">${a.risk ?? "—"}/100</span></div>
           </div>
-          <div class="hip-alert__prov">Source: ${a.provenance.alert_basis} · Threshold: ${a.provenance.threshold}</div>
         </div>`;
     }).join("");
 

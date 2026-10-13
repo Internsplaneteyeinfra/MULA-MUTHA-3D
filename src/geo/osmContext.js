@@ -2,9 +2,9 @@ import { lonLatToUtm } from "./projection.js";
 import { lonLatToLocal } from "./geoReference.js";
 import { resolveBuildingHeight, resolveTreeHeight } from "./heightResolve.js";
 
-/** Low-RAM: 1 km outside the bank. Full machines use the original study corridor. */
-export const RIVER_SIDE_M = 1000;
-export const FULL_CORRIDOR_M = 4200;
+/** River corridor urban context: 800m covers both banks and skyline. */
+export const RIVER_SIDE_M = 800;
+export const FULL_CORRIDOR_M = 1600;
 
 /**
  * True if (x,z) is in the channel or within `extraM` of the bank (lateral to centerline).
@@ -88,7 +88,7 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   // Roads stay on the full corridor even in lite — vertex stripping broke streets
   const roads = projectLines(roadsFc, frame, corridor, FULL_CORRIDOR_M, false);
   const buildingsAll = projectBuildings(buildingsFc, frame, corridor, extraM, bankStrip);
-  const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 16000 : 60000);
+  const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 4000 : 9000);
   const green = projectPolygons(vegFc, frame, corridor, extraM, bankStrip);
   const trees = projectTrees(treesFc, frame, corridor, extraM, bankStrip);
   const treeRows = projectLines(treeRowsFc, frame, corridor, extraM, bankStrip);

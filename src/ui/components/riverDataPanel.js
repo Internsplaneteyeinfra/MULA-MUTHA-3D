@@ -10,7 +10,7 @@ import { nearestStationU, stationAt } from "../../scene/riverCamera.js";
  * 🫧 identity · Depth profile · real two-point Measure.
  * Fresh load = OPEN (no localStorage). Collapse → compact 🫧 button only.
  */
-export function mountRiverDataPanel(root, dataset) {
+export function mountRiverDataPanel(root, dataset, popupRoot = null) {
   const el = document.createElement("aside");
   el.className = "hud river-data-panel";
   el.id = "river-data-panel";
@@ -96,7 +96,7 @@ export function mountRiverDataPanel(root, dataset) {
       </div>
     </div>
   `;
-  root.appendChild(popup);
+  (popupRoot || document.getElementById("ui-root") || document.body).appendChild(popup);
 
   const fabEl = el.querySelector("#river-data-fab");
   const shellEl = el.querySelector("#river-data-shell");
@@ -242,8 +242,12 @@ export function mountRiverDataPanel(root, dataset) {
 
   depthBtn.addEventListener("click", (e) => {
     e.stopPropagation();
-    openPopup("depth");
-    if (!e.target.closest(".river-data-row-action")) {
+    const willTurnOff = depthBtn.classList.contains("is-active");
+    if (willTurnOff) {
+      closePopup();
+      toggleRiverMeasure("depth");
+    } else {
+      openPopup("depth");
       toggleRiverMeasure("depth");
     }
   });
