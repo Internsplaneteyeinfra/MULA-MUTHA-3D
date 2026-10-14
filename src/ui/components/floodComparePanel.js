@@ -2,11 +2,13 @@ import { state } from "../../state.js";
 
 const STYLE_ID = "flood-compare-style";
 const STYLE = `
+/* Left zone ends where the centred navigation block begins (≈158px each side of centre, +gap). */
+#ui-root.gis-ui .flood-result-panel,#ui-root.gis-ui.api-flood-mode .flood-result-panel{box-sizing:border-box;min-width:0;width:min(300px,max(216px,calc(50vw - 182px)))}
 .flood-compare{position:fixed;left:12px;bottom:112px;z-index:26;width:min(256px,calc(100vw - 24px));
-  max-height:min(62vh,520px);display:flex;flex-direction:column;border-radius:12px;color:#e2e8f0;
+  max-height:min(62vh,520px);box-sizing:border-box;display:flex;flex-direction:column;border-radius:12px;color:#e2e8f0;
   background:rgba(12,18,28,.88);border:1px solid rgba(148,163,184,.22);backdrop-filter:blur(10px);
   -webkit-backdrop-filter:blur(10px);font:inherit;font-size:11px;line-height:1.35;overflow:hidden}
-.flood-compare[hidden],.flood-legend[hidden]{display:none!important}
+.flood-compare[hidden],.flood-legend[hidden],.flood-compare[data-crowded="true"]{display:none!important}
 .flood-compare__head{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 12px;
   background:transparent;border:0;color:inherit;font:inherit;font-size:10px;font-weight:700;letter-spacing:.08em;
   text-transform:uppercase;cursor:pointer;text-align:left;width:100%}
@@ -26,12 +28,12 @@ const STYLE = `
 .flood-compare__act{margin-top:6px;width:100%;padding:6px 8px;border-radius:8px;cursor:pointer;font:inherit;font-size:10px;
   font-weight:600;color:#e2e8f0;background:rgba(79,200,235,.16);border:1px solid rgba(79,200,235,.4)}
 .flood-compare__act:hover{background:rgba(79,200,235,.26)}
-.flood-legend{position:fixed;right:84px;bottom:112px;z-index:18;padding:7px 10px;
+.flood-legend{position:fixed;right:84px;bottom:112px;z-index:18;box-sizing:border-box;max-width:min(200px,45vw);white-space:nowrap;padding:7px 10px;
   border-radius:8px;background:rgba(8,22,31,.42);border:1px solid rgba(255,255,255,.16);backdrop-filter:blur(8px);
   color:rgba(235,245,250,.92);font-size:10px;line-height:1.5;text-shadow:0 1px 3px rgba(0,0,0,.85)}
 .flood-legend strong{display:block;font-size:9px;letter-spacing:.12em;margin-bottom:3px}
 .flood-legend i{display:inline-block;width:12px;height:8px;border-radius:2px;margin-right:6px;vertical-align:middle}
-@media (max-width:900px){.flood-legend{right:76px;bottom:124px}.flood-compare{bottom:124px}}
+@media (max-width:1100px){.flood-legend .fl-val{display:none}}
 `;
 
 function bboxOf(xs, zs) {
@@ -162,6 +164,67 @@ export function mountFloodComparePanel(root, { dataset }) {
     return cell.querySelector("canvas");
   });
 
+
+  /**
+   * Layout zones are measured, not hard-coded: the legend sits directly above the Water Depth
+   * legend, and the compare panel fits between the Flood Result panel (top) and the ruler (bottom).
+   */
+  const GAP = 10;
+  const visibleRect = (el) => {
+    if (!el || el.hidden || el.closest("[hidden]")) return null;
+    const cs = getComputedStyle(el);
+    if (cs.display === "none" || cs.visibility === "hidden") return null;
+    const r = el.getBoundingClientRect();
+    return r.width > 0 && r.height > 0 ? r : null;
+  };
+  let layoutRaf = 0;
+  function layout() {
+    layoutRaf = 0;
+    const vw = window.innerWidth;
+    const vh = window.innerHeight;
+    const ruler = visibleRect(document.getElementById("chainage-ruler"));
+    const clearBottom = ruler ? vh - ruler.top + GAP : 112;
+
+    // Compare panel: between Flood Result (top) and ruler (bottom).
+    const result = visibleRect(document.getElementById("flood-result-panel"));
+    const topLimit = result ? result.bottom + GAP : 72;
+    panel.style.bottom = `${Math.round(clearBottom)}px`;
+    panel.style.maxHeight = `${Math.max(44, Math.round(vh - clearBottom - topLimit))}px`;
+    // Not enough room beside the centred playback panel → drop this secondary panel entirely.
+    const pb = visibleRect(document.getElementById("flood-playback"));
+    const pr = panel.getBoundingClientRect();
+    panel.dataset.crowded = pb && !panel.hidden && pb.left < 12 + pr.width + GAP ? "true" : "false";
+
+    // Flood legend: same right edge as the depth legend, stacked directly above it.
+    const dl = visibleRect(document.getElementById("depth-legend"));
+    if (dl) {
+      legend.style.right = `${Math.max(0, Math.round(vw - dl.right))}px`;
+      legend.style.bottom = `${Math.round(vh - dl.top + GAP)}px`;
+    } else {
+      legend.style.right = "12px";
+      legend.style.bottom = `${Math.round(clearBottom)}px`;
+    }
+  }
+  const scheduleLayout = () => {
+    if (!layoutRaf) layoutRaf = requestAnimationFrame(layout);
+  };
+  window.addEventListener("resize", scheduleLayout);
+  if (typeof ResizeObserver !== "undefined") {
+    const ro = new ResizeObserver(scheduleLayout);
+    for (const id of ["chainage-ruler", "flood-result-panel", "flood-playback", "depth-legend"]) {
+      const el = document.getElementById(id);
+      if (el) ro.observe(el);
+    }
+    // Panels mounted later (depth legend, playback) are picked up when the UI settles.
+    setTimeout(() => {
+      for (const id of ["chainage-ruler", "flood-result-panel", "flood-playback", "depth-legend"]) {
+        const el = document.getElementById(id);
+        if (el) ro.observe(el);
+      }
+      scheduleLayout();
+    }, 1500);
+  }
+
   let dirty = true;
   const layer = () => window.__MM_SCENE__?.apiFloodLayer;
 
@@ -169,6 +232,7 @@ export function mountFloodComparePanel(root, { dataset }) {
     panel.dataset.open = open ? "true" : "false";
     head.setAttribute("aria-expanded", open ? "true" : "false");
     if (open) render();
+    scheduleLayout();
   }
   head.addEventListener("click", () => setOpen(panel.dataset.open !== "true"));
 
@@ -220,18 +284,20 @@ export function mountFloodComparePanel(root, { dataset }) {
     const has = !!L?.userData?.hasFlood;
     legend.hidden = !has;
     if (!has) return;
+    scheduleLayout();
     const info = L.userData.getInfo?.() || {};
     const fl = Number(info.flood_area_ha);
     const wa = Number(info.water_area_ha);
     legend.innerHTML = `<strong>FLOOD AREA</strong>
-      <div><i style="background:rgba(255,48,48,.65);border:1px solid #ff3030"></i>Flood extent${Number.isFinite(fl) && fl > 0 ? ` · ${fl.toFixed(2)} ha (API)` : ""}</div>
-      <div><i style="background:rgba(63,155,255,.55);border:1px solid #3f9bff"></i>River water${Number.isFinite(wa) && wa > 0 ? ` · ${wa.toFixed(2)} ha` : ""}</div>`;
+      <div><i style="background:rgba(255,48,48,.65);border:1px solid #ff3030"></i>Flood extent<span class="fl-val">${Number.isFinite(fl) && fl > 0 ? ` · ${fl.toFixed(2)} ha (API)` : ""}</span></div>
+      <div><i style="background:rgba(63,155,255,.55);border:1px solid #3f9bff"></i>River water<span class="fl-val">${Number.isFinite(wa) && wa > 0 ? ` · ${wa.toFixed(2)} ha` : ""}</span></div>`;
   }
 
   document.addEventListener("flood-geometry-ready", () => {
     dirty = true;
     syncLegend();
     render();
+    scheduleLayout();
   });
   document.addEventListener("flood-geometry-cleared", () => {
     dirty = true;
@@ -246,6 +312,7 @@ export function mountFloodComparePanel(root, { dataset }) {
       syncLegend();
       render();
     }
+    scheduleLayout();
   };
   new MutationObserver(sync).observe(root, { attributes: true, attributeFilter: ["class"] });
   sync();

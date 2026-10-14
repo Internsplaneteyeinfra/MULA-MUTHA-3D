@@ -46,6 +46,9 @@ export function createApiFloodLayer(dataset) {
   let baseY = null;
   let terrainYAttr = null;
   let spillElevationsAttr = null;
+  /** Sampling-grid coordinates per cell index (floodAttr/distAttr index space, not the compacted mesh). */
+  let gridX = null;
+  let gridZ = null;
   let anim = {
     active: false,
     paused: false,
@@ -92,6 +95,8 @@ export function createApiFloodLayer(dataset) {
     baseY = null;
     terrainYAttr = null;
     spillElevationsAttr = null;
+    gridX = null;
+    gridZ = null;
   }
 
   /** Distance to the centreline polyline (segments, not samples, so the front grows as a band, not beads). */
@@ -356,6 +361,8 @@ export function createApiFloodLayer(dataset) {
     baseY = new Float32Array(pos.count);
     terrainYAttr = new Float32Array(pos.count);
     spillElevationsAttr = new Float32Array(pos.count).fill(Infinity);
+    gridX = new Float32Array(pos.count);
+    gridZ = new Float32Array(pos.count);
     const colors = new Float32Array(pos.count * 3);
     const debugColors = new Float32Array(pos.count * 3);
 
@@ -468,6 +475,8 @@ export function createApiFloodLayer(dataset) {
     for (let i = 0; i < pos.count; i++) {
       const x = pos.getX(i);
       const z = pos.getZ(i);
+      gridX[i] = x;
+      gridZ[i] = z;
       let flooded = 0;
       let isFloodVal = 0;
       try {
@@ -1201,20 +1210,17 @@ export function createApiFloodLayer(dataset) {
   group.userData.getScenes = () => scenes;
   /** Real flooded grid cells + perimeter segments (scene metres) for the compare thumbnails. */
   group.userData.getThumbnailData = () => {
-    if (!mesh || !floodAttr || !distAttr) return null;
-    const pos = mesh.geometry.attributes.position;
+    if (!mesh || !floodAttr || !distAttr || !gridX) return null;
     const finalY = lastInfo?._scene_final_water_y;
     const hasLevel = Number.isFinite(finalY);
-    const ox = mesh.position.x;
-    const oz = mesh.position.z;
     const xs = [];
     const zs = [];
     const ds = [];
     for (let i = 0; i < floodAttr.length; i++) {
       if (floodAttr[i] <= 0.5) continue;
       if (hasLevel && !(finalY > terrainYAttr[i])) continue;
-      xs.push(pos.getX(i) + ox);
-      zs.push(pos.getZ(i) + oz);
+      xs.push(gridX[i]);
+      zs.push(gridZ[i]);
       ds.push(Math.min(distAttr[i], anim.maxDist));
     }
     return {
@@ -1223,7 +1229,6 @@ export function createApiFloodLayer(dataset) {
       ds,
       frontAt: floodFrontDistance,
       segs: boundary?.userData?.segmentsXZ || null,
-      segOffset: [ox, oz],
     };
   };
 

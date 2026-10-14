@@ -920,21 +920,16 @@ export function createCameraSystem(canvas, dataset) {
   /**
    * Dedicated ground-level, corridor-aware flight between pollution locations.
    * Stays at stable terrain/water height throughout transition, never elevates into sky.
+   * Automatically exits 2D map mode into 3D perspective mode for close water inspection.
    */
   function startGarbageFlight(toP, toL, opts = {}) {
     if (isMap2D()) {
-      state.cameraMode = "aerial";
-      tmpP.set(toP.x, Math.max(toP.y, 450), toP.z);
-      tmpL.set(toL.x, toL.y, toL.z);
-      startFlight({
-        toP: tmpP,
-        toL: tmpL,
-        dur: Math.min(1.4, Math.max(0.6, opts.durMs ? opts.durMs / 1000 : 1.0)),
-        releaseMode: "aerial",
-        transitLift: 0,
-      });
-      return;
+      exitMap2D({ preserveUp: false });
     }
+
+    // Force world-up so lookAt never applies 90° roll from ortho camera state
+    perspCamera.up.set(0, 1, 0);
+    activeCamera.up.set(0, 1, 0);
 
     // Cancel conflicting transitions
     orientTransition = null;
@@ -945,7 +940,7 @@ export function createCameraSystem(canvas, dataset) {
     const fromP = activeCamera.position.clone();
     const fromL = controls.target.clone();
     const fromQ = activeCamera.quaternion.clone();
-    const fromUp = activeCamera.up.clone().normalize();
+    const fromUp = new THREE.Vector3(0, 1, 0); // Always world-up to avoid roll
     const fromFov = activeCamera.isPerspectiveCamera ? activeCamera.fov : 48;
 
     // Ensure destination camera pose respects terrain elevation
@@ -1113,8 +1108,8 @@ export function createCameraSystem(canvas, dataset) {
         const endGroundY = stations?.length ? terrainHeightAt(flightTransition.toP.x, flightTransition.toP.z, stations) : SURFACE_Y;
         const startBase = Number.isFinite(startGroundY) ? Math.max(SURFACE_Y, startGroundY) : SURFACE_Y;
         const endBase = Number.isFinite(endGroundY) ? Math.max(SURFACE_Y, endGroundY) : SURFACE_Y;
-        const startEye = Math.max(25, flightTransition.fromP.y - startBase);
-        const endEye = Math.max(25, flightTransition.toP.y - endBase);
+        const startEye = Math.max(10, flightTransition.fromP.y - startBase);
+        const endEye = Math.max(10, flightTransition.toP.y - endBase);
         const eyeClearance = THREE.MathUtils.lerp(startEye, endEye, k);
 
         let curY = surfaceY + eyeClearance;
@@ -1158,6 +1153,8 @@ export function createCameraSystem(canvas, dataset) {
 
         // Interpolate look-at target together:
         controls.target.lerpVectors(flightTransition.fromL, flightTransition.toL, k);
+        // Enforce world-up before lookAt to prevent 90° roll from ortho camera up vector
+        camera.up.set(0, 1, 0);
         camera.lookAt(controls.target);
 
         if (activeCamera.isPerspectiveCamera && flightTransition.fromFov !== flightTransition.toFov) {
@@ -1168,6 +1165,7 @@ export function createCameraSystem(canvas, dataset) {
         if (tNorm >= 1) {
           camera.position.copy(flightTransition.toP);
           controls.target.copy(flightTransition.toL);
+          camera.up.set(0, 1, 0);
           camera.lookAt(controls.target);
           controls.update();
           controls.enabled = true;

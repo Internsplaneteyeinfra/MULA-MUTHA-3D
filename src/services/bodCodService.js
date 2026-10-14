@@ -20,17 +20,85 @@ const REQUEST_TIMEOUT_MS = 90_000;
 
 /** In-memory full payload (history is too large for localStorage). */
 let memoryCache = null;
+/** Shared in-flight requests: every caller awaits the same (slow) server round trip. */
+let inflightFetch = null;
+let inflightRefresh = null;
+
+/** Viewer ids expire server-side within hours, so the payload itself is cached (IndexedDB, same day). */
+const IDB_NAME = "mm-bod-cod";
+const IDB_STORE = "payload";
+const CACHE_TTL_MS = 6 * 3600_000;
+
+function idbOpen() {
+  return new Promise((resolve, reject) => {
+    if (typeof indexedDB === "undefined") return reject(new Error("no indexedDB"));
+    const req = indexedDB.open(IDB_NAME, 1);
+    req.onupgradeneeded = () => req.result.createObjectStore(IDB_STORE);
+    req.onsuccess = () => resolve(req.result);
+    req.onerror = () => reject(req.error);
+  });
+}
+
+async function readCachedPayload() {
+  try {
+    const db = await idbOpen();
+    const rec = await new Promise((resolve, reject) => {
+      const r = db.transaction(IDB_STORE).objectStore(IDB_STORE).get("latest");
+      r.onsuccess = () => resolve(r.result);
+      r.onerror = () => reject(r.error);
+    });
+    db.close();
+    if (!rec?.data?.reaches?.length) return null;
+    if (Date.now() - rec.savedAt > CACHE_TTL_MS) return null;
+    return rec.data;
+  } catch {
+    return null;
+  }
+}
+
+async function writeCachedPayload(data) {
+  try {
+    const db = await idbOpen();
+    await new Promise((resolve, reject) => {
+      const tx = db.transaction(IDB_STORE, "readwrite");
+      tx.objectStore(IDB_STORE).put({ savedAt: Date.now(), data }, "latest");
+      tx.oncomplete = resolve;
+      tx.onerror = () => reject(tx.error);
+    });
+    db.close();
+  } catch {
+    /* cache is best-effort */
+  }
+}
 
 /**
  * @param {string} [viewerId]
  * @returns {Promise<object>}
  */
-export async function fetchBodCodViewerData(viewerId) {
+export function fetchBodCodViewerData(viewerId) {
+  if (viewerId) return loadBodCod(viewerId);
+  if (!inflightFetch) {
+    inflightFetch = loadBodCod().finally(() => {
+      inflightFetch = null;
+    });
+  }
+  return inflightFetch;
+}
+
+async function loadBodCod(viewerId) {
   const preferred =
     String(viewerId || readStoredViewerId() || DEFAULT_BOD_COD_VIEWER_ID).trim();
 
-  if (memoryCache?.reaches?.length && memoryCache._viewerId === preferred) {
+  if (memoryCache?.reaches?.length && (viewerId ? memoryCache._viewerId === preferred : true)) {
     return memoryCache;
+  }
+
+  if (!viewerId) {
+    const cached = await readCachedPayload();
+    if (cached) {
+      memoryCache = { ...cached, _viewerId: cached._viewerId || preferred, _source: "cache" };
+      return memoryCache;
+    }
   }
 
   try {
@@ -41,13 +109,21 @@ export async function fetchBodCodViewerData(viewerId) {
     const expired = /404|expired|not found|HTTP 404/i.test(msg);
     if (!expired) throw err;
     console.warn("[bod-cod] viewer expired — refreshing via KML POST", preferred);
-    const refreshed = await refreshBodCodFromKml();
-    return refreshed;
+    return refreshBodCodFromKml();
   }
 }
 
 /** POST project river KML → new/same viewer → full /data payload. */
-export async function refreshBodCodFromKml(kmlUrl = KML_URL) {
+export function refreshBodCodFromKml(kmlUrl = KML_URL) {
+  if (!inflightRefresh) {
+    inflightRefresh = doRefreshBodCodFromKml(kmlUrl).finally(() => {
+      inflightRefresh = null;
+    });
+  }
+  return inflightRefresh;
+}
+
+async function doRefreshBodCodFromKml(kmlUrl) {
   const url = kmlUrl.startsWith("http")
     ? kmlUrl
     : new URL(kmlUrl, window.location.origin).href;
@@ -99,6 +175,7 @@ async function fetchViewerData(id) {
 function remember(data, viewerId) {
   memoryCache = { ...data, _viewerId: viewerId, _source: "live" };
   writeStoredViewerId(viewerId);
+  void writeCachedPayload(memoryCache);
   return memoryCache;
 }
 

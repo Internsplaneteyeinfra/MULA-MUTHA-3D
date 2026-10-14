@@ -27,31 +27,30 @@ export function computeGarbageCameraPose(record, opts = {}) {
   const fx = (record.flowDirection?.x ?? 1) / flen;
   const fz = (record.flowDirection?.z ?? 0) / flen;
 
-  // Across-channel unit vector pointing toward opposite bank:
-  // With forward = (fz, -fx), the river flow (fx, fz) is oriented to the camera's right.
-  // Camera stands on the near bank (-across: -fz, +fx) looking across (+fz, -fx),
-  // framing upstream landmarks on the LEFT and downstream landmarks on the RIGHT.
-  const acrossX = fz;
-  const acrossZ = -fx;
+  // Across-channel unit vector perpendicular to flow:
+  const px = -fz;
+  const pz = fx;
 
-  // Elevated oblique perspective matching user reference screenshot:
-  // - acrossOffset ~190m back on the south/near bank (reveals 3 arches of Ambedkar Bridge + Bund Garden on left)
-  // - alongOffset ~15m (centers the river channel between Ambedkar and Fitzgerald bridges)
-  // - height ~85m elevation above water/ground (gives optimal ~24° oblique depression angle)
-  const acrossOffset = 190;
-  const alongOffset = 15;
-  const height = 85;
-  const lookLift = 2.0;
+  // Close water-corridor perspective looking downstream along the river:
+  // - alongOffset -38m (upstream so camera looks downstream toward pollution)
+  // - sideOffset 18m (gentle lateral offset: water fills lower frame, pollution fills center)
+  // - height 12m above water surface (very intimate, water-level-like angle)
+  // - lookLift 2.5m (look slightly above site base so pollution pile is centered in frame)
+  // - fov 55° (wider FOV captures surrounding water context while keeping pollution prominent)
+  const alongOffset = -38;
+  const sideOffset = 18;
+  const height = 12;
+  const lookLift = 2.5;
 
   return {
     toP: {
-      x: x + fx * alongOffset - acrossX * acrossOffset,
+      x: x + fx * alongOffset + px * sideOffset,
       y: y + height,
-      z: z + fz * alongOffset - acrossZ * acrossOffset,
+      z: z + fz * alongOffset + pz * sideOffset,
     },
     toL: { x, y: y + lookLift, z },
     durMs: 1400,
-    fov: 48,
+    fov: 55,
   };
 }
 

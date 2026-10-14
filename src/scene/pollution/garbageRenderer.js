@@ -8,11 +8,11 @@ import { LOD, markerScaleForCamera } from "./garbageLOD.js";
 import { loadGarbageModel } from "./garbageModels.js";
 import { terrainHeightAt } from "../terrain.js";
 
-/** Scanned pile footprint per density class (metres, largest horizontal extent). */
-const PILE_FOOTPRINT_M = { LOW: 4, MEDIUM: 6, HIGH: 8 };
+/** Scanned pile footprint per density class (metres, largest horizontal extent) — enlarged for immediate visual recognition. */
+const PILE_FOOTPRINT_M = { LOW: 10, MEDIUM: 16, HIGH: 24 };
 /** Piles grow with camera distance (up to MAX) so they stay readable from aerial views. */
-const PILE_BOOST_REF_M = 160;
-const PILE_BOOST_MAX = 2.4;
+const PILE_BOOST_REF_M = 100;
+const PILE_BOOST_MAX = 2.6;
 /** Share of a floating pile that sits below the water line. */
 const PILE_WATER_SINK = 0.35;
 
@@ -22,7 +22,7 @@ const AMBER_HOT = "#FFB347";
 const DEBRIS = "#8B7355";
 const PLASTIC = "#C4D4E0";
 const FOAM = "#F2EDE4";
-const STEM_H = 0.9; // Much shorter stem: 0.9m height
+const STEM_H = 3.2; // Recognizable beacon stem height
 
 export function createGarbageRenderer() {
   const root = new THREE.Group();
@@ -38,19 +38,19 @@ export function createGarbageRenderer() {
   densityGroup.visible = true;
   root.add(markers, debris, densityGroup);
 
-  // Very small ground indicator (far / overview dots)
-  const discGeo = new THREE.CircleGeometry(0.4, 12); // Much smaller: 0.4m radius
+  // Ground / water indicator (dots and ripples) — clearly recognizable
+  const discGeo = new THREE.CircleGeometry(1.8, 20); // 1.8m radius
   discGeo.rotateX(-Math.PI / 2);
-  const rimGeo = new THREE.RingGeometry(0.35, 0.55, 16); // Much smaller
+  const rimGeo = new THREE.RingGeometry(1.5, 2.5, 24);
   rimGeo.rotateX(-Math.PI / 2);
-  const coreGeo = new THREE.CircleGeometry(0.15, 8); // Much smaller
+  const coreGeo = new THREE.CircleGeometry(0.75, 12);
   coreGeo.rotateX(-Math.PI / 2);
 
-  // Very small site marker: tiny sphere + short thin stem
-  const stemGeo = new THREE.CylinderGeometry(0.008, 0.012, 0.9, 6); // Thin, short: 0.9m height
-  const orbGeo = new THREE.SphereGeometry(0.08, 12, 8); // Tiny sphere: 0.08m radius
-  const orbHaloGeo = new THREE.SphereGeometry(0.14, 8, 6); // Small halo
-  const glowDiscGeo = new THREE.CircleGeometry(0.35, 16); // Small ripple: 0.35m radius
+  // Clearly recognizable site marker: glowing sphere + slender beacon stem
+  const stemGeo = new THREE.CylinderGeometry(0.04, 0.06, 3.2, 8); // Visible 3.2m stem
+  const orbGeo = new THREE.SphereGeometry(0.45, 16, 12); // Recognizable glowing orb
+  const orbHaloGeo = new THREE.SphereGeometry(0.75, 12, 8); // Soft glow halo
+  const glowDiscGeo = new THREE.CircleGeometry(2.4, 24); // Ripple glow
   glowDiscGeo.rotateX(-Math.PI / 2);
 
   const fillMat = new THREE.MeshBasicMaterial({
@@ -385,24 +385,24 @@ export function createGarbageRenderer() {
     g.name = `garbageDebris_${r.id}`;
     g.userData.recordId = r.id;
     
-    // Determine number of debris items based on density level
-    // LOW: 4-7 objects, MEDIUM: 8-14 objects, HIGH: 15-24 objects
-    let minCount = 4, maxCount = 7; // LOW density
-    if (r.densityLevel === "MEDIUM") { minCount = 8; maxCount = 14; }
-    if (r.densityLevel === "HIGH") { minCount = 15; maxCount = 24; }
+    // Determine number of debris items based on density level — generous counts for clear recognition
+    // LOW: 14-22 objects, MEDIUM: 26-40 objects, HIGH: 44-65 objects
+    let minCount = 14, maxCount = 22; // LOW density
+    if (r.densityLevel === "MEDIUM") { minCount = 26; maxCount = 40; }
+    if (r.densityLevel === "HIGH") { minCount = 44; maxCount = 65; }
     
     // Add deterministic variation based on site ID
     const seed = r.sourceIndex * 137;
     const n = minCount + Math.floor((seed % 100) * 0.01 * (maxCount - minCount + 1));
     
-    // Create medium-sized, clearly visible debris objects
+    // Create clearly visible debris objects
     for (let k = 0; k < n; k++) {
-      const kind = (k + r.sourceIndex) % 10; // 10 different debris types (expanded from 8)
+      const kind = (k + r.sourceIndex) % 10; // 10 different debris types
       let mesh;
       const itemSeed = r.sourceIndex * 1000 + k * 37;
       
-      // Base scale multiplier for all objects (1.5-2.0x increase)
-      const sizeMultiplier = 1.7 + (itemSeed % 100) * 0.003; // 1.7-2.0
+      // Base scale multiplier for prominent visual recognition (3.0-3.6x)
+      const sizeMultiplier = 3.0 + (itemSeed % 100) * 0.006;
       
       if (kind === 0) {
         // Plastic bottle (realistic assembly) - increased visibility
@@ -526,10 +526,10 @@ export function createGarbageRenderer() {
       const patchSeedX = (itemSeed * 1.237) % 1;
       const patchSeedZ = (itemSeed * 0.873) % 1;
       
-      // Density-based patch size: LOW: 2-4m, MEDIUM: 4-7m, HIGH: 6-10m
-      let patchRadius = 2.0;
-      if (r.densityLevel === "MEDIUM") patchRadius = 3.5;
-      if (r.densityLevel === "HIGH") patchRadius = 5.0;
+      // Density-based patch size: LOW: 4.5m, MEDIUM: 7.5m, HIGH: 11.0m
+      let patchRadius = 4.5;
+      if (r.densityLevel === "MEDIUM") patchRadius = 7.5;
+      if (r.densityLevel === "HIGH") patchRadius = 11.0;
       
       // Create irregular organic distribution (not circular)
       // Use noise-like pattern for more natural scattering
@@ -588,8 +588,8 @@ export function createGarbageRenderer() {
       g.add(mesh);
     }
 
-    // Moderate overall scale based on density
-    const densityScale = r.densityLevel === "HIGH" ? 1.0 : r.densityLevel === "MEDIUM" ? 0.9 : 0.8;
+    // Substantial overall scale based on density for clear visual recognition
+    const densityScale = r.densityLevel === "HIGH" ? 2.0 : r.densityLevel === "MEDIUM" ? 1.7 : 1.4;
     g.scale.setScalar(densityScale);
     
     return g;
@@ -705,20 +705,19 @@ export function createGarbageRenderer() {
       const isSel = e.record.id === selected;
       e.marker.visible = true;
       // Far overview: small dots; selected slightly larger
-      const ringScale = boost * (isSel ? 0.9 : far ? 0.6 : 0.8);
+      const ringScale = boost * (isSel ? 1.35 : far ? 0.8 : 1.1);
       e.marker.scale.set(ringScale, ringScale, ringScale);
 
       if (e.debris) {
-        // Show debris at MEDIUM and closer distances for better visibility
+        // Show debris at MEDIUM and closer distances for prominent visibility
         const showPile = isSel || (!far && (medium || lod === LOD.NEAR || lod === LOD.VERY_NEAR));
         e.debris.visible = showPile;
-        // Enhanced LOD scaling for better visibility: far: 0.9, medium: 1.0, near: 1.05-1.1, selected: 1.15 max
         let scale = 1.0;
-        if (far) scale = 0.9;          // Increased from 0.85
-        else if (medium) scale = 1.0;  // Keep at 1.0
-        else if (lod === LOD.NEAR) scale = 1.05; // Increased
-        else if (lod === LOD.VERY_NEAR) scale = 1.1; // Increased
-        if (isSel) scale *= 1.15; // Selected: 15% larger max (from 10%)
+        if (far) scale = 1.0;
+        else if (medium) scale = 1.15;
+        else if (lod === LOD.NEAR) scale = 1.3;
+        else if (lod === LOD.VERY_NEAR) scale = 1.45;
+        if (isSel) scale *= 1.35; // Boost selected site so it's prominent and unmistakable
         if (e.models && camera) {
           const dist = camera.position.distanceTo(e.debris.position);
           scale *= THREE.MathUtils.clamp(dist / PILE_BOOST_REF_M, 1, PILE_BOOST_MAX);

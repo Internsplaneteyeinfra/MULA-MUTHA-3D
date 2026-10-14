@@ -8,6 +8,7 @@ import { createWorld } from "./scene/world.js";
 import { mountUI, createTooltip, mountCinematicOverlays } from "./ui/overlay.js";
 import { registerServiceWorker } from "./cache/registerServiceWorker.js";
 import { createLoadingScene } from "./loadingScene.js";
+import { fetchBodCodViewerData } from "./services/bodCodService.js";
 
 registerServiceWorker();
 
@@ -43,6 +44,11 @@ function progress(p, msg) {
 
 async function boot() {
   try {
+    // Server round trip is slow (~40 s when the viewer id has expired): start it now, in parallel with the scene load.
+    const bodCodReady = fetchBodCodViewerData().catch((err) => {
+      console.warn("[bod-cod] prefetch failed:", err?.message || err);
+      return null;
+    });
     const dataset = await loadJourneyDataset({
       csvUrl: "/data/mula_mutha_water_depth.csv",
       riverCoordsUrl: "/data/Mula_MuthaAOI_3_full_coordinates.csv",
@@ -120,7 +126,7 @@ async function boot() {
 
     // Scene renders behind the loader so shaders/textures warm up before reveal.
     await Promise.race([
-      Promise.all([app.whenReady, firstLiveData]),
+      Promise.all([app.whenReady, firstLiveData, bodCodReady]),
       new Promise((resolve) => setTimeout(resolve, 60000)),
     ]);
     progress(0.995, "Finalising…");
