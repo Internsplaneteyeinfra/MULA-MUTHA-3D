@@ -1,0 +1,608 @@
+/* =========================================================================
+   RIVER.EYE 3D Cinematic Landing Page & HUD Design System
+   ========================================================================= */
+
+:root {
+  --river-cyan: #06b6d4;
+  --river-teal: #14b8a6;
+  --river-blue: #0284c7;
+  --river-emerald: #10b981;
+  --river-gold: #f59e0b;
+  --hud-glass: rgba(10, 16, 26, 0.72);
+  --hud-glass-border: rgba(255, 255, 255, 0.14);
+}
+
+.cinematic-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: #ffffff;
+  user-select: none;
+  z-index: 9999;
+  background: #020611;
+}
+
+.cinematic-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* -------------------------------------------------------------------------
+   Google Earth-Style Floating River Labels
+   No solid background, clean white text, subtle shadows, distance fading
+   ------------------------------------------------------------------------- */
+.floating-river-label {
+  position: absolute;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.25s ease-out;
+  z-index: 50;
+}
+
+.river-label-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.95),
+    0 4px 28px rgba(0, 0, 0, 0.8),
+    0 0 20px rgba(6, 182, 212, 0.45);
+  margin-bottom: 4px;
+}
+
+.river-label-coords {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
+  margin-bottom: 8px;
+}
+
+.river-beacon-dot {
+  width: 10px;
+  height: 10px;
+  background: #38bdf8;
+  border-radius: 50%;
+  box-shadow: 0 0 12px #38bdf8, 0 0 24px #38bdf8;
+  position: relative;
+}
+
+.river-beacon-dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 1.5px solid rgba(56, 189, 248, 0.6);
+  border-radius: 50%;
+  animation: beacon-pulse 2s infinite ease-out;
+}
+
+@keyframes beacon-pulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* -------------------------------------------------------------------------
+   Top Navigation Bar
+   ------------------------------------------------------------------------- */
+.cinematic-top-bar {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 72px;
+  padding: 0 28px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: linear-gradient(180deg, rgba(2, 6, 17, 0.85) 0%, rgba(2, 6, 17, 0) 100%);
+  pointer-events: auto;
+  z-index: 100;
+}
+
+.brand-section {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.brand-logo-badge {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 6px 14px;
+  border-radius: 30px;
+}
+
+.brand-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: #10b981;
+  box-shadow: 0 0 10px #10b981;
+  animation: pulse-dot 2s infinite;
+}
+
+@keyframes pulse-dot {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.5; transform: scale(0.85); }
+}
+
+.brand-name {
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.18em;
+  color: #ffffff;
+}
+
+.brand-sub {
+  font-size: 11px;
+  color: #94a3b8;
+  letter-spacing: 0.1em;
+}
+
+.scene-telemetry-badge {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(14px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  padding: 8px 18px;
+  border-radius: 40px;
+  font-size: 13px;
+  letter-spacing: 0.08em;
+  color: #e2e8f0;
+}
+
+.scene-num-tag {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.top-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.hud-btn {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  color: #f1f5f9;
+  padding: 8px 16px;
+  border-radius: 20px;
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.hud-btn:hover {
+  background: rgba(255, 255, 255, 0.18);
+  border-color: rgba(255, 255, 255, 0.35);
+  transform: translateY(-1px);
+}
+
+.hud-btn-primary {
+  background: linear-gradient(135deg, #0ea5e9 0%, #06b6d4 100%);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: #ffffff;
+  box-shadow: 0 4px 18px rgba(6, 182, 212, 0.35);
+}
+
+.hud-btn-primary:hover {
+  background: linear-gradient(135deg, #0284c7 0%, #0891b2 100%);
+  box-shadow: 0 6px 24px rgba(6, 182, 212, 0.5);
+}
+
+/* -------------------------------------------------------------------------
+   Bottom Cinematic Timeline & Playback Bar
+   ------------------------------------------------------------------------- */
+.cinematic-bottom-bar {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  padding: 24px 36px 28px 36px;
+  background: linear-gradient(0deg, rgba(2, 6, 17, 0.95) 0%, rgba(2, 6, 17, 0) 100%);
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  pointer-events: auto;
+  z-index: 100;
+}
+
+/* Scrubber Line */
+.timeline-scrubber-track {
+  position: relative;
+  width: 100%;
+  height: 6px;
+  background: rgba(255, 255, 255, 0.16);
+  border-radius: 3px;
+  cursor: pointer;
+  transition: height 0.15s ease;
+}
+
+.timeline-scrubber-track:hover {
+  height: 9px;
+}
+
+.timeline-progress-fill {
+  position: absolute;
+  top: 0;
+  left: 0;
+  bottom: 0;
+  background: linear-gradient(90deg, #0284c7 0%, #38bdf8 100%);
+  border-radius: 3px;
+  box-shadow: 0 0 12px rgba(56, 189, 248, 0.6);
+}
+
+.timeline-handle {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  width: 15px;
+  height: 15px;
+  background: #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 10px rgba(56, 189, 248, 0.9);
+  pointer-events: none;
+}
+
+/* Scene Markers on Track */
+.timeline-pip {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  pointer-events: none;
+}
+
+.timeline-pip.active {
+  background: #38bdf8;
+}
+
+/* Playback Controls Row */
+.controls-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.controls-left {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.play-toggle-btn {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  backdrop-filter: blur(12px);
+  border: 1px solid rgba(255, 255, 255, 0.25);
+  color: #ffffff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.2s;
+}
+
+.play-toggle-btn:hover {
+  background: rgba(255, 255, 255, 0.24);
+  transform: scale(1.08);
+}
+
+.time-display {
+  font-family: monospace;
+  font-size: 14px;
+  letter-spacing: 0.1em;
+  color: #e2e8f0;
+}
+
+.time-current {
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.controls-center {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.chapter-btn {
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  color: #cbd5e1;
+  padding: 6px 12px;
+  border-radius: 16px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+
+.chapter-btn:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: #ffffff;
+}
+
+.chapter-btn.active {
+  background: rgba(6, 182, 212, 0.18);
+  border-color: rgba(56, 189, 248, 0.55);
+  color: #38bdf8;
+  font-weight: 700;
+}
+
+.controls-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.speed-selector {
+  display: flex;
+  background: rgba(255, 255, 255, 0.08);
+  border-radius: 16px;
+  padding: 2px;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.speed-btn {
+  background: none;
+  border: none;
+  color: #94a3b8;
+  font-size: 11px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 12px;
+  cursor: pointer;
+}
+
+.speed-btn.active {
+  background: rgba(255, 255, 255, 0.22);
+  color: #ffffff;
+}
+
+/* -------------------------------------------------------------------------
+   Scene 15: Final Landing Overlay — Cinematic Hero Card
+   ------------------------------------------------------------------------- */
+.final-landing-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 20px;
+  z-index: 80;
+  animation: fade-in-up 1.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-width: 680px;
+  width: 90%;
+}
+
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translate(-50%, -42%); }
+  100% { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+.final-eyebrow {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.35em;
+  text-transform: uppercase;
+  color: #38bdf8;
+  background: rgba(6, 182, 212, 0.12);
+  border: 1px solid rgba(6, 182, 212, 0.35);
+  padding: 5px 18px;
+  border-radius: 20px;
+  animation: glow-pulse 3s infinite;
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 0 rgba(6, 182, 212, 0.0); }
+  50% { box-shadow: 0 0 18px rgba(6, 182, 212, 0.4); }
+}
+
+.final-hero-title {
+  font-size: 80px;
+  font-weight: 900;
+  letter-spacing: 0.22em;
+  color: #ffffff;
+  line-height: 1;
+  text-shadow:
+    0 4px 28px rgba(0, 0, 0, 0.98),
+    0 0 60px rgba(6, 182, 212, 0.55),
+    0 0 120px rgba(6, 182, 212, 0.25);
+  margin: 0;
+  background: linear-gradient(135deg, #ffffff 0%, #e0f2fe 40%, #38bdf8 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.final-hero-tagline {
+  font-size: 18px;
+  font-weight: 300;
+  letter-spacing: 0.10em;
+  color: #94a3b8;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.9);
+  margin: 0;
+  max-width: 480px;
+  line-height: 1.6;
+}
+
+.final-cta-btn {
+  margin-top: 8px;
+  background: linear-gradient(135deg, #0369a1 0%, #06b6d4 50%, #0891b2 100%);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  color: #ffffff;
+  padding: 18px 42px;
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow:
+    0 8px 32px rgba(6, 182, 212, 0.50),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.final-cta-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+
+.final-cta-btn:hover::before {
+  transform: translateX(100%);
+}
+
+.final-cta-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow:
+    0 14px 48px rgba(6, 182, 212, 0.70),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* -------------------------------------------------------------------------
+   Scene Caption Overlay — Shows during flythrough phases
+   ------------------------------------------------------------------------- */
+.scene-caption-overlay {
+  position: absolute;
+  bottom: 160px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 75;
+  animation: caption-fade 0.5s ease-out;
+}
+
+@keyframes caption-fade {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.caption-chip {
+  background: rgba(10, 16, 26, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 5px 18px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.caption-text {
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+}
+
+/* -------------------------------------------------------------------------
+   Scene Selector Drawer
+   ------------------------------------------------------------------------- */
+.scene-drawer {
+  position: absolute;
+  bottom: 95px;
+  left: 36px;
+  right: 36px;
+  background: rgba(10, 16, 26, 0.88);
+  backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 18px;
+  padding: 16px;
+  display: flex;
+  gap: 12px;
+  overflow-x: auto;
+  z-index: 120;
+  animation: slide-up 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-up {
+  0% { opacity: 0; transform: translateY(16px); }
+  100% { opacity: 1; transform: translateY(0); }
+}
+
+.scene-drawer-item {
+  flex: 0 0 140px;
+  background: rgba(255, 255, 255, 0.05);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 12px;
+  padding: 12px;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  transition: all 0.2s;
+}
+
+.scene-drawer-item:hover,
+.scene-drawer-item.active {
+  background: rgba(6, 182, 212, 0.18);
+  border-color: rgba(56, 189, 248, 0.6);
+  transform: translateY(-2px);
+}
+
+.drawer-num {
+  font-size: 11px;
+  font-weight: 700;
+  color: #38bdf8;
+  letter-spacing: 0.1em;
+}
+
+.drawer-name {
+  font-size: 13px;
+  font-weight: 600;
+  color: #ffffff;
+  line-height: 1.25;
+}
+
+.drawer-time {
+  font-size: 10px;
+  color: #94a3b8;
+  margin-top: auto;
+}

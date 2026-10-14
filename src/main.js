@@ -3,6 +3,9 @@ import "./styles/gis-ui.css";
 import "./weather/weather.css";
 import "./styles/layers-panel.css";
 import "./styles/silt-pro.css";
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { LandingPageApp } from "./cinematic/LandingPageApp.jsx";
 import { loadJourneyDataset } from "./geo/load.js";
 import { createWorld } from "./scene/world.js";
 import { mountUI, createTooltip, mountCinematicOverlays } from "./ui/overlay.js";
@@ -10,6 +13,49 @@ import { registerServiceWorker } from "./cache/registerServiceWorker.js";
 import { createLoadingScene } from "./loadingScene.js";
 
 registerServiceWorker();
+
+const landingRootEl = document.getElementById("landing-root");
+let landingReactRoot = null;
+let gisBootStarted = false;
+
+const urlParams = new URLSearchParams(window.location.search);
+let currentMode = urlParams.get("mode") || "cinematic";
+
+function mountLandingPage() {
+  if (landingRootEl) {
+    landingRootEl.style.display = "block";
+    if (!landingReactRoot) {
+      landingReactRoot = ReactDOM.createRoot(landingRootEl);
+    }
+    landingReactRoot.render(
+      React.createElement(LandingPageApp, {
+        onLaunchGis: () => {
+          switchToGis();
+        },
+      })
+    );
+  }
+}
+
+function switchToGis() {
+  currentMode = "gis";
+  if (landingRootEl) {
+    landingRootEl.style.display = "none";
+  }
+  if (!gisBootStarted) {
+    gisBootStarted = true;
+    boot();
+  }
+}
+
+function switchToCinematic() {
+  currentMode = "cinematic";
+  mountLandingPage();
+}
+
+window.addEventListener("open-cinematic-landing", () => {
+  switchToCinematic();
+});
 
 const loading = document.getElementById("loading");
 const loadMsg = document.getElementById("load-msg");
@@ -140,4 +186,20 @@ async function boot() {
   }
 }
 
-boot();
+if (currentMode === "cinematic") {
+  mountLandingPage();
+  // Warm the GIS datasets only once the 25 s film has finished, so the heavy GIS boot never competes with playback.
+  window.addEventListener(
+    "rivereye-film-complete",
+    () => {
+      if (!gisBootStarted) {
+        gisBootStarted = true;
+        boot();
+      }
+    },
+    { once: true }
+  );
+} else {
+  gisBootStarted = true;
+  boot();
+}

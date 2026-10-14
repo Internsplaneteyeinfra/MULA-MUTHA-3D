@@ -6,15 +6,22 @@
       name="viewport"
       content="width=device-width, initial-scale=1.0, viewport-fit=cover, maximum-scale=5"
     />
-    <title>Mula–Mutha River Journey</title>
+    <title>RIVER.EYE · 3D Cinematic River Intelligence</title>
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link
-      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap"
       rel="stylesheet"
     />
+    <!-- CesiumJS for authentic real Earth geospatial globe -->
+    <link
+      href="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Widgets/widgets.css"
+      rel="stylesheet"
+    />
+    <script src="https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"></script>
   </head>
   <body>
+    <div id="landing-root"></div>
     <div id="app">
       <canvas id="scene"></canvas>
       <div id="ui-root"></div>
