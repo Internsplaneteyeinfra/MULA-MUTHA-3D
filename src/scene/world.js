@@ -2,7 +2,6 @@ import * as THREE from "three";
 import { state } from "../state.js";
 import { createTerrain, terrainHeightAt } from "./terrain.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
-import { createRiverPerimeterLine } from "./riverPerimeterLine.js";
 import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
 import { setWaterSiltMode } from "./waterShader.js";
 import { createUrban } from "./urban.js";
@@ -184,8 +183,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   const terrain = await createTerrain(dataset);
   const kmlSkeleton = createKmlSkeleton(dataset);
-  const riverPerimeter = createRiverPerimeterLine(dataset);
-  scene.add(riverPerimeter);
   const river = createRiver(dataset);
   const [landCover, osmWater] = await Promise.all([
     loadLulcClassGrid(),
@@ -1073,7 +1070,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     cam.resize?.(w, h);
     renderer.setSize(w, h, false);
     kmlSkeleton.userData?.setResolution?.(w, h);
-    riverPerimeter.userData?.setResolution?.(w, h);
     mainStemLayer.userData?.setResolution?.(w, h);
     // Keep Overview framed to KML after aspect changes
     if (state.cameraMode === "overview" && !cinematic.isActive()) {
