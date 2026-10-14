@@ -7,7 +7,6 @@ import { addYerwadaArchSpan, isYerwadaArchBridge } from "./yerwadaArchBridge.js"
 import { addAmbedkarArchSpan, isAmbedkarArchBridge } from "./ambedkarArchBridge.js";
 import { addSangamGirderSpan, addOpenGirderSpan, girderTheme, isSangamGirderBridge } from "./sangamGirderBridge.js";
 import { addMundhwaArchSpan, isMundhwaArchBridge } from "./mundhwaArchBridge.js";
-import { validateBridgeConnections } from "./bridgeValidation.js";
 
 /**
  * Typical roadway height above normal water (scene SURFACE_Y) for live
@@ -322,7 +321,6 @@ export function createBridges(dataset) {
   }
 
   updateBridgePiers(group, state.depthExaggeration);
-  validateBridgeConnections(spans, dataset.osm?.roads || [], stations, group);
   return group;
 }
 

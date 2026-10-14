@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { SURFACE_Y } from "../scene/river.js";
 import { sceneName } from "../scene/cinematic.js";
 import { whenChainageSettled } from "../scene/riverJourney.js";
 import { mountProjectIdentity } from "./components/projectIdentity.js";
@@ -566,6 +567,17 @@ export function mountCinematicOverlays(root, dataset) {
   requestAnimationFrame(tick);
 }
 
+/** VIEW → 3D landing: low over the water, looking downstream along the channel. */
+const VIEW_3D_POSE = {
+  cameraHeight: 8,
+  cameraDistance: 70,
+  lookAheadDistance: 270,
+  lookY: SURFACE_Y + 5,
+  minHeight: 6,
+  minBack: 40,
+  groundClearance: 5,
+};
+
 export function mountUI(root, {
   dataset,
   onCamera,
@@ -1025,14 +1037,17 @@ export function mountUI(root, {
       onCamera("aerial");
       nav.syncActive();
     },
-    on3D: () => {
+    on3D: (opts = {}) => {
       map2dData?.leave();
       let mid = 8000;
       const ch = dataset?.chainage;
       if (ch && ch.length) {
         mid = ch[0].meters + (ch[ch.length - 1].meters - ch[0].meters) / 2;
       }
-      window.__MM_SCENE__?.goToChainageView?.(state.selectedChainageMeters ?? mid);
+      window.__MM_SCENE__?.goToChainageView?.(opts.meters ?? state.selectedChainageMeters ?? mid, {
+        pose: VIEW_3D_POSE,
+        ...opts,
+      });
       nav.syncActive();
     },
     onSiltToggle: () => {
@@ -1047,6 +1062,7 @@ export function mountUI(root, {
     onSettingsToggle: () => toggleSettings(),
     onFloodToggle: () => toggleFloodBar(),
   });
+  window.__MM_NAV__ = { enter3D: (opts) => nav.enter3D(opts), view3DPose: VIEW_3D_POSE };
   nav.setLayersPressed(state.showLayers);
   nav.setDrainagePressed?.(state.showDrainage);
   nav.setSettingsPressed?.(state.showSettings);

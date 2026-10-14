@@ -47,7 +47,7 @@ import { interpolateChainage } from "../geo/chainage.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { loadOsmWater } from "../geo/osmWater.js";
 import { createWaterFill } from "./waterFill.js";
-import { nearestStationU } from "./riverCamera.js";
+import { nearestStationU, chainageGisAerialPose } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
@@ -1512,7 +1512,39 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     exploreRiver,
     riverJourney: journey,
     /** Exit 2D if needed and fly to chainage eye-level view (used by VIEW → 3D). */
-    goToChainageView(meters) {
+    /**
+     * Pre-render the 3D view (behind the loader) so the first 2D→3D flight does not stall on
+     * shader compiles and first-time GPU uploads of the near-river buildings, trees and bridges.
+     */
+    warmUp3DView(meters, pose = {}) {
+      const p = interpolateChainage(dataset.chainage || [], meters);
+      if (!p || p.x == null) return;
+      const eye = new THREE.Vector3();
+      const look = new THREE.Vector3();
+      chainageGisAerialPose(dataset.corridor.stations, {
+        x: p.x,
+        z: p.z,
+        ...chainageCameraOptions(p, false),
+        ...pose,
+        outP: eye,
+        outL: look,
+      });
+      const size = renderer.getSize(new THREE.Vector2());
+      const warmCam = new THREE.PerspectiveCamera(52, size.x / Math.max(1, size.y), 1.2, 120000);
+      const prevBg = scene.background;
+      restoreAtmosphereClarity();
+      // Landing pose, then a mid-descent pose (wide view of the corridor).
+      for (const lift of [0, 1500]) {
+        warmCam.position.set(eye.x, eye.y + lift, eye.z);
+        warmCam.lookAt(look);
+        warmCam.updateMatrixWorld();
+        renderer.compile(scene, warmCam);
+        renderer.render(scene, warmCam);
+      }
+      scene.background = prevBg;
+      // The next frame re-applies the 2D map look for the still-orthographic camera.
+    },
+    goToChainageView(meters, opts = {}) {
       if (cinematic.isActive()) return;
       const wasMap2d =
         state.cameraMode === "aerial" ||
@@ -1548,7 +1580,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
       cam.focusOnXZ?.(p.x, p.z, {
         ...chainageCameraOptions(p, false),
-        dur: wasMap2d ? 2.0 : 1.4,
+        ...(opts.pose || {}),
+        dur: opts.instant ? 0 : Number.isFinite(opts.dur) ? opts.dur : wasMap2d ? 2.0 : 1.4,
       });
 
       document.dispatchEvent(
@@ -1789,6 +1822,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.cinematicActive = false;
       const b = apiFloodLayer.userData?.getBounds?.();
       if (!b || !Number.isFinite(b.cx) || !Number.isFinite(b.cz)) return;
+      // 2D map: frame the real flood bounding box inside the corridor (no pan to the mass centroid).
+      if (cam.focusMap2DBounds?.(b, { dur: 0.9 })) return;
       const span = Math.hypot(b.spanX || 200, b.spanZ || 200);
       const floodHeight = THREE.MathUtils.clamp(span * 0.45, 60, 240);
       const floodBack = THREE.MathUtils.clamp(span * 0.65, 100, 320);

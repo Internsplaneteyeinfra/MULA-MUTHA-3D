@@ -110,7 +110,9 @@ export function createCameraSystem(canvas, dataset) {
   const smoothL = new THREE.Vector3();
   const smoothUp = new THREE.Vector3(0, 1, 0);
   const NORTH_UP = new THREE.Vector3(0, 0, 1);
-  const dummyLookObj = new THREE.Object3D();
+  // Must be a camera: Object3D.lookAt aims +Z at the target, cameras look down -Z.
+  // A plain Object3D gives a target orientation flipped 180° (camera turns to the sky mid-flight).
+  const dummyLookObj = new THREE.PerspectiveCamera();
   let followInited = false;
   let flightTransition = null;
   let orientTransition = null;
@@ -444,6 +446,48 @@ export function createCameraSystem(canvas, dataset) {
       dur: 1.05,
       releaseMode: "aerial",
     });
+  }
+
+  /**
+   * Keep a 2D (north-up) view centre inside the river corridor so the frustum never slides
+   * off the data into empty background. When the view is wider than the corridor on an
+   * axis, that axis stays centred on the corridor.
+   */
+  function clampMap2DCenter(x, z, zoom = orthoCamera.zoom) {
+    const halfW = (orthoCamera.right - orthoCamera.left) / 2 / Math.max(1e-3, zoom);
+    const halfH = (orthoCamera.top - orthoCamera.bottom) / 2 / Math.max(1e-3, zoom);
+    const clampAxis = (c, lo, hi, half) =>
+      hi - lo <= half * 2 ? (lo + hi) / 2 : THREE.MathUtils.clamp(c, lo + half, hi - half);
+    return {
+      x: clampAxis(x, corridorFit.cx - corridorFit.spanX / 2, corridorFit.cx + corridorFit.spanX / 2, halfW),
+      z: clampAxis(z, corridorFit.cz - corridorFit.spanZ / 2, corridorFit.cz + corridorFit.spanZ / 2, halfH),
+    };
+  }
+
+  /**
+   * 2D map: frame a geographic bounding box (e.g. the flood footprint) without leaving the
+   * corridor. Never zooms out past the full-extent view, and clamps the pan so the frustum
+   * does not drift off the data into empty background.
+   */
+  function focusMap2DBounds(b, opts = {}) {
+    if (!isMap2D() || !b) return false;
+    const spanX = Math.max(60, b.maxX - b.minX);
+    const spanZ = Math.max(60, b.maxZ - b.minZ);
+    const aspect = viewportSize().aspect;
+    const fullH = fullExtentViewH(aspect);
+    const needH = Math.max(spanZ * 1.12, (spanX * 1.12) / Math.max(0.5, aspect));
+    const frustumH = orthoCamera.top - orthoCamera.bottom;
+    const zoom = THREE.MathUtils.clamp(frustumH / needH, Math.min(1, frustumH / fullH), controls.maxZoom);
+    const { x, z } = clampMap2DCenter((b.minX + b.maxX) / 2, (b.minZ + b.maxZ) / 2, zoom);
+    const keepUp = activeCamera.up.clone();
+    keepUp.y = 0;
+    if (keepUp.lengthSq() < 1e-8) keepUp.set(0, 0, 1);
+    else keepUp.normalize();
+    tmpP.set(x, Math.max(activeCamera.position.y, mapLookY + 400), z);
+    tmpL.set(x, mapLookY, z);
+    zoomTransition = null;
+    startFlight({ toP: tmpP, toL: tmpL, toUp: keepUp, toZoom: zoom, dur: opts.dur ?? 0.9, releaseMode: "aerial" });
+    return true;
   }
 
   function exitMap2D({ preserveUp = false } = {}) {
@@ -1338,13 +1382,17 @@ export function createCameraSystem(canvas, dataset) {
     if (isMap2D()) {
       // Pan only — keep current inspection zoom (no sudden close-up)
       const height = Math.max(activeCamera.position.y, mapLookY + 400);
-      tmpP.set(x, height, z);
-      tmpL.set(x, mapLookY, z);
       const keepUp = activeCamera.up.clone();
       keepUp.y = 0;
       if (keepUp.lengthSq() < 1e-8) keepUp.copy(map2dUpAt(nearestStationU(stations, x, z)));
       else keepUp.normalize();
       const keepZoom = orthoCamera.zoom;
+      // North-up map: never pan the view off the corridor (half-empty screen).
+      if (activeCamera.isOrthographicCamera && Math.abs(keepUp.z) > 0.999) {
+        ({ x, z } = clampMap2DCenter(x, z, keepZoom));
+      }
+      tmpP.set(x, height, z);
+      tmpL.set(x, mapLookY, z);
       zoomTransition = null;
       const mapDur = opts.dur ?? 0.85;
       if (mapDur <= 0) {
@@ -1389,6 +1437,9 @@ export function createCameraSystem(canvas, dataset) {
       lookAheadDistance: opts.lookAheadDistance ?? 240,
       lookY: opts.lookY ?? (SURFACE_Y + 6),
       lateralOffset: opts.lateralOffset ?? 0,
+      ...(Number.isFinite(opts.minHeight) ? { minHeight: opts.minHeight } : {}),
+      ...(Number.isFinite(opts.minBack) ? { minBack: opts.minBack } : {}),
+      ...(Number.isFinite(opts.groundClearance) ? { groundClearance: opts.groundClearance } : {}),
       outP: tmpP,
       outL: tmpL,
       outUp: tmpUp,
@@ -1520,6 +1571,7 @@ export function createCameraSystem(canvas, dataset) {
     controls,
     applyMode,
     focusOnXZ,
+    focusMap2DBounds,
     setPose,
     focusPose,
     startDrainageFlight,

@@ -134,6 +134,9 @@ export function chainageGisAerialPose(stations, {
   lookAheadDistance = 240,
   lookY = SURFACE_Y + 6,
   lateralOffset = 0,
+  minHeight = 28,
+  minBack = 55,
+  groundClearance = 18,
   outP,
   outL,
   outUp,
@@ -153,8 +156,8 @@ export function chainageGisAerialPose(stations, {
   const sideX = -tan.z;
   const sideZ = tan.x;
 
-  const h = THREE.MathUtils.clamp(cameraHeight, 28, 85);
-  let back = THREE.MathUtils.clamp(cameraDistance, 55, 160);
+  const h = THREE.MathUtils.clamp(cameraHeight, minHeight, 85);
+  let back = THREE.MathUtils.clamp(cameraDistance, minBack, 160);
   const alongM = Number.isFinite(st.along) ? st.along : uu * estimateRiverLength(stations);
   if (alongM < back + 20) {
     back = Math.max(25, alongM * 0.65);
@@ -175,7 +178,7 @@ export function chainageGisAerialPose(stations, {
   try {
     const groundY = terrainHeightAt(finalX, finalZ, stations);
     if (Number.isFinite(groundY)) {
-      terrainSafeY = Math.max(terrainSafeY, groundY + 18);
+      terrainSafeY = Math.max(terrainSafeY, groundY + groundClearance);
     }
   } catch (_) {}
 

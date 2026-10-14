@@ -42,6 +42,8 @@ function progress(p, msg) {
   if (!progressFrame) progressFrame = requestAnimationFrame(animateProgress);
 }
 
+const INTRO_3D_CHAINAGE_M = 8790;
+
 async function boot() {
   try {
     // Server round trip is slow (~40 s when the viewer id has expired): start it now, in parallel with the scene load.
@@ -130,10 +132,18 @@ async function boot() {
       new Promise((resolve) => setTimeout(resolve, 60000)),
     ]);
     progress(0.995, "Finalising…");
+    try {
+      window.__MM_SCENE__?.warmUp3DView?.(INTRO_3D_CHAINAGE_M, window.__MM_NAV__?.view3DPose);
+    } catch (err) {
+      console.warn("[boot] 3D warm-up skipped:", err?.message || err);
+    }
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 400))));
     progress(1, "Ready");
     loading.classList.add("hidden");
     loadingScene.setVisible(false);
+    // Land in 2D, then let the user watch the VIEW → 3D flight down to the river
+    // (8+790, low over the water looking downstream at Mundhwa Bridge).
+    setTimeout(() => window.__MM_NAV__?.enter3D?.({ meters: INTRO_3D_CHAINAGE_M, dur: 3.2 }), 700);
   } catch (err) {
     console.error("[boot] failed — full stack:", err);
     if (err?.stack) console.error(err.stack);
