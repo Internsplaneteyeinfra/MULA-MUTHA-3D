@@ -2,6 +2,7 @@ import * as THREE from "three";
 import { terrainHeightAt } from "../scene/terrain.js";
 import { OSM_ROADS_RENDER_ORDER } from "../scene/drapeDepth.js";
 import { SURFACE_Y } from "../scene/river.js";
+import { getBridgeDeckSurfaceY } from "../scene/bridges.js";
 
 /**
  * Roads are flat on the DTM, below draped KML overlays. Drawing them in the
@@ -49,6 +50,7 @@ const ASPHALT = {
 const MAJOR = /^(motorway|trunk|primary|secondary)$/;
 const MEDIUM = /^(tertiary|residential|unclassified|living_street)$/;
 const PATH = /^(footway|path|cycleway|pedestrian|track)$/;
+const BRIDGE_APPROACH_M = 36;
 
 /**
  * Terrain-following OSM roads as continuous mitered ribbons (no box gaps at bends).
@@ -62,22 +64,67 @@ export function createRoadSystem(dataset) {
   const rawRoads = dataset.osm?.roads || [];
   if (!rawRoads.length) return group;
 
-  // OSM ways already share node coordinates at junctions; draw them as-is.
-  const roads = rawRoads.map((r) => ({
-    ...r,
-    vertices: (r.vertices || []).map((v) => ({ ...v })),
-  }));
+  // Precompute bridge bounding boxes for O(1) proximity rejection
+  const bridgeBoxes = bridges.map((br) => {
+    const sx = br.start?.x ?? br.midX ?? 0;
+    const sz = br.start?.z ?? br.midZ ?? 0;
+    const ex = br.end?.x ?? br.midX ?? 0;
+    const ez = br.end?.z ?? br.midZ ?? 0;
+    // Include the widest rendered road plus the bridge clearance corridor.
+    const pad = Math.max(32, (br.widthM || 14) * 1.2 + 12);
+    return {
+      br,
+      deckY: br.deckY,
+      sx, sz, ex, ez,
+      minX: Math.min(sx, ex) - pad,
+      maxX: Math.max(sx, ex) + pad,
+      minZ: Math.min(sz, ez) - pad,
+      maxZ: Math.max(sz, ez) + pad,
+      pad: Math.max(12, (br.widthM || 14) * 0.8),
+    };
+  });
+
+  const bridgeOsmIds = new Set(bridges.map((b) => String(b.id || b.osmId)));
+  const isBridgeWay = (road) => {
+    const osmId = String(road.osmId || road.id || "");
+    if (bridgeOsmIds.has(osmId)) return true;
+    if (road.bridge === "yes" || road.bridge === true || road.bridge === "viaduct") return true;
+    const name = String(road.name || "");
+    if (/\b(bridge|setu|viaduct)\b/i.test(name)) return true;
+    return false;
+  };
 
   /** @type {Array<{pts: Array<{x:number,z:number,y:number}>, halfW:number, color:string, major:boolean, medium:boolean, pathLike:boolean, hw:string}>} */
   const ribbons = [];
   let skippedWater = 0;
 
-  for (const road of roads) {
+  for (const road of rawRoads) {
+    if (isBridgeWay(road)) {
+      // Bridges only look like bridges: elevated 3D deck carries the river crossing,
+      // never draw duplicate flat ground road ribbon across the river channel!
+      continue;
+    }
     const hw = road.highway || "residential";
     if (hw === "steps" || hw === "bridleway") continue;
     const w = Math.max(1.6, road.widthM || WIDTH_BY_CLASS[hw] || 5.5);
-    const verts = road.vertices || [];
-    if (verts.length < 2) continue;
+    const rawVerts = road.vertices || [];
+    if (rawVerts.length < 2) continue;
+
+    // Shallow copy vertices so snapping does not mutate raw context
+    const verts = rawVerts.map((v) => ({ x: v.x, z: v.z }));
+
+    // Seamlessly snap road endpoints within 35m of any bridge abutment
+    const snap0 = findNearBridgeAbutment(verts[0].x, verts[0].z, bridgeBoxes, 35);
+    if (snap0) {
+      verts[0].x = snap0.x;
+      verts[0].z = snap0.z;
+    }
+    const lastIdx = verts.length - 1;
+    const snapN = findNearBridgeAbutment(verts[lastIdx].x, verts[lastIdx].z, bridgeBoxes, 35);
+    if (snapN) {
+      verts[lastIdx].x = snapN.x;
+      verts[lastIdx].z = snapN.z;
+    }
 
     const pathLike = PATH.test(hw);
     const major = MAJOR.test(hw);
@@ -85,17 +132,18 @@ export function createRoadSystem(dataset) {
     const color = ASPHALT[hw] || "#2a2a2c";
     const visW = pathLike ? Math.max(1.8, w) : Math.max(5.4, w * 1.12);
     const halfW = visW * 0.5;
-    const keepAcross = isOsmBridgeTag(road.bridge) || wayCrossesWater(verts, stations);
+    const maxStep = major ? 12 : 18;
+    // OSM ways can have vertices far apart. Sample each segment before bridge
+    // checks so a long road cannot jump across an under-bridge exclusion zone.
+    const sampledVerts = sampleRoadVertices(verts, Math.min(6, Math.max(2, halfW)));
 
     let run = [];
     const flushRun = () => {
       if (run.length >= 2) {
-        const dense = densifyRun(run, 10, stations, bridges);
-        const parts = keepAcross ? [dense] : splitOnWater(dense, stations, bridges);
-        for (const pts of parts) {
-          if (pts.length < 2) continue;
+        const dense = densifyRun(run, maxStep, stations, bridgeBoxes);
+        if (dense.length >= 2) {
           ribbons.push({
-            pts,
+            pts: dense,
             halfW,
             color,
             major,
@@ -108,25 +156,46 @@ export function createRoadSystem(dataset) {
       run = [];
     };
 
-    for (let i = 0; i < verts.length; i++) {
-      const v = verts[i];
-      if (!keepAcross && roadBlocked(v.x, v.z, stations, bridges)) {
+    for (let i = 0; i < sampledVerts.length; i++) {
+      const v = sampledVerts[i];
+      const underSpan = isUnderBridgeSpan(v.x, v.z, bridgeBoxes, halfW + 1.5);
+
+      // Bridges only look like bridges: do not draw road ribbon across the water under the bridge!
+      if (underSpan) {
+        // Road heading into the bridge: snap to the abutment, flush the approach run, then pause across water
+        if (run.length >= 1) {
+          const abutPt = underSpan.hit.t < 0.5
+            ? { x: underSpan.bridge.sx, z: underSpan.bridge.sz }
+            : { x: underSpan.bridge.ex, z: underSpan.bridge.ez };
+          run.push(abutPt);
+          flushRun();
+        }
+        continue;
+      }
+
+      // Approach road checking: keep roads on the land side of abutments, but skip if in the river!
+      const nearAbut = findNearBridgeAbutment(v.x, v.z, bridgeBoxes, 45);
+      const overWater = pointOverWater(v.x, v.z, stations);
+      const landSide = nearAbut && isLandSideOfAbutment(v.x, v.z, nearAbut);
+
+      if (overWater && !landSide) {
         skippedWater++;
         flushRun();
         continue;
       }
-      const pt = {
-        x: v.x,
-        z: v.z,
-        y: keepAcross
-          ? crossingHeightAt(v.x, v.z, stations, bridges)
-          : roadHeightAt(v.x, v.z, stations, bridges),
-      };
-      if (!keepAcross && run.length && segmentOverWater(run[run.length - 1], pt, stations, bridges)) {
-        skippedWater++;
-        flushRun();
+
+      // If exiting a bridge span onto land: resume run starting cleanly at the exit abutment!
+      if (run.length === 0 && i > 0) {
+        const prevUnder = isUnderBridgeSpan(sampledVerts[i - 1].x, sampledVerts[i - 1].z, bridgeBoxes, halfW + 1.5);
+        if (prevUnder) {
+          const exitPt = prevUnder.hit.t >= 0.5
+            ? { x: prevUnder.bridge.ex, z: prevUnder.bridge.ez }
+            : { x: prevUnder.bridge.sx, z: prevUnder.bridge.sz };
+          run.push(exitPt);
+        }
       }
-      run.push(pt);
+
+      run.push(v);
     }
     flushRun();
   }
@@ -169,32 +238,46 @@ export function createRoadSystem(dataset) {
     group.add(dashes);
   }
 
-  console.info("Roads", { ribbons: ribbons.length, skippedWater, osm: roads.length, dashes: dashRibbons.length });
+  console.info("Roads", { ribbons: ribbons.length, skippedWater, osm: rawRoads.length, dashes: dashRibbons.length });
   return group;
 }
 
+function sampleRoadVertices(vertices, maxStepM) {
+  if (vertices.length < 2) return vertices;
+  const sampled = [vertices[0]];
+  for (let i = 1; i < vertices.length; i++) {
+    const a = vertices[i - 1];
+    const b = vertices[i];
+    const length = Math.hypot(b.x - a.x, b.z - a.z);
+    const steps = Math.max(1, Math.ceil(length / maxStepM));
+    for (let step = 1; step <= steps; step++) {
+      const t = step / steps;
+      sampled.push({ x: a.x + (b.x - a.x) * t, z: a.z + (b.z - a.z) * t });
+    }
+  }
+  return sampled;
+}
+
 /** Insert points along long spans so terrain height follows smoothly. */
-function densifyRun(pts, maxStepM, stations, bridges) {
+function densifyRun(pts, maxStepM, stations, bridgeBoxes) {
   if (pts.length < 2) return pts;
-  const out = [pts[0]];
+  const out = [];
   for (let i = 1; i < pts.length; i++) {
     const a = pts[i - 1];
     const b = pts[i];
     const len = Math.hypot(b.x - a.x, b.z - a.z);
     const n = Math.max(1, Math.ceil(len / maxStepM));
-    for (let k = 1; k <= n; k++) {
+    const startK = i === 1 ? 0 : 1;
+    for (let k = startK; k <= n; k++) {
       const t = k / n;
       const x = a.x + (b.x - a.x) * t;
       const z = a.z + (b.z - a.z) * t;
       out.push({
         x,
         z,
-        y: roadHeightAt(x, z, stations, bridges),
+        y: roadHeightAt(x, z, stations, bridgeBoxes),
       });
     }
-  }
-  if (stations) {
-    out[0].y = roadHeightAt(out[0].x, out[0].z, stations, bridges);
   }
   return out;
 }
@@ -395,51 +478,77 @@ function wayCrossesWater(verts, stations) {
   return false;
 }
 
-function crossingHeightAt(x, z, stations, bridges) {
-  const ground = terrainHeightAt(x, z, stations) + 0.28;
-  let deck = SURFACE_Y + 1.9;
-  for (const br of bridges || []) {
-    if (!Number.isFinite(br.deckY)) continue;
-    const sx = br.start?.x;
-    const sz = br.start?.z;
-    const ex = br.end?.x;
-    const ez = br.end?.z;
-    if (![sx, sz, ex, ez].every(Number.isFinite)) {
-      if (Math.hypot((br.midX ?? 0) - x, (br.midZ ?? 0) - z) < 50) {
-        deck = Math.max(deck, br.deckY);
-      }
-      continue;
+function findNearBridgeAbutment(x, z, bridgeBoxes, radius = 55) {
+  if (!bridgeBoxes?.length) return null;
+  let nearest = null;
+  for (let i = 0; i < bridgeBoxes.length; i++) {
+    const b = bridgeBoxes[i];
+    const dStart = Math.hypot(x - b.sx, z - b.sz);
+    if (dStart <= radius && (!nearest || dStart < nearest.dist)) {
+      nearest = { bridge: b, abutment: "start", x: b.sx, z: b.sz, deckY: b.deckY, dist: dStart };
     }
-    const hit = closestOnSeg(x, z, sx, sz, ex, ez);
-    if (hit.d < Math.max(18, (br.widthM || 14) * 1.1)) {
-      deck = Math.max(deck, br.deckY);
+    const dEnd = Math.hypot(x - b.ex, z - b.ez);
+    if (dEnd <= radius && (!nearest || dEnd < nearest.dist)) {
+      nearest = { bridge: b, abutment: "end", x: b.ex, z: b.ez, deckY: b.deckY, dist: dEnd };
     }
   }
-  if (pointOverWater(x, z, stations)) return Math.max(ground, deck);
-  return Math.max(ground, deck - 0.02);
+  return nearest;
 }
 
-function roadHeightAt(x, z, stations, bridges) {
-  const ground = terrainHeightAt(x, z, stations) + 0.28;
-  if (!bridges?.length) return ground;
-  for (const br of bridges) {
-    const deck = br.deckY;
-    if (!Number.isFinite(deck)) continue;
-    const sx = br.start?.x;
-    const sz = br.start?.z;
-    const ex = br.end?.x;
-    const ez = br.end?.z;
-    if (![sx, sz, ex, ez].every(Number.isFinite)) continue;
-    const hit = closestOnSeg(x, z, sx, sz, ex, ez);
-    const pad = Math.max(12, (br.widthM || 14) * 0.8);
-    if (hit.d < pad) {
-      // Smoothly transition at the very ends
-      if (hit.t < 0.05) return ground + (deck - ground) * (hit.t / 0.05);
-      if (hit.t > 0.95) return ground + (deck - ground) * ((1 - hit.t) / 0.05);
-      return deck;
+function isUnderBridgeSpan(x, z, bridgeBoxes, roadHalfWidth = 0) {
+  if (!bridgeBoxes?.length) return null;
+  let nearest = null;
+  for (let i = 0; i < bridgeBoxes.length; i++) {
+    const b = bridgeBoxes[i];
+    if (x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) continue;
+    const hit = closestOnSeg(x, z, b.sx, b.sz, b.ex, b.ez);
+    // Across the river span: between 5% and 95% of the bridge span, within road width
+    if (hit.d < b.pad + roadHalfWidth && hit.t > 0.04 && hit.t < 0.96) {
+      if (!nearest || hit.d < nearest.hit.d) nearest = { bridge: b, hit };
     }
   }
+  return nearest;
+}
+
+function roadHeightAt(x, z, stations, bridgeBoxes) {
+  const ground = terrainHeightAt(x, z, stations) + 0.28;
+  if (!bridgeBoxes?.length) return ground;
+
+  const nearAbut = findNearBridgeAbutment(x, z, bridgeBoxes, BRIDGE_APPROACH_M);
+  if (nearAbut && Number.isFinite(nearAbut.deckY)) {
+    const targetY = getBridgeDeckSurfaceY(nearAbut.bridge.br?.name, nearAbut.deckY);
+    // Smooth ramp from targetY down to ground level over BRIDGE_APPROACH_M
+    const t = Math.max(0, Math.min(1, nearAbut.dist / BRIDGE_APPROACH_M));
+    const smoothT = t * t * (3 - 2 * t);
+    return THREE.MathUtils.lerp(targetY, ground, smoothT);
+  }
+
   return ground;
+}
+
+function isLandSideOfAbutment(x, z, nearAbut) {
+  if (!nearAbut?.bridge) return false;
+  const b = nearAbut.bridge;
+  const dx = b.ex - b.sx;
+  const dz = b.ez - b.sz;
+  const len = Math.hypot(dx, dz);
+  if (len < 1) return false;
+  const ux = dx / len;
+  const uz = dz / len;
+
+  if (nearAbut.abutment === "start") {
+    // start abutment: vector points towards river (+dir), so land is behind start (dot <= 1.5)
+    const dot = (x - b.sx) * ux + (z - b.sz) * uz;
+    return dot <= 1.5;
+  } else {
+    // end abutment: vector points from river (+dir), so land is ahead of end (dot >= -1.5)
+    const dot = (x - b.ex) * ux + (z - b.ez) * uz;
+    return dot >= -1.5;
+  }
+}
+
+function crossingHeightAt(x, z, stations, bridgeBoxes) {
+  return roadHeightAt(x, z, stations, bridgeBoxes);
 }
 
 function roadBlocked(x, z, stations, bridges) {

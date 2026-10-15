@@ -7,6 +7,7 @@ import { addYerwadaArchSpan, isYerwadaArchBridge } from "./yerwadaArchBridge.js"
 import { addAmbedkarArchSpan, isAmbedkarArchBridge } from "./ambedkarArchBridge.js";
 import { addSangamGirderSpan, addOpenGirderSpan, girderTheme, isSangamGirderBridge } from "./sangamGirderBridge.js";
 import { addMundhwaArchSpan, isMundhwaArchBridge } from "./mundhwaArchBridge.js";
+import { createBridgeGauges, surveyDepthAt, updateBridgeGauges } from "./bridgeGauges.js";
 
 /**
  * Typical roadway height above normal water (scene SURFACE_Y) for live
@@ -25,6 +26,16 @@ const DECK_ABOVE_WATER_M = [
   { test: /dengle/i, m: 7.8 },
   { test: /shivaji/i, m: 7.8 },
 ];
+const BRIDGE_APPROACH_M = 36;
+
+export function getBridgeDeckSurfaceY(name, deckY) {
+  const n = String(name || "").toLowerCase();
+  if (/ambedkar|babasaheb/.test(n)) return deckY + 0.88;
+  if (/mundhwa/.test(n)) return deckY + 0.70;
+  if (/yerwada|fitzgerald|bund garden/.test(n)) return deckY + 0.68;
+  if (/sangam/.test(n)) return deckY + 0.60;
+  return deckY + 0.45;
+}
 
 function deckYForBridge(name, y0, y1) {
   const n = String(name || "");
@@ -90,6 +101,7 @@ export function createBridges(dataset) {
   console.info("Bridge spans", { count: spans.length, names: spans.map((s) => s.name) });
 
   for (const g of spans) {
+    const pierCountBefore = group.userData.piers.length;
     const bridge = new THREE.Group();
     bridge.name = g.name;
     bridge.renderOrder = 12;
@@ -206,34 +218,89 @@ export function createBridges(dataset) {
       );
     }
 
-    // Abutments on dry land for masonry spans (girder spans build their own ramps).
-    for (const end of historic
-      ? [
-          { p: g.start, outward: -1 },
-          { p: g.end, outward: 1 },
-        ]
-      : []) {
-      const ground = terrainHeightAt(end.p.x, end.p.z, stations);
-      if (ground < SURFACE_Y + 0.6) continue;
-      const drop = Math.max(0, deckY - ground);
-      const rampLen = 16;
-      const rx = end.p.x + dir.x * end.outward * (rampLen * 0.5);
-      const rz = end.p.z + dir.z * end.outward * (rampLen * 0.5);
-      const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.7, thick * 0.88), asphaltMat);
-      ramp.position.set(rx, ground + drop * 0.45 + 0.35, rz);
-      ramp.quaternion.copy(quat);
-      if (drop > 1.4) {
-        ramp.rotateZ(end.outward * -Math.atan2(drop - 0.8, rampLen) * 0.7);
-      }
-      ramp.receiveShadow = true;
-      bridge.add(ramp);
+    // Robust approach transition aprons and abutments on both banks for all bridges
+    const bridgeWidth = thick * 0.94;
+    const apronLength = BRIDGE_APPROACH_M;
+    const bridgeRoadY = getBridgeDeckSurfaceY(g.name, deckY);
 
-      const abutH = Math.max(3, Math.min(10, drop + 1.4));
-      const abut = new THREE.Mesh(new THREE.BoxGeometry(6, abutH, thick * 0.95), abutMat);
-      abut.position.set(end.p.x, ground + abutH * 0.5, end.p.z);
+    for (const end of [
+      { p: g.start, outward: -1 },
+      { p: g.end, outward: 1 },
+    ]) {
+      const ground = terrainHeightAt(end.p.x, end.p.z, stations);
+      const outerX = end.p.x + dir.x * end.outward * apronLength;
+      const outerZ = end.p.z + dir.z * end.outward * apronLength;
+      const groundOuter = terrainHeightAt(outerX, outerZ, stations);
+      const targetOuterY = Math.min(bridgeRoadY, groundOuter + 0.28);
+      const drop = Math.max(0, bridgeRoadY - targetOuterY);
+      const avgY = (bridgeRoadY + targetOuterY) * 0.5;
+      const slopeAngle = end.outward * -Math.atan2(drop, apronLength);
+
+      const midX = end.p.x + dir.x * end.outward * (apronLength * 0.5);
+      const midZ = end.p.z + dir.z * end.outward * (apronLength * 0.5);
+
+      // 1. Asphalt Road Apron
+      const apron = new THREE.Mesh(
+        new THREE.BoxGeometry(apronLength, 0.28, bridgeWidth),
+        asphaltMat
+      );
+      apron.position.set(midX, avgY, midZ);
+      apron.quaternion.copy(quat);
+      apron.rotateZ(slopeAngle);
+      apron.receiveShadow = true;
+      bridge.add(apron);
+
+      // Centerline stripe continuing onto approach
+      const apronStripe = new THREE.Mesh(
+        new THREE.BoxGeometry(apronLength * 0.94, 0.04, 0.16),
+        stripeMat
+      );
+      apronStripe.position.set(midX, avgY + 0.16, midZ);
+      apronStripe.quaternion.copy(quat);
+      apronStripe.rotateZ(slopeAngle);
+      bridge.add(apronStripe);
+
+      // 2. Solid embankment fill underneath the apron (never hollow or floating)
+      const fillH = Math.max(2.0, drop + 3.0);
+      const fill = new THREE.Mesh(
+        new THREE.BoxGeometry(apronLength, fillH, bridgeWidth * 0.98),
+        abutMat
+      );
+      fill.position.set(midX, avgY - fillH * 0.5, midZ);
+      fill.quaternion.copy(quat);
+      fill.rotateZ(slopeAngle);
+      fill.receiveShadow = true;
+      fill.castShadow = true;
+      bridge.add(fill);
+
+      // 3. Heavy concrete/stone abutment supporting the deck joint
+      const abutH = Math.max(6.0, drop + 5.0);
+      const abut = new THREE.Mesh(
+        new THREE.BoxGeometry(8.0, abutH, bridgeWidth * 1.08),
+        abutMat
+      );
+      abut.position.set(end.p.x, bridgeRoadY - abutH * 0.5, end.p.z);
       abut.quaternion.copy(quat);
       abut.castShadow = true;
+      abut.receiveShadow = true;
       bridge.add(abut);
+
+      // 4. Side wingwalls / parapet guiding approach roads into the bridge
+      for (const side of [-1, 1]) {
+        const wingW = 0.44;
+        const wingH = Math.max(1.2, drop * 0.5 + 1.1);
+        const wing = new THREE.Mesh(
+          new THREE.BoxGeometry(apronLength * 0.92, wingH, wingW),
+          railMat
+        );
+        const wx = midX + perpX * side * (bridgeWidth * 0.5 + wingW * 0.5);
+        const wz = midZ + perpZ * side * (bridgeWidth * 0.5 + wingW * 0.5);
+        wing.position.set(wx, avgY + wingH * 0.35, wz);
+        wing.quaternion.copy(quat);
+        wing.rotateZ(slopeAngle);
+        wing.castShadow = true;
+        bridge.add(wing);
+      }
     }
 
     // Piers in the channel (skip abutments on dry banks; arched span has its own piers)
@@ -287,24 +354,11 @@ export function createBridges(dataset) {
       depthWrite: false,
       depthTest: false,
     });
-    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.5, 0.65, 12, 8), poleMat);
-    pole.position.set(mx, deckY + 7, mz);
-    pole.renderOrder = 18;
-    pole.frustumCulled = false;
-    bridge.add(pole);
-
-    const beacon = new THREE.Mesh(new THREE.SphereGeometry(2.0, 12, 10), beaconMat);
-    beacon.position.set(mx, deckY + 14.5, mz);
-    beacon.renderOrder = 18;
-    beacon.frustumCulled = false;
-    bridge.add(beacon);
-
+    const pole = new THREE.Object3D();
+    const beacon = new THREE.Object3D();
+    const label = new THREE.Object3D();
     const fullName = g.name || "Bridge";
-    const label = makeBridgeLabel("B");
     label.position.set(mx, deckY + 20, mz);
-    label.renderOrder = 20;
-    label.frustumCulled = false;
-    bridge.add(label);
     group.userData.labels.push({
       label,
       pole,
@@ -318,9 +372,19 @@ export function createBridges(dataset) {
     });
 
     group.add(bridge);
+
+    // Seat every pier of this bridge on the surveyed bed at its own position (not the reach mean).
+    for (const p of group.userData.piers.slice(pierCountBefore)) {
+      p.bridgeName = g.name;
+      const sd = surveyDepthAt(dataset, p.x, p.z);
+      p.surveyDepth = sd;
+      p.inWater = terrainHeightAt(p.x, p.z, stations) < SURFACE_Y;
+      if (Number.isFinite(sd) && p.inWater) p.d = sd;
+    }
   }
 
   updateBridgePiers(group, state.depthExaggeration);
+  group.userData.gauges = createBridgeGauges(group, dataset, state.depthExaggeration);
   return group;
 }
 
@@ -356,8 +420,12 @@ function buildBridgeFromGIS(bridge, roads, stations) {
 
 function snapToRoadNetwork(px, pz, roads) {
   let best = null;
+  const maxSearch = 120;
   for (const r of roads) {
     if (!r.vertices || r.vertices.length < 2) continue;
+    if (r.midX != null && Math.hypot(r.midX - px, r.midZ - pz) > (r.lengthM || 200) + maxSearch) {
+      continue;
+    }
     const snap = nearestPointOnPolyline(px, pz, r.vertices);
     if (!snap) continue;
     if (!best || snap.distance < best.distance) {
@@ -576,6 +644,7 @@ function roundRect(ctx, x, y, w, h, r) {
 }
 
 export function updateBridgePiers(group, exag) {
+  if (group.userData.gauges) updateBridgeGauges(group.userData.gauges, exag);
   for (const p of group.userData.piers || []) {
     const bedY = bedElevation(p.d, p.minD, p.maxD, 0.5, exag);
     const h = Math.max(6, p.deckY - 0.9 - bedY);

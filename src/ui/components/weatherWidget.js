@@ -46,7 +46,6 @@ export function mountWeatherWidget(root) {
       <b id="weather-temp" class="weather-temp">— °C</b>
       <i id="weather-condition" class="weather-condition">Weather unavailable</i>
       <small id="weather-wind">Wind —</small>
-      <small id="weather-rain" class="weather-rain">Rain — mm</small>
       <small id="weather-location">Station —</small>
     </button>
     <div class="weather-time-block" aria-label="Local date and time">
@@ -244,10 +243,12 @@ export function mountWeatherWidget(root) {
           weather.temperature == null ? "— °C" : `${weather.temperature.toFixed(0)}°C`;
         condition.textContent = weather.condition || "Weather unavailable";
         wind.textContent = weather.wind == null ? "Wind —" : `Wind ${weather.wind.toFixed(0)} km/h`;
-        rain.textContent =
-          weather.precipitation == null
-            ? "Rain — mm"
-            : `Rain ${weather.precipitation.toFixed(1)} mm`;
+        if (rain) {
+          rain.textContent =
+            weather.precipitation == null
+              ? "Rain — mm"
+              : `Rain ${weather.precipitation.toFixed(1)} mm`;
+        }
         lastSuccessful = time.textContent;
         weatherAvailable = true;
         window.__MM_SCENE__?.applyLiveWeather?.(weather);
@@ -261,7 +262,7 @@ export function mountWeatherWidget(root) {
         temperature.textContent = "— °C";
         condition.textContent = "Weather unavailable";
         wind.textContent = "Wind —";
-        rain.textContent = "Rain — mm";
+        if (rain) rain.textContent = "Rain — mm";
         time.textContent = lastSuccessful ? `Last ${lastSuccessful}` : "Unavailable";
         dateEl.textContent = dateFmt.format(new Date());
       }

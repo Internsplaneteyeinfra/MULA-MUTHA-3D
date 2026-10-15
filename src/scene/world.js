@@ -637,8 +637,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     });
   });
 
-    const fishingDone = createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
-      .then((sys) => {
+  const fishingDone = createFishingSystem(dataset, canvas, getCamera, uiRoot, {
+    waterEffects: waterFx,
+    landCover,
+    osmWater,
+  })
+    .then((sys) => {
         fishing = sys;
         fishGroup.add(sys.group);
         if (sys.zones) cinematic.setFishingZones(sys.zones);

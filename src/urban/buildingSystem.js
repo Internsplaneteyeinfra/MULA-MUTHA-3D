@@ -45,21 +45,23 @@ export async function createBuildingSystem(dataset) {
   for (const b of raw) {
     const metrics = computeFootprintMetrics(b);
     if (!metrics) continue;
-    const dist = distToCorridor(metrics.centroidX, metrics.centroidZ, stations);
-    const bank = nearestHalf(metrics.centroidX, metrics.centroidZ, stations);
-    if (bank.lat < bank.half * 0.72) {
+    const info = nearestCorridorInfo(metrics.centroidX, metrics.centroidZ, stations);
+    if (info.lat < info.half * 0.72) {
       skippedWater++;
       continue;
     }
-    if (dataset.lite && bank.lat > bank.half + RIVER_SIDE_M) continue;
-    if (ring.length && overlapsWater(metrics, b, ring, WATER_CLEAR_M)) {
-      skippedWater++;
-      continue;
+    if (dataset.lite && info.lat > info.half + RIVER_SIDE_M) continue;
+    // Only run expensive polygon raycast & edge checks if building is near water edge
+    if (ring.length && info.lat <= info.half + WATER_CLEAR_M + 15) {
+      if (overlapsWater(metrics, b, ring, WATER_CLEAR_M)) {
+        skippedWater++;
+        continue;
+      }
     }
 
     const classification = classifyBuilding(b, metrics);
-    const record = { building: b, metrics, classification, dist };
-    const tier = corridorTier(dist, classification);
+    const record = { building: b, metrics, classification, dist: info.dist };
+    const tier = corridorTier(info.dist, classification);
     if (tier === "hero") heroRecs.push(record);
     else if (tier === "near") nearRecs.push(record);
     else if (tier === "mid") midRecs.push(record);
@@ -207,33 +209,42 @@ function flushFarChunk(geos) {
   return mesh;
 }
 
-function distToCorridor(x, z, stations) {
-  let best = Infinity;
-  const step = Math.max(1, Math.floor(stations.length / 180));
-  for (let i = 0; i < stations.length; i += step) {
-    const s = stations[i];
-    best = Math.min(best, Math.hypot(s.x - x, s.z - z));
-  }
-  return best;
-}
-
-function nearestHalf(x, z, stations) {
+function nearestCorridorInfo(x, z, stations) {
   let best = stations[0];
-  let bestD = Infinity;
-  const step = Math.max(1, Math.floor(stations.length / 180));
-  for (let i = 0; i < stations.length; i += step) {
+  let bestD2 = Infinity;
+  const len = stations.length;
+  const step = Math.max(1, Math.floor(len / 90));
+  for (let i = 0; i < len; i += step) {
     const st = stations[i];
     const d2 = (st.x - x) ** 2 + (st.z - z) ** 2;
-    if (d2 < bestD) {
-      bestD = d2;
+    if (d2 < bestD2) {
+      bestD2 = d2;
       best = st;
     }
   }
   const lat = Math.abs((x - best.x) * -best.flowZ + (z - best.z) * best.flowX);
-  return { lat, half: best.halfWidth };
+  return { dist: Math.sqrt(bestD2), lat, half: best.halfWidth };
 }
 
+let cachedRingBbox = null;
 function overlapsWater(metrics, building, ring, clearM) {
+  if (!cachedRingBbox && ring?.length) {
+    let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+    for (const p of ring) {
+      if (p.x < minX) minX = p.x;
+      if (p.x > maxX) maxX = p.x;
+      if (p.z < minZ) minZ = p.z;
+      if (p.z > maxZ) maxZ = p.z;
+    }
+    cachedRingBbox = { minX, maxX, minZ, maxZ };
+  }
+  if (cachedRingBbox) {
+    const pad = clearM + 5;
+    if (metrics.centroidX < cachedRingBbox.minX - pad || metrics.centroidX > cachedRingBbox.maxX + pad ||
+        metrics.centroidZ < cachedRingBbox.minZ - pad || metrics.centroidZ > cachedRingBbox.maxZ + pad) {
+      return false;
+    }
+  }
   if (pointInRing(metrics.centroidX, metrics.centroidZ, ring)) return true;
   if (distToRingEdge(metrics.centroidX, metrics.centroidZ, ring) < clearM) return true;
   const verts = building.vertices || [];

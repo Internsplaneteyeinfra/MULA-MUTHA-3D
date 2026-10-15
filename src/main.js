@@ -127,9 +127,11 @@ async function boot() {
     requestAnimationFrame(loop);
 
     // Scene renders behind the loader so shaders/textures warm up before reveal.
+    // Core 3D world (terrain, river, bridges, urban) gate with a fast 6s safety timeout.
+    // Live weather, discharge telemetry, and bodCod fetch in the background without blocking load.
     await Promise.race([
-      Promise.all([app.whenReady, firstLiveData, bodCodReady]),
-      new Promise((resolve) => setTimeout(resolve, 60000)),
+      app.whenReady,
+      new Promise((resolve) => setTimeout(resolve, 6000)),
     ]);
     progress(0.995, "Finalising…");
     try {

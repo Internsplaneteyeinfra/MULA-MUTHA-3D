@@ -109,31 +109,7 @@ export function addOpenGirderSpan(bridge, group, opts, theme = DEFAULT_THEME) {
 
   bridge.add(local);
 
-  // Seat both ends on the dry banks and ramp down to the OSM roads.
-  for (const side of [-1, 1]) {
-    let wx = mx + ux * side * visSpan * 0.5;
-    let wz = mz + uz * side * visSpan * 0.5;
-    if (stations) {
-      for (let k = 0; k < 10; k++) {
-        if (terrainHeightAt(wx, wz, stations) >= SURFACE_Y + 0.55) break;
-        wx += ux * side * 2.5;
-        wz += uz * side * 2.5;
-      }
-    }
-    const ground = stations ? terrainHeightAt(wx, wz, stations) : deckY;
-    const drop = deckY - (ground + 0.28);
-    if (drop > 0.35) {
-      const rampLen = Math.max(8, Math.min(18, drop * 6));
-      const midX = wx + ux * side * rampLen * 0.45;
-      const midZ = wz + uz * side * rampLen * 0.45;
-      const ramp = new THREE.Mesh(new THREE.BoxGeometry(rampLen, 0.32, thick * 0.88), asphalt);
-      ramp.position.set(midX, ground + drop * 0.5 + 0.16, midZ);
-      ramp.quaternion.copy(quat);
-      ramp.rotateZ(side * -Math.atan2(drop, rampLen) * 0.95);
-      ramp.receiveShadow = true;
-      bridge.add(ramp);
-    }
-  }
+  // Abutments, transition aprons and road fusion are handled authoritatively in bridges.js
 
   const nPier = Math.max(3, Math.min(6, Math.round(visSpan / 22)));
   const shaftGeo = new THREE.CylinderGeometry(pierR, pierR * 1.06, 1, 12);

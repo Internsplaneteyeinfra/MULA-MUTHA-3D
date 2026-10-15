@@ -24,7 +24,6 @@ import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
 import { mountFloodComparePanel } from "./components/floodComparePanel.js";
 import { validYmd, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
-import { mountDigitalTwinPanel } from "./components/digitalTwinPanel.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
 import { mountCrossSectionModal } from "./components/crossSectionModal.js";
 import { mountThresholdGraph } from "./components/thresholdGraph.js";
@@ -598,7 +597,7 @@ export function mountUI(root, {
   leftStack.className = "left-ui-stack";
   root.appendChild(leftStack);
 
-  mountProjectIdentity(root);
+  mountProjectIdentity(root, dataset);
   mountAnalyticsControls(root, dataset);
   const weather = mountWeatherWidget(root);
   const riverData = mountRiverDataPanel(leftStack, dataset, root);
@@ -630,28 +629,12 @@ export function mountUI(root, {
   }
 
   // ─── Digital Twin HUD (same left stack as River Data / geology panels) ───
-  const dtPanel = mountDigitalTwinPanel(leftStack);
   const dtDock = mountTwinAnalyticsDock(root);
   const csModal = mountCrossSectionModal(root);
   mountThresholdGraph(root);
   mountHydroIntelPanel(root);
   // Start hidden — toggled from analytics nav [data-analytics=digital_twin]
-  dtPanel.el.hidden = true;
   dtDock.el.hidden = true;
-
-  // Keep panel close button working (analyticsControls owns open/close class sync)
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest("#dt-close-btn")) return;
-    dtPanel.el.hidden = true;
-    dtDock.el.hidden = true;
-    window.__MM_HYDRO_INTEL__?.hide?.();
-    root.classList.remove("dt-mode-active");
-    document.body.classList.remove("dt-mode-active");
-    root.querySelectorAll("[data-analytics='digital_twin'], #dt-mode-toggle").forEach((btn) => {
-      btn.classList.remove("active");
-      btn.setAttribute("aria-pressed", "false");
-    });
-  });
 
   const floodInfo = mountFloodResultPanel(root, {
     onReplay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),

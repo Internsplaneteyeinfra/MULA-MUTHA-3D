@@ -41,7 +41,7 @@ const GAUGE_REACH_M = 400;
  * within GAUGE_REACH_M wins; otherwise riverbed (DTM minus surveyed depth)
  * plus the current solved flow depth.
  */
-function waterLevelAt(rec) {
+export function waterLevelAt(rec) {
   if (!rec) return null;
   for (const g of GAUGE_STATIONS) {
     if (Math.abs(g.chainage_m - rec.chainage_m) > GAUGE_REACH_M) continue;
@@ -142,6 +142,13 @@ export function mountDigitalTwinPanel(root) {
     if (Number.isFinite(m)) eventMeters = m;
     schedule();
     pullLiveQ(m);
+  });
+  document.addEventListener("river-journey-progress", (e) => {
+    const m = Number(e.detail?.currentChainage);
+    if (Number.isFinite(m)) {
+      eventMeters = m;
+      schedule();
+    }
   });
   document.addEventListener("chainage-discharge", (e) => {
     const q = Number(e.detail?.q);

@@ -64,7 +64,7 @@ export function createFishingMarkerLayer(zones) {
     }
     ring.name = `fishMarker_${zone.id}`;
 
-    const label = makeFishingLabel(zone.name || zone.id);
+    const label = makeFishingLabel("Fishing Zone");
     label.position.set(zone.x, SURFACE_Y + 10.5, zone.z);
     label.userData.zone = zone;
     group.add(label);
@@ -127,15 +127,13 @@ function makeFishingLabel(text) {
   canvas.height = 72;
   const ctx = canvas.getContext("2d");
   ctx.clearRect(0, 0, 320, 72);
-  ctx.fillStyle = "rgba(8, 28, 36, 0.78)";
-  ctx.fillRect(12, 10, 296, 52);
-  ctx.strokeStyle = "rgba(62, 200, 232, 0.95)";
-  ctx.lineWidth = 3;
-  ctx.strokeRect(12, 10, 296, 52);
   ctx.fillStyle = "#e8f8fc";
   ctx.font = "700 26px Inter, system-ui, sans-serif";
   ctx.textAlign = "center";
   ctx.textBaseline = "middle";
+  ctx.shadowColor = "rgba(0, 0, 0, 0.9)";
+  ctx.shadowBlur = 5;
+  ctx.shadowOffsetY = 2;
   ctx.fillText(String(text), 160, 36);
 
   const tex = new THREE.CanvasTexture(canvas);

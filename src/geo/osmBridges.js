@@ -70,11 +70,19 @@ export async function loadOsmBridges(url, frame, corridor) {
     let allVerts = [];
     members.forEach(m => allVerts.push(...m.local));
     
-    // Find extremes
-    let minX = allVerts[0], maxX = allVerts[0];
-    for (const v of allVerts) {
-      if (v.x < minX.x) minX = v;
-      if (v.x > maxX.x) maxX = v;
+    // Find true furthest endpoints across all member vertices (works for any bridge orientation)
+    let bestDist = -1;
+    let endA = allVerts[0];
+    let endB = allVerts[allVerts.length - 1];
+    for (let i = 0; i < allVerts.length; i++) {
+      for (let j = i + 1; j < allVerts.length; j++) {
+        const d = Math.hypot(allVerts[i].x - allVerts[j].x, allVerts[i].z - allVerts[j].z);
+        if (d > bestDist) {
+          bestDist = d;
+          endA = allVerts[i];
+          endB = allVerts[j];
+        }
+      }
     }
     
     merged.push({
@@ -84,8 +92,8 @@ export async function loadOsmBridges(url, frame, corridor) {
       widthM: Math.max(group.widthM, ...members.map((m) => m.widthM)),
       midX: members.reduce((s, m) => s + m.mid.x, 0) / members.length,
       midZ: members.reduce((s, m) => s + m.mid.z, 0) / members.length,
-      start: minX,
-      end: maxX,
+      start: endA,
+      end: endB,
       source: "OpenStreetMap",
       vertices: allVerts
     });

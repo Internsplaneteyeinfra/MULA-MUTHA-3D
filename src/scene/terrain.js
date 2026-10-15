@@ -32,8 +32,8 @@ export async function createTerrain(dataset) {
   const width = b.spanX;
   const depth = b.spanZ;
   const lite = dataset.lite === true;
-  const segsX = activeDtm ? (lite ? 300 : 540) : (lite ? 180 : 360);
-  const segsZ = activeDtm ? (lite ? 150 : 270) : (lite ? 90 : 180);
+  const segsX = activeDtm ? (lite ? 200 : 260) : (lite ? 140 : 200);
+  const segsZ = activeDtm ? (lite ? 100 : 130) : (lite ? 70 : 100);
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(b.cx, 0, b.cz);
@@ -54,7 +54,7 @@ export async function createTerrain(dataset) {
   const nx = segsX + 1;
   const nz = segsZ + 1;
   antialiasShoreline(pos, heights, nx, nz);
-  for (let pass = 0; pass < 5; pass++) {
+  for (let pass = 0; pass < 2; pass++) {
     const next = heights.slice();
     for (let iz = 1; iz < nz - 1; iz++) {
       for (let ix = 1; ix < nx - 1; ix++) {
@@ -229,19 +229,26 @@ function createGroundSurround(b, heights, minY) {
 }
 
 function heightAt(x, z, stations, dtm = activeDtm) {
+  const dtmY = dtm?.sampleSceneXY?.(x, z) ?? null;
+  const observed = isObservedWater(activeLulc, activeOsmWater, x, z);
+
+  // Fast-path: 90%+ of vertices are dry land covered directly by FABDEM DTM
+  if (dtmY != null && !observed) {
+    const cls = activeLulc?.classAtLocal?.(x, z);
+    const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop");
+    return isIslandLand ? Math.max(dtmY, SURFACE_Y + 0.8) : dtmY;
+  }
+
   const nearStation = nearest(x, z, stations);
   const lat = nearStation.lat;
   const ch = nearStation.st.chainage_m;
   const half = Math.max(12, nearStation.st.halfWidth);
-  const dtmY = dtm?.sampleSceneXY?.(x, z) ?? null;
 
-  const depthInfo = wseSpatialService.getDepthAt(ch, lat);
-  const observed = isObservedWater(activeLulc, activeOsmWater, x, z);
-  let isWater = observed;
   let bedY = null;
   let targetWaterY = SURFACE_Y - 0.5;
 
   if (observed) {
+    const depthInfo = wseSpatialService.getDepthAt(ch, lat);
     if (depthInfo.wetted && depthInfo.depthM > 0) {
       bedY = SURFACE_Y - depthInfo.depthM;
     } else if (dtmY != null) {
@@ -249,9 +256,10 @@ function heightAt(x, z, stations, dtm = activeDtm) {
     } else {
       bedY = SURFACE_Y - 0.8;
     }
-    targetWaterY = SURFACE_Y - 0.5;
+    return bedY != null ? bedY : targetWaterY;
   }
 
+  // Procedural fallback only if DTM has void/null at this coordinate
   const hills =
     fbm(x * 0.00045, z * 0.00045) * 18 +
     fbm(x * 0.0012 + 4, z * 0.0012) * 8 +
@@ -260,25 +268,8 @@ function heightAt(x, z, stations, dtm = activeDtm) {
   const proceduralBase = SURFACE_Y + 2 + hills * bankFalloff;
 
   const cls = activeLulc?.classAtLocal?.(x, z);
-  const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop") && !observed;
-
-  if (dtmY != null) {
-    if (isWater) {
-      return bedY != null ? bedY : targetWaterY;
-    }
-    if (isIslandLand) {
-      return Math.max(dtmY, SURFACE_Y + 0.8);
-    }
-    return dtmY;
-  }
-
-  if (isWater) {
-    return bedY != null ? bedY : SURFACE_Y - 0.8;
-  }
-  if (isIslandLand) {
-    return Math.max(proceduralBase, SURFACE_Y + 1.2);
-  }
-  return proceduralBase;
+  const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop");
+  return isIslandLand ? Math.max(proceduralBase, SURFACE_Y + 1.2) : proceduralBase;
 }
 
 /**
@@ -447,8 +438,9 @@ export function dtmElevationAtLonLat(lon, lat) {
 function nearest(x, z, stations) {
   let bestI = 0;
   let bestD = Infinity;
-  const step = Math.max(1, Math.floor(stations.length / 400));
-  for (let i = 0; i < stations.length; i += step) {
+  const len = stations.length;
+  const step = Math.max(1, Math.floor(len / 40));
+  for (let i = 0; i < len; i += step) {
     const s = stations[i];
     const d = (s.x - x) ** 2 + (s.z - z) ** 2;
     if (d < bestD) {
@@ -456,8 +448,10 @@ function nearest(x, z, stations) {
       bestI = i;
     }
   }
-  // Refine locally for accurate lateral distance
-  for (let i = Math.max(0, bestI - 12); i <= Math.min(stations.length - 1, bestI + 12); i++) {
+  // Refine locally in a window around best candidate (±step)
+  const start = Math.max(0, bestI - step);
+  const end = Math.min(len - 1, bestI + step);
+  for (let i = start; i <= end; i++) {
     const s = stations[i];
     const d = (s.x - x) ** 2 + (s.z - z) ** 2;
     if (d < bestD) {
