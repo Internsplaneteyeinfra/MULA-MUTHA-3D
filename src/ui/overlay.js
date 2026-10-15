@@ -7,7 +7,7 @@ import { mountWeatherWidget } from "./components/weatherWidget.js";
 import { mountAnalyticsControls } from "./components/analyticsControls.js";
 import { mountRiverDataPanel } from "./components/riverDataPanel.js";
 import { mountProfileAnalysisPanel } from "./components/profileAnalysisPanel.js";
-import { interpolateChainage } from "../geo/chainage.js";
+import { interpolateChainage, formatStation } from "../geo/chainage.js";
 import { mountNavigationControls } from "./components/navigationControls.js";
 import { mountCompassNavigation } from "./components/compassNavigation.js";
 import { mountZoomControls } from "./components/zoomControls.js";
@@ -1076,17 +1076,22 @@ export function mountUI(root, {
   chainPanel = mountChainagePanel(root, dataset);
 
   function syncSelectedChainage(meters) {
-    const point = interpolateChainage(dataset.chainage, meters);
+    const raw = Number(meters);
+    const snapped = Number.isFinite(raw) ? Math.round(raw / 10) * 10 : meters;
+    const point = interpolateChainage(dataset.chainage, snapped);
     if (!point) return;
+    point.meters = snapped;
+    point.label = formatStation(snapped);
     riverData.update(point);
     weather.updateForChainage(point);
   }
 
   document.addEventListener("chainage-select", (event) => {
-    const m = Number(event.detail?.meters);
-    if (event.detail?.meters != null && Number.isFinite(m)) state.selectedChainageMeters = m;
-    whenChainageSettled("river-data", m, () => syncSelectedChainage(event.detail?.meters));
-    chainRuler.update?.();
+    const raw = Number(event.detail?.meters);
+    const m = Number.isFinite(raw) ? Math.round(raw / 10) * 10 : null;
+    if (m != null) state.selectedChainageMeters = m;
+    whenChainageSettled("river-data", m, () => syncSelectedChainage(m));
+    chainRuler.update?.(true);
     chainStepHud.update?.();
   });
   const chainData = dataset.chainage || [];
@@ -1096,7 +1101,9 @@ export function mountUI(root, {
     const last = chainData[chainData.length - 1].meters;
     midMeters = first + (last - first) / 2;
   }
-  const initialChainage = state.selectedChainageMeters ?? midMeters;
+  const initialChainage = state.selectedChainageMeters != null
+    ? Math.round(Number(state.selectedChainageMeters) / 10) * 10
+    : Math.round(midMeters / 10) * 10;
   if (initialChainage != null) {
     state.selectedChainageMeters = initialChainage;
     syncSelectedChainage(initialChainage);

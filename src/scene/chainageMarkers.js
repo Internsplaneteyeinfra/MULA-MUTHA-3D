@@ -307,10 +307,10 @@ export function createChainageLayer(dataset) {
           if (current && current.id === item.dest.id) {
             shouldShow = true;
             distText = formatStation(item.dest.chainage_m);
-          } else if (prev && prev.id === item.dest.id) {
+          } else if (prev && prev.id === item.dest.id && absDist <= 1200) {
             shouldShow = true;
             distText = formatRelativeDistance(item.dest.chainage_m - sel);
-          } else if (next && next.id === item.dest.id) {
+          } else if (next && next.id === item.dest.id && absDist <= 1200) {
             shouldShow = true;
             distText = formatRelativeDistance(item.dest.chainage_m - sel);
           }

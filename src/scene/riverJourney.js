@@ -32,16 +32,16 @@ const HEADING_TAU_S = 0.18;
 /** Minimum eye distance inside the bank line. */
 const CHANNEL_MARGIN_M = 6;
 
-const BASE_POSE = { height: 44, back: 95, ahead: 240, lookAbove: 6, fov: 52 };
+const BASE_POSE = { height: 18, back: 42, ahead: 0, lookAbove: 1.2, fov: 52 };
 
 export function transitionDuration(distanceM) {
   const d = Math.max(0, distanceM);
-  if (d <= 15) return 0.42; // Swift, flowing 10m step
-  if (d <= 50) return 0.65;
-  if (d <= 150) return 0.90;
-  if (d <= 600) return 1.30;
+  if (d <= 15) return 0.38; // Swift, silky 10m step
+  if (d <= 50) return 0.55;
+  if (d <= 150) return 0.75;
+  if (d <= 600) return 1.10;
   // Natural power curve for medium/large distances: smooth start, silky cruise, gentle settle
-  return THREE.MathUtils.clamp(0.85 + Math.pow(d, 0.35) * 0.12, 0.42, MAX_DUR_S);
+  return THREE.MathUtils.clamp(0.75 + Math.pow(d, 0.35) * 0.10, 0.38, 2.6);
 }
 
 /**
@@ -142,17 +142,16 @@ export function createRiverJourney({ dataset, getBridges }) {
    */
   function facingPose(u, x, z, dir, pose, out) {
     const st = stationAt(stations, u);
-    const along = Number.isFinite(st.along) ? st.along : u * riverLen;
-    const h = pose.height;
-    let back = THREE.MathUtils.clamp(pose.back, 35, 100);
-    if (back < h * 2.5) back = h * 3;
-    const room = dir > 0 ? along : riverLen - along;
-    if (room < back + 20) back = Math.max(12, room * 0.55);
-    const ahead = THREE.MathUtils.clamp(pose.ahead, 100, 280);
-    const cp = pointAlongRiver(stations, u, -dir * back);
-    const lp = pointAlongRiver(stations, u, dir * ahead);
-    out.p.set(cp.x, SURFACE_Y + h, cp.z);
-    out.l.set(lp.x, SURFACE_Y + pose.lookAbove, lp.z);
+    const tan = smoothTangent(stations, u, 0.035);
+    const h = pose.height || 18;
+    const dist = pose.back || 42;
+
+    // Position camera directly over water along local river flow tangent:
+    out.p.set(x - dir * tan.x * dist, SURFACE_Y + h, z - dir * tan.z * dist);
+    clampToChannel(out.p);
+
+    // Look target is DIRECTLY AT the active chainage station in the center of the water:
+    out.l.set(x, SURFACE_Y + (pose.lookAbove ?? 1.2), z);
     return st;
   }
 
@@ -356,22 +355,7 @@ export function createRiverJourney({ dataset, getBridges }) {
       outP.y += Math.sin(Math.PI * s) * tr.lift;
       const clear = bridgeClearance(outP.x, outP.z);
       if (clear.needY > outP.y) outP.y = clear.needY;
-      if (clear.side > 0) {
-        const tan = smoothTangent(stations, u, 0.01);
-        const half = stationAt(stations, u).half || 40;
-        const off = Math.min(10, half * 0.3) * clear.side;
-        outP.x += -tan.z * off;
-        outP.z += tan.x * off;
-      }
       clampToChannel(outP);
-
-      // Enforce terrain clearance: never let camera dip into river banks or terrain
-      try {
-        const groundY = terrainHeightAt(outP.x, outP.z, stations);
-        if (Number.isFinite(groundY) && outP.y < groundY + 18) {
-          outP.y = groundY + 18;
-        }
-      } catch (_) {}
 
       const blend = tr.startBlend || START_BLEND;
       if (tr.startPose && tr.t < blend) {
@@ -379,18 +363,6 @@ export function createRiverJourney({ dataset, getBridges }) {
         outP.lerpVectors(tr.startPose.p, outP, k);
         outL.lerpVectors(tr.startPose.l, outL, k);
       }
-
-      // Heading low-pass (direction only, so the view never trails the eye); exact on arrival.
-      const rx = outL.x - outP.x;
-      const rz = outL.z - outP.z;
-      const yaw = Math.atan2(rz, rx);
-      if (tr.yaw == null) tr.yaw = yaw;
-      const tau = tr.isDrag ? 0.12 : HEADING_TAU_S;
-      tr.yaw += wrapAngle(yaw - tr.yaw) * (1 - Math.exp(-stepDt / tau));
-      const heading = tr.yaw + wrapAngle(yaw - tr.yaw) * smooth01(0.86, 1, tr.t);
-      const len = Math.hypot(rx, rz);
-      outL.x = outP.x + Math.cos(heading) * len;
-      outL.z = outP.z + Math.sin(heading) * len;
 
       const done = tr.t >= 1;
       if (done) transition = null;

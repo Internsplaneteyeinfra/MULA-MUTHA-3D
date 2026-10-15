@@ -171,19 +171,22 @@ export function mountChainageRuler(root, dataset) {
 
   function updateVisuals(meters) {
     const hasSel = Number.isFinite(meters);
-    const activeTick = hasSel ? majors[nearestMajor(meters)] : null;
-    for (const t of tickEls) {
-      const on = !!activeTick && Number(t.dataset.meters) === activeTick.meters && Math.abs(activeTick.meters - meters) <= 500;
-      t.classList.toggle("is-active", on);
-      t.classList.toggle("active", on);
-    }
-
     if (!hasSel) {
+      for (const t of tickEls) {
+        t.classList.toggle("is-active", false);
+        t.classList.toggle("active", false);
+      }
       cursor.hidden = true;
       fill.style.width = "0%";
       return;
     }
-    const clamped = Math.min(maxM, Math.max(minM, meters));
+    const clamped = snap10m(meters);
+    const activeTick = majors[nearestMajor(clamped)];
+    for (const t of tickEls) {
+      const on = !!activeTick && Number(t.dataset.meters) === activeTick.meters && Math.abs(activeTick.meters - clamped) <= 500;
+      t.classList.toggle("is-active", on);
+      t.classList.toggle("active", on);
+    }
     const pct = ((clamped - minM) / spanM) * 100;
     cursor.style.left = `${pct}%`;
     cursor.classList.toggle("is-edge-start", pct <= 3);
@@ -191,17 +194,17 @@ export function mountChainageRuler(root, dataset) {
     cursor.hidden = false;
     fill.style.width = `${pct}%`;
 
-    const label = interpolateChainage(points, clamped)?.label || metersToStation(clamped);
+    const label = metersToStation(clamped);
     cursorLabel.textContent = String(label).replace(/^\+/, "");
   }
 
-  function update() {
+  function update(force = false) {
     const show = state.showChainage !== false && !state.cinematicActive;
     el.hidden = !show;
     if (!show) return;
 
     const sel = state.selectedChainageMeters;
-    if (sel === lastSel) return;
+    if (!force && sel === lastSel) return;
     lastSel = sel;
 
     if (Number.isFinite(sel)) {
@@ -217,12 +220,13 @@ export function mountChainageRuler(root, dataset) {
     if (isDraggingSlider) return;
     const j = e.detail;
     if (!j) {
-      update();
+      lastSel = undefined;
+      update(true);
       return;
     }
     const cur = snap10m(j.currentChainage);
     if (range && !isDraggingSlider) range.value = String(cur);
-    updateVisuals(j.currentChainage);
+    updateVisuals(cur);
   }
   document.addEventListener("river-journey-progress", onJourneyProgress);
 

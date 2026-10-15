@@ -129,14 +129,10 @@ export function chainageGisAerialPose(stations, {
   u,
   x,
   z,
-  cameraHeight = 44,
-  cameraDistance = 95,
-  lookAheadDistance = 240,
-  lookY = SURFACE_Y + 6,
+  cameraHeight = 18,
+  cameraDistance = 42,
+  lookY = SURFACE_Y + 1.2,
   lateralOffset = 0,
-  minHeight = 28,
-  minBack = 55,
-  groundClearance = 18,
   outP,
   outL,
   outUp,
@@ -152,38 +148,40 @@ export function chainageGisAerialPose(stations, {
   const pz = Number.isFinite(z) ? z : st.z;
 
   // Local river direction from smoothed centerline tangent
-  const tan = smoothTangent(stations, uu, 0.045);
-  const sideX = -tan.z;
-  const sideZ = tan.x;
+  const tan = smoothTangent(stations, uu, 0.035);
 
-  const h = THREE.MathUtils.clamp(cameraHeight, minHeight, 85);
-  let back = THREE.MathUtils.clamp(cameraDistance, minBack, 160);
-  const alongM = Number.isFinite(st.along) ? st.along : uu * estimateRiverLength(stations);
-  if (alongM < back + 20) {
-    back = Math.max(25, alongM * 0.65);
-  }
-  const aheadDist = THREE.MathUtils.clamp(lookAheadDistance, 140, 380);
-  const lateral = THREE.MathUtils.clamp(lateralOffset, -25, 25);
-  const eyeLookY = Number.isFinite(lookY) ? lookY : SURFACE_Y + 6;
+  const dist = THREE.MathUtils.clamp(cameraDistance, 25, 55);
+  const h = THREE.MathUtils.clamp(cameraHeight, 14, 26);
 
-  // Walk along centerline so camera follows the river curve
-  const camPt = pointAlongRiver(stations, uu, -back);
-  const lookPt = pointAlongRiver(stations, uu, aheadDist);
+  // Position camera upstream along tangent directly over water
+  const cx = px - tan.x * dist;
+  const cz = pz - tan.z * dist;
 
-  const finalX = camPt.x + sideX * lateral;
-  const finalZ = camPt.z + sideZ * lateral;
+  outP.set(cx, SURFACE_Y + h, cz);
 
-  // Enforce terrain clearance: never let camera dip into river banks or terrain
-  let terrainSafeY = SURFACE_Y + h;
-  try {
-    const groundY = terrainHeightAt(finalX, finalZ, stations);
-    if (Number.isFinite(groundY)) {
-      terrainSafeY = Math.max(terrainSafeY, groundY + groundClearance);
+  // Clamp camera position inside river channel so it stays over water, never on forest land
+  const n = stations.length;
+  if (n >= 2) {
+    const f = uu * (n - 1);
+    const i = Math.min(n - 2, Math.floor(f));
+    const k = f - i;
+    const a = stations[i];
+    const b = stations[i + 1];
+    const midX = a.x + (b.x - a.x) * k;
+    const midZ = a.z + (b.z - a.z) * k;
+    const half = (a.halfWidth ?? 40) + ((b.halfWidth ?? 40) - (a.halfWidth ?? 40)) * k;
+    const limit = Math.max(4, half - 6);
+    const dx = outP.x - midX;
+    const dz = outP.z - midZ;
+    const d = Math.hypot(dx, dz);
+    if (d > limit) {
+      outP.x = midX + (dx / d) * limit;
+      outP.z = midZ + (dz / d) * limit;
     }
-  } catch (_) {}
+  }
 
-  outP.set(finalX, terrainSafeY, finalZ);
-  outL.set(lookPt.x, eyeLookY, lookPt.z);
+  // Look target is DIRECTLY AT the chainage station in the center of the water:
+  outL.set(px, Number.isFinite(lookY) ? lookY : SURFACE_Y + 1.2, pz);
   if (outUp) outUp.set(0, 1, 0);
   return tan;
 }

@@ -17,7 +17,7 @@ export const GAUGE_STATIONS = [
     cwcId: "028-MDH-PUNE",
     lat: 18.543024,
     lon: 73.883100,
-    chainage_m: 3451.9,
+    chainage_m: 3467.5,
     warningLevel_m: 546.5,
     dangerLevel_m: 548.0,
     endpointConfig: {
@@ -31,7 +31,7 @@ export const GAUGE_STATIONS = [
     agency: "Maharashtra Water Resources Dept",
     lat: 18.5312091,
     lon: 73.8602323,
-    chainage_m: 621.9,
+    chainage_m: 564.5,
     warningLevel_m: 550.0,
     dangerLevel_m: 551.5,
     endpointConfig: {
@@ -45,7 +45,7 @@ export const GAUGE_STATIONS = [
     agency: "MWRD Flood Control Room",
     lat: 18.4419,
     lon: 73.7634,
-    chainage_m: 0.0, // Upstream boundary feeder
+    chainage_m: -19.6, // Upstream boundary feeder (river start, before 0+000)
     endpointConfig: {
       type: "MWRD_BULLETIN",
       url: null,

@@ -30,15 +30,16 @@ export function formatStation(meters) {
   return `${Math.floor(value / 1000)}+${String(value % 1000).padStart(3, "0")}`;
 }
 
+// Chainage on Mula-Mutha_River_10m_ch_merged.kml (same places as public/data/naditwin/landmarks.json).
 export const CHAINAGE_DESTINATIONS = [
-  { id: "sangam", name: "Sangam", chainage_m: 622 },
-  { id: "bund-garden", name: "Bund Garden", chainage_m: 3452 },
-  { id: "dhanori", name: "Dhanori", chainage_m: 5902 },
-  { id: "wadgaon-sheri", name: "Wadgaon Sheri", chainage_m: 7532 },
-  { id: "hadapsar", name: "Hadapsar", chainage_m: 9132 },
-  { id: "mundhwa", name: "Mundhwa", chainage_m: 9562 },
-  { id: "kharadi", name: "Kharadi", chainage_m: 10752 },
-  { id: "manjari", name: "Manjari", chainage_m: 15522 }
+  { id: "sangam", name: "Sangam", chainage_m: 565 },
+  { id: "bund-garden", name: "Bund Garden", chainage_m: 3468 },
+  { id: "dhanori", name: "Dhanori", chainage_m: 5915 },
+  { id: "wadgaon-sheri", name: "Wadgaon Sheri", chainage_m: 7543 },
+  { id: "hadapsar", name: "Hadapsar", chainage_m: 9136 },
+  { id: "mundhwa", name: "Mundhwa", chainage_m: 9547 },
+  { id: "kharadi", name: "Kharadi", chainage_m: 10712 },
+  { id: "manjari", name: "Manjari", chainage_m: 15430 }
 ];
 
 export function getDestinations(sel) {

@@ -1,5 +1,5 @@
 /** Cache static assets for fast repeat visits. */
-const CACHE = "mula-mutha-v8";
+const CACHE = "mula-mutha-v9";
 const PRECACHE = ["/", "/index.html"];
 
 self.addEventListener("install", (e) => {
