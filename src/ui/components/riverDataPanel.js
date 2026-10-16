@@ -4,6 +4,7 @@ import { state } from "../../state.js";
 import { interpolateChainage } from "../../geo/chainage.js";
 import { metersToStation } from "../../scene/chainageMarkers.js";
 import { nearestStationU, stationAt } from "../../scene/riverCamera.js";
+import { bathymetryService } from "../../services/hydrology/bathymetryService.js";
 
 /**
  * Compact River Data HUD.
@@ -339,7 +340,12 @@ export function mountRiverDataPanel(root, dataset, popupRoot = null) {
     const cols = (dataset.bathymetry?.across || 40) + 1;
     const row = Math.min(stations.length - 1, Math.max(0, Math.round(u * Math.max(0, stations.length - 1))));
     const centerIndex = row * cols + Math.floor((cols - 1) / 2);
-    const depth = Number.isFinite(depthPoint?.depth_m) ? depthPoint.depth_m : dataset.bathymetry?.depths?.[centerIndex];
+    const bathy = bathymetryService.ready && Number.isFinite(p.meters)
+      ? bathymetryService.getBathymetryAt({ chainageMeters: p.meters, lateralOffsetMeters: 0 })
+      : null;
+    const depth = (bathy?.depthM != null && Number.isFinite(Number(bathy.depthM)))
+      ? Number(bathy.depthM)
+      : (Number.isFinite(depthPoint?.depth_m) ? depthPoint.depth_m : dataset.bathymetry?.depths?.[centerIndex]);
     const width = Number.isFinite(profilePoint?.width_m)
       ? profilePoint.width_m
       : Number.isFinite(station?.width)
@@ -388,6 +394,12 @@ export function mountRiverDataPanel(root, dataset, popupRoot = null) {
     }
     return current;
   }
+
+  bathymetryService.init().finally(() => {
+    if (current?.meters != null) {
+      update(current.meters);
+    }
+  });
 
   return {
     el,

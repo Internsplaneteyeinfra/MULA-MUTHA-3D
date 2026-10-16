@@ -13,6 +13,7 @@ const REQUIRED = [
   "index.html",
   "data/mula_mutha_water_depth.csv",
   "data/Mula_MuthaAOI_2.kml",
+  "data/Mula-Mutha_River_10m_ch_merged.kml",
   "data/Mula_Mutha_Chainage_Analysis.kml",
   "data/buildings.geojson",
   "data/roads.geojson",

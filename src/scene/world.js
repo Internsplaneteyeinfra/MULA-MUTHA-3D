@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { state } from "../state.js";
-import { createTerrain, terrainHeightAt } from "./terrain.js";
+import { createTerrain, terrainHeightAt, carveTerrainUnderRiver } from "./terrain.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
 import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
 import { setWaterSiltMode } from "./waterShader.js";
@@ -47,7 +47,7 @@ import { interpolateChainage } from "../geo/chainage.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { loadOsmWater } from "../geo/osmWater.js";
 import { createWaterFill } from "./waterFill.js";
-import { nearestStationU } from "./riverCamera.js";
+import { nearestStationU, chainageGisAerialPose } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
@@ -192,6 +192,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     }),
   ]);
   clipRiverToHydrology(river, landCover, osmWater, dataset);
+  // Keep the ground below the drawn water everywhere — incl. the narrow channel at the river start.
+  const carved = carveTerrainUnderRiver(terrain.mesh, dataset.corridor.stations);
+  console.info("[terrain] carved under river water", { vertices: carved });
   logCorridorLandCover(dataset, landCover);
   river.dtmHeightAt = (x, z) => terrainHeightAt(x, z, dataset.corridor.stations);
   applyExaggeration(river, dataset, state.depthExaggeration || 1, 0, null);
@@ -345,7 +348,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const cStations = dataset.corridor?.stations || [];
       const newY = new Float32Array(corridorStationCount);
       for (let s = 0; s < corridorStationCount; s++) {
-        const meters = cStations[s]?.along ?? (s * (16961.9 / corridorStationCount));
+        const meters = cStations[s]?.along ?? (s * ((dataset.chainage?.at(-1)?.meters ?? 16796) / corridorStationCount));
         const rec = hydrologyStore.getStationAtChainage(meters);
         const depth = rec?.water_depth_m?.value ?? 1.72;
         newY[s] = hydrologyTransform.hydraulicDepthToSceneY(depth);
@@ -634,8 +637,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     });
   });
 
-    const fishingDone = createFishingSystem(dataset, canvas, getCamera, uiRoot, { waterEffects: waterFx })
-      .then((sys) => {
+  const fishingDone = createFishingSystem(dataset, canvas, getCamera, uiRoot, {
+    waterEffects: waterFx,
+    landCover,
+    osmWater,
+  })
+    .then((sys) => {
         fishing = sys;
         fishGroup.add(sys.group);
         if (sys.zones) cinematic.setFishingZones(sys.zones);
@@ -706,19 +713,18 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return chainage.pick?.(chainPickRay, cam.camera, maxDistM) || null;
   }
 
-  // Eye-level corridor (reference screenshot): low boat height, nearly flat look.
-  // Aerial-oblique corridor framing: stable altitude, unobstructed river view, forward look
+  // River corridor framing: camera sits over water 42m upstream along tangent, aiming directly at chainage point in center of screen
   function chainageCameraOptions(_point, dragging = false) {
     return {
-      cameraHeight: 44,
-      cameraDistance: 95,
-      lookAheadDistance: 240,
-      lookY: SURFACE_Y + 6,
+      cameraHeight: 18,
+      cameraDistance: 42,
+      lookAheadDistance: 0,
+      lookY: SURFACE_Y + 1.2,
       lateralOffset: 0,
       fov: 52,
-      dur: dragging ? 0 : 0.85,
+      dur: dragging ? 0.12 : 0.85,
       transitLift: 0,
-      ease: "inOutCubic",
+      ease: dragging ? "outCubic" : "inOutCubic",
       dragging: !!dragging,
     };
   }
@@ -770,14 +776,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   /** Scene-aware destination framing from data already in the scene. */
   function destinationPose(toM) {
     const p = interpolateChainage(dataset.chainage, toM);
-    const hydroId = hydrologyLayer.userData?.getActiveId?.();
-    const floodOn = !!(apiFloodLayer.visible || climateImpactLayer.visible);
-    if (floodOn || hydroId === "geology") return { height: 56, back: 125, ahead: 280 };
     const nearBridge = (bridgeLabels.items() || []).some(
-      (b) => Number.isFinite(b.x) && p && Math.hypot(b.x - p.x, b.z - p.z) < 160,
+      (b) => Number.isFinite(b.x) && p && Math.hypot(b.x - p.x, b.z - p.z) < 120,
     );
-    if (nearBridge) return { height: 48, back: 105, ahead: 250 };
-    return { height: 44, back: 95, ahead: 240 };
+    if (nearBridge) return { height: 26, back: 46, lookAbove: 1.2 };
+    return { height: 18, back: 42, lookAbove: 1.2 };
   }
 
   function nearestChainageToCamera() {
@@ -802,16 +805,18 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const p = interpolateChainage(dataset.chainage, toM);
     if (!p || p.x == null) return null;
 
-    // When coming from high overview or far from river, smoothly fly into corridor
-    const near = cameraNearChainage(chainFocusM);
-    if (!near && !journey.active) {
+    const c = cam.camera;
+    const eyeY = c?.position?.y ?? 0;
+    const isHighOverview = eyeY > 200 || isMap2DMode();
+
+    // If coming from high aerial overview or 2D mode, descend smoothly into corridor
+    if (isHighOverview && !journey.active) {
       chainFocusM = toM;
       state.selectedChainageMeters = toM;
       cam.focusOnXZ(p.x, p.z, {
-        cameraHeight: 44,
-        cameraDistance: 95,
-        lookAheadDistance: 240,
-        fov: 52,
+        ...chainageCameraOptions(p, false),
+        dur: 1.6,
+        ease: "inOutCubic",
       });
       return null;
     }
@@ -819,7 +824,6 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const fromM = journey.active
       ? journey.active.currentChainage
       : (chainFocusM ?? nearestChainageToCamera());
-    const c = cam.camera;
     if (cam.controls) cam.controls.enabled = false;
     const tr = journey.start(fromM, toM, { p: c.position, l: cam.controls.target }, {
       targetPose: destinationPose(toM) || undefined,
@@ -853,13 +857,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     });
     journeyPublishT += dt;
     if (f.done) {
-      chainFocusM = f.transition.targetChainage;
-      state.selectedChainageMeters = f.transition.targetChainage;
+      const snappedTarget = Math.round(f.transition.targetChainage / 10) * 10;
+      chainFocusM = snappedTarget;
+      state.selectedChainageMeters = snappedTarget;
       publishJourney(null);
       flushSettled();
       document.dispatchEvent(
         new CustomEvent("river-journey-arrive", {
-          detail: { meters: f.transition.targetChainage, mode: f.transition.mode },
+          detail: { meters: snappedTarget, mode: f.transition.mode },
         }),
       );
     } else if (journeyPublishT > 0.1) {
@@ -947,7 +952,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       cancelChainFlight();
       chainFocusM = p.meters;
       state.selectedChainageMeters = p.meters;
-      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, true), dur: 0 });
+      cam.focusOnXZ?.(p.x, p.z, { ...chainageCameraOptions(p, true), dur: 0.12, ease: "outCubic" });
       return;
     }
 
@@ -1512,7 +1517,39 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     exploreRiver,
     riverJourney: journey,
     /** Exit 2D if needed and fly to chainage eye-level view (used by VIEW → 3D). */
-    goToChainageView(meters) {
+    /**
+     * Pre-render the 3D view (behind the loader) so the first 2D→3D flight does not stall on
+     * shader compiles and first-time GPU uploads of the near-river buildings, trees and bridges.
+     */
+    warmUp3DView(meters, pose = {}) {
+      const p = interpolateChainage(dataset.chainage || [], meters);
+      if (!p || p.x == null) return;
+      const eye = new THREE.Vector3();
+      const look = new THREE.Vector3();
+      chainageGisAerialPose(dataset.corridor.stations, {
+        x: p.x,
+        z: p.z,
+        ...chainageCameraOptions(p, false),
+        ...pose,
+        outP: eye,
+        outL: look,
+      });
+      const size = renderer.getSize(new THREE.Vector2());
+      const warmCam = new THREE.PerspectiveCamera(52, size.x / Math.max(1, size.y), 1.2, 120000);
+      const prevBg = scene.background;
+      restoreAtmosphereClarity();
+      // Landing pose, then a mid-descent pose (wide view of the corridor).
+      for (const lift of [0, 1500]) {
+        warmCam.position.set(eye.x, eye.y + lift, eye.z);
+        warmCam.lookAt(look);
+        warmCam.updateMatrixWorld();
+        renderer.compile(scene, warmCam);
+        renderer.render(scene, warmCam);
+      }
+      scene.background = prevBg;
+      // The next frame re-applies the 2D map look for the still-orthographic camera.
+    },
+    goToChainageView(meters, opts = {}) {
       if (cinematic.isActive()) return;
       const wasMap2d =
         state.cameraMode === "aerial" ||
@@ -1548,7 +1585,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
       cam.focusOnXZ?.(p.x, p.z, {
         ...chainageCameraOptions(p, false),
-        dur: wasMap2d ? 2.0 : 1.4,
+        ...(opts.pose || {}),
+        dur: opts.instant ? 0 : Number.isFinite(opts.dur) ? opts.dur : wasMap2d ? 2.0 : 1.4,
       });
 
       document.dispatchEvent(
@@ -1789,6 +1827,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.cinematicActive = false;
       const b = apiFloodLayer.userData?.getBounds?.();
       if (!b || !Number.isFinite(b.cx) || !Number.isFinite(b.cz)) return;
+      // 2D map: frame the real flood bounding box inside the corridor (no pan to the mass centroid).
+      if (cam.focusMap2DBounds?.(b, { dur: 0.9 })) return;
       const span = Math.hypot(b.spanX || 200, b.spanZ || 200);
       const floodHeight = THREE.MathUtils.clamp(span * 0.45, 60, 240);
       const floodBack = THREE.MathUtils.clamp(span * 0.65, 100, 320);

@@ -120,11 +120,13 @@ export function buildCorridorFromKml(ringLocal, depthPoints, opts = {}) {
       );
     }
   }
-  const length = chainage[chainage.length - 1] || 1;
+  // `along` is river chainage (negative upstream of 0+000); `t` is 0..1 over the whole river.
+  const c0 = chainage[0] || 0;
+  const length = chainage[chainage.length - 1] - c0 || 1;
 
   for (let i = 0; i < stations.length; i++) {
     stations[i].along = chainage[i];
-    stations[i].t = chainage[i] / length;
+    stations[i].t = (chainage[i] - c0) / length;
     stations[i].narrow = Math.max(0, 1 - stations[i].width / medianWidth(stations));
   }
 

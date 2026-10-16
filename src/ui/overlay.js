@@ -1,4 +1,5 @@
 import { state } from "../state.js";
+import { SURFACE_Y } from "../scene/river.js";
 import { sceneName } from "../scene/cinematic.js";
 import { whenChainageSettled } from "../scene/riverJourney.js";
 import { mountProjectIdentity } from "./components/projectIdentity.js";
@@ -6,7 +7,7 @@ import { mountWeatherWidget } from "./components/weatherWidget.js";
 import { mountAnalyticsControls } from "./components/analyticsControls.js";
 import { mountRiverDataPanel } from "./components/riverDataPanel.js";
 import { mountProfileAnalysisPanel } from "./components/profileAnalysisPanel.js";
-import { interpolateChainage } from "../geo/chainage.js";
+import { interpolateChainage, formatStation } from "../geo/chainage.js";
 import { mountNavigationControls } from "./components/navigationControls.js";
 import { mountCompassNavigation } from "./components/compassNavigation.js";
 import { mountZoomControls } from "./components/zoomControls.js";
@@ -23,7 +24,6 @@ import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
 import { mountFloodComparePanel } from "./components/floodComparePanel.js";
 import { validYmd, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
-import { mountDigitalTwinPanel } from "./components/digitalTwinPanel.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
 import { mountCrossSectionModal } from "./components/crossSectionModal.js";
 import { mountThresholdGraph } from "./components/thresholdGraph.js";
@@ -566,6 +566,17 @@ export function mountCinematicOverlays(root, dataset) {
   requestAnimationFrame(tick);
 }
 
+/** VIEW → 3D landing: low over the water, looking downstream along the channel. */
+const VIEW_3D_POSE = {
+  cameraHeight: 8,
+  cameraDistance: 70,
+  lookAheadDistance: 270,
+  lookY: SURFACE_Y + 5,
+  minHeight: 6,
+  minBack: 40,
+  groundClearance: 5,
+};
+
 export function mountUI(root, {
   dataset,
   onCamera,
@@ -586,7 +597,7 @@ export function mountUI(root, {
   leftStack.className = "left-ui-stack";
   root.appendChild(leftStack);
 
-  mountProjectIdentity(root);
+  mountProjectIdentity(root, dataset);
   mountAnalyticsControls(root, dataset);
   const weather = mountWeatherWidget(root);
   const riverData = mountRiverDataPanel(leftStack, dataset, root);
@@ -618,28 +629,12 @@ export function mountUI(root, {
   }
 
   // ─── Digital Twin HUD (same left stack as River Data / geology panels) ───
-  const dtPanel = mountDigitalTwinPanel(leftStack);
   const dtDock = mountTwinAnalyticsDock(root);
   const csModal = mountCrossSectionModal(root);
   mountThresholdGraph(root);
   mountHydroIntelPanel(root);
   // Start hidden — toggled from analytics nav [data-analytics=digital_twin]
-  dtPanel.el.hidden = true;
   dtDock.el.hidden = true;
-
-  // Keep panel close button working (analyticsControls owns open/close class sync)
-  document.addEventListener("click", (e) => {
-    if (!e.target.closest("#dt-close-btn")) return;
-    dtPanel.el.hidden = true;
-    dtDock.el.hidden = true;
-    window.__MM_HYDRO_INTEL__?.hide?.();
-    root.classList.remove("dt-mode-active");
-    document.body.classList.remove("dt-mode-active");
-    root.querySelectorAll("[data-analytics='digital_twin'], #dt-mode-toggle").forEach((btn) => {
-      btn.classList.remove("active");
-      btn.setAttribute("aria-pressed", "false");
-    });
-  });
 
   const floodInfo = mountFloodResultPanel(root, {
     onReplay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),
@@ -1025,14 +1020,17 @@ export function mountUI(root, {
       onCamera("aerial");
       nav.syncActive();
     },
-    on3D: () => {
+    on3D: (opts = {}) => {
       map2dData?.leave();
       let mid = 8000;
       const ch = dataset?.chainage;
       if (ch && ch.length) {
         mid = ch[0].meters + (ch[ch.length - 1].meters - ch[0].meters) / 2;
       }
-      window.__MM_SCENE__?.goToChainageView?.(state.selectedChainageMeters ?? mid);
+      window.__MM_SCENE__?.goToChainageView?.(opts.meters ?? state.selectedChainageMeters ?? mid, {
+        pose: VIEW_3D_POSE,
+        ...opts,
+      });
       nav.syncActive();
     },
     onSiltToggle: () => {
@@ -1047,6 +1045,7 @@ export function mountUI(root, {
     onSettingsToggle: () => toggleSettings(),
     onFloodToggle: () => toggleFloodBar(),
   });
+  window.__MM_NAV__ = { enter3D: (opts) => nav.enter3D(opts), view3DPose: VIEW_3D_POSE };
   nav.setLayersPressed(state.showLayers);
   nav.setDrainagePressed?.(state.showDrainage);
   nav.setSettingsPressed?.(state.showSettings);
@@ -1060,17 +1059,22 @@ export function mountUI(root, {
   chainPanel = mountChainagePanel(root, dataset);
 
   function syncSelectedChainage(meters) {
-    const point = interpolateChainage(dataset.chainage, meters);
+    const raw = Number(meters);
+    const snapped = Number.isFinite(raw) ? Math.round(raw / 10) * 10 : meters;
+    const point = interpolateChainage(dataset.chainage, snapped);
     if (!point) return;
+    point.meters = snapped;
+    point.label = formatStation(snapped);
     riverData.update(point);
     weather.updateForChainage(point);
   }
 
   document.addEventListener("chainage-select", (event) => {
-    const m = Number(event.detail?.meters);
-    if (event.detail?.meters != null && Number.isFinite(m)) state.selectedChainageMeters = m;
-    whenChainageSettled("river-data", m, () => syncSelectedChainage(event.detail?.meters));
-    chainRuler.update?.();
+    const raw = Number(event.detail?.meters);
+    const m = Number.isFinite(raw) ? Math.round(raw / 10) * 10 : null;
+    if (m != null) state.selectedChainageMeters = m;
+    whenChainageSettled("river-data", m, () => syncSelectedChainage(m));
+    chainRuler.update?.(true);
     chainStepHud.update?.();
   });
   const chainData = dataset.chainage || [];
@@ -1080,7 +1084,9 @@ export function mountUI(root, {
     const last = chainData[chainData.length - 1].meters;
     midMeters = first + (last - first) / 2;
   }
-  const initialChainage = state.selectedChainageMeters ?? midMeters;
+  const initialChainage = state.selectedChainageMeters != null
+    ? Math.round(Number(state.selectedChainageMeters) / 10) * 10
+    : Math.round(midMeters / 10) * 10;
   if (initialChainage != null) {
     state.selectedChainageMeters = initialChainage;
     syncSelectedChainage(initialChainage);

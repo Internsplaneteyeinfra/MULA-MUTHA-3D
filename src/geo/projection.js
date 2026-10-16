@@ -4,16 +4,19 @@ proj4.defs("EPSG:32643", "+proj=utm +zone=43 +datum=WGS84 +units=m +no_defs +typ
 
 const WGS84 = "EPSG:4326";
 const UTM43 = "EPSG:32643";
+// One converter, built once. proj4(from, to, point) re-parses both CRS definitions on every
+// call, which made each coordinate conversion cost ~0.1 ms (seconds of main-thread time).
+const WGS84_TO_UTM43 = proj4(WGS84, UTM43);
 
 /** Lon/Lat (EPSG:4326) -> UTM 43N metres. */
 export function projectLonLat(lon, lat) {
-  const [easting, northing] = proj4(WGS84, UTM43, [lon, lat]);
+  const [easting, northing] = WGS84_TO_UTM43.forward([lon, lat]);
   return { easting, northing, lon, lat };
 }
 
 /** UTM easting/northing -> Lon/Lat. */
 export function unprojectUtm(easting, northing) {
-  const [lon, lat] = proj4(UTM43, WGS84, [easting, northing]);
+  const [lon, lat] = WGS84_TO_UTM43.inverse([easting, northing]);
   return { lon, lat, easting, northing };
 }
 

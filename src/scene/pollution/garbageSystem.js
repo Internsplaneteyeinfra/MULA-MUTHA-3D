@@ -298,9 +298,7 @@ export function createGarbageSystem({ stations = [] } = {}) {
 
   function focusGarbage(record) {
     if (!record || !Number.isFinite(record.x ?? record.homeX)) return;
-    const pose = computeGarbageCameraPose(record, {
-      isMap2D: !!window.__MM_SCENE__?.isMap2D?.(),
-    });
+    const pose = computeGarbageCameraPose(record);
     console.info("[GarbageSystem] Camera focus:", record.id, pose.toL);
     // Dedicated garbage flight with ground-level terrain tracking
     if (typeof window.__MM_SCENE__?.startGarbageFlight === "function") {

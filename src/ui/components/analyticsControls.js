@@ -754,7 +754,9 @@ export function mountAnalyticsControls(root, dataset) {
       const uiRoot = document.getElementById("ui-root");
       const dtPanel = document.querySelector("#dt-panel");
       const dtDock = document.querySelector("#twin-analytics-dock");
-      const isCurrentlyVisible = dtPanel && !dtPanel.hidden;
+      const isCurrentlyVisible = dtPanel
+        ? !dtPanel.hidden
+        : !!dtDock && !dtDock.hidden;
       const targetState = !isCurrentlyVisible;
 
       if (targetState) {

@@ -587,7 +587,7 @@ export function mountCrossSectionModal(root) {
     L.plotW = svgW - L.padL - L.padR;
     L.plotH = svgH - L.padT - L.padB;
     const { padL, padT, plotW, plotH } = L;
-    const maxCh = 16960;
+    const maxCh = Math.max(1, ...allRecords.map((r) => r.chainage_m || 0));
     const Y_RANGE = 22;
 
     const sampleRate = Math.max(1, Math.floor(allRecords.length / 80));
@@ -607,7 +607,7 @@ export function mountCrossSectionModal(root) {
     const currX = scX(currM);
     const currY = scY(20 - (currM / maxCh) * 8);
 
-    const xTicks = [0, 4, 8, 12, 16.96].map((km) => {
+    const xTicks = [0, 4, 8, 12, +(maxCh / 1000).toFixed(2)].map((km) => {
       const px = scX(km * 1000);
       return `<line x1="${px}" y1="${padT + plotH}" x2="${px}" y2="${padT + plotH + 5}" stroke="${CS.axis}"/>
               <text x="${px}" y="${padT + plotH + 14}" fill="${CS.muted}" font-size="9" text-anchor="middle">${km}</text>`;

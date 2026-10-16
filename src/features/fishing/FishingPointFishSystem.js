@@ -4,7 +4,9 @@ import {
   pointInRing,
   waterSurfaceYAt,
   bedYAt,
+  nearestStation,
 } from "./FishingZoneSystem.js";
+import { isObservedWater } from "../../geo/osmWater.js";
 import { state } from "../../state.js";
 import { SURFACE_Y } from "../../scene/river.js";
 import { DEBUG_FISHING } from "../../config/debugFlags.js";
@@ -46,6 +48,7 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
   group.name = "fishingPointFish";
 
   const ringLocal = dataset.ringLocal || [];
+  const waterMask = { landCover: opts.landCover || null, osmWater: opts.osmWater || null };
   const library = opts.library || (await loadFishAssetLibrary());
   bindFishingSplashTargets(opts.ripples || null, opts.waterEffects || null);
 
@@ -94,6 +97,7 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
       lastLogMs: 0,
       fish: [],
       jumpSchedule: [],
+      waterMask,
     };
 
     const depthPlan = buildDepthPlan(fishCount);
@@ -149,6 +153,7 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
           screen: null,
         };
         placeAtHome(agent, point, ringLocal, dataset, 0);
+        mesh.visible = isWetRiverLocation(mesh.position.x, mesh.position.z, ringLocal, point, dataset);
         point.fish.push(agent);
       }
     }
@@ -223,6 +228,14 @@ export async function createFishingPointFishSystem(dataset, zones, opts = {}) {
             camera.getWorldDirection(_camDir);
             a.mesh.position.addScaledVector(_camDir, EXCLUSION_M - d + 0.5);
           }
+          // The KML corridor includes banks and islands; only show fish over observed river water.
+          a.mesh.visible = isWetRiverLocation(
+            a.mesh.position.x,
+            a.mesh.position.z,
+            ringLocal,
+            point,
+            dataset,
+          );
         }
       }
     }
@@ -310,6 +323,29 @@ function clampInRiver(x, z, ringLocal, point) {
     x: THREE.MathUtils.lerp(x, point.x, 0.7),
     z: THREE.MathUtils.lerp(z, point.z, 0.7),
   };
+}
+
+/** True only inside the rendered wet channel and, when available, the observed water mask. */
+function isWetRiverLocation(x, z, ringLocal, point, dataset) {
+  if (!pointInRing(x, z, ringLocal)) return false;
+
+  const stations = dataset.corridor?.stations || [];
+  if (stations.length) {
+    const st = nearestStation(x, z, stations);
+    const side = (x - st.x) * -st.flowZ + (z - st.z) * st.flowX;
+    const wetHalf = side >= 0 ? st.wetHalfRight : st.wetHalfLeft;
+    const limit = Number.isFinite(wetHalf) ? wetHalf : (st.halfWidth ?? point.halfWidth);
+    if (Math.abs(side) > limit) return false;
+  }
+
+  const { landCover, osmWater } = point.waterMask || {};
+  const landClass = landCover?.classAtLocal?.(x, z);
+  const hasOsmMask =
+    typeof osmWater?.isWaterAtLocal === "function" && (osmWater.count == null || osmWater.count > 0);
+  if (landClass != null || hasOsmMask) {
+    return isObservedWater(landCover, osmWater, x, z);
+  }
+  return true;
 }
 
 function clampInZone(x, z, point, maxR) {
@@ -597,6 +633,7 @@ function measurePointVisibility(point, camera) {
   let tooSmall = 0;
   let occluded = 0;
   for (const a of point.fish) {
+    if (!a.mesh.visible) continue;
     a.mesh.userData.band = a.band;
     const s = projectFishToScreen(a.mesh, camera);
     a.screen = s;
@@ -709,12 +746,12 @@ function tryBeginVisibleJump(a, point, camera, side, ringLocal, dataset, time) {
       sz = THREE.MathUtils.lerp(sz, point.z + pz * lat, 0.45);
       ({ x: sx, z: sz } = clampInZone(sx, sz, point, Math.max(point.radius, 34)));
       ({ x: sx, z: sz } = clampInRiver(sx, sz, ringLocal, point));
-      if (!pointInRing(sx, sz, ringLocal)) continue;
+      if (!isWetRiverLocation(sx, sz, ringLocal, point, dataset)) continue;
 
       let ex = sx + fx * 5;
       let ez = sz + fz * 5;
       ({ x: ex, z: ez } = clampInRiver(ex, ez, ringLocal, point));
-      if (!pointInRing(ex, ez, ringLocal)) continue;
+      if (!isWetRiverLocation(ex, ez, ringLocal, point, dataset)) continue;
 
       const surface = waterSurfaceYAt(sx, sz, time);
       const peakH = a.jumpHeight;
@@ -778,11 +815,12 @@ function updateJumpArc(a, point, camera, time, dt, ringLocal, dataset) {
   }
 
   const surface = waterSurfaceYAt(a.mesh.position.x, a.mesh.position.z, time);
-  if (!a._splashExit && a.mesh.position.y >= surface - 0.05) {
+  const overWater = isWetRiverLocation(a.mesh.position.x, a.mesh.position.z, ringLocal, point, dataset);
+  if (overWater && !a._splashExit && a.mesh.position.y >= surface - 0.05) {
     a._splashExit = true;
     spawnSplashAt(a.mesh.position.x, a.mesh.position.z, 1.15);
   }
-  if (!a._splashLand && u > 0.7 && a.mesh.position.y <= surface + 0.2) {
+  if (overWater && !a._splashLand && u > 0.7 && a.mesh.position.y <= surface + 0.2) {
     a._splashLand = true;
     spawnSplashAt(a.mesh.position.x, a.mesh.position.z, 1.25);
   }

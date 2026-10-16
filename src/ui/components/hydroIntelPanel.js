@@ -623,8 +623,8 @@ export function mountHydroIntelPanel(root) {
         </text>`;
     }
 
-    // X ticks at 0, 4, 8, 12, 16.96 km
-    const xTkSvg = [0, 4, 8, 12, 16.96].map((km) => {
+    // X ticks at 0, 4, 8, 12 km and the river end
+    const xTkSvg = [0, 4, 8, 12, +(maxCh / 1000).toFixed(2)].map((km) => {
       const px = scX(km).toFixed(1);
       return `<line x1="${px}" y1="${L.padT + L.plotH}" x2="${px}" y2="${L.padT + L.plotH + 5}" stroke="${C.axis}" stroke-width="1"/>
               <text x="${px}" y="${L.padT + L.plotH + 14}" fill="${C.muted}" font-size="9" text-anchor="middle">${km}</text>`;

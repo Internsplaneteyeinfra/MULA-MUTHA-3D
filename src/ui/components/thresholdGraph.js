@@ -536,9 +536,9 @@ export function mountThresholdGraph(root) {
     const activeX   = scaleX(activeCh);
     const activeWseY = scaleY(allWse[cell] ?? allWse[0]);
 
-    // X-axis ticks: 0, 4, 8, 12, 16.96 km
-    const xTicks = [0, 4, 8, 12, 16.96].map((km) => {
-      const px = padL + (km / 16.96) * plotW;
+    // X-axis ticks: 0, 4, 8, 12 km and the river end
+    const xTicks = [0, 4, 8, 12, +(maxCh / 1000).toFixed(2)].map((km) => {
+      const px = scaleX(km * 1000);
       return `
         <line x1="${px}" y1="${padT + plotH}" x2="${px}" y2="${padT + plotH + 5}"
               stroke="rgba(255,255,255,0.28)" stroke-width="1"/>

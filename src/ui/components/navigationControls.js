@@ -87,14 +87,16 @@ export function mountNavigationControls(root, {
       syncActive();
     });
   });
-  view3dBtn.addEventListener("click", () => {
+  /** VIEW → 3D. `opts.instant` places the camera without the fly (initial load). */
+  function enter3D(opts = {}) {
     runNav(() => {
       clearRiverMeasure();
-      if (on3D) on3D();
+      if (on3D) on3D(opts);
       else onOverview?.();
       syncActive();
     });
-  });
+  }
+  view3dBtn.addEventListener("click", () => enter3D());
   siltBtn.addEventListener("click", () => {
     runNav(() => onSiltToggle?.());
   });
@@ -156,5 +158,5 @@ export function mountNavigationControls(root, {
   }
 
   syncActive();
-  return { wrap: modes, syncActive, setLayersPressed, setSettingsPressed, setDrainagePressed, setFloodPressed };
+  return { wrap: modes, syncActive, enter3D, setLayersPressed, setSettingsPressed, setDrainagePressed, setFloodPressed };
 }

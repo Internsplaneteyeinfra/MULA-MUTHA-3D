@@ -40,7 +40,7 @@ export const DEPTH_OVERLAY_BOX = {
 export async function loadJourneyDataset({
   csvUrl,
   riverCoordsUrl = "/data/Mula_MuthaAOI_3_full_coordinates.csv",
-  chainageKmlUrl = "/data/Mula_Mutha_Chainage_10m.kml",
+  chainageKmlUrl = "/data/Mula-Mutha_River_10m_ch_merged.kml",
   kmlUrl,
   kmlFallbacks = [],
   bridgesUrl = "/data/bridges.geojson",
@@ -65,6 +65,7 @@ export async function loadJourneyDataset({
   // PRIORITY 1: 10 m chainage KML — polygon + centerline + exact lon/lat stations
   try {
     const { text, url } = await fetchKmlText(chainageKmlUrl, [
+      "/data/Mula_Mutha_Chainage_10m.kml",
       "/data/Mula_Mutha_Chainage_Analysis.kml",
     ]);
     const parsed = parseChainageAnalysisKml(text);
@@ -194,7 +195,10 @@ export async function loadJourneyDataset({
     });
   }
 
-  const finalChainage = canonicalChainage || chainage;
+  // The 10 m chainage KML is the chainage reference (labels, ruler, camera). NadiTwin profiles are
+  // re-stationed onto it (scripts/restationNadiTwin.py) and only drive hydraulics; they start a few
+  // metres before 0+000 because the river flows in from upstream of the first chainage point.
+  const finalChainage = chainage.length ? chainage : canonicalChainage || chainage;
 
   onProgress?.(0.72, "Building river corridor + Excel bathymetry…");
   const corridor = buildCorridorFromKml(ringLocal, depth.points, {
@@ -494,11 +498,12 @@ function alignCorridorToChainageStart(corridor, ch0) {
         );
       }
     }
-    const length = chainage[chainage.length - 1] || 1;
+    const c0 = chainage[0] || 0;
+    const length = chainage[chainage.length - 1] - c0 || 1;
     corridor.length = length;
     for (let i = 0; i < stations.length; i++) {
       stations[i].along = chainage[i];
-      stations[i].t = chainage[i] / length;
+      stations[i].t = (chainage[i] - c0) / length;
     }
     console.info("Corridor reversed to match chainage 0+000 upstream");
   }

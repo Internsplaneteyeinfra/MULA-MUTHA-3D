@@ -6,15 +6,25 @@
 
 const REMOTE_API = "https://rivereye-production.up.railway.app/api";
 
-/** Override with VITE_RIVEREYE_API (e.g. https://…/api or /rivereye-api). */
+/**
+ * The RiverEye API only sends CORS headers for http://localhost:3000, so a browser on any
+ * other origin (e.g. the deployed Railway domain) cannot call it directly ("Failed to fetch").
+ * Same-origin `/rivereye-api` is forwarded server-side: by the Vite dev/preview proxy and by
+ * `server.mjs` in production. Override with VITE_RIVEREYE_API (e.g. https://…/api).
+ */
+const PROXY_API = `${(typeof import.meta !== "undefined" && import.meta.env?.BASE_URL) || "/"}rivereye-api`.replace(/\/{2,}/g, "/");
+
 export function aqiApiBase() {
   const env =
     typeof import.meta !== "undefined" && import.meta.env?.VITE_RIVEREYE_API;
   if (env) return String(env).replace(/\/$/, "");
-  if (typeof import.meta !== "undefined" && import.meta.env?.DEV) {
-    return "/rivereye-api";
-  }
-  return REMOTE_API;
+  return PROXY_API;
+}
+
+/** Bases to try in order: same-origin proxy first, then the direct API (works where CORS allows it). */
+function aqiApiBases() {
+  const primary = aqiApiBase();
+  return primary === REMOTE_API ? [primary] : [primary, REMOTE_API];
 }
 
 export const AQI_FALLBACK_LL = { lat: 18.52, lon: 73.85 };
@@ -77,7 +87,7 @@ export async function fetchLiveAqi(lat, lon, opts = {}) {
   };
   if (opts.date) body.date = opts.date;
 
-  const data = await postJson(`${aqiApiBase()}/aqi`, body);
+  const data = await postAqi("/aqi", body);
   const normalized = normalizeReading(data, q);
   liveCache.set(key, { at: Date.now(), data: normalized });
   pushLocalTrend(q, normalized);
@@ -95,7 +105,7 @@ export async function fetchHourlyAqi(lat, lon, date) {
   const key = `${q.lat.toFixed(4)},${q.lon.toFixed(4)}:${day}`;
   if (hourlyCache.has(key)) return hourlyCache.get(key);
 
-  const raw = await postJson(`${aqiApiBase()}/aqi/hourly`, {
+  const raw = await postAqi("/aqi/hourly", {
     latitude: q.lat,
     longitude: q.lon,
     date: day,
@@ -236,6 +246,30 @@ function quantizeLonLat(lat, lon) {
     lat: Math.round(a * 10000) / 10000,
     lon: Math.round(b * 10000) / 10000,
   };
+}
+
+/** Remember the base that worked so a static host without a proxy is only probed once. */
+let workingBase = null;
+
+async function postAqi(path, body) {
+  const bases = workingBase ? [workingBase] : aqiApiBases();
+  let lastErr = null;
+  for (const base of bases) {
+    try {
+      const data = await postJson(`${base}${path}`, body);
+      workingBase = base;
+      return data;
+    } catch (err) {
+      lastErr = err;
+      // A real API answer (4xx/5xx JSON) will not improve by switching base; transport/proxy-missing errors will.
+      const proxyMissing = /AQI HTTP (404|405)/.test(String(err?.message)) || !/AQI HTTP/.test(String(err?.message));
+      if (!proxyMissing) break;
+    }
+  }
+  if (lastErr && !/AQI HTTP/.test(String(lastErr.message))) {
+    throw new Error("AQI service unreachable (network or CORS). Check the /rivereye-api proxy on the server.");
+  }
+  throw lastErr;
 }
 
 async function postJson(url, body) {

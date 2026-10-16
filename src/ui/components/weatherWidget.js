@@ -64,6 +64,7 @@ export function mountWeatherWidget(root) {
   const temperature = el.querySelector("#weather-temp");
   const condition = el.querySelector("#weather-condition");
   const wind = el.querySelector("#weather-wind");
+  const rain = el.querySelector("#weather-rain");
   const location = el.querySelector("#weather-location");
   const dischargeEl = el.querySelector("#weather-discharge");
   const dischargeUnitEl = el.querySelector("#weather-discharge-unit");
@@ -242,6 +243,12 @@ export function mountWeatherWidget(root) {
           weather.temperature == null ? "— °C" : `${weather.temperature.toFixed(0)}°C`;
         condition.textContent = weather.condition || "Weather unavailable";
         wind.textContent = weather.wind == null ? "Wind —" : `Wind ${weather.wind.toFixed(0)} km/h`;
+        if (rain) {
+          rain.textContent =
+            weather.precipitation == null
+              ? "Rain — mm"
+              : `Rain ${weather.precipitation.toFixed(1)} mm`;
+        }
         lastSuccessful = time.textContent;
         weatherAvailable = true;
         window.__MM_SCENE__?.applyLiveWeather?.(weather);
@@ -255,6 +262,7 @@ export function mountWeatherWidget(root) {
         temperature.textContent = "— °C";
         condition.textContent = "Weather unavailable";
         wind.textContent = "Wind —";
+        if (rain) rain.textContent = "Rain — mm";
         time.textContent = lastSuccessful ? `Last ${lastSuccessful}` : "Unavailable";
         dateEl.textContent = dateFmt.format(new Date());
       }

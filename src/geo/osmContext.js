@@ -50,10 +50,10 @@ export function emptyOsmContext() {
 
 export async function loadOsmContext(frame, corridor, urls = {}) {
   const lite = urls.lite === true;
-  const roadsUrl = urls.roads || "/data/roads.geojson";
-  const roadsLegacy = "/data/osm_roads.geojson";
-  const buildingsUrl = urls.buildings || "/data/buildings.geojson";
-  const buildingsLegacy = "/data/osm_buildings.geojson";
+  const roadsUrl = urls.roads || "/data/osm_roads.geojson";
+  const roadsFallback = "/data/roads.geojson";
+  const buildingsUrl = urls.buildings || "/data/osm_buildings.geojson";
+  const buildingsFallback = "/data/buildings.geojson";
   const vegUrl = urls.vegetation || "/data/vegetation.geojson";
   const greenLegacy = "/data/osm_green.geojson";
   const treesUrl = urls.trees || "/data/trees.geojson";
@@ -72,8 +72,8 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
     metadata,
     kmlValidation,
   ] = await Promise.all([
-    fetchFirst([roadsUrl, roadsLegacy]),
-    fetchFirst([buildingsUrl, buildingsLegacy]),
+    fetchFirst([roadsUrl, roadsFallback]),
+    fetchFirst([buildingsUrl, buildingsFallback]),
     // Always load vegetation + trees — lite only skips heavy metadata/water extras
     fetchFirst([vegUrl, greenLegacy]),
     fetchOptional(treesUrl),
@@ -88,7 +88,7 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   // Roads stay on the full corridor even in lite — vertex stripping broke streets
   const roads = projectLines(roadsFc, frame, corridor, FULL_CORRIDOR_M, false);
   const buildingsAll = projectBuildings(buildingsFc, frame, corridor, extraM, bankStrip);
-  const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 4000 : 9000);
+  const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 2500 : 4500);
   const green = projectPolygons(vegFc, frame, corridor, extraM, bankStrip);
   const trees = projectTrees(treesFc, frame, corridor, extraM, bankStrip);
   const treeRows = projectLines(treeRowsFc, frame, corridor, extraM, bankStrip);
@@ -130,9 +130,30 @@ async function fetchOptional(url) {
   }
 }
 
+function getCorridorAabb(corridor, maxDist) {
+  const stations = corridor?.stations || [];
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
+  const sStep = Math.max(1, Math.floor(stations.length / 90));
+  for (let i = 0; i < stations.length; i += sStep) {
+    const s = stations[i];
+    if (s.x < minX) minX = s.x;
+    if (s.x > maxX) maxX = s.x;
+    if (s.z < minZ) minZ = s.z;
+    if (s.z > maxZ) maxZ = s.z;
+  }
+  const pad = maxDist + 150;
+  return {
+    minX: minX - pad,
+    maxX: maxX + pad,
+    minZ: minZ - pad,
+    maxZ: maxZ + pad,
+    stations,
+  };
+}
+
 function distToCorridor(x, z, stations) {
   let best = Infinity;
-  const step = Math.max(1, Math.floor(stations.length / 180));
+  const step = Math.max(1, Math.floor(stations.length / 60));
   for (let i = 0; i < stations.length; i += step) {
     const s = stations[i];
     const d2 = (s.x - x) ** 2 + (s.z - z) ** 2;
@@ -154,18 +175,27 @@ function keepPoint(x, z, stations, maxDist, bankStrip) {
 
 function projectLines(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
+  const aabb = getCorridorAabb(corridor, maxDist);
+  const stations = aabb.stations;
   const out = [];
   for (const feat of fc.features) {
     const coords = feat.geometry?.coordinates;
     if (!coords || coords.length < 2) continue;
+    // Fast AABB check on endpoints to skip thousands of distant lines immediately
+    const p0 = toLocal(coords[0][0], coords[0][1], frame);
+    const pEnd = toLocal(coords[coords.length - 1][0], coords[coords.length - 1][1], frame);
+    if ((p0.x < aabb.minX || p0.x > aabb.maxX || p0.z < aabb.minZ || p0.z > aabb.maxZ) &&
+        (pEnd.x < aabb.minX || pEnd.x > aabb.maxX || pEnd.z < aabb.minZ || pEnd.z > aabb.maxZ)) {
+      continue;
+    }
     let verts = coords.map(([lon, lat]) => toLocal(lon, lat, frame));
     if (bankStrip) {
-      verts = verts.filter((v) => withinRiverSide(v.x, v.z, corridor.stations, maxDist));
+      verts = verts.filter((v) => withinRiverSide(v.x, v.z, stations, maxDist));
     }
     if (verts.length < 2) continue;
     const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
     const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-    if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
+    if (!keepPoint(mx, mz, stations, maxDist, bankStrip)) continue;
     let lengthM = 0;
     for (let i = 1; i < verts.length; i++) {
       lengthM += Math.hypot(verts[i].x - verts[i - 1].x, verts[i].z - verts[i - 1].z);
@@ -189,14 +219,18 @@ function projectLines(fc, frame, corridor, maxDist, bankStrip = false) {
 
 function projectPolygons(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
+  const aabb = getCorridorAabb(corridor, maxDist);
+  const stations = aabb.stations;
   const out = [];
   for (const feat of fc.features) {
     const ring = feat.geometry?.coordinates?.[0];
     if (!ring || ring.length < 4) continue;
+    const p0 = toLocal(ring[0][0], ring[0][1], frame);
+    if (p0.x < aabb.minX || p0.x > aabb.maxX || p0.z < aabb.minZ || p0.z > aabb.maxZ) continue;
     const verts = ring.map(([lon, lat]) => toLocal(lon, lat, frame));
     const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
     const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-    if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
+    if (!keepPoint(mx, mz, stations, maxDist, bankStrip)) continue;
     out.push({
       id: feat.properties?.osmId ?? feat.properties?.id,
       name: feat.properties?.name,
@@ -215,14 +249,20 @@ function projectPolygons(fc, frame, corridor, maxDist, bankStrip = false) {
 
 function projectBuildings(fc, frame, corridor, maxDist, bankStrip = false) {
   if (!fc?.features) return [];
+  const aabb = getCorridorAabb(corridor, maxDist);
+  const stations = aabb.stations;
   const out = [];
   for (const feat of fc.features) {
     const ring = feat.geometry?.coordinates?.[0];
     if (!ring || ring.length < 4) continue;
+    // Fast AABB check on first coordinate
+    const p0 = toLocal(ring[0][0], ring[0][1], frame);
+    if (p0.x < aabb.minX || p0.x > aabb.maxX || p0.z < aabb.minZ || p0.z > aabb.maxZ) continue;
+
     const verts = ring.map(([lon, lat]) => toLocal(lon, lat, frame));
     const mx = verts.reduce((s, v) => s + v.x, 0) / verts.length;
     const mz = verts.reduce((s, v) => s + v.z, 0) / verts.length;
-    if (!keepPoint(mx, mz, corridor.stations, maxDist, bankStrip)) continue;
+    if (!keepPoint(mx, mz, stations, maxDist, bankStrip)) continue;
     const resolved = resolveBuildingHeight(feat.properties || {});
     out.push({
       id: feat.properties?.osmId ?? feat.properties?.id,
@@ -344,7 +384,7 @@ function stratifyAlongCorridor(buildings, corridor, maxKeep) {
   for (const b of buildings) {
     let bestI = 0;
     let bestD = Infinity;
-    const step = Math.max(1, Math.floor(stations.length / 250));
+    const step = Math.max(1, Math.floor(stations.length / 80));
     for (let i = 0; i < stations.length; i += step) {
       const s = stations[i];
       const d2 = (s.x - b.midX) ** 2 + (s.z - b.midZ) ** 2;

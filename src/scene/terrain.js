@@ -32,8 +32,8 @@ export async function createTerrain(dataset) {
   const width = b.spanX;
   const depth = b.spanZ;
   const lite = dataset.lite === true;
-  const segsX = activeDtm ? (lite ? 300 : 540) : (lite ? 180 : 360);
-  const segsZ = activeDtm ? (lite ? 150 : 270) : (lite ? 90 : 180);
+  const segsX = activeDtm ? (lite ? 200 : 260) : (lite ? 140 : 200);
+  const segsZ = activeDtm ? (lite ? 100 : 130) : (lite ? 70 : 100);
   const geo = new THREE.PlaneGeometry(width, depth, segsX, segsZ);
   geo.rotateX(-Math.PI / 2);
   geo.translate(b.cx, 0, b.cz);
@@ -53,7 +53,8 @@ export async function createTerrain(dataset) {
 
   const nx = segsX + 1;
   const nz = segsZ + 1;
-  for (let pass = 0; pass < 5; pass++) {
+  antialiasShoreline(pos, heights, nx, nz);
+  for (let pass = 0; pass < 2; pass++) {
     const next = heights.slice();
     for (let iz = 1; iz < nz - 1; iz++) {
       for (let ix = 1; ix < nx - 1; ix++) {
@@ -228,19 +229,26 @@ function createGroundSurround(b, heights, minY) {
 }
 
 function heightAt(x, z, stations, dtm = activeDtm) {
+  const dtmY = dtm?.sampleSceneXY?.(x, z) ?? null;
+  const observed = isObservedWater(activeLulc, activeOsmWater, x, z);
+
+  // Fast-path: 90%+ of vertices are dry land covered directly by FABDEM DTM
+  if (dtmY != null && !observed) {
+    const cls = activeLulc?.classAtLocal?.(x, z);
+    const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop");
+    return isIslandLand ? Math.max(dtmY, SURFACE_Y + 0.8) : dtmY;
+  }
+
   const nearStation = nearest(x, z, stations);
   const lat = nearStation.lat;
   const ch = nearStation.st.chainage_m;
   const half = Math.max(12, nearStation.st.halfWidth);
-  const dtmY = dtm?.sampleSceneXY?.(x, z) ?? null;
 
-  const depthInfo = wseSpatialService.getDepthAt(ch, lat);
-  const observed = isObservedWater(activeLulc, activeOsmWater, x, z);
-  let isWater = observed;
   let bedY = null;
   let targetWaterY = SURFACE_Y - 0.5;
 
   if (observed) {
+    const depthInfo = wseSpatialService.getDepthAt(ch, lat);
     if (depthInfo.wetted && depthInfo.depthM > 0) {
       bedY = SURFACE_Y - depthInfo.depthM;
     } else if (dtmY != null) {
@@ -248,9 +256,10 @@ function heightAt(x, z, stations, dtm = activeDtm) {
     } else {
       bedY = SURFACE_Y - 0.8;
     }
-    targetWaterY = SURFACE_Y - 0.5;
+    return bedY != null ? bedY : targetWaterY;
   }
 
+  // Procedural fallback only if DTM has void/null at this coordinate
   const hills =
     fbm(x * 0.00045, z * 0.00045) * 18 +
     fbm(x * 0.0012 + 4, z * 0.0012) * 8 +
@@ -259,25 +268,127 @@ function heightAt(x, z, stations, dtm = activeDtm) {
   const proceduralBase = SURFACE_Y + 2 + hills * bankFalloff;
 
   const cls = activeLulc?.classAtLocal?.(x, z);
-  const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop") && !observed;
+  const isIslandLand = (cls === "forest" || cls === "barren" || cls === "crop");
+  return isIslandLand ? Math.max(proceduralBase, SURFACE_Y + 1.2) : proceduralBase;
+}
 
-  if (dtmY != null) {
-    if (isWater) {
-      return bedY != null ? bedY : targetWaterY;
+/**
+ * Water share of a disc of radius r around (x, z): a blurred land-cover water mask (0..1).
+ * r ≈ one terrain cell (~27 m), so the 50 % line moves smoothly inside cells.
+ */
+function waterFraction(x, z, r = 30, S = 9) {
+  let hits = 0;
+  let total = 0;
+  for (let a = 0; a < S; a++) {
+    for (let b = 0; b < S; b++) {
+      const u = (a + 0.5) / S * 2 - 1;
+      const v = (b + 0.5) / S * 2 - 1;
+      if (u * u + v * v > 1) continue;
+      total++;
+      if (isObservedWater(activeLulc, activeOsmWater, x + u * r, z + v * r)) hits++;
     }
-    if (isIslandLand) {
-      return Math.max(dtmY, SURFACE_Y + 0.8);
-    }
-    return dtmY;
   }
+  return total ? hits / total : 0;
+}
 
-  if (isWater) {
-    return bedY != null ? bedY : SURFACE_Y - 0.8;
+/**
+ * Smooth shoreline: water/land is a per-vertex yes/no from the land-cover raster, whose cells
+ * (~30 m) make the waterline a staircase. Near water/land boundaries, set the ground height from
+ * a blurred water fraction of the mask instead (±1 m about the water plane, crossing at 50 %):
+ * the waterline follows a rounded version of the raster outline. Interior water / land unchanged.
+ */
+function antialiasShoreline(pos, heights, nx, nz) {
+  if (!activeLulc && !activeOsmWater) return;
+  const n = nx * nz;
+  const water = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    water[i] = isObservedWater(activeLulc, activeOsmWater, pos.getX(i), pos.getZ(i)) ? 1 : 0;
   }
-  if (isIslandLand) {
-    return Math.max(proceduralBase, SURFACE_Y + 1.2);
+  const R = 3; // grid steps checked for a nearby boundary (the blur reaches ~30 m)
+  for (let iz = R; iz < nz - R; iz++) {
+    for (let ix = R; ix < nx - R; ix++) {
+      const i = iz * nx + ix;
+      const w = water[i];
+      let edge = false;
+      for (let dz = -R; dz <= R && !edge; dz++) {
+        for (let dx = -R; dx <= R; dx++) {
+          if (water[i + dz * nx + dx] !== w) { edge = true; break; }
+        }
+      }
+      if (!edge) continue;
+      const f = waterFraction(pos.getX(i), pos.getZ(i));
+      const shoreY = SURFACE_Y + (0.5 - f) * 2;
+      // Water side: no higher than the shoreline (deeper bed stays). Land side: no lower than the
+      // shoreline (real high banks stay).
+      heights[i] = f >= 0.5 ? Math.min(heights[i], shoreY) : Math.max(heights[i], shoreY);
+    }
   }
-  return proceduralBase;
+}
+
+/**
+ * Shape the rendered ground around the river ribbon (call after it is built: stations carry
+ * wetHalfLeft / wetHalfRight). The visible river is the blue river bed + water surface ribbon,
+ * whose outline is smooth; where the ground pokes through the bed, the shoreline instead follows
+ * the ground grid (~27 m × 11 m) as a staircase, and near 0+000 the ground hid the water entirely.
+ *
+ * Under the ribbon (and a strip just past its edge, so the ribbon edge — not a ground cell edge —
+ * is the shoreline) the ground goes well below the bed; beyond the strip it ramps back up to the
+ * real ground. Islands (land-cover land inside the channel) keep their raised ground.
+ * Trees / buildings / camera still use terrainHeightAt.
+ */
+export function carveTerrainUnderRiver(mesh, stations, { underDepthM = 8, stripDepthM = 2.4, stripM = 12, bandM = 45, rampSlope = 0.35 } = {}) {
+  if (!mesh?.geometry || !stations?.length || !Number.isFinite(stations[0].wetHalfLeft)) return 0;
+  const pos = mesh.geometry.attributes.position;
+  const col = mesh.geometry.attributes.color;
+  const bank = new THREE.Color("#6a8664").lerp(new THREE.Color("#847252"), 0.45);
+  const under = SURFACE_Y - underDepthM; // under the ribbon: hidden by the bed
+  const strip = SURFACE_Y - stripDepthM; // just past the edge: only needs to sit below the bed
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxW = 0;
+  for (const s of stations) {
+    minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x);
+    minZ = Math.min(minZ, s.z); maxZ = Math.max(maxZ, s.z);
+    maxW = Math.max(maxW, s.wetHalfLeft, s.wetHalfRight);
+  }
+  const pad = maxW + bandM;
+  let changed = 0;
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i);
+    const z = pos.getZ(i);
+    if (x < minX - pad || x > maxX + pad || z < minZ - pad || z > maxZ + pad) continue;
+    const { st } = nearest(x, z, stations);
+    // Signed offset across the flow: + toward the right bank (same convention as the ribbon).
+    const side = (x - st.x) * -st.flowZ + (z - st.z) * st.flowX;
+    const along = (x - st.x) * st.flowX + (z - st.z) * st.flowZ;
+    if (Math.abs(along) > 40) continue; // beyond the river's ends
+    const half = side >= 0 ? st.wetHalfRight : st.wetHalfLeft;
+    const d = Math.abs(side) - half; // < 0 inside the ribbon, > 0 on the bank
+    if (d > bandM) continue;
+    const y = pos.getY(i);
+    // Islands / land inside the channel keep their raised ground.
+    if (d < 0 && waterFraction(x, z) < 0.5) continue;
+    let ny;
+    if (d <= 0) {
+      ny = Math.min(y, under);
+    } else if (d <= stripM) {
+      ny = Math.min(y, strip);
+    } else {
+      // Ramp from below the bed back to the real ground; never raise ground above its own height.
+      const rampY = strip + (d - stripM) * rampSlope;
+      const keep = THREE.MathUtils.smoothstep(d, bandM * 0.7, bandM);
+      ny = Math.min(y, THREE.MathUtils.lerp(rampY, y, keep));
+    }
+    if (Math.abs(ny - y) < 1e-3) continue;
+    pos.setY(i, ny);
+    if (col && d > 0) col.setXYZ(i, bank.r, bank.g, bank.b);
+    changed++;
+  }
+  if (changed) {
+    pos.needsUpdate = true;
+    if (col) col.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
+    mesh.geometry.computeBoundingSphere();
+  }
+  return changed;
 }
 
 export function terrainHeightAt(x, z, stations) {
@@ -327,8 +438,9 @@ export function dtmElevationAtLonLat(lon, lat) {
 function nearest(x, z, stations) {
   let bestI = 0;
   let bestD = Infinity;
-  const step = Math.max(1, Math.floor(stations.length / 400));
-  for (let i = 0; i < stations.length; i += step) {
+  const len = stations.length;
+  const step = Math.max(1, Math.floor(len / 40));
+  for (let i = 0; i < len; i += step) {
     const s = stations[i];
     const d = (s.x - x) ** 2 + (s.z - z) ** 2;
     if (d < bestD) {
@@ -336,8 +448,10 @@ function nearest(x, z, stations) {
       bestI = i;
     }
   }
-  // Refine locally for accurate lateral distance
-  for (let i = Math.max(0, bestI - 12); i <= Math.min(stations.length - 1, bestI + 12); i++) {
+  // Refine locally in a window around best candidate (±step)
+  const start = Math.max(0, bestI - step);
+  const end = Math.min(len - 1, bestI + step);
+  for (let i = start; i <= end; i++) {
     const s = stations[i];
     const d = (s.x - x) ** 2 + (s.z - z) ** 2;
     if (d < bestD) {

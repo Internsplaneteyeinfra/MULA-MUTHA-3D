@@ -422,11 +422,46 @@ function blocked(x, z, buildings, roads, stations, lulc) {
     const near = nearest(x, z, stations);
     if (near.lat < near.half + RIVER_CLEAR_EXTRA_M && lulc?.classAtLocal(x, z) !== "forest") return true;
   }
-  for (const b of buildings) {
-    if (Math.hypot(b.midX - x, b.midZ - z) < BUILDING_CLEAR_M) return true;
+  if (anyNear(gridFor(buildings, () => BUILDING_CLEAR_M), x, z, () => BUILDING_CLEAR_M)) return true;
+  if (anyNear(gridFor(roads, (r) => (r.widthM || 5) * 0.9), x, z, (r) => (r.widthM || 5) * 0.9)) return true;
+  return false;
+}
+
+/**
+ * Uniform grid over item midpoints (built once per array). Cell size >= the largest clearance
+ * radius, so checking the 3×3 neighbourhood gives exactly the same answer as a full scan.
+ */
+const nearGrids = new WeakMap();
+function gridFor(items, radiusOf) {
+  let g = nearGrids.get(items);
+  if (g) return g;
+  let maxR = 1;
+  for (const it of items) maxR = Math.max(maxR, radiusOf(it));
+  const cell = Math.max(maxR, 25);
+  const cells = new Map();
+  for (const it of items) {
+    if (!Number.isFinite(it.midX) || !Number.isFinite(it.midZ)) continue;
+    const k = `${Math.floor(it.midX / cell)}:${Math.floor(it.midZ / cell)}`;
+    let list = cells.get(k);
+    if (!list) cells.set(k, (list = []));
+    list.push(it);
   }
-  for (const r of roads) {
-    if (Math.hypot(r.midX - x, r.midZ - z) < (r.widthM || 5) * 0.9) return true;
+  g = { cell, cells };
+  nearGrids.set(items, g);
+  return g;
+}
+
+function anyNear(g, x, z, radiusOf) {
+  const cx = Math.floor(x / g.cell);
+  const cz = Math.floor(z / g.cell);
+  for (let i = -1; i <= 1; i++) {
+    for (let j = -1; j <= 1; j++) {
+      const list = g.cells.get(`${cx + i}:${cz + j}`);
+      if (!list) continue;
+      for (const it of list) {
+        if (Math.hypot(it.midX - x, it.midZ - z) < radiusOf(it)) return true;
+      }
+    }
   }
   return false;
 }

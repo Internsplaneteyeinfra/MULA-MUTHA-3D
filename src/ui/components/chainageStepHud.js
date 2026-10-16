@@ -63,8 +63,10 @@ export function mountChainageStepHud(root, dataset) {
       update();
       return;
     }
-    stationEl.textContent = metersToStation(j.currentChainage);
-    travelEl.textContent = `${j.direction > 0 ? "▶ downstream" : "◀ upstream"} → ${metersToStation(j.targetChainage)}`;
+    const curM = Math.round((j.currentChainage ?? 0) / 10) * 10;
+    const targetM = Math.round((j.targetChainage ?? 0) / 10) * 10;
+    stationEl.textContent = metersToStation(curM);
+    travelEl.textContent = `${j.direction > 0 ? "▶ downstream" : "◀ upstream"} → ${metersToStation(targetM)}`;
   }
   document.addEventListener("river-journey-progress", onJourney);
 
@@ -129,7 +131,8 @@ export function mountChainageStepHud(root, dataset) {
     if (state.cameraJourney) return;
 
     const idx = currentIndex();
-    const label = metersToStation(state.selectedChainageMeters);
+    const clamped = Math.round(Number(state.selectedChainageMeters || 0) / 10) * 10;
+    const label = metersToStation(clamped);
     stationEl.textContent = label;
 
     prevBtn.disabled = idx <= 0;

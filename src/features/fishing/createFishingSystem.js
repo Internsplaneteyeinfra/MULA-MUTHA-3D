@@ -40,6 +40,8 @@ export async function createFishingSystem(dataset, canvas, camera, uiRoot, extra
       pointFish = await createFishingPointFishSystem(dataset, zones, {
         ripples,
         waterEffects: extras.waterEffects || null,
+        landCover: extras.landCover || null,
+        osmWater: extras.osmWater || null,
         uiRoot,
       });
       group.add(pointFish.group);
@@ -162,9 +164,9 @@ function createFishingPanel(root) {
     show(zone, depth) {
       el.hidden = false;
       el.innerHTML = `
-        <h3>Fishing Location</h3>
+        <h3>Fishing Zone</h3>
         ${zone.waterValid === false ? `<div class="kv invalid"><span class="k">Status</span><span class="v">${zone.invalidReason || "INVALID"}</span></div>` : ""}
-        <div class="kv"><span class="k">ID</span><span class="v">${zone.name}</span></div>
+        <div class="kv"><span class="k">Name</span><span class="v">Fishing Zone</span></div>
         <div class="kv"><span class="k">Longitude</span><span class="v">${zone.lon.toFixed(6)}°</span></div>
         <div class="kv"><span class="k">Latitude</span><span class="v">${zone.lat.toFixed(6)}°</span></div>
         <div class="kv"><span class="k">Depth</span><span class="v">${Number(depth).toFixed(3)} m</span></div>

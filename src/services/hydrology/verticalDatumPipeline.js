@@ -30,7 +30,7 @@ export const BUND_GARDEN_BENCHMARK_CONFIG = Object.freeze({
   name: "Bund Garden Bridge Survey Benchmark",
   latitude: 18.543024,
   longitude: 73.883100,
-  chainage_m: 3451.9,
+  chainage_m: 3467.5,
   // Bund Garden weir crest nominal level: ~544.5 m MSL (CWC gauge zero at 540.0 m MSL)
   gaugeZeroMslM: 540.0,
   weirCrestMslM: 544.5,
