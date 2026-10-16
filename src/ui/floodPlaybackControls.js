@@ -1,4 +1,4 @@
-import { ChevronLeft, ChevronRight, Play, Pause, RotateCcw, RefreshCw, SkipBack } from "lucide";
+import { ChevronLeft, ChevronRight, ChevronUp, Play, Pause, RotateCcw, RefreshCw, SkipBack } from "lucide";
 import { lucideHtml } from "./icons.js";
 import { todayApiDate } from "../services/jalnetraFloodService.js";
 import { validYmd, fmtYmd, fmtHa, fmtTimestamp, joinValid } from "./floodFieldFormat.js";
@@ -74,32 +74,45 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
 
   panel.innerHTML = `
     <div class="fpt-head">
-      <span class="flood-playback__label">FLOOD PLAYBACK</span>
-      <span class="fpt-summary" aria-live="polite">Loading available dates…</span>
+      <button type="button" class="fpt-toggle" aria-expanded="false" aria-controls="fpt-more">
+        <span class="flood-playback__label">FLOOD PLAYBACK</span>
+        <span class="fpt-toggle__icon" aria-hidden="true">${lucideHtml(ChevronUp, { size: 14 })}</span>
+      </button>
       <button type="button" class="fpt-refresh" title="Check JalNetra for newly published scenes" aria-label="Refresh available dates">${lucideHtml(RefreshCw, { size: 11 })}</button>
     </div>
 
-    <div class="fpt-datebar">
-      <button type="button" class="ft-nav-btn fpt-prev" aria-label="Previous year with data">${lucideHtml(ChevronLeft, { size: 12 })}</button>
-      <span class="fpt-year"></span>
-      <button type="button" class="ft-nav-btn fpt-next" aria-label="Next year with data">${lucideHtml(ChevronRight, { size: 12 })}</button>
-      <div class="fpt-chips" role="listbox" aria-label="Available simulation dates"></div>
+    <div class="fpt-compact">
+      <div class="fpt-compact__row">
+        <button type="button" class="flood-playback-btn fpt-date-prev" data-act="prev-date" title="Previous date" aria-label="Previous date">${lucideHtml(ChevronLeft, { size: 13 })}</button>
+        <select class="fpt-date-select" aria-label="Historical flood date"></select>
+        <button type="button" class="flood-playback-btn fpt-date-next" data-act="next-date" title="Next date" aria-label="Next date">${lucideHtml(ChevronRight, { size: 13 })}</button>
+        <button type="button" class="flood-playback-btn fpt-playpause" data-act="playpause" title="Play / pause" aria-label="Play or pause" disabled>${lucideHtml(Play, { size: 12, fill: "currentColor" })}</button>
+      </div>
+      <div class="flood-playback__timeline fpt-compact__timeline">
+        <span class="flood-playback-track-end" aria-hidden="true">River</span>
+        <input type="range" class="fpt-scrub" min="0" max="1000" step="1" value="0" aria-label="Flood spread progress" disabled />
+        <span class="flood-playback-track-end" aria-hidden="true">Extent</span>
+      </div>
     </div>
 
-    <div class="flood-playback__controls">
-      <button type="button" class="flood-playback-btn" data-act="play" title="Play / resume flood spread">${lucideHtml(Play, { size: 12, fill: "currentColor" })} Play</button>
-      <button type="button" class="flood-playback-btn" data-act="pause" title="Pause">${lucideHtml(Pause, { size: 12, fill: "currentColor" })} Pause</button>
-      <button type="button" class="flood-playback-btn" data-act="replay" title="Replay from river">${lucideHtml(RotateCcw, { size: 12 })} Replay</button>
-      <button type="button" class="flood-playback-btn" data-act="reset" title="Reset to river level">${lucideHtml(SkipBack, { size: 12 })} Reset</button>
-    </div>
-    <div class="flood-playback__timeline">
-      <span class="flood-playback-track-end" aria-hidden="true">River</span>
-      <input type="range" class="fpt-scrub" min="0" max="1000" step="1" value="0" aria-label="Flood spread progress" disabled />
-      <span class="flood-playback-track-end" aria-hidden="true">Extent</span>
-    </div>
-    <div class="fpt-selected" hidden>
-      <div class="fpt-selected__text"><strong class="fpt-selected__date"></strong><span class="fpt-selected__meta"></span></div>
-      <button type="button" class="flood-playback-btn fpt-generate" hidden>Generate Simulation</button>
+    <div class="fpt-more" id="fpt-more" hidden>
+      <div class="fpt-summary" aria-live="polite">Loading available dates…</div>
+      <div class="fpt-datebar">
+        <button type="button" class="ft-nav-btn fpt-prev" aria-label="Previous year with data">${lucideHtml(ChevronLeft, { size: 12 })}</button>
+        <span class="fpt-year"></span>
+        <button type="button" class="ft-nav-btn fpt-next" aria-label="Next year with data">${lucideHtml(ChevronRight, { size: 12 })}</button>
+        <div class="fpt-chips" role="listbox" aria-label="Available simulation dates"></div>
+      </div>
+      <div class="flood-playback__controls">
+        <button type="button" class="flood-playback-btn" data-act="play" title="Play / resume flood spread">${lucideHtml(Play, { size: 12, fill: "currentColor" })} Play</button>
+        <button type="button" class="flood-playback-btn" data-act="pause" title="Pause">${lucideHtml(Pause, { size: 12, fill: "currentColor" })} Pause</button>
+        <button type="button" class="flood-playback-btn" data-act="replay" title="Replay from river">${lucideHtml(RotateCcw, { size: 12 })} Replay</button>
+        <button type="button" class="flood-playback-btn" data-act="reset" title="Reset to river level">${lucideHtml(SkipBack, { size: 12 })} Reset</button>
+      </div>
+      <div class="fpt-selected" hidden>
+        <div class="fpt-selected__text"><strong class="fpt-selected__date"></strong><span class="fpt-selected__meta"></span></div>
+        <button type="button" class="flood-playback-btn fpt-generate" hidden>Generate Simulation</button>
+      </div>
     </div>
     <div class="flood-pb-status" style="display:none;"></div>
   `;
@@ -118,7 +131,13 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
   const refreshBtn = $(".fpt-refresh");
   const scrub = $(".fpt-scrub");
   const statusEl = $(".flood-pb-status");
-  const ctrlBtns = [...panel.querySelectorAll(".flood-playback__controls button")];
+  const dateSelect = $(".fpt-date-select");
+  const playPauseBtn = $(".fpt-playpause");
+  const moreEl = $(".fpt-more");
+  const toggleBtn = $(".fpt-toggle");
+  const ctrlBtns = [...panel.querySelectorAll(".flood-playback__controls button, .fpt-playpause")];
+  let expanded = false;
+  let isPlaying = false;
 
   /** Catalog records with a real calendar date — the only source of chips. */
   function verifiedScenes() {
@@ -228,7 +247,7 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
       chip.setAttribute("role", "option");
       chip.setAttribute("aria-selected", String(ymd === selected));
       chip.title = `${fmtDate(ymd)} — ${reason}`;
-      chip.textContent = chipLabel(ymd);
+      chip.textContent = fmtDate(ymd, true) || chipLabel(ymd);
       chip.addEventListener("click", () => selectDay(ymd));
       chipsEl.appendChild(chip);
       if (ymd === selected) focusEl = chip;
@@ -282,7 +301,7 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
     selBox.hidden = false;
     const { status, reason } = dayStatus(selected);
     const scene = sceneFor(selected);
-    const dateLabel = fmtDate(selected);
+    const dateLabel = fmtDate(selected, true);
     selDateEl.textContent = dateLabel;
     selDateEl.hidden = !dateLabel;
     const pre = fmtYmd(scene?.pre_date, false);
@@ -295,20 +314,93 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
     genBtn.disabled = busy || refreshing;
   }
 
+  function allVerifiedDates() {
+    return verifiedScenes()
+      .map((s) => s.date)
+      .sort((a, b) => (a < b ? 1 : a > b ? -1 : 0));
+  }
+
+  /** Prefer selected (user intent) so prev/next/dropdown stay responsive while a load finishes. */
+  function activeDate() {
+    return selected || loadedDate || null;
+  }
+
+  function renderDateSelect() {
+    const dates = allVerifiedDates();
+    const active = activeDate();
+    const sig = dates.join("|");
+
+    // Rebuild options only when the catalog list changes — wiping <select>
+    // on every render closes the open menu and breaks picking a date.
+    if (dateSelect.dataset.sig !== sig) {
+      dateSelect.dataset.sig = sig;
+      dateSelect.innerHTML = "";
+      if (!dates.length) {
+        const opt = document.createElement("option");
+        opt.value = "";
+        opt.textContent = refreshing ? "Loading…" : "No dates";
+        dateSelect.appendChild(opt);
+      } else {
+        for (const ymd of dates) {
+          const opt = document.createElement("option");
+          opt.value = ymd;
+          opt.textContent = fmtDate(ymd, true) || ymd;
+          dateSelect.appendChild(opt);
+        }
+      }
+    }
+
+    dateSelect.disabled = !dates.length;
+    const datePrev = panel.querySelector(".fpt-date-prev");
+    const dateNext = panel.querySelector(".fpt-date-next");
+    if (datePrev) datePrev.disabled = !dates.length;
+    if (dateNext) dateNext.disabled = !dates.length;
+
+    if (!dates.length) return;
+    const want = active && dates.includes(active) ? active : dates[0];
+    if (dateSelect.value !== want) dateSelect.value = want;
+  }
+
+  function syncPlayPauseIcon() {
+    playPauseBtn.innerHTML = isPlaying
+      ? lucideHtml(Pause, { size: 12, fill: "currentColor" })
+      : lucideHtml(Play, { size: 12, fill: "currentColor" });
+    playPauseBtn.title = isPlaying ? "Pause" : "Play / resume";
+  }
+
+  function setExpanded(on) {
+    expanded = !!on;
+    moreEl.hidden = !expanded;
+    toggleBtn.setAttribute("aria-expanded", String(expanded));
+    panel.classList.toggle("is-expanded", expanded);
+  }
+
   function render() {
     renderYear();
     renderChips();
     renderSummary();
     renderSelected();
+    renderDateSelect();
+    syncPlayPauseIcon();
     refreshBtn.classList.toggle("is-spinning", refreshing);
     refreshBtn.disabled = refreshing;
   }
 
-  function selectDay(ymd) {
-    selected = ymd;
-    render();
-    const { status, reason } = dayStatus(ymd);
-    handlers.onSelectDate?.(ymd, { status, reason, scene: sceneFor(ymd) });
+  function selectDay(ymd, { force = false } = {}) {
+    const next = validYmd(ymd);
+    if (!next) return;
+    // Already showing this scene — ignore duplicate picks (unless force retry).
+    if (!force && next === selected && next === loadedDate && !busy) {
+      if (dateSelect.value !== next) dateSelect.value = next;
+      return;
+    }
+    selected = next;
+    if (sceneFor(next)) viewYear = Number(next.slice(0, 4));
+    renderDateSelect();
+    renderSelected();
+    renderChips();
+    const { status, reason } = dayStatus(next);
+    handlers.onSelectDate?.(next, { status, reason, scene: sceneFor(next) });
   }
 
   function stepYear(dir) {
@@ -318,6 +410,16 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
     if (next == null) return;
     viewYear = next;
     render();
+  }
+
+  function stepDate(dir) {
+    const dates = allVerifiedDates();
+    if (!dates.length) return;
+    const cur = activeDate();
+    let i = dates.indexOf(cur);
+    if (i < 0) i = 0;
+    const next = dates[i + dir];
+    if (next) selectDay(next, { force: true });
   }
 
   // —— Public API ——
@@ -338,12 +440,32 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
   }
 
   function setLoadedDate(ymd) {
-    loadedDate = ymd || null;
+    loadedDate = validYmd(ymd) || null;
+    // Sync selection to the loaded scene only when not mid-request for another date.
+    if (loadedDate && (!busy || selected === loadedDate || !selected)) {
+      selected = loadedDate;
+      viewYear = Number(loadedDate.slice(0, 4));
+    }
     const ready = !!loadedDate;
-    ctrlBtns.forEach((b) => (b.disabled = !ready));
+    ctrlBtns.forEach((b) => {
+      // Play/pause + expanded controls need a loaded scene; date nav stays usable.
+      if (b.classList.contains("fpt-date-prev") || b.classList.contains("fpt-date-next")) return;
+      b.disabled = !ready;
+    });
     scrub.disabled = !ready;
-    if (!ready) setProgress(0);
-    render();
+    if (!ready) {
+      isPlaying = false;
+      setProgress(0);
+    }
+    renderDateSelect();
+    renderChips();
+    renderSelected();
+    syncPlayPauseIcon();
+  }
+
+  function setPlaying(on) {
+    isPlaying = !!on;
+    syncPlayPauseIcon();
   }
 
   function markExpired(kmlId) {
@@ -382,6 +504,8 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
   function setBusy(on) {
     busy = !!on;
     panel.classList.toggle("is-loading", busy);
+    // Keep the date dropdown usable so the user can switch scenes mid-load.
+    renderDateSelect();
     renderSelected();
   }
 
@@ -391,12 +515,52 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
   genBtn.addEventListener("click", () => {
     if (selected) handlers.onGenerate?.(selected);
   });
+  toggleBtn.addEventListener("click", () => setExpanded(!expanded));
+  dateSelect.addEventListener("change", () => {
+    if (dateSelect.value) selectDay(dateSelect.value, { force: true });
+  });
+  // Newest-first list: prev = older (index+1), next = newer (index-1).
+  panel.querySelector(".fpt-date-prev")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    stepDate(1);
+  });
+  panel.querySelector(".fpt-date-next")?.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    stepDate(-1);
+  });
+  playPauseBtn.addEventListener("click", (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if (playPauseBtn.disabled) return;
+    if (isPlaying) {
+      isPlaying = false;
+      syncPlayPauseIcon();
+      handlers.onPause?.();
+    } else {
+      isPlaying = true;
+      syncPlayPauseIcon();
+      handlers.onPlay?.();
+    }
+  });
   panel.querySelector(".flood-playback__controls").addEventListener("click", (e) => {
     const act = e.target.closest("button")?.dataset.act;
-    if (act === "play") handlers.onPlay?.();
-    else if (act === "pause") handlers.onPause?.();
-    else if (act === "replay") handlers.onReplay?.();
-    else if (act === "reset") {
+    if (act === "play") {
+      isPlaying = true;
+      syncPlayPauseIcon();
+      handlers.onPlay?.();
+    } else if (act === "pause") {
+      isPlaying = false;
+      syncPlayPauseIcon();
+      handlers.onPause?.();
+    } else if (act === "replay") {
+      isPlaying = true;
+      syncPlayPauseIcon();
+      handlers.onReplay?.();
+    } else if (act === "reset") {
+      isPlaying = false;
+      syncPlayPauseIcon();
       setProgress(0);
       handlers.onReset?.();
     }
@@ -405,7 +569,13 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
   window.addEventListener("pointerup", () => (scrubbing = false));
   scrub.addEventListener("input", () => handlers.onScrub?.(Number(scrub.value) / 1000));
 
+  window.addEventListener("flood-sim-complete", () => {
+    isPlaying = false;
+    syncPlayPauseIcon();
+  });
+
   ctrlBtns.forEach((b) => (b.disabled = true));
+  setExpanded(false);
   render();
 
   return {
@@ -415,6 +585,7 @@ export function mountFloodPlaybackControls(root, handlers = {}) {
     setCatalog,
     setSelected,
     setLoadedDate,
+    setPlaying,
     markExpired,
     markNoFlood,
     setProcessing,

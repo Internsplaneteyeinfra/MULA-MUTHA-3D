@@ -734,12 +734,21 @@ export function applyRiverLook(river, mode = "water") {
   river.bed.material.needsUpdate = true;
 }
 
-export function applyExaggeration(river, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null) {
+export function applyExaggeration(
+  river,
+  dataset,
+  exag,
+  floodRiseM = 0,
+  waterSurfaceSceneY = null,
+  { includeBaseStage = true } = {},
+) {
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
   const bed = river.bed.geometry.attributes.position;
-  // Base stage keeps blue water a bit high even with no flood; flood stacks on top.
-  const rise = BASE_WATER_STAGE_M + Math.max(0, Number(floodRiseM) || 0);
+  // Base stage keeps blue water a bit high with no flood. During API flood playback the
+  // rise value is already the physical WSE delta — do not stack BASE_WATER_STAGE_M on top.
+  const base = includeBaseStage ? BASE_WATER_STAGE_M : 0;
+  const rise = base + Math.max(0, Number(floodRiseM) || 0);
   const cols = (bath.across || 40) + 1;
   const nRows = Math.floor(bath.depths.length / cols);
 

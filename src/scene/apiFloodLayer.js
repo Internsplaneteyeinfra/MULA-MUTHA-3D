@@ -18,6 +18,17 @@ const easeProgress = (k) => 1 - (1 - k) ** EASE_POWER;
 const unEaseProgress = (p) => 1 - (1 - p) ** (1 / EASE_POWER);
 
 /**
+ * Normalize API water_rise to metres.
+ * JalNetra historically omits this field; if present, values > 20 are treated as mm.
+ */
+function normalizeApiWaterRiseM(v) {
+  if (v == null || typeof v === "boolean") return null;
+  const n = typeof v === "number" ? v : Number(v);
+  if (!Number.isFinite(n) || n < 0) return null;
+  return n > 20 ? n / 1000 : n;
+}
+
+/**
  * MODE A — JalNetra API flood extent (source of truth).
  * Animation only controls reveal order; geometry never exceeds API mask.
  *
@@ -184,7 +195,7 @@ export function createApiFloodLayer(dataset) {
       state.floodRiseM = physicalRiseM;
       const currentWaterY = SURFACE_Y + physicalRiseM;
 
-      // Lift red flood sheet with the same rising WSE so blue + red stay flush.
+      // Lift flood sheet with the same rising WSE so channel + extent stay flush.
       const groundY = mesh.userData?.groundY;
       const posAttr = mesh.geometry?.attributes?.position;
       if (groundY && posAttr && groundY.length === posAttr.count) {
@@ -195,16 +206,23 @@ export function createApiFloodLayer(dataset) {
         mesh.geometry.computeBoundingSphere?.();
       }
 
-      // Update UI metrics for physical data
-      lastInfo.current_water_level = verticalDatumPipeline.sceneYToWseMsl(currentWaterY);
-      lastInfo.water_rise_mm = physicalRiseM * 1000;
-      lastInfo.water_rise_m = riseTarget;
+      // Publish live rise/levels only when we have an API or DTM-estimated product.
+      const publish = lastInfo.level_source === "api" || lastInfo.level_source === "estimated_from_extent";
+      if (publish) {
+        lastInfo.current_water_level = verticalDatumPipeline.sceneYToWseMsl(currentWaterY);
+        lastInfo.water_rise_mm = physicalRiseM * 1000;
+        lastInfo.water_rise_m = riseTarget;
+      } else {
+        lastInfo.current_water_level = null;
+        lastInfo.water_rise_mm = null;
+        lastInfo.water_rise_m = null;
+      }
     } else {
-      // If no valid water-level, ensure river doesn't artificially rise and UI reflects missing data
       state.floodRiseM = 0;
       lastInfo.current_water_level = null;
       lastInfo.water_rise_mm = null;
-      lastInfo.final_water_level = null; // Explicitly ensure it's unavaiable
+      lastInfo.water_rise_m = null;
+      lastInfo.final_water_level = null;
     }
     
     if (material && material.uniforms) {
@@ -612,9 +630,15 @@ export function createApiFloodLayer(dataset) {
         }
     }
 
-    let providedRise = scene.water_rise;
-    let providedWaterLevel = scene.final_water_level;
-    
+    /** JalNetra datewise is extent-only today; accept rise/level if a future build adds them. */
+    const rawRise =
+      scene.water_rise ?? scene.waterLevelData?.waterRise ?? null;
+    const rawFinal =
+      scene.final_water_level ?? scene.waterLevelData?.finalWaterSurfaceElevation ?? null;
+    let providedRise = normalizeApiWaterRiseM(rawRise);
+    let providedWaterLevel =
+      typeof rawFinal === "number" && Number.isFinite(rawFinal) ? rawFinal : null;
+
     // FETCH LIVE DIGITAL TWIN WATER LEVEL
     let liveMeanWse = null;
     try {
@@ -628,29 +652,33 @@ export function createApiFloodLayer(dataset) {
     } catch(err) {
       console.warn("Could not fetch live Digital Twin water level:", err);
     }
-    
+
     // Calculate authoritative MSL water levels and the derived scene Y coordinates
     let initialWaterMsl = liveMeanWse != null ? liveMeanWse : verticalDatumPipeline.sceneYToWseMsl(SURFACE_Y);
     let finalWaterMsl = providedWaterLevel;
     let waterRiseM = providedRise;
+    /** Stage used for animation; may equal waterRiseM or a visual-only fill. */
+    let animRiseM = null;
 
     const sceneInitialWaterLevelY = verticalDatumPipeline.wseMslToSceneY(initialWaterMsl);
     let sceneFinalWaterLevelY = NaN;
-    
+
     let levelSource = null;
-    if (providedRise != null) {
+    if (providedRise != null && providedRise >= 0) {
       waterRiseM = providedRise;
+      animRiseM = providedRise;
       finalWaterMsl = initialWaterMsl + waterRiseM;
-      sceneFinalWaterLevelY = verticalDatumPipeline.wseMslToSceneY(finalWaterMsl);
+      sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
       levelSource = "api";
     } else if (providedWaterLevel != null) {
-      waterRiseM = providedWaterLevel - initialWaterMsl;
+      waterRiseM = Math.max(0, providedWaterLevel - initialWaterMsl);
+      animRiseM = waterRiseM;
       finalWaterMsl = providedWaterLevel;
-      sceneFinalWaterLevelY = verticalDatumPipeline.wseMslToSceneY(finalWaterMsl);
+      sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
       levelSource = "api";
     } else {
-      // Extent-only JalNetra product: estimate WSE rise from inundated bank terrain
-      // so the full blue river rises with the red flood sheet (not patches only).
+      // Extent-only JalNetra: no water_rise / depth in the API response.
+      // Derive a bank-fill stage from inundated DTM cells for animation + estimated metrics.
       const bankYs = [];
       for (let i = 0; i < pos.count; i++) {
         if (!(floodAttr[i] > 0.5)) continue;
@@ -659,46 +687,45 @@ export function createApiFloodLayer(dataset) {
       }
       if (bankYs.length >= 6) {
         bankYs.sort((a, b) => a - b);
-        // Prefer bank crest above normal river (SURFACE_Y) so rise is visually obvious.
-        const p80 = bankYs[Math.min(bankYs.length - 1, Math.floor(bankYs.length * 0.8))];
-        const fromBanks = Math.max(0, p80 - SURFACE_Y);
-        waterRiseM = THREE.MathUtils.clamp(Math.max(fromBanks, p80 - sceneInitialWaterLevelY), 0.8, 4.0);
+        const p90 = bankYs[Math.min(bankYs.length - 1, Math.floor(bankYs.length * 0.9))];
+        const fromBanks = Math.max(0, p90 - SURFACE_Y);
+        // Bound only by observed bank sample span — no invented 1.2 m default.
+        const p10 = bankYs[Math.floor(bankYs.length * 0.1)];
+        const span = Math.max(0.2, p90 - p10);
+        waterRiseM = THREE.MathUtils.clamp(fromBanks, Math.min(0.25, span), Math.min(6, Math.max(span, fromBanks)));
+        animRiseM = waterRiseM;
         finalWaterMsl = initialWaterMsl + waterRiseM;
-        // Keep scene rise relative to the rendered river sheet (SURFACE_Y), not MSL mapping.
         sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
         levelSource = "estimated_from_extent";
       } else {
-        // Fallback: still raise the full river so flood playback is never a flat sheet.
-        waterRiseM = 1.2;
-        finalWaterMsl = initialWaterMsl + waterRiseM;
-        sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
-        levelSource = "estimated_default";
+        // Cannot estimate levels — keep extent geometry only; do not invent UI rise/depth.
+        waterRiseM = null;
+        animRiseM = null;
+        finalWaterMsl = null;
+        sceneFinalWaterLevelY = NaN;
+        levelSource = null;
       }
     }
-    // Anchor animated river/flood sheet rise to the visible channel (SURFACE_Y + rise_m).
-    // MSL labels stay on lastInfo; scene mesh Y must match the blue river ribbon.
-    if (Number.isFinite(waterRiseM) && waterRiseM >= 0) {
-      sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
-    }
-    const hasWaterLevel = Number.isFinite(sceneFinalWaterLevelY);
-    depthNote = hasWaterLevel
-      ? levelSource === "api"
-        ? "Water level supplied by API; depth = level − DTM."
-        : "Water rise estimated from inundated bank DTM so the full river stage rises with the flood extent."
-      : "JalNetra returned flood extent only — water level, rise and depth are not provided. Extent draped over DTM.";
+    const hasWaterLevel = Number.isFinite(animRiseM) && animRiseM >= 0 && Number.isFinite(sceneFinalWaterLevelY);
+    const publishLevels = levelSource === "api" || levelSource === "estimated_from_extent";
+    depthNote = levelSource === "api"
+      ? "Water rise from API; max depth = WSE − DTM on flooded cells."
+      : levelSource === "estimated_from_extent"
+        ? "JalNetra is extent-only — water rise/depth estimated from inundated bank DTM (not an API measurement)."
+        : "JalNetra returned flood extent only — water level, rise and depth are not provided.";
 
     let maxActualDepthM = 0;
 
     for (let i = 0; i < pos.count; i++) {
       if (floodAttr[i]) {
         const gy = terrainYAttr[i];
-        
-        // Calculate max depth only on valid flooded cells (spillElevations <= final scene water level)
-        if (hasWaterLevel && sceneFinalWaterLevelY >= spillElevationsAttr[i] && sceneFinalWaterLevelY > gy) {
+
+        // Max depth on flooded cells under the final water surface (WSE − ground).
+        if (hasWaterLevel && Number.isFinite(finalWaterMsl) && sceneFinalWaterLevelY > gy) {
           const depthM = finalWaterMsl - verticalDatumPipeline.sceneYToWseMsl(gy);
-          if (depthM > maxActualDepthM) maxActualDepthM = depthM;
+          if (Number.isFinite(depthM) && depthM > maxActualDepthM) maxActualDepthM = depthM;
         }
-        
+
         const y = hasWaterLevel ? Math.max(sceneFinalWaterLevelY, gy + 0.05) : gy + 0.12;
         baseY[i] = y;
         pos.setY(i, y);
@@ -1009,9 +1036,16 @@ export function createApiFloodLayer(dataset) {
     const finalWaterMslRounded = finalWaterMsl != null ? Math.round(finalWaterMsl * 100) / 100 : null;
 
 
+    const roundedMaxDepth =
+      publishLevels && maxActualDepthM > 0 ? Math.round(maxActualDepthM * 100) / 100 : null;
+    const roundedRiseM =
+      publishLevels && Number.isFinite(waterRiseM) ? Math.round(waterRiseM * 1000) / 1000 : null;
+    const animTargetM = Number.isFinite(animRiseM) ? Math.max(0, animRiseM) : null;
+
     lastInfo = {
       ...(resultInfo || {}),
       scene_date: scene.date || scene.post_date || resultInfo?.scene_date || null,
+      // Flood / water area — JalNetra datewise only (never invent).
       flood_area_ha: scene.flood_area_ha ?? resultInfo?.flood_area_ha ?? null,
       water_area_ha: scene.water_area_ha ?? resultInfo?.water_area_ha ?? null,
       mapped_flood_area_ha: raster?.mappedFloodHa ?? null,
@@ -1021,19 +1055,19 @@ export function createApiFloodLayer(dataset) {
       current_scene: sceneIndex + 1,
       total_scenes: scenes.length || 1,
       depth_note: depthNote,
-      water_rise_m: waterRiseM,
-      water_rise_mm: waterRiseM != null ? waterRiseM * 1000 : null,
-      initial_water_level: hasWaterLevel ? initialWaterMslRounded : null,
-      current_water_level: hasWaterLevel ? initialWaterMslRounded : null,
-      final_water_level: hasWaterLevel ? finalWaterMslRounded : null,
-      max_depth_m: hasWaterLevel ? Math.max(0, Math.min(8, maxActualDepthM || waterRiseM || 0)) : null,
+      water_rise_m: roundedRiseM,
+      water_rise_mm: roundedRiseM != null ? roundedRiseM * 1000 : null,
+      initial_water_level: publishLevels ? initialWaterMslRounded : null,
+      current_water_level: publishLevels ? initialWaterMslRounded : null,
+      final_water_level: publishLevels ? finalWaterMslRounded : null,
+      // Depth from WSE − DTM on flooded cells only — never fall back to rise or an 8 m cap.
+      max_depth_m: roundedMaxDepth,
       avg_depth_m: null,
-      level_source: hasWaterLevel ? levelSource : null,
-      // Stable target — never overwritten by live progress (water_rise_mm is live).
-      _target_water_rise_m: waterRiseM,
-      // Pass the Scene Y coordinates explicitly for the simulation loop
-      _scene_initial_water_y: hasWaterLevel ? SURFACE_Y : sceneInitialWaterLevelY,
-      _scene_final_water_y: hasWaterLevel ? SURFACE_Y + Math.max(0, waterRiseM || 0) : null,
+      level_source: levelSource,
+      // Stable animation target (may exist even when UI levels are withheld).
+      _target_water_rise_m: animTargetM,
+      _scene_initial_water_y: animTargetM != null ? SURFACE_Y : sceneInitialWaterLevelY,
+      _scene_final_water_y: animTargetM != null ? SURFACE_Y + animTargetM : null,
     };
     lastKmlId = scene.kml_id;
     group.userData.hasFlood = true;

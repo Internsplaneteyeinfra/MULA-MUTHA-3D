@@ -2133,6 +2133,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           bedExag,
           floodRise,
           forceRiverRise ? null : currentStationWaterY,
+          { includeBaseStage: !forceRiverRise },
         );
         riparianLayer?.userData.syncToWater(river.mesh, floodRise);
         if (!apiFloodActive) {

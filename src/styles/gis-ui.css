@@ -1744,19 +1744,46 @@
   margin-top: 6px;
 }
 
+/* Flood left dock — Result → Playback → Compare; river center stays clear */
+.flood-left-dock {
+  position: absolute;
+  left: max(12px, env(safe-area-inset-left));
+  top: calc(max(10px, env(safe-area-inset-top)) + 64px);
+  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 88px);
+  z-index: 28;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: min(280px, calc(100vw - 96px));
+  max-width: 300px;
+  pointer-events: none;
+  overflow-x: hidden;
+  overflow-y: auto;
+  scrollbar-width: thin;
+}
+.flood-left-dock[hidden] {
+  display: none !important;
+}
+.flood-left-dock > * {
+  pointer-events: auto;
+  flex: 0 0 auto;
+}
+
 /* Flood Result panel (left) */
 .flood-result-panel,
 .flood-info-panel {
-  position: absolute;
-  left: 16px;
-  top: 88px;
+  position: relative;
+  left: auto;
+  top: auto;
   z-index: 28;
-  width: min(260px, calc(100vw - 32px));
-  padding: 10px 12px;
+  width: 100%;
+  padding: 8px 10px;
   border-radius: 12px;
-  background: rgba(12, 18, 28, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  backdrop-filter: blur(10px);
+  background: rgba(8, 18, 30, 0.78);
+  border: 1px solid rgba(80, 190, 220, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   color: #e2e8f0;
   font-size: 11px;
 }
@@ -1773,22 +1800,26 @@
   z-index: 32;
 }
 #ui-root.gis-ui.api-flood-mode .flood-result-panel {
-  top: calc(max(10px, env(safe-area-inset-top)) + 108px);
-  left: max(14px, env(safe-area-inset-left));
+  position: relative;
+  top: auto;
+  left: auto;
   z-index: 30;
-  max-height: min(42vh, 360px);
-  overflow-y: auto;
+  max-height: none;
+  overflow: visible;
 }
 #ui-root.gis-ui.api-flood-mode .river-data-panel,
-#ui-root.gis-ui.api-flood-mode .river-data-fab {
+#ui-root.gis-ui.api-flood-mode .river-data-fab,
+#ui-root.gis-ui.flood-sim-open .left-ui-stack,
+#ui-root.gis-ui.api-flood-mode .left-ui-stack {
   display: none !important;
 }
 #ui-root.gis-ui.api-flood-mode .flood-playback {
-  left: 50%;
-  transform: translateX(-50%);
-  bottom: calc(max(18px, env(safe-area-inset-bottom)) + 92px);
-  z-index: 31;
+  position: relative;
+  left: auto;
   right: auto;
+  bottom: auto;
+  transform: none;
+  z-index: 31;
 }
 #ui-root.gis-ui.flood-sim-open .weather-widget,
 #ui-root.gis-ui.api-flood-mode .weather-widget {
@@ -1871,19 +1902,21 @@
   overflow: auto;
 }
 
-/* Flood Playback — independent from chainage scrubber */
+/* Flood Playback — stacked in left dock */
 .flood-playback {
-  position: absolute;
-  left: 50%;
-  bottom: 72px;
-  transform: translateX(-50%);
+  position: relative;
+  left: auto;
+  bottom: auto;
+  transform: none;
   z-index: 27;
-  width: min(420px, calc(100vw - 24px));
-  padding: 10px 12px;
+  width: 100%;
+  padding: 8px 10px;
   border-radius: 12px;
-  background: rgba(12, 18, 28, 0.88);
-  border: 1px solid rgba(148, 163, 184, 0.22);
-  backdrop-filter: blur(10px);
+  background: rgba(8, 18, 30, 0.78);
+  border: 1px solid rgba(80, 190, 220, 0.22);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
   color: #e2e8f0;
 }
 .flood-playback__label {
@@ -2039,7 +2072,8 @@
 
 /* Flood Playback — historical availability timeline */
 .integrated-flood-panel {
-  width: min(480px, calc(100vw - 24px));
+  width: 100%;
+  box-sizing: border-box;
 }
 .fpt-head {
   display: flex;
@@ -10182,18 +10216,17 @@ body.hydro-intel-open #dt-panel { display: none !important; }
   font-size: 25px !important;
 }
 
-/* Flood Result: collapsible, two-column metrics, no scrolling at target sizes */
-#ui-root.gis-ui .flood-result-panel,
-#ui-root.gis-ui.api-flood-mode .flood-result-panel {
-  top: 62px;
-  left: 12px;
-  width: 300px;
-  max-width: calc(100vw - 24px);
+/* Flood Result: collapsible summary + detail inside left dock */
+#ui-root.gis-ui .flood-left-dock .flood-result-panel,
+#ui-root.gis-ui.api-flood-mode .flood-left-dock .flood-result-panel {
+  position: relative;
+  top: auto;
+  left: auto;
+  width: 100%;
+  max-width: none;
   padding: 7px 10px 8px;
   font-size: 10.5px;
-  overflow-x: hidden;
-  overflow-y: auto;
-  scrollbar-width: thin;
+  overflow: visible;
 }
 #ui-root.gis-ui .flood-result-panel__head {
   display: flex;
@@ -10229,10 +10262,38 @@ body.hydro-intel-open #dt-panel { display: none !important; }
   display: none;
 }
 #ui-root.gis-ui .flood-result-panel.is-collapsed .flood-result-panel__head {
-  margin-bottom: 0;
+  margin-bottom: 4px;
 }
 #ui-root.gis-ui .flood-result-panel.is-collapsed .flood-result-toggle__icon {
   transform: rotate(180deg);
+}
+#ui-root.gis-ui .frp-summary-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 10px;
+}
+#ui-root.gis-ui .frp-summary-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  min-width: 0;
+}
+#ui-root.gis-ui .frp-summary-cell .k {
+  font-size: 9px;
+  letter-spacing: 0.04em;
+  color: rgba(148, 163, 184, 0.95);
+}
+#ui-root.gis-ui .frp-summary-cell .v {
+  font-size: 11px;
+  font-weight: 600;
+  color: #f1f5f9;
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+#ui-root.gis-ui .frp-summary-cell--status .v {
+  color: #67e8f9;
 }
 #ui-root.gis-ui .frp-grid {
   display: grid;
@@ -10299,35 +10360,112 @@ body.hydro-intel-open #dt-panel { display: none !important; }
   margin-top: 5px;
 }
 
-/* Flood Playback: compact, bottom-centre above the chainage ruler */
-#ui-root.gis-ui .flood-playback.integrated-flood-panel,
-#ui-root.gis-ui.api-flood-mode .flood-playback.integrated-flood-panel {
-  left: 50%;
+/* Flood Playback: compact controls in left dock */
+#ui-root.gis-ui .flood-left-dock .flood-playback.integrated-flood-panel,
+#ui-root.gis-ui.api-flood-mode .flood-left-dock .flood-playback.integrated-flood-panel {
+  position: relative;
+  left: auto;
   right: auto;
-  transform: translateX(-50%);
-  bottom: 98px;
-  width: min(460px, calc(100vw - 2 * 330px));
-  min-width: min(380px, calc(100vw - 24px));
+  bottom: auto;
+  transform: none;
+  width: 100%;
+  min-width: 0;
   padding: 6px 10px 7px;
   border-radius: 11px;
 }
 #ui-root.gis-ui .integrated-flood-panel .fpt-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
   gap: 8px;
+  margin-bottom: 6px;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-toggle {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 0;
+  border: none;
+  background: none;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-toggle__icon {
+  display: inline-flex;
+  color: #22d3ee;
+  transition: transform 0.2s;
+}
+#ui-root.gis-ui .integrated-flood-panel:not(.is-expanded) .fpt-toggle__icon {
+  transform: rotate(180deg);
 }
 #ui-root.gis-ui .integrated-flood-panel .flood-playback__label {
   flex: none;
   margin: 0;
   font-size: 9px;
 }
-#ui-root.gis-ui .integrated-flood-panel .fpt-summary {
+#ui-root.gis-ui .integrated-flood-panel .fpt-compact {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-compact__row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-date-select {
   flex: 1;
   min-width: 0;
+  height: 26px;
+  padding: 0 8px;
+  border-radius: 7px;
+  border: 1px solid rgba(80, 190, 220, 0.28);
+  background: rgba(10, 24, 38, 0.85);
+  color: #e2e8f0;
+  font: inherit;
+  font-size: 10px;
+  cursor: pointer;
+  pointer-events: auto;
+  color-scheme: dark;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-date-select:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-date-prev,
+#ui-root.gis-ui .integrated-flood-panel .fpt-date-next,
+#ui-root.gis-ui .integrated-flood-panel .fpt-playpause {
+  flex: none;
+  width: 26px;
+  min-width: 26px;
+  height: 26px;
+  padding: 0;
+  pointer-events: auto;
+  cursor: pointer;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-date-prev:disabled,
+#ui-root.gis-ui .integrated-flood-panel .fpt-date-next:disabled,
+#ui-root.gis-ui .integrated-flood-panel .fpt-playpause:disabled {
+  cursor: default;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-compact__timeline {
   margin: 0;
-  overflow: hidden;
-  white-space: nowrap;
-  text-overflow: ellipsis;
-  text-align: right;
+  height: 16px;
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-more {
+  margin-top: 6px;
+  padding-top: 6px;
+  border-top: 1px solid rgba(148, 163, 184, 0.14);
+}
+#ui-root.gis-ui .integrated-flood-panel .fpt-summary {
+  margin: 0 0 5px;
   font-size: 9px;
+  color: rgba(186, 198, 214, 0.9);
+  line-height: 1.35;
 }
 #ui-root.gis-ui .integrated-flood-panel .fpt-refresh {
   width: 20px;
@@ -10345,6 +10483,7 @@ body.hydro-intel-open #dt-panel { display: none !important; }
 #ui-root.gis-ui .integrated-flood-panel .flood-playback__controls {
   gap: 5px;
   margin-bottom: 4px;
+  flex-wrap: wrap;
 }
 #ui-root.gis-ui .integrated-flood-panel .flood-playback-btn {
   display: inline-flex;
@@ -10385,6 +10524,25 @@ body.hydro-intel-open #dt-panel { display: none !important; }
 #ui-root.gis-ui .integrated-flood-panel .flood-pb-status {
   margin-top: 4px;
   font-size: 9.5px;
+}
+
+@media (max-width: 1600px) {
+  #ui-root.gis-ui .flood-left-dock {
+    width: min(260px, calc(100vw - 88px));
+  }
+}
+@media (max-width: 1366px) {
+  #ui-root.gis-ui .flood-left-dock {
+    width: min(240px, calc(100vw - 80px));
+    top: calc(max(8px, env(safe-area-inset-top)) + 56px);
+    bottom: calc(max(14px, env(safe-area-inset-bottom)) + 78px);
+    gap: 6px;
+  }
+}
+@media (max-height: 800px) {
+  #ui-root.gis-ui .flood-left-dock {
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 72px);
+  }
 }
 
 /* Right tools: start below the weather widget; compact on shorter screens */

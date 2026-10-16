@@ -47,10 +47,13 @@ html, body, #app {
 
 /* ── Compact PLANET.EYE droplet loader (scene + controls stay visible) ── */
 .app-loader {
-  position: absolute;
+  position: fixed;
   left: 50%;
   top: max(18px, env(safe-area-inset-top, 0px) + 14px);
-  transform: translateX(-50%) translateY(-6px);
+  right: auto;
+  bottom: auto;
+  margin: 0;
+  transform: translate(-50%, -6px);
   z-index: 80;
   pointer-events: none;
   opacity: 0;
@@ -61,7 +64,7 @@ html, body, #app {
 .app-loader:not([hidden]) {
   opacity: 1;
   visibility: visible;
-  transform: translateX(-50%) translateY(0);
+  transform: translate(-50%, 0);
 }
 .app-loader[hidden] {
   display: block !important;

@@ -1,8 +1,7 @@
 /**
- * Compact Flood Result card (left side).
- * Renders only fields whose values are genuinely available in the API result
- * (or derived from it via the verified datum pipeline). Unavailable fields are
- * omitted entirely — no placeholders.
+ * Compact Flood Result card (left dock).
+ * Collapsed: date · flood area · max depth · status.
+ * Expanded: full metrics + progress + Replay / Focus / Clear.
  */
 import { ChevronUp, Play, Crosshair, X } from "lucide";
 import { lucideHtml } from "./icons.js";
@@ -25,10 +24,14 @@ function esc(s) {
     .replace(/"/g, "&quot;");
 }
 
-/**
- * Field order and formatting. Half-width cells pair up in a two-column grid;
- * `wide` cells span both columns. `id` lets live progress updates find values.
- */
+/** Always shown in the compact summary strip. */
+const SUMMARY_IDS = new Set([
+  "flood-res-date",
+  "flood-res-flood-area",
+  "flood-res-max-depth",
+  "flood-res-status",
+]);
+
 const FIELDS = [
   { id: "flood-res-date", label: "Date", get: (i) => fmtYmd(i.scene_date) },
   { id: "flood-res-status", label: "Status", get: (i) => validText(i.status_label) },
@@ -45,7 +48,6 @@ const FIELDS = [
   {
     id: "flood-res-mapped-area",
     label: "Mapped extent",
-    // Only when the overlay maps materially less than the API headline, so the map is never overstated.
     get: (i) => {
       const m = Number(i.mapped_flood_area_ha);
       const a = Number(i.flood_area_ha);
@@ -56,8 +58,27 @@ const FIELDS = [
   { id: "flood-res-initial-water", label: "Initial water", get: (i) => fmtMeters(i.initial_water_level) },
   { id: "flood-res-final-water", label: "Final water", get: (i) => fmtMeters(i.final_water_level) },
   { id: "flood-res-current-water", label: "Current water", get: (i) => fmtMeters(i.current_water_level) },
-  { id: "flood-res-water-rise", label: "Water rise", get: (i) => fmtRiseMm(i.water_rise_mm) },
-  { id: "flood-res-max-depth", label: "Max depth", get: (i) => fmtMeters(i.max_depth_m) },
+  {
+    id: "flood-res-water-rise",
+    label: "Water rise",
+    get: (i) => {
+      const mm =
+        validNumber(i.water_rise_mm) ??
+        (validNumber(i.water_rise_m) != null ? validNumber(i.water_rise_m) * 1000 : null);
+      const v = fmtRiseMm(mm);
+      if (!v) return null;
+      return i.level_source && i.level_source !== "api" ? `${v} (est.)` : v;
+    },
+  },
+  {
+    id: "flood-res-max-depth",
+    label: "Max depth",
+    get: (i) => {
+      const v = fmtMeters(i.max_depth_m);
+      if (!v) return null;
+      return i.level_source && i.level_source !== "api" ? `${v} (est.)` : v;
+    },
+  },
   { id: "flood-res-updated", label: "Updated", get: (i) => fmtTimestamp(i.catalog_updated_at) },
 ];
 
@@ -65,7 +86,6 @@ function rowHtml(id, label, value, wide = false) {
   return `<div class="flood-result-row${wide ? " is-wide" : ""}" data-row="${id}"><span class="k">${esc(label)}</span><span class="v" id="${id}" title="${esc(value)}">${esc(value)}</span></div>`;
 }
 
-/** Rows for every field with a valid value, in FIELDS order. */
 export function floodResultRows(info) {
   if (!info) return [];
   return FIELDS.map((f) => ({ ...f, value: f.get(info) })).filter((f) => f.value != null);
@@ -73,18 +93,19 @@ export function floodResultRows(info) {
 
 export function mountFloodResultPanel(root, handlers = {}) {
   const panel = document.createElement("aside");
-  panel.className = "flood-result-panel map-chrome";
+  panel.className = "flood-result-panel map-chrome flood-dock-card is-collapsed";
   panel.id = "flood-result-panel";
   panel.hidden = true;
   panel.innerHTML = `
     <header class="flood-result-panel__head" title="Flood extent generated from JalNetra Flood API results.">
-      <button type="button" class="flood-result-toggle" aria-expanded="true" aria-controls="flood-result-content">
+      <button type="button" class="flood-result-toggle" aria-expanded="false" aria-controls="flood-result-detail">
         <strong>FLOOD RESULT</strong>
         <span class="flood-result-toggle__icon" aria-hidden="true">${lucideHtml(ChevronUp, { size: 14 })}</span>
       </button>
       <button type="button" class="flood-result-close" id="flood-result-close" aria-label="Close">${lucideHtml(X, { size: 13 })}</button>
     </header>
-    <div class="flood-result-panel__content" id="flood-result-content">
+    <div class="flood-result-panel__summary" id="flood-result-summary"></div>
+    <div class="flood-result-panel__content" id="flood-result-detail">
       <div class="flood-result-panel__body" id="flood-result-body"></div>
       <details class="flood-result-details" id="flood-result-details" hidden>
         <summary>Details</summary>
@@ -99,17 +120,17 @@ export function mountFloodResultPanel(root, handlers = {}) {
   `;
   root.appendChild(panel);
 
+  const summaryEl = panel.querySelector("#flood-result-summary");
   const body = panel.querySelector("#flood-result-body");
   const details = panel.querySelector("#flood-result-details");
   const detailsPre = panel.querySelector("#flood-result-details-pre");
   const actions = panel.querySelector(".flood-result-panel__actions");
   const toggleBtn = panel.querySelector(".flood-result-toggle");
-  /** Live level rows only exist when the loaded product carries a water level. */
   let hasLevels = false;
-  /** kml/date of the result currently rendered — progress events from anything else are ignored. */
   let shownKey = null;
-  /** User explicitly collapsed / expanded — auto-fit never overrides that choice. */
-  let userChoice = null;
+  let userChoice = "collapsed";
+  let lastInfo = null;
+  let liveStatus = "";
 
   function resultKey(info) {
     return info ? `${info.kml_id ?? ""}|${info.scene_date ?? ""}` : null;
@@ -120,26 +141,37 @@ export function mountFloodResultPanel(root, handlers = {}) {
     toggleBtn.setAttribute("aria-expanded", String(!on));
   }
 
-  /**
-   * Keep the card between its top edge and the chainage ruler. If the content
-   * cannot fit (very short viewports) collapse it instead of clipping.
-   */
-  function fitToViewport() {
-    if (panel.hidden) return;
-    const top = panel.getBoundingClientRect().top;
-    const ruler = document.querySelector(".chainage-ruler");
-    const rulerTop = ruler && !ruler.hidden ? ruler.getBoundingClientRect().top : window.innerHeight;
-    const avail = Math.max(60, Math.floor(rulerTop - top - 10));
-    panel.style.maxHeight = `${avail}px`;
-    if (userChoice != null) {
-      setCollapsed(userChoice === "collapsed");
+  function renderSummary(info, statusOverride) {
+    if (!info) {
+      summaryEl.innerHTML = "";
       return;
     }
-    setCollapsed(false);
-    if (panel.scrollHeight > avail + 1) setCollapsed(true);
+    const date = fmtYmd(info.scene_date) || "—";
+    const area = fmtHa(info.flood_area_ha) || "—";
+    const depthRaw = fmtMeters(info.max_depth_m);
+    const depth = depthRaw
+      ? info.level_source && info.level_source !== "api"
+        ? `${depthRaw} (est.)`
+        : depthRaw
+      : "—";
+    const status =
+      statusOverride ||
+      liveStatus ||
+      validText(info.status_label) ||
+      (hasLevels ? "Ready" : "Extent ready");
+    summaryEl.innerHTML = `
+      <div class="frp-summary-grid">
+        <div class="frp-summary-cell"><span class="k">Date</span><span class="v" id="flood-sum-date">${esc(date)}</span></div>
+        <div class="frp-summary-cell"><span class="k">Flood area</span><span class="v" id="flood-sum-area">${esc(area)}</span></div>
+        <div class="frp-summary-cell"><span class="k">Max depth</span><span class="v" id="flood-sum-depth">${esc(depth)}</span></div>
+        <div class="frp-summary-cell frp-summary-cell--status"><span class="k">Status</span><span class="v" id="flood-sum-status">${esc(status)}</span></div>
+      </div>`;
   }
 
-  let lastInfo = null;
+  function fitToViewport() {
+    /* Dock handles scroll; keep user collapse preference. */
+    if (userChoice != null) setCollapsed(userChoice === "collapsed");
+  }
 
   function show(info, opts = {}) {
     if (!info && !opts.error) {
@@ -151,7 +183,12 @@ export function mountFloodResultPanel(root, handlers = {}) {
       hasLevels = false;
       shownKey = null;
       lastInfo = null;
+      liveStatus = "Error";
       const date = fmtYmd(opts.date);
+      renderSummary(
+        { scene_date: opts.date, status_label: "Error" },
+        "Error",
+      );
       body.innerHTML = `<div class="frp-grid">${[
         rowHtml("flood-res-status", "Status", "Error"),
         date ? rowHtml("flood-res-date", "Date", date) : "",
@@ -161,17 +198,23 @@ export function mountFloodResultPanel(root, handlers = {}) {
       detailsPre.textContent = details.hidden ? "" : detail;
       actions.hidden = true;
       panel.hidden = false;
-      fitToViewport();
+      setCollapsed(userChoice === "collapsed");
       return;
     }
 
     lastInfo = info;
     shownKey = resultKey(info);
     hasLevels = validNumber(info.final_water_level) != null;
+    liveStatus = "";
     const rows = floodResultRows(info);
+    // Keep status in the expanded body (summary already shows the compact four).
+    const detailRows = rows.filter(
+      (r) => !SUMMARY_IDS.has(r.id) || r.id === "flood-res-status",
+    );
 
+    renderSummary(info);
     body.innerHTML = `
-      <div class="frp-grid">${rows.map((r) => rowHtml(r.id, r.label, r.value, r.wide)).join("")}</div>
+      <div class="frp-grid">${detailRows.map((r) => rowHtml(r.id, r.label, r.value, r.wide)).join("")}</div>
       <div class="flood-sim-progress-area">
         <div class="flood-sim-progress-area__row">
           <span class="flood-sim-progress-area__status" id="flood-anim-status">${hasLevels ? "SIMULATION READY" : "FLOOD EXTENT READY"}</span>
@@ -180,11 +223,21 @@ export function mountFloodResultPanel(root, handlers = {}) {
         <div class="progress-bar-container"><div id="flood-anim-bar"></div></div>
       </div>`;
 
+    // Keep summary field ids available for live updates (hidden clones in detail if needed)
+    for (const r of rows.filter((x) => SUMMARY_IDS.has(x.id))) {
+      if (!body.querySelector(`#${r.id}`)) {
+        body.insertAdjacentHTML(
+          "afterbegin",
+          `<div class="flood-result-row is-summary-mirror" hidden data-row="${r.id}"><span class="k">${esc(r.label)}</span><span class="v" id="${r.id}">${esc(r.value)}</span></div>`,
+        );
+      }
+    }
+
     details.hidden = true;
     detailsPre.textContent = "";
     actions.hidden = false;
     panel.hidden = false;
-    fitToViewport();
+    setCollapsed(userChoice === "collapsed");
   }
 
   function hide() {
@@ -196,14 +249,14 @@ export function mountFloodResultPanel(root, handlers = {}) {
     lastInfo = null;
     shownKey = null;
     hasLevels = false;
+    liveStatus = "";
     body.innerHTML = "";
+    summaryEl.innerHTML = "";
   }
 
   function reopen(info) {
     const target = info || lastInfo;
-    if (target) {
-      show(target);
-    }
+    if (target) show(target);
   }
 
   function updateScene(info) {
@@ -212,7 +265,6 @@ export function mountFloodResultPanel(root, handlers = {}) {
     show(info);
   }
 
-  /** Update a live value; drop its row if the value stops being valid. */
   function setLive(id, value) {
     const el = panel.querySelector(`#${id}`);
     if (!el) return;
@@ -222,6 +274,14 @@ export function mountFloodResultPanel(root, handlers = {}) {
     }
     el.textContent = value;
     el.title = value;
+  }
+
+  function setSummaryLive(id, value) {
+    const el = panel.querySelector(`#${id}`);
+    if (el && value != null) {
+      el.textContent = value;
+      el.title = value;
+    }
   }
 
   toggleBtn.addEventListener("click", () => {
@@ -254,15 +314,26 @@ export function mountFloodResultPanel(root, handlers = {}) {
     setLive("flood-anim-front-val", cur != null ? `${pct}% · ${cur.toFixed(2)} ha` : `${pct}%`);
 
     if (hasLevels) {
-      setLive("flood-res-water-rise", fmtRiseMm(info.water_rise_mm));
+      const est = info.level_source && info.level_source !== "api";
+      const rise =
+        fmtRiseMm(info.water_rise_mm) ||
+        (validNumber(info.water_rise_m) != null ? fmtRiseMm(info.water_rise_m * 1000) : null);
+      if (rise) setLive("flood-res-water-rise", est ? `${rise} (est.)` : rise);
       setLive("flood-res-current-water", fmtMeters(info.current_water_level));
-      const maxDepth = validNumber(info.max_depth_m);
-      if (maxDepth != null) setLive("flood-res-max-depth", fmtMeters(maxDepth * p));
+      // Max depth is the final WSE−DTM product metric — do not scale by progress.
+      const maxDepth = fmtMeters(info.max_depth_m);
+      if (maxDepth) {
+        const d = est ? `${maxDepth} (est.)` : maxDepth;
+        setLive("flood-res-max-depth", d);
+        setSummaryLive("flood-sum-depth", d);
+      }
     }
 
+    const done = p >= 0.999;
+    liveStatus = done ? "Complete" : "Simulating…";
+    setSummaryLive("flood-sum-status", liveStatus);
     const status = panel.querySelector("#flood-anim-status");
     if (status) {
-      const done = p >= 0.999;
       status.textContent = done ? "SIMULATION COMPLETE" : "SIMULATING…";
       status.classList.toggle("is-complete", done);
     }
@@ -270,6 +341,8 @@ export function mountFloodResultPanel(root, handlers = {}) {
 
   window.addEventListener("flood-sim-complete", () => {
     if (panel.hidden || !shownKey) return;
+    liveStatus = "Complete";
+    setSummaryLive("flood-sum-status", "Complete");
     const status = panel.querySelector("#flood-anim-status");
     if (status) {
       status.textContent = "SIMULATION COMPLETE";
@@ -289,5 +362,4 @@ export function mountFloodResultPanel(root, handlers = {}) {
   };
 }
 
-/** Compat alias for previous mountFloodInfoPanel name */
 export const mountFloodInfoPanel = mountFloodResultPanel;

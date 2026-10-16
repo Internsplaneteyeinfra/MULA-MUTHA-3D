@@ -637,39 +637,50 @@ export function mountUI(root, {
   // Start hidden — toggled from analytics nav [data-analytics=digital_twin]
   dtDock.el.hidden = true;
 
-  const floodInfo = mountFloodResultPanel(root, {
+  const floodDock = document.createElement("div");
+  floodDock.id = "flood-left-dock";
+  floodDock.className = "flood-left-dock";
+  floodDock.hidden = true;
+  root.appendChild(floodDock);
+
+  const floodInfo = mountFloodResultPanel(floodDock, {
     onReplay: () => window.__MM_SCENE__?.replayFloodSimulation?.(),
     onFocus: () => window.__MM_SCENE__?.focusFloodSimulation?.(),
     onClear: () => clearApiFloodUi(),
     onClose: () => toggleFloodBar(false),
   });
 
-  mountFloodComparePanel(root, { dataset });
-  const floodPlayback = mountFloodPlaybackControls(root, {
+  const floodPlayback = mountFloodPlaybackControls(floodDock, {
     onSelectDate: (ymd) => selectFloodDate(ymd),
     onGenerate: (ymd) => generateFloodDate(ymd),
     onRefresh: () => refreshFloodCatalog({ force: true }),
     onPlay: () => {
       state.apiFlood.isPlaying = true;
+      floodPlayback.setPlaying?.(true);
       window.__MM_SCENE__?.resumeFloodSimulation?.();
     },
     onPause: () => {
       state.apiFlood.isPlaying = false;
+      floodPlayback.setPlaying?.(false);
       window.__MM_SCENE__?.pauseFloodSimulation?.();
     },
     onReplay: () => {
       state.apiFlood.isPlaying = true;
+      floodPlayback.setPlaying?.(true);
       window.__MM_SCENE__?.replayFloodSimulation?.();
     },
     onReset: () => {
       state.apiFlood.isPlaying = false;
+      floodPlayback.setPlaying?.(false);
       window.__MM_SCENE__?.resetFloodSimulation?.();
     },
     onScrub: (p) => {
       state.apiFlood.isPlaying = false;
+      floodPlayback.setPlaying?.(false);
       window.__MM_SCENE__?.setFloodProgress?.(p);
     },
   });
+  const floodCompare = mountFloodComparePanel(floodDock, { dataset });
   /**
    * Raise river water to the flood product's water_rise (mm→m × progress).
    * Does not move camera or chainage — only the water surface rises, then holds.
@@ -703,11 +714,16 @@ export function mountUI(root, {
   window.addEventListener("flood-sim-complete", () => {
     state.apiFlood.isPlaying = false;
     state.apiFlood.status = "complete";
+    floodPlayback.setPlaying?.(false);
     floodPlayback.setProgress(1);
     const info = state.floodSimInfo || state.apiFlood?.result?.info;
     syncRiverRiseFromFlood(1, info);
     setLpFloodStatus("Complete", "ok");
   });
+
+  function syncFloodDockVisibility() {
+    floodDock.hidden = !state.showFloodBar;
+  }
 
   function setLpFloodStatus(text, kind = "") {
     const wrap = root.querySelector("#lp-flood-status");
@@ -731,10 +747,16 @@ export function mountUI(root, {
     if (info) {
       state.apiFlood.result = { ...(state.apiFlood.result || {}), info };
       state.floodSimInfo = info;
-      floodInfo.updateScene(info);
       const idx = window.__MM_SCENE__?.apiFloodLayer?.userData?.getSceneIndex?.() ?? state.apiFlood.currentScene;
       state.apiFlood.currentScene = idx;
-      state.apiFlood.currentDate = info.scene_date || null;
+      const date = validYmd(info.scene_date);
+      state.apiFlood.currentDate = date;
+      // Never stomp the date picker while another date is loading.
+      const loading = state.apiFlood.status === "loading";
+      if (!loading) {
+        floodInfo.updateScene(info);
+        if (date) floodPlayback.setLoadedDate(date);
+      }
     }
     syncFloodSimStats();
   }
@@ -805,6 +827,7 @@ export function mountUI(root, {
         const cached = await fetchFloodCatalog({ force: false });
         if (cached) {
           floodPlayback.setCatalog(cached);
+          floodCompare.setCatalog?.(cached);
           if (cached.fetchedAt && Date.now() - cached.fetchedAt < FLOOD_CATALOG_MAX_AGE_MS) {
             return cached;
           }
@@ -825,6 +848,7 @@ export function mountUI(root, {
         },
       });
       floodPlayback.setCatalog(cat, { resetExpired: true });
+      floodCompare.setCatalog?.(cat);
       if (state.apiFlood.status !== "loading") {
         floodPlayback.setStatus(
           cat.scenes.length ? "" : "JalNetra returned no Sentinel-1 flood scenes for this AOI.",
@@ -994,8 +1018,16 @@ export function mountUI(root, {
     window.__MM_SCENE__?.apiFloodLayer?.setVisible?.(true);
     const layerInfo = window.__MM_SCENE__?.apiFloodLayer?.userData?.getInfo?.() || result.info || {};
     // Stored on the layer's info object so later scene/progress syncs keep the same rows.
-    layerInfo.status_label = result.catalog?.fromCache ? "Stored · cached" : "Stored";
+    const levelSrc = layerInfo.level_source;
+    const stored = result.catalog?.fromCache ? "Stored · cached" : "Stored";
+    layerInfo.status_label =
+      levelSrc === "api"
+        ? stored
+        : levelSrc === "estimated_from_extent"
+          ? `${stored} · levels est.`
+          : `${stored} · extent only`;
     state.floodSimInfo = layerInfo;
+    syncFloodDockVisibility();
     if (state.showFloodBar) {
       floodInfo.show(layerInfo);
       floodPlayback.show();
@@ -1003,14 +1035,24 @@ export function mountUI(root, {
       floodInfo.updateScene(layerInfo);
       floodPlayback.hide();
     }
-    const date = validYmd(layerInfo.scene_date);
+    // Prefer the catalog/API scene date so Flood Result + dropdown stay identical.
+    const date =
+      validYmd(layerInfo.scene_date) ||
+      validYmd(result.scene?.date) ||
+      validYmd(result.info?.scene_date) ||
+      validYmd(state.apiFlood.currentDate);
+    if (date && !validYmd(layerInfo.scene_date)) layerInfo.scene_date = date;
+    floodPlayback.setSelected(date, { focus: true });
     floodPlayback.setLoadedDate(date);
+    floodPlayback.setPlaying?.(true);
     floodPlayback.setProgress(0);
     // The selected-date line already shows date + area; keep the status slot for loading / errors.
     floodPlayback.setStatus("");
-    if (layerInfo?.max_depth_m != null) {
-      updateDepthLegend(0.5, Math.max(0.5, layerInfo.max_depth_m));
+    const maxDepth = validNumber(layerInfo?.max_depth_m);
+    if (maxDepth != null && maxDepth > 0) {
+      updateDepthLegend(0.5, Math.max(0.5, maxDepth));
     } else {
+      // No measured/estimated depth — don't invent a scale from water rise.
       if (typeof hideDepthLegend === "function") hideDepthLegend();
       else {
         const dl = document.getElementById("depth-legend");
@@ -1226,6 +1268,7 @@ export function mountUI(root, {
     state.showFloodBar = open;
     nav.setFloodPressed?.(open);
     root.classList.toggle("flood-sim-open", !!open);
+    syncFloodDockVisibility();
 
     if (open) {
       // Hide fishing HUD so it doesn't stack over flood result / playback
