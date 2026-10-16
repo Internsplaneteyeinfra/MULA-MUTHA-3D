@@ -1,15 +1,17 @@
 import { defineConfig } from "vite";
+import react from "@vitejs/plugin-react";
 
 /** Portable static hosting (GitHub Pages / Netlify / S3). Override with VITE_BASE. */
 const base = process.env.VITE_BASE || "/";
 
 export default defineConfig({
   base,
+  plugins: [react()],
   assetsInclude: ["**/*.kml"],
   server: {
     host: true,
-    port: 5176,
-    strictPort: true,
+    port: 5185,
+    strictPort: false,
     open: true,
     // RiverEye API CORS only allows localhost:3000 — proxy for local AQI/weather
     proxy: {
@@ -52,8 +54,8 @@ export default defineConfig({
   },
   preview: {
     host: true,
-    port: 4176,
-    strictPort: true,
+    port: 4185,
+    strictPort: false,
     proxy: {
       "/rivereye-api": {
         target: "https://rivereye-production.up.railway.app",

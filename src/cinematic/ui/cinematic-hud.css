@@ -1,0 +1,469 @@
+/* =========================================================================
+   RIVER.EYE 3D Cinematic Landing Page & HUD Design System
+   ========================================================================= */
+
+:root {
+  --river-cyan: #06b6d4;
+  --river-teal: #14b8a6;
+  --river-blue: #0284c7;
+  --river-emerald: #10b981;
+  --river-gold: #f59e0b;
+  --hud-glass: rgba(10, 16, 26, 0.72);
+  --hud-glass-border: rgba(255, 255, 255, 0.14);
+}
+
+.cinematic-container {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+  font-family: "Inter", system-ui, -apple-system, sans-serif;
+  color: #ffffff;
+  user-select: none;
+  z-index: 9999;
+  background: radial-gradient(ellipse at 50% 43%, #163951 0%, #081b2b 38%, #020611 76%);
+}
+
+/* Atmospheric fallback while Cesium creates its WebGL context and loads the live globe. */
+.cinematic-container::before {
+  content: "";
+  position: absolute;
+  z-index: 0;
+  width: min(58vw, 68vh);
+  aspect-ratio: 1;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background:
+    radial-gradient(ellipse at 34% 29%, rgba(167, 215, 227, 0.28), transparent 15%),
+    radial-gradient(ellipse at 65% 39%, rgba(73, 143, 131, 0.38) 0 9%, transparent 10%),
+    radial-gradient(ellipse at 40% 57%, rgba(57, 128, 118, 0.32) 0 13%, transparent 14%),
+    radial-gradient(circle at 34% 30%, #28617f 0%, #123b58 42%, #071b2c 73%, #020914 100%);
+  box-shadow: inset -28px -12px 54px rgba(0, 0, 0, 0.62), 0 0 72px rgba(22, 117, 155, 0.18);
+  pointer-events: none;
+}
+
+/* Brief globe silhouette while the first Cesium frame is being created (the canvas clears opaque black on boot). */
+.cinematic-container::after {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  width: min(58vw, 68vh);
+  aspect-ratio: 1;
+  left: 50%;
+  top: 46%;
+  transform: translate(-50%, -50%);
+  border-radius: 50%;
+  background: radial-gradient(circle at 34% 28%, #397c9b 0%, #174969 43%, #0a253b 76%, #020914 100%);
+  box-shadow: inset -28px -12px 54px rgba(0, 0, 0, 0.62), 0 0 72px rgba(22, 117, 155, 0.2);
+  pointer-events: none;
+  animation: boot-globe-clear 1.2s ease-out 1.4s forwards;
+}
+@keyframes boot-globe-clear {
+  to { opacity: 0; visibility: hidden; }
+}
+
+.cinematic-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+
+/* -------------------------------------------------------------------------
+   Google Earth-Style Floating River Labels
+   No solid background, clean white text, subtle shadows, distance fading
+   ------------------------------------------------------------------------- */
+.floating-river-label {
+  position: absolute;
+  pointer-events: none;
+  transform: translate(-50%, -100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: opacity 0.25s ease-out;
+  z-index: 50;
+}
+
+.river-label-name {
+  font-size: 26px;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  color: #ffffff;
+  text-shadow:
+    0 2px 14px rgba(0, 0, 0, 0.95),
+    0 4px 28px rgba(0, 0, 0, 0.8),
+    0 0 20px rgba(6, 182, 212, 0.45);
+  margin-bottom: 4px;
+}
+
+.river-label-coords {
+  font-size: 12px;
+  font-weight: 500;
+  letter-spacing: 0.12em;
+  color: #94a3b8;
+  text-shadow: 0 2px 10px rgba(0, 0, 0, 0.95);
+  margin-bottom: 8px;
+}
+
+.river-beacon-dot {
+  width: 10px;
+  height: 10px;
+  background: #38bdf8;
+  border-radius: 50%;
+  box-shadow: 0 0 12px #38bdf8, 0 0 24px #38bdf8;
+  position: relative;
+}
+
+.river-beacon-dot::after {
+  content: "";
+  position: absolute;
+  inset: -6px;
+  border: 1.5px solid rgba(56, 189, 248, 0.6);
+  border-radius: 50%;
+  animation: beacon-pulse 2s infinite ease-out;
+}
+
+@keyframes beacon-pulse {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+/* -------------------------------------------------------------------------
+   Scene 15: Final Landing Overlay — Cinematic Hero Card
+   ------------------------------------------------------------------------- */
+.final-landing-card {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+  z-index: 80;
+  animation: fade-in-up 0.65s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  max-width: 720px;
+  width: 90%;
+  padding: 36px 44px 34px;
+  border-radius: 28px;
+  /* Faint deep-ocean glass wash: lifts text contrast while the river stays visible underneath. */
+  background: radial-gradient(ellipse at 50% 45%, rgba(8, 47, 73, 0.34) 0%, rgba(8, 47, 73, 0.16) 55%, rgba(8, 47, 73, 0) 78%);
+}
+
+@keyframes fade-in-up {
+  0% { opacity: 0; transform: translate(-50%, -42%); }
+  100% { opacity: 1; transform: translate(-50%, -50%); }
+}
+
+.final-eyebrow {
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.32em;
+  text-transform: uppercase;
+  color: #67e8f9;
+  background: rgba(8, 145, 178, 0.12);
+  border: 1px solid rgba(103, 232, 249, 0.38);
+  padding: 5px 14px;
+  border-radius: 999px;
+  text-shadow: 0 1px 6px rgba(8, 47, 73, 0.6);
+}
+
+.final-hero-title {
+  font-size: clamp(56px, 6.2vw, 84px);
+  font-weight: 800;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  margin: 0;
+  color: #ffffff;
+  /* Soft, natural depth (blue-tinted, not black) */
+  text-shadow:
+    0 2px 6px rgba(8, 47, 73, 0.55),
+    0 8px 30px rgba(3, 105, 161, 0.35);
+}
+
+.final-hero-tagline {
+  font-size: 18px;
+  font-weight: 400;
+  letter-spacing: 0.06em;
+  color: rgba(236, 254, 255, 0.92);
+  text-shadow: 0 1px 8px rgba(8, 47, 73, 0.75);
+  margin: 0;
+  max-width: 520px;
+  line-height: 1.6;
+}
+
+.final-cta-btn {
+  margin-top: 8px;
+  background: linear-gradient(120deg, #075985 0%, #0284c7 38%, #06b6d4 72%, #2dd4bf 100%);
+  border: 1px solid rgba(255, 255, 255, 0.30);
+  color: #ffffff;
+  padding: 18px 42px;
+  border-radius: 50px;
+  font-size: 16px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow:
+    0 8px 24px rgba(3, 105, 161, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+  position: relative;
+  overflow: hidden;
+}
+
+.final-cta-btn::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(90deg, transparent, rgba(255,255,255,0.12), transparent);
+  transform: translateX(-100%);
+  transition: transform 0.5s;
+}
+
+.final-cta-btn:hover::before {
+  transform: translateX(100%);
+}
+
+.final-cta-btn:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow:
+    0 12px 32px rgba(3, 105, 161, 0.45),
+    inset 0 1px 0 rgba(255, 255, 255, 0.3);
+}
+
+/* -------------------------------------------------------------------------
+   Scene Caption Overlay — Shows during flythrough phases
+   ------------------------------------------------------------------------- */
+.scene-caption-overlay {
+  position: absolute;
+  bottom: 56px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  pointer-events: none;
+  z-index: 75;
+  animation: caption-fade 0.5s ease-out;
+}
+
+.analysis-preview-card {
+  position: absolute;
+  top: max(24px, 3vh);
+  right: max(24px, 3vw);
+  z-index: 78;
+  width: min(260px, 34vw);
+  padding: 14px 16px;
+  border: 1px solid rgba(210, 235, 245, 0.2);
+  border-radius: 12px;
+  color: rgba(245, 250, 252, 0.96);
+  background: rgba(7, 18, 28, 0.76);
+  box-shadow: 0 10px 32px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(12px);
+  pointer-events: none;
+  font-size: 12px;
+}
+.analysis-preview-card > strong {
+  display: block;
+  margin-bottom: 9px;
+  color: #a5e7f4;
+  font-size: 10px;
+  letter-spacing: 0.14em;
+}
+.analysis-preview-card ul {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px 10px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+.analysis-preview-card li {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  color: rgba(240, 247, 250, 0.88);
+  font-size: 10px;
+  line-height: 1.25;
+}
+.analysis-preview-card li i {
+  width: 9px;
+  height: 9px;
+  flex: 0 0 9px;
+  border-radius: 2px;
+}
+.analysis-preview-card p { margin: 0; line-height: 1.65; color: rgba(240, 247, 250, 0.82); }
+
+@keyframes caption-fade {
+  from { opacity: 0; transform: translateX(-50%) translateY(8px); }
+  to { opacity: 1; transform: translateX(-50%) translateY(0); }
+}
+
+.caption-chip {
+  background: rgba(10, 16, 26, 0.7);
+  backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  padding: 5px 18px;
+  border-radius: 20px;
+  font-size: 11px;
+  font-weight: 600;
+  letter-spacing: 0.18em;
+  color: #38bdf8;
+  text-transform: uppercase;
+}
+
+.caption-text {
+  font-size: 15px;
+  font-weight: 400;
+  color: rgba(255, 255, 255, 0.85);
+  letter-spacing: 0.06em;
+  text-shadow: 0 2px 14px rgba(0, 0, 0, 0.95);
+}
+
+/* -------------------------------------------------------------------------
+   Lower-left river name — Google Maps-style geographic label
+   White Roboto Medium, compact tracking, thin dark halo for legibility on bright or dark water; no panel.
+   ------------------------------------------------------------------------- */
+.river-name-label {
+  position: absolute;
+  left: max(28px, 2.2vw);
+  bottom: max(28px, 3.2vh);
+  z-index: 70;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.45s ease;
+  font-family: "Roboto", "Google Sans", "Helvetica Neue", Arial, sans-serif;
+  color: #ffffff;
+  -webkit-font-smoothing: antialiased;
+  text-shadow:
+    0 0 1px rgba(0, 0, 0, 0.9),
+    0 0 2px rgba(0, 0, 0, 0.75),
+    0 1px 3px rgba(0, 0, 0, 0.55);
+}
+.river-name-label.visible {
+  opacity: 1;
+}
+.river-name-label-name {
+  font-size: clamp(14px, 1.05vw, 18px);
+  font-weight: 500;
+  letter-spacing: 0.06em;
+  line-height: 1.2;
+}
+.river-name-label-place {
+  font-size: clamp(11px, 0.8vw, 13px);
+  font-weight: 400;
+  letter-spacing: 0.02em;
+  opacity: 0.92;
+}
+
+/* "EYE" accent in the hero title */
+.final-hero-title .eye {
+  color: #5eead4;
+  background: linear-gradient(180deg, #a5f3fc 0%, #22d3ee 55%, #0ea5e9 100%);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  /* gradient text cannot carry a shadow without it showing through, so its depth comes from a drop-shadow filter */
+  text-shadow: none;
+  filter: drop-shadow(0 2px 6px rgba(8, 47, 73, 0.5));
+}
+
+/* Understated glass button (Replay) */
+.final-glass-btn {
+  padding: 16px 28px;
+  border-radius: 999px;
+  font-size: 15px;
+  font-weight: 600;
+  letter-spacing: 0.05em;
+  color: #f0fdff;
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(186, 230, 253, 0.32);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 4px 18px rgba(8, 47, 73, 0.25);
+  cursor: pointer;
+  transition: background 0.2s ease, border-color 0.2s ease, transform 0.2s ease;
+}
+.final-glass-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(186, 230, 253, 0.55);
+  transform: translateY(-1px);
+}
+.film-quick-controls {
+  position: absolute;
+  z-index: 8;
+  top: max(16px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  display: flex;
+  gap: 8px;
+  align-items: center;
+  color: rgba(235, 249, 255, 0.9);
+  font: 600 11px/1.2 system-ui, sans-serif;
+}
+.film-quick-controls label { display: flex; align-items: center; gap: 6px; }
+.film-quick-controls select,
+.film-quick-controls button {
+  min-height: 34px;
+  padding: 0 11px;
+  border: 1px solid rgba(186, 230, 253, 0.3);
+  border-radius: 18px;
+  color: #effaff;
+  background: rgba(5, 20, 34, 0.52);
+  font: inherit;
+  backdrop-filter: blur(8px);
+}
+.film-quick-controls button { cursor: pointer; }
+
+/* -------------------------------------------------------------------------
+   Loading indicator — sits over the live globe (no opaque page)
+   ------------------------------------------------------------------------- */
+.film-loader {
+  position: absolute;
+  left: 50%;
+  bottom: max(48px, 7vh);
+  transform: translateX(-50%);
+  z-index: 5;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  pointer-events: none;
+  font-family: "Inter", system-ui, sans-serif;
+  color: #e0f2fe;
+  text-shadow: 0 1px 8px rgba(8, 47, 73, 0.8);
+}
+.film-loader-brand {
+  font-size: 20px;
+  font-weight: 800;
+  letter-spacing: 0.3em;
+  color: #ffffff;
+}
+.film-loader-brand span { color: #22d3ee; }
+.film-loader-msg { font-size: 13px; opacity: 0.85; }
+.film-loader-bar {
+  width: 240px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(186, 230, 253, 0.2);
+  overflow: hidden;
+}
+.film-loader-bar i {
+  display: block;
+  height: 100%;
+  background: linear-gradient(90deg, #0284c7, #2dd4bf);
+  transition: width 0.3s ease;
+}

@@ -57,9 +57,10 @@ export function mountProjectIdentity(root, dataset = null) {
     <div class="gis-brand-mark">
       <span class="planet-eye-logo" aria-label="Planet Eye logo">${lucideHtml(Eye, { size: 20 })}</span>
       <div class="gis-brand-text">
-        <strong>PLANET EYE AI</strong>
+        <strong>PLANET EYE AI · RIVER.EYE</strong>
         <small>Mula–Mutha River · EPSG:32643</small>
       </div>
+      <button type="button" id="return-cinematic-btn" class="hud-cinematic-badge" style="margin-left: 8px; background: rgba(56, 189, 248, 0.18); border: 1px solid rgba(56, 189, 248, 0.45); border-radius: 14px; padding: 4px 10px; font-size: 11px; font-weight: 700; color: #38bdf8; cursor: pointer; display: flex; align-items: center; gap: 4px; transition: all 0.2s;" title="Return to 3D Cinematic Landing Page">▶ 3D Cinematic</button>
     </div>
     <div class="brand-telemetry-divider" aria-hidden="true"></div>
     <div class="weather-wq water-telemetry-wq" aria-label="Selected chainage water level, flow velocity, Manning roughness, and wetted area">
@@ -83,6 +84,13 @@ export function mountProjectIdentity(root, dataset = null) {
     </div>
   `;
   root.appendChild(el);
+
+  const cinematicBtn = el.querySelector("#return-cinematic-btn");
+  if (cinematicBtn) {
+    cinematicBtn.addEventListener("click", () => {
+      window.dispatchEvent(new CustomEvent("open-cinematic-landing"));
+    });
+  }
 
   const stageEl = el.querySelector("#brand-water-stage");
   const velocityEl = el.querySelector("#brand-water-velocity");
@@ -137,6 +145,5 @@ export function mountProjectIdentity(root, dataset = null) {
   // Initial load
   const initialM = state.selectedChainageMeters ?? 1620;
   update(initialM);
-
   return { el, update };
 }

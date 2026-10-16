@@ -2039,6 +2039,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     isCinematicActive: () => cinematic.isActive(),
     isCinematicPaused: () => cinematic.isPaused(),
     getQuality: () => quality.get(),
+    setQuality(tier) {
+      const normalized = tier === "balanced" ? "medium" : tier;
+      return quality.setTier(normalized);
+    },
     update(dt) {
       quality.noteFrame(dt);
       syncQualityRuntime();

@@ -589,6 +589,7 @@ export function mountUI(root, {
   onTogglePauseWaterFlow,
   isCinematicActive,
   isCinematicPaused,
+  onQualityChange,
 }) {
   root.classList.add("gis-ui");
   if (state.showLayers) root.classList.add("layers-open");
@@ -1546,6 +1547,13 @@ export function mountUI(root, {
       btn.classList.add("active");
       state.skyQuality = btn.dataset.skyQ;
       syncSky();
+    });
+  });
+  root.querySelectorAll("[data-render-quality]").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      root.querySelectorAll("[data-render-quality]").forEach((b) => b.classList.remove("active"));
+      btn.classList.add("active");
+      onQualityChange?.(btn.dataset.renderQuality);
     });
   });
 

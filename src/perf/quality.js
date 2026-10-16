@@ -114,6 +114,7 @@ export function createQualityProfile() {
 
   let fpsSamples = [];
   let lastAdapt = 0;
+  let manual = Boolean(forced);
 
   return {
     get tier() {
@@ -122,9 +123,16 @@ export function createQualityProfile() {
     get() {
       return settings();
     },
+    setTier(next, { manual: userSelected = true } = {}) {
+      if (!["low", "medium", "high"].includes(next)) return false;
+      tier = next;
+      manual = userSelected;
+      fpsSamples = [];
+      return true;
+    },
     /** GPU-only adapt. Fish, bridges, vegetation and labels stay on. */
     noteFrame(dt) {
-      if (forced || tier === "medium") return;
+      if (manual) return;
       if (!dt || dt <= 0 || dt > 0.25) return;
       const fps = 1 / dt;
       fpsSamples.push(fps);
@@ -133,10 +141,14 @@ export function createQualityProfile() {
       if (now - lastAdapt < 1500 || fpsSamples.length < 18) return;
       lastAdapt = now;
       const avg = fpsSamples.reduce((a, b) => a + b, 0) / fpsSamples.length;
-      if (avg < 45 && tier === "high") {
-        tier = "medium";
+      if (avg < 45 && tier !== "low") {
+        tier = tier === "high" ? "medium" : "low";
         fpsSamples = [];
-        console.info("[perf] Switched to smooth profile (shadows disabled, full visual features retained)");
+        console.info(`[perf] Switched to ${tier} render profile`);
+      } else if (avg > 57 && tier !== "high") {
+        tier = tier === "low" ? "medium" : "high";
+        fpsSamples = [];
+        console.info(`[perf] Switched to ${tier} render profile`);
       }
     },
   };
