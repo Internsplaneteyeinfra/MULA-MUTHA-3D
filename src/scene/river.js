@@ -5,6 +5,11 @@ import { isObservedWater } from "../geo/osmWater.js";
 import { spatialIndex, neighbors } from "../geo/corridor.js";
 
 export const SURFACE_Y = 9.4;
+/**
+ * Always-on blue-river stage above SURFACE_Y so the channel looks fuller
+ * even when flood is off. Flood rise stacks on top of this.
+ */
+export const BASE_WATER_STAGE_M = 0.55;
 /** Minimum metres the riverbed stays below the water surface (prevents poke-through). */
 const MIN_BED_SEPARATION = 0.45;
 
@@ -189,8 +194,9 @@ function wetHalfWidth(st, dirX, dirZ, maxH, lulc, osmWater) {
       break;
     }
   }
-  if (!seen) return Math.min(18, maxH * 0.42);
-  return THREE.MathUtils.clamp(outer + 2, 10, maxH);
+  // Slightly wider wet ribbon so blue water reads fuller in the channel.
+  if (!seen) return Math.min(22, maxH * 0.5);
+  return THREE.MathUtils.clamp(outer + 6, 14, maxH * 1.08);
 }
 
 function smooth1d(arr, passes) {
@@ -732,7 +738,8 @@ export function applyExaggeration(river, dataset, exag, floodRiseM = 0, waterSur
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
   const bed = river.bed.geometry.attributes.position;
-  const rise = Math.max(0, Number(floodRiseM) || 0);
+  // Base stage keeps blue water a bit high even with no flood; flood stacks on top.
+  const rise = BASE_WATER_STAGE_M + Math.max(0, Number(floodRiseM) || 0);
   const cols = (bath.across || 40) + 1;
   const nRows = Math.floor(bath.depths.length / cols);
 

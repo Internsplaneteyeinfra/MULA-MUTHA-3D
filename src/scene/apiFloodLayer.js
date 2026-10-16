@@ -3,7 +3,6 @@ import { lonLatToLocal, localToLonLat } from "../geo/geoReference.js";
 import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
 import { createWaterMaterial, syncWaterMaterial } from "./waterShader.js";
-import { createFloodBoundaryLine } from "./floodBoundaryLine.js";
 import { verticalDatumPipeline } from "../services/hydrology/verticalDatumPipeline.js";
 import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
 import { state } from "../state.js";
@@ -176,13 +175,30 @@ export function createApiFloodLayer(dataset) {
     currentFloodedAreaHa = fraction * targetArea;
     lastInfo._current_flooded_area_ha = currentFloodedAreaHa;
     if (hasGlobalWaterLevel) {
-      // Physically update the master river mesh elevation state
-      const physicalRiseM = (globalFinalWaterLevelY - initialWaterLevelY) * p;
+      // Full-channel rise from normal river sheet (SURFACE_Y) → target WSE.
+      const riseTarget =
+        Number.isFinite(lastInfo._target_water_rise_m) && lastInfo._target_water_rise_m >= 0
+          ? lastInfo._target_water_rise_m
+          : Math.max(0, globalFinalWaterLevelY - (Number.isFinite(initialWaterLevelY) ? initialWaterLevelY : SURFACE_Y));
+      const physicalRiseM = riseTarget * p;
       state.floodRiseM = physicalRiseM;
-      
+      const currentWaterY = SURFACE_Y + physicalRiseM;
+
+      // Lift red flood sheet with the same rising WSE so blue + red stay flush.
+      const groundY = mesh.userData?.groundY;
+      const posAttr = mesh.geometry?.attributes?.position;
+      if (groundY && posAttr && groundY.length === posAttr.count) {
+        for (let i = 0; i < posAttr.count; i++) {
+          posAttr.setY(i, Math.max(currentWaterY, groundY[i] + 0.02));
+        }
+        posAttr.needsUpdate = true;
+        mesh.geometry.computeBoundingSphere?.();
+      }
+
       // Update UI metrics for physical data
-      lastInfo.current_water_level = verticalDatumPipeline.sceneYToWseMsl(initialWaterLevelY + physicalRiseM);
+      lastInfo.current_water_level = verticalDatumPipeline.sceneYToWseMsl(currentWaterY);
       lastInfo.water_rise_mm = physicalRiseM * 1000;
+      lastInfo.water_rise_m = riseTarget;
     } else {
       // If no valid water-level, ensure river doesn't artificially rise and UI reflects missing data
       state.floodRiseM = 0;
@@ -192,14 +208,20 @@ export function createApiFloodLayer(dataset) {
     }
     
     if (material && material.uniforms) {
-      material.uniforms.uOpacity.value = THREE.MathUtils.lerp(0.80, 0.94, Math.min(1, p * 1.15));
+      // Solid filled flood water (not a hollow outline)
+      material.uniforms.uOpacity.value = THREE.MathUtils.lerp(0.78, 0.92, Math.min(1, p * 1.15));
       material.uniforms.uReveal.value = 10000.0;
+      material.uniforms.uAnimEnabled.value = 1.0;
+      material.uniforms.uOverallSpeed.value = 1.05;
+      material.uniforms.uFlowSpeed.value = 0.95;
+      material.uniforms.uFlowStrength.value = 1.1;
       if (material.uniforms.uFloodProgressDist) {
         material.uniforms.uFloodProgressDist.value = currentFloodFrontDistance;
       }
-      if (material.uniforms.uFrontLine) material.uniforms.uFrontLine.value = p < 1 ? 1 : 0;
+      // No hard red rim — water fills the flood polygon
+      if (material.uniforms.uFrontLine) material.uniforms.uFrontLine.value = 0;
     }
-    boundary?.userData.sync(currentFloodFrontDistance, anim.t, p);
+    if (boundary) boundary.visible = false;
     
     
     // Explicit Validation Request
@@ -615,22 +637,54 @@ export function createApiFloodLayer(dataset) {
     const sceneInitialWaterLevelY = verticalDatumPipeline.wseMslToSceneY(initialWaterMsl);
     let sceneFinalWaterLevelY = NaN;
     
+    let levelSource = null;
     if (providedRise != null) {
       waterRiseM = providedRise;
       finalWaterMsl = initialWaterMsl + waterRiseM;
       sceneFinalWaterLevelY = verticalDatumPipeline.wseMslToSceneY(finalWaterMsl);
+      levelSource = "api";
     } else if (providedWaterLevel != null) {
       waterRiseM = providedWaterLevel - initialWaterMsl;
       finalWaterMsl = providedWaterLevel;
       sceneFinalWaterLevelY = verticalDatumPipeline.wseMslToSceneY(finalWaterMsl);
+      levelSource = "api";
     } else {
-      // Extent-only product (JalNetra): no surface elevation, so no level, rise or depth.
-      finalWaterMsl = null;
-      waterRiseM = null;
+      // Extent-only JalNetra product: estimate WSE rise from inundated bank terrain
+      // so the full blue river rises with the red flood sheet (not patches only).
+      const bankYs = [];
+      for (let i = 0; i < pos.count; i++) {
+        if (!(floodAttr[i] > 0.5)) continue;
+        const gy = terrainYAttr[i];
+        if (Number.isFinite(gy) && gy > SURFACE_Y - 0.2) bankYs.push(gy);
+      }
+      if (bankYs.length >= 6) {
+        bankYs.sort((a, b) => a - b);
+        // Prefer bank crest above normal river (SURFACE_Y) so rise is visually obvious.
+        const p80 = bankYs[Math.min(bankYs.length - 1, Math.floor(bankYs.length * 0.8))];
+        const fromBanks = Math.max(0, p80 - SURFACE_Y);
+        waterRiseM = THREE.MathUtils.clamp(Math.max(fromBanks, p80 - sceneInitialWaterLevelY), 0.8, 4.0);
+        finalWaterMsl = initialWaterMsl + waterRiseM;
+        // Keep scene rise relative to the rendered river sheet (SURFACE_Y), not MSL mapping.
+        sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
+        levelSource = "estimated_from_extent";
+      } else {
+        // Fallback: still raise the full river so flood playback is never a flat sheet.
+        waterRiseM = 1.2;
+        finalWaterMsl = initialWaterMsl + waterRiseM;
+        sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
+        levelSource = "estimated_default";
+      }
+    }
+    // Anchor animated river/flood sheet rise to the visible channel (SURFACE_Y + rise_m).
+    // MSL labels stay on lastInfo; scene mesh Y must match the blue river ribbon.
+    if (Number.isFinite(waterRiseM) && waterRiseM >= 0) {
+      sceneFinalWaterLevelY = SURFACE_Y + waterRiseM;
     }
     const hasWaterLevel = Number.isFinite(sceneFinalWaterLevelY);
     depthNote = hasWaterLevel
-      ? "Water level supplied by API; depth = level − DTM."
+      ? levelSource === "api"
+        ? "Water level supplied by API; depth = level − DTM."
+        : "Water rise estimated from inundated bank DTM so the full river stage rises with the flood extent."
       : "JalNetra returned flood extent only — water level, rise and depth are not provided. Extent draped over DTM.";
 
     let maxActualDepthM = 0;
@@ -802,15 +856,18 @@ export function createApiFloodLayer(dataset) {
     // are still API extent, so they fill in at 100%.
     const frontMax = Math.max(120, maxDist);
     
+    const finalGroundY = new Float32Array(msCount);
     for(let i = 0; i < msCount; i++) {
         const pt = msVertices[i];
         const gy = terrainHeightAt(pt.x, pt.z, stations);
+        finalGroundY[i] = gy;
         let y;
         let depth;
         if (hasWaterLevel) {
-          const waterSurface = Math.max(sceneFinalWaterLevelY, SURFACE_Y);
+          // Start at normal river sheet; setProgress lifts with progress × rise_m.
+          const waterSurface = SURFACE_Y;
           y = Math.max(waterSurface, gy + 0.03);
-          depth = Math.max(0.0, waterSurface - gy);
+          depth = Math.max(0.0, (SURFACE_Y + Math.max(0, waterRiseM || 0)) - gy);
         } else {
           // Precise elevation alignment:
           // Over river bed (gy <= SURFACE_Y), meet river surface (SURFACE_Y) cleanly (+0.015m).
@@ -818,14 +875,30 @@ export function createApiFloodLayer(dataset) {
           y = gy <= SURFACE_Y ? (SURFACE_Y + 0.015) : (gy + 0.03);
           depth = Math.min(1, pt.e / (cellM * 8)) * EXTENT_SHADE_DEPTH_M;
         }
+        // Flow direction from nearest corridor station so flood water visibly streams with the river.
+        let fx = 1;
+        let fz = 0;
+        let bestD = Infinity;
+        for (let si = 0; si < stations.length; si += Math.max(1, Math.floor(stations.length / 80))) {
+          const st = stations[si];
+          const ddx = pt.x - st.x;
+          const ddz = pt.z - st.z;
+          const d2 = ddx * ddx + ddz * ddz;
+          if (d2 < bestD) {
+            bestD = d2;
+            fx = st.flowX || 1;
+            fz = st.flowZ || 0;
+          }
+        }
+        const fl = Math.hypot(fx, fz) || 1;
         finalPos[i * 3] = pt.x;
         finalPos[i * 3 + 1] = y;
         finalPos[i * 3 + 2] = pt.z;
         finalDepth[i] = depth;
         finalAlong[i] = (pt.x * 0.015 + pt.z * 0.008);
         finalAcross[i] = 0.5 + Math.sin(pt.z * 0.02) * 0.25;
-        finalFlow[i * 2] = 1.0;
-        finalFlow[i * 2 + 1] = 0.3;
+        finalFlow[i * 2] = fx / fl;
+        finalFlow[i * 2 + 1] = fz / fl;
         finalEdgeDist[i] = pt.e;
         finalRiverDist[i] = Number.isFinite(pt.dl) && pt.dl < 1e5 ? Math.min(pt.dl, frontMax) : frontMax;
         finalIsFlood[i] = pt.isFlood ?? 0.0;
@@ -851,49 +924,46 @@ export function createApiFloodLayer(dataset) {
     material.polygonOffsetFactor = -1.5;
     material.polygonOffsetUnits = -1.5;
     if (material.uniforms) {
-      material.uniforms.uOpacity.value = 0.76; // Translucent fluid water body, not opaque paint
+      material.uniforms.uOpacity.value = 0.86; // Filled flood water body
       material.uniforms.uAnimEnabled.value = 1.0;
-      material.uniforms.uOverallSpeed.value = 0.65; // Active animated wave ripples
-      material.uniforms.uWaveHighlight.value = 0.75; // Sparkling sunlight glints on flood water
-      material.uniforms.uReflectionStrength.value = 0.70; // Glassy Fresnel reflection
+      material.uniforms.uOverallSpeed.value = 1.05; // Visible flowing motion
+      material.uniforms.uFlowSpeed.value = 0.95;
+      material.uniforms.uFlowStrength.value = 1.1;
+      material.uniforms.uPrimaryWaveAmplitude.value = 0.14;
+      material.uniforms.uSecondaryWaveAmplitude.value = 0.09;
+      material.uniforms.uRippleAmplitude.value = 0.045;
+      material.uniforms.uWaveHighlight.value = 0.95;
+      material.uniforms.uReflectionStrength.value = 0.72;
       material.uniforms.uIsFlood.value = 1.0;
 
       if (material.uniforms.uFrontColor) {
-        material.uniforms.uFrontColor.value.set("#FF3030"); // Crisp thin red leading crest
+        material.uniforms.uFrontColor.value.set("#C62828");
       }
+      if (material.uniforms.uFrontLine) material.uniforms.uFrontLine.value = 0;
 
       // Use actual depth range for continuous color scale, clamp to avoid division by zero
       material.uniforms.uMaxDepth.value = hasWaterLevel
-        ? Math.max(0.5, maxActualDepthM)
+        ? Math.max(0.5, maxActualDepthM || waterRiseM || EXTENT_SHADE_DEPTH_M)
         : EXTENT_SHADE_DEPTH_M;
     }
 
     mesh = new THREE.Mesh(geo, material);
     mesh.name = "apiFloodMesh";
     mesh.userData.cellAreaHa = (spanX / segsX) * (spanZ / segsZ) / 10000;
+    mesh.userData.groundY = finalGroundY;
     mesh.renderOrder = 18;
     mesh.frustumCulled = false;
     group.add(mesh);
     group.userData.hasFlood = true;
     group.hasFlood = true;
 
-    const gx0 = cx - spanX / 2;
-    const gx1 = cx + spanX / 2;
-    const gz0 = cz - spanZ / 2;
-    const gz1 = cz + spanZ / 2;
-    const BORDER_EPS = 0.05;
-    boundary = createFloodBoundaryLine({
-      positions: finalPos,
-      indices: msIndices,
-      reveal: finalRiverDist,
-      isGridBorder: (x, z) =>
-        Math.abs(x - gx0) < BORDER_EPS ||
-        Math.abs(x - gx1) < BORDER_EPS ||
-        Math.abs(z - gz0) < BORDER_EPS ||
-        Math.abs(z - gz1) < BORDER_EPS,
-      isFlood: finalIsFlood,
-    });
-    if (boundary) group.add(boundary);
+    // No red perimeter line — flood water blends with rising blue river (no hard rim).
+    if (boundary) {
+      group.remove(boundary);
+      boundary.geometry?.dispose?.();
+      boundary.material?.dispose?.();
+      boundary = null;
+    }
     revealSorted = Float32Array.from(finalRiverDist).sort();
     queueMicrotask(() => document.dispatchEvent(new CustomEvent("flood-geometry-ready")));
     
@@ -956,12 +1026,14 @@ export function createApiFloodLayer(dataset) {
       initial_water_level: hasWaterLevel ? initialWaterMslRounded : null,
       current_water_level: hasWaterLevel ? initialWaterMslRounded : null,
       final_water_level: hasWaterLevel ? finalWaterMslRounded : null,
-      max_depth_m: hasWaterLevel ? Math.max(0, maxActualDepthM) : null,
+      max_depth_m: hasWaterLevel ? Math.max(0, Math.min(8, maxActualDepthM || waterRiseM || 0)) : null,
       avg_depth_m: null,
-      level_source: hasWaterLevel ? "api" : null,
+      level_source: hasWaterLevel ? levelSource : null,
+      // Stable target — never overwritten by live progress (water_rise_mm is live).
+      _target_water_rise_m: waterRiseM,
       // Pass the Scene Y coordinates explicitly for the simulation loop
-      _scene_initial_water_y: sceneInitialWaterLevelY,
-      _scene_final_water_y: hasWaterLevel ? sceneFinalWaterLevelY : null,
+      _scene_initial_water_y: hasWaterLevel ? SURFACE_Y : sceneInitialWaterLevelY,
+      _scene_final_water_y: hasWaterLevel ? SURFACE_Y + Math.max(0, waterRiseM || 0) : null,
     };
     lastKmlId = scene.kml_id;
     group.userData.hasFlood = true;

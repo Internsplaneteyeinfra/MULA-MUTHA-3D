@@ -18,15 +18,23 @@
     <div id="app">
       <canvas id="scene"></canvas>
       <div id="ui-root"></div>
-      <div id="loading">
-        <canvas id="loading-scene" aria-hidden="true"></canvas>
-        <div class="card">
-          <div class="card-kicker"><span class="card-kicker-dot"></span> LIVE HYDROLOGY VIEW</div>
-          <h1>MULA–MUTHA JOURNEY</h1>
-          <p id="load-msg">Preparing your river journey…</p>
-          <span class="loading-subtitle">Loading terrain, water depths and river flow</span>
-          <div class="loading-progress"><div class="bar"><i id="load-bar"></i></div><output id="load-percent">0%</output></div>
-          <div class="loading-foot"><span>RIVER SYSTEM</span><span class="loading-pulse">•</span><span>3D VISUALIZATION</span><span class="loading-pulse">•</span><span>INITIALIZING</span></div>
+      <!-- Compact droplet loader — flood sync only (src/ui/appLoader.js) -->
+      <div id="app-loader" class="app-loader" hidden aria-live="polite" aria-busy="false">
+        <div class="app-loader__chip">
+          <div class="app-loader__mark" aria-hidden="true">
+            <span class="app-loader__ring"></span>
+            <span class="app-loader__ripple"></span>
+            <span class="app-loader__ripple app-loader__ripple--delay"></span>
+            <svg class="app-loader__drop" viewBox="0 0 24 24" width="18" height="18">
+              <path fill="currentColor" d="M12 2.2C12 2.2 5.5 10.1 5.5 14.2a6.5 6.5 0 0 0 13 0C18.5 10.1 12 2.2 12 2.2z"/>
+            </svg>
+          </div>
+          <div class="app-loader__copy">
+            <span class="app-loader__msg" id="app-loader-msg">Synchronizing Data</span>
+            <div class="app-loader__bar" id="app-loader-bar" hidden>
+              <i id="app-loader-bar-fill"></i>
+            </div>
+          </div>
         </div>
       </div>
     </div>

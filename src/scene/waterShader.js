@@ -218,13 +218,9 @@ const frag = /* glsl */ `
     if (uIsFlood > 0.5) {
       float t = clamp((d - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
       float te = smoothstep(0.0, 1.0, t);
-      // Hazard red spectrum for inundated floodwater within valid API footprint:
-      // Shallow edges: coral-red (#FF4444) -> deep inundated zones: rich crimson/ruby (#8E0000)
-      vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.35, te));
-      c = mix(c, uC2, smoothstep(0.20, 0.65, te));
-      c = mix(c, uC3, smoothstep(0.55, 1.0, te));
-      float edgeBlend = 1.0 - smoothstep(0.0, 8.0, vEdgeDist);
-      c = mix(c, uC0, edgeBlend * 0.35);
+      // Hazard red flood sheet — no bright coral rim (that read as a hard border).
+      vec3 c = mix(uC1, uC2, smoothstep(0.0, 0.45, te));
+      c = mix(c, uC3, smoothstep(0.40, 1.0, te));
       return c;
     }
 
@@ -358,21 +354,21 @@ const frag = /* glsl */ `
       alpha = max(alpha, mix(0.70, 0.92, depthT));
     }
 
-    // API flood: translucent water surface within the valid API flood footprint.
-    // Allows terrain texture to remain visible while giving clear hazard red depth tint.
+    // API flood: FILL the extent with flowing water (not an empty outline).
     if (uIsFlood > 0.5) {
-      alpha = clamp(mix(0.50, 0.78, depthT) * uOpacity, 0.35, 0.85);
-      alpha *= mix(0.85, 1.0, smoothstep(0.0, 6.0, vEdgeDist));
+      // Solid fill inside the polygon — only a tiny soft tip at the shoreline
+      alpha = clamp(mix(0.58, 0.86, depthT) * uOpacity, 0.50, 0.90);
+      alpha *= mix(0.82, 1.0, smoothstep(0.0, 4.0, vEdgeDist));
       float ahead = vRiverDist - uFloodProgressDist;
       float aa = max(fwidth(vRiverDist), 1e-3);
-      float wet = 1.0 - smoothstep(-0.5 * aa, 0.5 * aa, ahead);
+      // Growing wet front from river → banks (water flows outward into flood lines)
+      float wet = 1.0 - smoothstep(-0.8 * aa, 1.5 * aa, ahead);
       if (wet < 0.002) discard;
-      alpha *= mix(0.70, 1.0, smoothstep(0.0, 18.0, -ahead));
-      // Leading reveal front uses thin red line matching the perimeter
+      alpha *= mix(0.75, 1.0, smoothstep(0.0, 12.0, -ahead));
+      // No hard rim stroke
       float frontPx = -ahead / aa;
-      float frontLine = (1.0 - smoothstep(1.0, 2.0, frontPx)) * uFrontLine;
-      col = mix(col, uFrontColor, frontLine * 0.90);
-      alpha = mix(alpha, max(alpha, 0.92), frontLine);
+      float frontLine = (1.0 - smoothstep(1.5, 5.0, frontPx)) * uFrontLine;
+      col = mix(col, uFrontColor, frontLine * 0.25);
       alpha *= wet;
     }
 
@@ -517,9 +513,18 @@ export function syncWaterMaterial(material) {
   u.uShowFlowVis.value = state.flowVisibility ?? 0.55;
   u.uQuality.value = qualityToFloat(state.waterQuality || "high");
 
-  // Flood meshes keep their own palette / opacity / reflection tuning
-  // (set from actual flood depth + simulation progress in apiFloodLayer).
-  if (isFlood) return;
+  // Flood sheet: keep flowing water motion + filled body (not a static outline).
+  if (isFlood) {
+    u.uAnimEnabled.value = 1.0;
+    u.uOverallSpeed.value = Math.max(u.uOverallSpeed.value, 0.95);
+    u.uFlowSpeed.value = Math.max(u.uFlowSpeed.value, 0.85);
+    u.uFlowStrength.value = Math.max(u.uFlowStrength.value, 1.05);
+    u.uPrimaryWaveAmplitude.value = Math.max(u.uPrimaryWaveAmplitude.value, 0.12);
+    u.uSecondaryWaveAmplitude.value = Math.max(u.uSecondaryWaveAmplitude.value, 0.08);
+    u.uRippleAmplitude.value = Math.max(u.uRippleAmplitude.value, 0.04);
+    u.uWaveHighlight.value = Math.max(u.uWaveHighlight?.value ?? 0, 0.9);
+    return;
+  }
 
   u.uOpacity.value = num("waterOpacity", preset?.waterOpacity ?? 0.82);
   u.uReflectionStrength.value = num("reflectionStrength", preset?.reflectionStrength ?? 0.65);

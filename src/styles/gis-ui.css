@@ -10151,7 +10151,7 @@ body.hydro-intel-open #dt-panel { display: none !important; }
 
 #ui-root.gis-ui .brand-telemetry-bar .brand-telemetry-divider {
   width: 1px !important;
-  height: 102px !important;
+  height: 68px !important;
   background: rgba(193, 225, 234, 0.22) !important;
   flex-shrink: 0 !important;
   margin: 0 2px !important;

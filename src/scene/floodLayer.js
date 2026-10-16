@@ -34,13 +34,13 @@ export function createFloodLayer(dataset) {
   geo.computeVertexNormals();
 
   const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color("#DC2626"),
+    color: new THREE.Color("#B91C1C"),
     transparent: true,
-    opacity: 0.44,
-    roughness: 0.18,
-    metalness: 0.05,
-    transmission: 0.22,
-    thickness: 1.2,
+    opacity: 0.38,
+    roughness: 0.12,
+    metalness: 0.04,
+    transmission: 0.35,
+    thickness: 1.4,
     ior: 1.33,
     depthWrite: false,
     side: THREE.DoubleSide,
@@ -48,7 +48,7 @@ export function createFloodLayer(dataset) {
 
   const mesh = new THREE.Mesh(geo, material);
   mesh.name = "floodInundation";
-  mesh.renderOrder = 3;
+  mesh.renderOrder = 16;
   mesh.visible = false;
   mesh.frustumCulled = false;
 
@@ -78,9 +78,9 @@ export function createFloodLayer(dataset) {
     attr.needsUpdate = true;
     mesh.geometry.computeVertexNormals();
 
-    // Opacity scales gently with stage (still readable at high rise)
-    const t = THREE.MathUtils.clamp(rise / 12, 0, 1);
-    material.opacity = THREE.MathUtils.lerp(0.28, 0.62, t);
+    // Opacity scales with stage — reads as water filling low ground / flood lines
+    const t = THREE.MathUtils.clamp(rise / 8, 0, 1);
+    material.opacity = THREE.MathUtils.lerp(0.32, 0.55, t);
     mesh.visible = true;
   }
 

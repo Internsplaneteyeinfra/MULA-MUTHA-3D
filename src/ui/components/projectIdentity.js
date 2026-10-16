@@ -63,7 +63,7 @@ export function mountProjectIdentity(root, dataset = null) {
     </div>
     <div class="brand-telemetry-divider" aria-hidden="true"></div>
     <div class="weather-wq water-telemetry-wq" aria-label="Selected chainage water level, flow velocity, Manning roughness, and wetted area">
-      <div class="weather-wq-head">WATER TELEMETRY <span id="brand-water-chainage">CH —</span></div>
+      
       <div class="weather-wq-row is-q">
         <i data-short="WSE">WATER LEVEL (WSE)</i>
         <b id="brand-water-stage">—</b>
@@ -74,11 +74,7 @@ export function mountProjectIdentity(root, dataset = null) {
         <b id="brand-water-velocity">—</b>
         <em>m/s</em>
       </div>
-      <div class="weather-wq-row is-cod">
-        <i data-short="MANNING">MANNING n</i>
-        <b id="brand-water-manning">—</b>
-        <em></em>
-      </div>
+      
       <div class="weather-wq-row is-area">
         <i data-short="AREA">WETTED AREA</i>
         <b id="brand-water-area">—</b>

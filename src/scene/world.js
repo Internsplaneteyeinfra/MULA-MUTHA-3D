@@ -2072,12 +2072,21 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           ? Math.max(6.5, state.depthExaggeration * 3.2)
           : state.depthExaggeration;
       const apiFloodActive = state.floodMode === "api" && !!apiFloodLayer.userData?.hasFlood;
-      // Bathtub stage ignored while API flood is the active surface
+      // River stage follows flood-product water rise (mm→m × progress). Camera/chainage stay fixed.
       let floodRise = state.floodRiseM ?? 0;
       if (apiFloodActive) {
         const info = apiFloodLayer.userData.getInfo?.();
-        const p = apiFloodLayer.userData.getProgress?.() || 0;
-        floodRise = p * (info?.water_rise_m || 0);
+        const p = Math.max(0, Math.min(1, apiFloodLayer.userData.getProgress?.() || 0));
+        const riseM =
+          Number.isFinite(info?._target_water_rise_m) && info._target_water_rise_m >= 0
+            ? info._target_water_rise_m
+            : Number.isFinite(info?.water_rise_m) && info.water_rise_m >= 0
+              ? info.water_rise_m
+              : null;
+        if (riseM != null) {
+          floodRise = p * riseM;
+          state.floodRiseM = floodRise;
+        }
       }
       // Bank erosion: dark channel so neon green/yellow ribbon pops (reference look)
       const riverLook = cutaway
@@ -2100,7 +2109,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         }
       }
 
+      // During API flood, force the blue river sheet to SURFACE_Y + rise every frame
+      // so the full channel visibly climbs with water_rise_mm (not only red patches).
+      const forceRiverRise = apiFloodActive && floodRise >= 0;
       if (
+        forceRiverRise ||
         bedExag !== lastExag ||
         state.visualMode !== lastVisual ||
         floodRise !== lastFlood ||
@@ -2113,18 +2126,25 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         lastFlood = floodRise;
         lastWaterOn = waterOn;
         lastRiverLook = riverLook;
-        applyExaggeration(river, dataset, bedExag, floodRise, currentStationWaterY);
+        // null station array → uniform SURFACE_Y + rise across the whole ribbon
+        applyExaggeration(
+          river,
+          dataset,
+          bedExag,
+          floodRise,
+          forceRiverRise ? null : currentStationWaterY,
+        );
         riparianLayer?.userData.syncToWater(river.mesh, floodRise);
-        if (!apiFloodActive) floodLayer.setFloodRise?.(floodRise);
-        else {
-          floodLayer.setFloodRise?.(0);
-          floodLayer.visible = false;
+        if (!apiFloodActive) {
+          floodLayer.setFloodRise?.(floodRise);
+        } else {
+          // Rising stage also fills low ground beside the channel so flood lines read as wet water,
+          // while the API red sheet carries the official extent + flow animation.
+          floodLayer.setFloodRise?.(floodRise);
         }
         updateBridgePiers(bridges, bedExag);
         applyRiverLook(river, riverLook);
       }
-      // Illustrative bathtub never conflicts with API flood surface
-      if (apiFloodActive) floodLayer.visible = false;
       if (state.hydrologyHidesFlood) {
         floodLayer.visible = false;
         apiFloodLayer.visible = false;

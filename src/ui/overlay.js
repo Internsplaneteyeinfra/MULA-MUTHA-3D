@@ -23,7 +23,7 @@ import { mountChainagePanel } from "./components/chainagePanel.js";
 import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
 import { mountFloodComparePanel } from "./components/floodComparePanel.js";
-import { validYmd, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
+import { validYmd, validNumber, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
 import { mountCrossSectionModal } from "./components/crossSectionModal.js";
 import { mountThresholdGraph } from "./components/thresholdGraph.js";
@@ -36,6 +36,7 @@ import {
   loadFloodSimulationForDate,
   getFloodSceneForDate,
 } from "../services/jalnetraFloodService.js";
+import { showLoader, hideLoader, failLoader, updateLoader, LOADER_STATUS } from "./appLoader.js";
 
 /** Re-check JalNetra for new scenes when the cached catalog is older than this. */
 const FLOOD_CATALOG_MAX_AGE_MS = 10 * 60 * 1000;
@@ -669,14 +670,43 @@ export function mountUI(root, {
       window.__MM_SCENE__?.setFloodProgress?.(p);
     },
   });
+  /**
+   * Raise river water to the flood product's water_rise (mm→m × progress).
+   * Does not move camera or chainage — only the water surface rises, then holds.
+   */
+  function syncRiverRiseFromFlood(progress, info) {
+    const p = Math.max(0, Math.min(1, Number(progress) || 0));
+    // Stable target only — water_rise_mm on the layer is the live animated value.
+    let riseTarget =
+      validNumber(info?._target_water_rise_m) ?? validNumber(info?.water_rise_m);
+    if (riseTarget == null) {
+      const y0 = validNumber(info?._scene_initial_water_y);
+      const y1 = validNumber(info?._scene_final_water_y);
+      if (y0 != null && y1 != null) riseTarget = Math.max(0, y1 - y0);
+    }
+    if (riseTarget == null || riseTarget < 0) return;
+    const liveM = riseTarget * p;
+    state.floodRiseM = liveM;
+    const floodEl = root.querySelector("#flood");
+    const floodLabel = root.querySelector("#flood-label");
+    if (floodEl) floodEl.value = String(Math.round(liveM * 100));
+    if (floodLabel) floodLabel.textContent = `+${liveM.toFixed(2)} m (${Math.round(liveM * 1000)} mm)`;
+  }
+
   window.addEventListener("flood-sim-progress", (e) => {
     const p = e.detail?.progress;
+    const info = e.detail?.info || state.floodSimInfo;
     state.apiFlood.progress = p;
     floodPlayback.setProgress(p);
+    syncRiverRiseFromFlood(p, info);
   });
   window.addEventListener("flood-sim-complete", () => {
     state.apiFlood.isPlaying = false;
+    state.apiFlood.status = "complete";
     floodPlayback.setProgress(1);
+    const info = state.floodSimInfo || state.apiFlood?.result?.info;
+    syncRiverRiseFromFlood(1, info);
+    setLpFloodStatus("Complete", "ok");
   });
 
   function setLpFloodStatus(text, kind = "") {
@@ -745,6 +775,7 @@ export function mountUI(root, {
   function clearApiFloodUi() {
     floodRequestSeq += 1;
     cancelJalnetraFloodRequest("scene");
+    hideLoader("flood", { immediate: true });
     window.__MM_SCENE__?.clearFloodSimulation?.();
     floodInfo.clear?.();
     floodPlayback.setLoadedDate(null);
@@ -783,11 +814,14 @@ export function mountUI(root, {
       }
     }
     floodPlayback.setRefreshing(true);
+    // Droplet loader only while JalNetra catalog is synchronizing (not app start).
+    showLoader("sync", { message: LOADER_STATUS.sync, progress: null });
     try {
       const cat = await fetchFloodCatalog({
         force: true,
         onProgress: (msg) => {
           if (state.apiFlood.status !== "loading") floodPlayback.setStatus(msg, "loading");
+          updateLoader("sync", { message: LOADER_STATUS.sync });
         },
       });
       floodPlayback.setCatalog(cat, { resetExpired: true });
@@ -808,6 +842,7 @@ export function mountUI(root, {
       return null;
     } finally {
       floodPlayback.setRefreshing(false);
+      hideLoader("sync", { immediate: true });
     }
   }
 
@@ -831,33 +866,47 @@ export function mountUI(root, {
     state.apiFlood.status = "loading";
     state.floodSimStatus = "loading";
     setLpFloodStatus("Running", "loading");
+    showLoader("flood", { message: LOADER_STATUS.flood, progress: null });
     const onProgress = (msg) => {
       if (seq !== floodRequestSeq) return;
       state.apiFlood.message = msg;
       floodPlayback.setStatus(msg, "loading");
+      updateLoader("flood", { message: LOADER_STATUS.flood });
       syncFloodSimStats();
     };
     onProgress(`Loading ${ymd}…`);
     try {
       const result = await loadFloodSimulationForDate(ymd, { catalog, onProgress });
-      if (seq !== floodRequestSeq) return null;
+      if (seq !== floodRequestSeq) {
+        hideLoader("flood", { immediate: true });
+        return null;
+      }
       await applyFloodResult(result);
+      hideLoader("flood");
       return result;
     } catch (err) {
-      if (seq !== floodRequestSeq) return null;
+      if (seq !== floodRequestSeq) {
+        hideLoader("flood", { immediate: true });
+        return null;
+      }
       resetApiFloodState();
       setLpFloodStatus("Idle", "");
       if (isAbortError(err)) {
+        hideLoader("flood", { immediate: true });
         floodPlayback.setStatus("");
       } else if (err?.code === "EXPIRED") {
+        hideLoader("flood");
         floodPlayback.markExpired(scene.kml_id);
         floodPlayback.setStatus(`${err.message} Use Generate Simulation to re-run it.`, "error");
       } else if (err?.code === "NO_FLOOD") {
+        hideLoader("flood");
         floodPlayback.markNoFlood(ymd);
         floodPlayback.setStatus(err.message, "");
       } else if (err?.code === "NOT_IN_CATALOG") {
+        hideLoader("flood");
         floodPlayback.setStatus(err.message, "");
       } else {
+        failLoader("flood", err?.message || "Flood simulation could not be completed.");
         state.apiFlood.status = "error";
         state.apiFlood.error = err?.message || "Flood simulation could not be completed.";
         state.floodSimStatus = "error";
@@ -887,10 +936,15 @@ export function mountUI(root, {
   async function generateFloodDate(ymd) {
     floodPlayback.setProcessing(ymd, true);
     floodPlayback.setStatus(`Re-running JalNetra processing for ${ymd} (≈40 s)…`, "loading");
+    showLoader("flood", { message: LOADER_STATUS.flood, progress: null });
     const cat = await refreshFloodCatalog({ force: true });
     floodPlayback.setProcessing(ymd, false);
-    if (!cat || floodPlayback.getSelected() !== ymd) return null;
+    if (!cat || floodPlayback.getSelected() !== ymd) {
+      hideLoader("flood", { immediate: true });
+      return null;
+    }
     if (!getFloodSceneForDate(cat, ymd)) {
+      hideLoader("flood");
       floodPlayback.setStatus(`After regeneration JalNetra no longer lists a scene for ${ymd}.`, "error");
       return null;
     }
@@ -963,11 +1017,12 @@ export function mountUI(root, {
         if (dl) dl.hidden = true;
       }
     }
-    setLpFloodStatus("Complete", "ok");
+    setLpFloodStatus("Running", "loading");
     syncFloodSimStats();
     syncIllustrativeDisabled();
+    // Stay on the user's current chainage / camera — only river water rises with the date's mm.
+    syncRiverRiseFromFlood(0, layerInfo);
     window.__MM_SCENE__?.replayFloodSimulation?.();
-    setTimeout(() => window.__MM_SCENE__?.focusFloodSimulation?.(), 80);
   }
 
   window.__MM_FLOOD__ = {
