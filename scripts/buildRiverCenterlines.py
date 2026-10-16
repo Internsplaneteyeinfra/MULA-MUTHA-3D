@@ -19,6 +19,7 @@ SOURCES = {
     "Narmada":     (80.3800, 22.6000, "Mandla (anchor, traced upstream by largest catchment toward Amarkantak) -> Gulf of Khambhat"),
     "Godavari":    (73.5305, 19.9325, "Trimbakeshwar (Nashik)"),
     "Mula-Mutha":  (73.5000, 18.5100, "Mula headwaters (Mulshi) -> Sangam (Pune) -> Bhima"),
+    "Mutha":       (73.7760, 18.4450, "Below Khadakwasla Dam -> joins the Mula at the Pune Sangam"),
 }
 
 def d2(a, b):

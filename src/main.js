@@ -17,7 +17,7 @@ registerServiceWorker();
 
 const landingRootEl = document.getElementById("landing-root");
 let landingReactRoot = null;
-let gisBootStarted = false;
+let gisBootPromise = null;
 
 const urlParams = new URLSearchParams(window.location.search);
 let currentMode = urlParams.get("mode") || "cinematic";
@@ -28,30 +28,31 @@ function mountLandingPage() {
     if (!landingReactRoot) {
       landingReactRoot = ReactDOM.createRoot(landingRootEl);
     }
-    landingReactRoot.render(
-      React.createElement(LandingPageApp, {
-        onLaunchGis: () => {
-          switchToGis();
-        },
-      })
-    );
+    landingReactRoot.render(React.createElement(LandingPageApp));
   }
 }
 
-function switchToGis() {
+function ensureGisBoot() {
+  if (!gisBootPromise) gisBootPromise = boot();
+  return gisBootPromise;
+}
+
+async function switchToGis() {
+  const ready = await ensureGisBoot();
+  if (!ready) return false;
   currentMode = "gis";
+  window.__riverEye?.setActive?.(false);
   if (landingRootEl) {
     landingRootEl.style.display = "none";
   }
-  if (!gisBootStarted) {
-    gisBootStarted = true;
-    boot();
-  }
+  window.dispatchEvent(new Event("rivereye-gis-ready"));
+  return true;
 }
 
 function switchToCinematic() {
   currentMode = "cinematic";
   mountLandingPage();
+  window.__riverEye?.restart?.();
 }
 
 window.addEventListener("open-cinematic-landing", () => {
@@ -153,6 +154,7 @@ async function boot() {
       onTogglePauseWaterFlow: () => app.togglePauseWaterFlow(),
       isCinematicActive: () => app.isCinematicActive(),
       isCinematicPaused: () => app.isCinematicPaused(),
+      onQualityChange: (tier) => app.setQuality?.(tier),
     });
 
     let last = performance.now();
@@ -163,7 +165,7 @@ async function boot() {
     });
     function loop(now) {
       requestAnimationFrame(loop);
-      if (paused) return;
+      if (paused || currentMode !== "gis") return;
       const rawDt = (now - last) / 1000;
       last = now;
       // Clamp dt between 1ms and 100ms to gracefully handle tab pauses or brief frame spikes
@@ -172,13 +174,8 @@ async function boot() {
     }
     requestAnimationFrame(loop);
 
-    // Scene renders behind the loader so shaders/textures warm up before reveal.
-    // Core 3D world (terrain, river, bridges, urban) gate with a fast 6s safety timeout.
-    // Live weather, discharge telemetry, and bodCod fetch in the background without blocking load.
-    await Promise.race([
-      app.whenReady,
-      new Promise((resolve) => setTimeout(resolve, 6000)),
-    ]);
+    // Wait for the complete scene graph before revealing the river.
+    await Promise.all([app.whenReady, firstLiveData]);
     progress(0.995, "Finalising…");
     try {
       window.__MM_SCENE__?.warmUp3DView?.(INTRO_3D_CHAINAGE_M, window.__MM_NAV__?.view3DPose);
@@ -192,6 +189,7 @@ async function boot() {
     // Land in 2D, then let the user watch the VIEW → 3D flight down to the river
     // (8+790, low over the water looking downstream at Mundhwa Bridge).
     setTimeout(() => window.__MM_NAV__?.enter3D?.({ meters: INTRO_3D_CHAINAGE_M, dur: 3.2 }), 700);
+    return true;
   } catch (err) {
     console.error("[boot] failed — full stack:", err);
     if (err?.stack) console.error(err.stack);
@@ -201,23 +199,19 @@ async function boot() {
       loadBar.style.width = "100%";
       loadBar.style.background = "#c45";
     }
+    return false;
   }
 }
 
 if (currentMode === "cinematic") {
   mountLandingPage();
-  // Warm the GIS datasets only once the 25 s film has finished, so the heavy GIS boot never competes with playback.
+  // The cinematic already uses the authoritative Mula-Mutha survey data. Defer GIS scene construction until the
+  // final shot so Cesium GIS meshes and city layers do not compete with the film's terrain and camera path.
+  window.addEventListener("rivereye-film-error", () => { void switchToGis(); }, { once: true });
   window.addEventListener(
     "rivereye-film-complete",
-    () => {
-      if (!gisBootStarted) {
-        gisBootStarted = true;
-        boot();
-      }
-    },
-    { once: true }
+    () => { void switchToGis(); }
   );
 } else {
-  gisBootStarted = true;
-  boot();
+  void ensureGisBoot();
 }

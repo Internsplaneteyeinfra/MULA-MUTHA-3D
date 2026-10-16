@@ -149,6 +149,5 @@ export function mountProjectIdentity(root, dataset = null) {
   // Initial load
   const initialM = state.selectedChainageMeters ?? 1620;
   update(initialM);
-
   return { el, update };
 }

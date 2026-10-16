@@ -10427,3 +10427,68 @@ body.hydro-intel-open #dt-panel { display: none !important; }
 #ui-root.gis-ui .flood-result-panel [hidden] {
   display: none !important;
 }
+
+/* —— Always-visible chainage water level under the PLANET EYE · RIVER.EYE brand ——
+   Same type system as the Q (model) discharge readout: cyan caps labels, white mono figures, no panel. */
+#ui-root.gis-ui .brand-wl {
+  margin: 8px 0 0 39px;
+  display: grid;
+  gap: 3px;
+  pointer-events: none;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.85), 0 0 12px rgba(0, 0, 0, 0.45);
+}
+#ui-root.gis-ui .brand-wl-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: rgba(158, 220, 236, 0.88);
+  font: 700 10px/1 var(--font-ui);
+  letter-spacing: 0.16em;
+}
+#ui-root.gis-ui .brand-wl-ch {
+  color: #ffffff;
+  letter-spacing: 0.08em;
+}
+#ui-root.gis-ui .brand-wl-sev {
+  padding: 2px 6px;
+  border-radius: 999px;
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  text-shadow: none;
+}
+#ui-root.gis-ui .brand-wl-sev:empty { display: none; }
+#ui-root.gis-ui .brand-wl-sev[data-sev="ok"] { background: rgba(16, 185, 129, 0.22); color: #6ee7b7; }
+#ui-root.gis-ui .brand-wl-sev[data-sev="warn"] { background: rgba(245, 158, 11, 0.24); color: #fcd34d; }
+#ui-root.gis-ui .brand-wl-sev[data-sev="critical"] { background: rgba(239, 68, 68, 0.26); color: #fca5a5; }
+#ui-root.gis-ui .brand-wl-row {
+  display: grid;
+  grid-template-columns: 52px max-content max-content max-content;
+  align-items: baseline;
+  column-gap: 6px;
+  white-space: nowrap;
+}
+#ui-root.gis-ui .brand-wl-row i {
+  font: normal 700 11px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  color: #7adcf0;
+}
+#ui-root.gis-ui .brand-wl-row b {
+  color: #ffffff;
+  font: 800 22px/0.95 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  letter-spacing: -0.03em;
+}
+#ui-root.gis-ui .brand-wl-row em {
+  font-style: normal;
+  font: 600 12px/1 var(--font-ui);
+  color: rgba(180, 222, 234, 0.88);
+}
+#ui-root.gis-ui .brand-wl-mm {
+  margin-left: 4px;
+  font: 600 13px/1 var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  color: rgba(214, 240, 248, 0.92);
+}
+#ui-root.gis-ui .brand-wl-foot {
+  font: 600 9px/1 var(--font-ui);
+  letter-spacing: 0.12em;
+  color: rgba(178, 211, 220, 0.7);
+}

@@ -8,10 +8,11 @@ import { createCinematicDirector } from "./CinematicDirector.js";
 import { CinematicHUD } from "./ui/CinematicHUD.jsx";
 import "./ui/cinematic-hud.css";
 
-export function LandingPageApp({ onLaunchGis }) {
+export function LandingPageApp() {
   const cesiumContainerRef = useRef(null);
   const underwaterRef = useRef(null);
   const creditRef = useRef(null);
+  const cutRef = useRef(null);
   const directorRef = useRef(null);
   const [directorState, setDirectorState] = useState(null);
   const [loading, setLoading] = useState({ msg: "Preparing real Earth…", pct: 0 });
@@ -22,9 +23,13 @@ export function LandingPageApp({ onLaunchGis }) {
       director = createCinematicDirector({
         container: cesiumContainerRef.current,
         underwaterCanvas: underwaterRef.current,
+        cutOverlay: cutRef.current,
         creditContainer: creditRef.current,
         onUpdateState: setDirectorState,
-        onProgress: (msg, pct) => setLoading({ msg, pct }),
+        onProgress: (msg, pct) => {
+          setLoading({ msg, pct });
+          if (pct < 0) window.dispatchEvent(new Event("rivereye-film-error"));
+        },
       });
       directorRef.current = director;
     } catch (err) {
@@ -40,31 +45,29 @@ export function LandingPageApp({ onLaunchGis }) {
   const ready = directorState?.ready;
 
   return (
-    <div className="cinematic-container" style={{ background: "#02060f" }}>
+    <div className="cinematic-container">
       <div ref={cesiumContainerRef} id="cesium-globe-layer" style={{ position: "absolute", inset: 0, zIndex: 1 }} />
       <canvas
         ref={underwaterRef}
         id="underwater-layer"
         style={{ position: "absolute", inset: 0, width: "100%", height: "100%", zIndex: 2, opacity: 0, visibility: "hidden", pointerEvents: "none" }}
       />
+      <div ref={cutRef} style={{ position: "absolute", inset: 0, zIndex: 3, background: "#000", opacity: 0, pointerEvents: "none" }} />
       <div
         ref={creditRef}
         id="map-credits"
-        style={{ position: "absolute", right: 8, top: 64, zIndex: 3, maxWidth: "46%", fontSize: 10, color: "rgba(255,255,255,0.6)", textAlign: "right", pointerEvents: "none" }}
+        style={{ position: "absolute", right: 8, top: 8, zIndex: 3, maxWidth: "46%", fontSize: 10, color: "rgba(255,255,255,0.6)", textAlign: "right", pointerEvents: "none" }}
       />
       {!ready && (
-        <div style={{ position: "absolute", inset: 0, zIndex: 5, display: "grid", placeItems: "center", background: "#02060f", color: "#e2e8f0", fontFamily: "Inter, sans-serif" }}>
-          <div style={{ textAlign: "center" }}>
-            <div style={{ letterSpacing: 4, fontWeight: 800, fontSize: 22 }}>RIVER.EYE</div>
-            <div style={{ marginTop: 10, fontSize: 13, opacity: 0.75 }}>{loading.msg}</div>
-            <div style={{ marginTop: 14, width: 260, height: 3, background: "rgba(255,255,255,0.12)", borderRadius: 2 }}>
-              <div style={{ width: `${Math.max(0, loading.pct)}%`, height: "100%", background: "#38bdf8", borderRadius: 2, transition: "width .3s" }} />
-            </div>
-          </div>
+        // Loading indicator over the live globe (the film's opening view renders underneath while data loads).
+        <div className="film-loader" role="status" aria-live="polite">
+          <div className="film-loader-brand">RIVER.<span>EYE</span></div>
+          <div className="film-loader-msg">{loading.msg}</div>
+          <div className="film-loader-bar"><i style={{ width: `${Math.max(2, loading.pct)}%` }} /></div>
         </div>
       )}
       {ready && directorRef.current && (
-        <CinematicHUD director={directorRef.current} directorState={directorState} onSwitchToGis={onLaunchGis} />
+        <CinematicHUD director={directorRef.current} directorState={directorState} />
       )}
     </div>
   );

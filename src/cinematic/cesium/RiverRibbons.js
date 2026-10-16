@@ -19,12 +19,21 @@ const VERT = `
 in vec3 position3DHigh;
 in vec3 position3DLow;
 in vec4 flowInfo;   // x: metres along channel, y: across (-1..1), z: foam 0..1, w: half width (m)
+in float baseHalf;  // normal (non-flood) channel half width at this vertex, m (0 = whole ribbon)
+in float depthM;    // surveyed depth at this vertex, m (0 = unknown)
 in float batchId;
 out vec4 v_flow;
 out vec3 v_posEC;
+out float v_baseHalf;
+out float v_depth;
+out vec3 v_upEC;
 void main() {
   vec4 p = czm_computePosition();
+  // Geocentric up at this vertex (sphere approximation, < 0.2 deg from the ellipsoid normal) in eye coordinates.
+  v_upEC = czm_normal * normalize(position3DHigh + position3DLow);
   v_flow = flowInfo;
+  v_baseHalf = baseHalf;
+  v_depth = depthM;
   v_posEC = (czm_modelViewRelativeToEye * p).xyz;
   gl_Position = czm_modelViewProjectionRelativeToEye * p;
 }
@@ -35,6 +44,9 @@ void main() {
 const MATERIAL_SRC = `
 in vec4 v_flow;
 in vec3 v_posEC;
+in float v_baseHalf;
+in float v_depth;
+in vec3 v_upEC;
 float hash(vec2 p){ return fract(sin(dot(p, vec2(127.1,311.7))) * 43758.5453); }
 float noise(vec2 p){
   vec2 i = floor(p), f = fract(p);
@@ -43,60 +55,95 @@ float noise(vec2 p){
 }
 float fbm(vec2 p){ float a=.5, s=0.; for(int i=0;i<4;i++){ s+=a*noise(p); p=p*2.03+17.1; a*=.5; } return s; }
 
+// Uniforms (declared by the Material): u_time, u_opacity, u_level (0..1 flood spread; 1 = full ribbon),
+// u_turbid (0 clear .. 1 muddy flood water), u_speed (visual flow speed m/s), u_tint.
+float g_lod = 0.0; // 0 = full detail .. 1 = only the broad swell (set per fragment from screen-space derivatives)
+float heightField(vec2 p, float t) {
+  // Isotropic wave field travelling downstream: a broad advected swell plus two short-crested wave trains at
+  // +/-18 deg to the current and a fine ripple layer. No along-stream stretching (that produced parallel stripes);
+  // finer layers fade out before they alias.
+  const vec2 d1 = vec2(0.951, 0.309);
+  const vec2 d2 = vec2(0.951, -0.309);
+  float a = fbm(p * 0.045 + vec2(-t * 0.22, 0.0));
+  float b = noise(vec2(dot(p, d1), dot(p, vec2(-d1.y, d1.x))) * 0.42 - vec2(t * 1.05, 0.0));
+  float c = noise(vec2(dot(p, d2), dot(p, vec2(-d2.y, d2.x))) * 0.47 - vec2(t * 0.95, 0.0) + 7.3);
+  float d = noise(p * 1.5 - vec2(t * 2.2, 0.0) + 3.7);
+  float wbc = 0.3 * (1.0 - smoothstep(0.3, 0.9, g_lod));
+  float wd = 0.04 * (1.0 - smoothstep(0.05, 0.3, g_lod));
+  return (a * 0.55 + (b + c) * wbc + d * wd) / (0.55 + 2.0 * wbc + wd);
+}
 vec4 riverShade() {
   float s = v_flow.x;           // metres downstream
   float t = v_flow.y;           // -1..1 across channel
-  float foam = v_flow.z;
+  float foam = v_flow.z;        // 0 calm .. 0.7 steep rapids
   float hw = max(v_flow.w, 1.0);
+  float acrossM = t * hw;       // metres from centreline
 
-  // Flow-aligned coordinates in metres. Speed rises with foam (steeper = faster).
-  float speed = 1.2 + 3.5 * foam;
-  vec2 uv = vec2(s - u_time * speed, t * hw);
-  // Animated height field -> perturbed normal (finite differences on fbm).
-  float sc = 0.35;
-  float e = 0.25;
-  float h0 = fbm(uv * sc + vec2(0.0, u_time * 0.05));
-  float hx = fbm((uv + vec2(e, 0.0)) * sc + vec2(0.0, u_time * 0.05));
-  float hy = fbm((uv + vec2(0.0, e)) * sc + vec2(0.0, u_time * 0.05));
-  vec3 nTS = normalize(vec3((h0 - hx) * 3.0, (h0 - hy) * 3.0, 1.0));
-  // Fade ripples out once they get smaller than a pixel (prevents sparkling aliasing from altitude).
-  float aa = clamp(1.0 - length(fwidth(uv * sc)) * 1.2, 0.0, 1.0);
-  nTS = normalize(mix(vec3(0.0, 0.0, 1.0), nTS, aa));
+  // Flood: the visible water edge spreads from the normal channel out to the full ribbon width as u_level -> 1.
+  float baseM = v_baseHalf > 0.5 ? min(v_baseHalf, hw) : hw;
+  float edgeM = mix(baseM, hw, clamp(u_level, 0.0, 1.0));
+  float rel = abs(acrossM) / max(edgeM, 1.0);
+  float inWater = 1.0 - smoothstep(1.0 - max(8.0, edgeM * 0.28) / max(edgeM, 1.0), 1.0, rel);
+  if (inWater < 0.003) discard;
 
-  // Use eye-space surface normal approximated from derivatives so ribbon lighting follows terrain slope.
-  vec3 dx = dFdx(v_posEC), dy = dFdy(v_posEC);
-  vec3 geoN = normalize(cross(dx, dy));
-  if (geoN.z < 0.0) geoN = -geoN;
-  vec3 T = normalize(dx - geoN * dot(geoN, dx));
-  vec3 B = cross(geoN, T);
-  vec3 N = normalize(T * nTS.x + B * nTS.y + geoN * nTS.z);
+  // Flow is fastest mid-channel (parabolic profile) and faster on steep reaches.
+  float speed = u_speed * (0.45 + 0.55 * max(1.0 - rel * rel, 0.0)) * (1.0 + 1.5 * foam);
+  float tt = u_time * speed / max(u_speed, 0.01);
+  vec2 uv = vec2(s - u_time * speed, acrossM);
+
+  g_lod = clamp(length(fwidth(uv)) * 0.3, 0.0, 1.0);
+  float e = 0.5;
+  float h0 = heightField(uv, tt);
+  float hx = heightField(uv + vec2(e, 0.0), tt);
+  float hy = heightField(uv + vec2(0.0, e), tt);
+  float aa = 1.0 - smoothstep(0.6, 1.6, g_lod);
+  vec3 nTS = normalize(vec3((h0 - hx) * 1.8 * aa, (h0 - hy) * 1.8 * aa, 1.0));
+
+  // Smooth geocentric "up" from the vertex shader (no per-triangle derivative normals -> no seams along mesh edges).
+  vec3 up = normalize(v_upEC);
+  vec3 T = normalize(cross(up, abs(up.z) < 0.9 ? vec3(0.0, 0.0, 1.0) : vec3(1.0, 0.0, 0.0)));
+  vec3 B = cross(up, T);
+  vec3 N = normalize(T * nTS.x + B * nTS.y + up * nTS.z);
 
   vec3 V = normalize(-v_posEC);
   float ndv = clamp(dot(N, V), 0.0, 1.0);
   float fres = 0.02 + 0.98 * pow(1.0 - ndv, 5.0);
 
-  // Water colour: shallow, silty banks to deeper green-blue core (visual only).
-  float edge = smoothstep(0.55, 1.0, abs(t));
-  vec3 deep = vec3(0.05, 0.13, 0.12);
-  vec3 shallow = vec3(0.20, 0.25, 0.18);
-  vec3 body = mix(deep, shallow, edge);
-  // Glacial / turbid mountain water is paler.
-  body = mix(body, vec3(0.45, 0.62, 0.66), foam * 0.55);
+  // Water body: per-river deep colour, lighter/siltier toward the banks, slow drifting sediment patches.
+  float edge = smoothstep(0.45, 1.0, rel);
+  vec3 deep = u_tint;
+  vec3 shallow = mix(u_tint, vec3(0.30, 0.32, 0.24), 0.55) + 0.05;
+  // Where surveyed depth exists (Mula–Mutha), deeper water is darker and shallows lighter; elsewhere the
+  // bank-distance gradient stands in for depth.
+  float shallowness = v_depth > 0.0 ? max(edge, 1.0 - smoothstep(0.6, 3.0, v_depth)) : edge;
+  vec3 body = mix(deep, shallow, shallowness);
+  float sed = fbm(vec2(s * 0.012 - u_time * speed * 0.012, acrossM * 0.03));
+  body *= 0.9 + 0.2 * sed;
+  body = mix(body, vec3(0.36, 0.50, 0.52), foam * 0.45);                 // aerated water on rapids
+  vec3 mud = mix(vec3(0.31, 0.24, 0.15), vec3(0.42, 0.33, 0.21), edge) * (0.9 + 0.2 * sed);
+  body = mix(body, mud, u_turbid);
+  // Light scattering through thin wave crests.
+  body += vec3(0.02, 0.035, 0.03) * smoothstep(0.5, 0.75, h0) * aa * (1.0 - u_turbid * 0.6);
 
-  // Sky reflection + sun glint.
-  vec3 sky = mix(vec3(0.42, 0.52, 0.60), vec3(0.70, 0.78, 0.84), 1.0 - ndv);
+  // Environment reflection: horizon haze to zenith blue, picked by how far the reflected ray points upward.
+  vec3 Rv = reflect(-V, N);
+  float upness = clamp(dot(Rv, up), 0.0, 1.0);
+  vec3 sky = mix(vec3(0.66, 0.71, 0.73), vec3(0.33, 0.47, 0.63), pow(upness, 0.6));
   vec3 L = normalize(czm_sunDirectionEC);
-  vec3 R = reflect(-L, N);
-  float spec = pow(max(dot(R, V), 0.0), 160.0) * 0.9 * aa;
-  vec3 col = mix(body, sky, fres) + spec;
+  float sunUp = clamp(dot(L, up) * 4.0, 0.0, 1.0);
+  float glint = pow(max(dot(reflect(-L, N), V), 0.0), 110.0) * 0.44 * aa * sunUp;     // soft moving sun flecks
+  float sheen = pow(max(dot(reflect(-L, N), V), 0.0), 12.0) * 0.065 * sunUp;          // broad reflected sunlight
+  // Lift calm water slightly so the Pune reach remains legible in the final aerial; highlights stay restrained.
+  vec3 col = mix(body, sky, clamp(0.11 + fres * 0.74, 0.0, 1.0)) + (glint + sheen) * vec3(1.0, 0.96, 0.88);
 
-  // Foam: rapids (slope) + noisy streaks, stronger toward banks.
-  float fn = fbm(uv * 1.3 + vec2(0.0, u_time * 0.1));
-  float f = smoothstep(0.52, 0.8, fn + foam * 0.55 + edge * 0.18 * foam) * foam;
-  col = mix(col, vec3(0.86, 0.91, 0.92), clamp(f, 0.0, 0.6));
+  // Foam only where water is actually broken: steep rapids (foam > 0) and their edges. Soft patches, never lines.
+  float fn = fbm(uv * 0.5 + vec2(-tt * 0.5, 0.0));
+  float rapids = smoothstep(0.62, 0.88, fn + foam * 0.4) * foam;
+  float bankPatch = smoothstep(0.8, 1.0, rel) * foam * smoothstep(0.5, 0.78, noise(uv * 0.25));
+  col = mix(col, vec3(0.82, 0.87, 0.87), clamp((rapids + bankPatch * 0.28) * aa, 0.0, 0.55));
 
-  // Soft bank blend so the ribbon sits into the terrain instead of a hard rectangle edge.
-  float alpha = u_opacity * (1.0 - smoothstep(0.78, 1.0, abs(t)));
+  // Optional fade-out along the channel (u_fadeEnd metres downstream), e.g. where a coarse course stops being reliable.
+  float alpha = u_opacity * inWater * (1.0 - smoothstep(u_fadeEnd - 250.0, u_fadeEnd, s));
   return vec4(col, clamp(alpha, 0.0, 1.0));
 }
 
@@ -158,28 +205,34 @@ async function snapToThalweg(pts, maxOff, zoom) {
   const offs = new Float32Array(n);
   const stepOff = 40;
   const nOff = Math.round(maxOff / stepOff);
-  for (let i = 0; i < n; i++) {
-    const a = pts[Math.max(0, i - 1)];
-    const b = pts[Math.min(n - 1, i + 1)];
-    const cosLat = Math.cos((pts[i][1] * Math.PI) / 180);
-    const dx = (b[0] - a[0]) * cosLat;
-    const dy = b[1] - a[1];
-    const len = Math.hypot(dx, dy) || 1;
-    const nx = -dy / len;
-    const ny = dx / len;
-    let best = Infinity;
-    let bestK = 0;
-    for (let k = -nOff; k <= nOff; k++) {
-      const lon = pts[i][0] + (k * stepOff * nx) / (111320 * cosLat);
-      const lat = pts[i][1] + (k * stepOff * ny) / 111320;
-      const h = (await sampleTerrariumHeight(lon, lat, zoom)) + Math.abs(k) * 0.35; // mild pull toward the source line
-      if (h < best) {
-        best = h;
-        bestK = k;
-      }
-    }
-    offs[i] = bestK;
-  }
+  // Sample every candidate offset for every vertex concurrently (tile fetches overlap instead of queueing).
+  await Promise.all(
+    pts.map(async (pt, i) => {
+      const a = pts[Math.max(0, i - 1)];
+      const b = pts[Math.min(n - 1, i + 1)];
+      const cosLat = Math.cos((pt[1] * Math.PI) / 180);
+      const dx = (b[0] - a[0]) * cosLat;
+      const dy = b[1] - a[1];
+      const len = Math.hypot(dx, dy) || 1;
+      const nx = -dy / len;
+      const ny = dx / len;
+      const ks = [];
+      for (let k = -nOff; k <= nOff; k++) ks.push(k);
+      const hs = await Promise.all(
+        ks.map((k) =>
+          sampleTerrariumHeight(pt[0] + (k * stepOff * nx) / (111320 * cosLat), pt[1] + (k * stepOff * ny) / 111320, zoom)
+        )
+      );
+      let best = Infinity;
+      ks.forEach((k, j) => {
+        const h = hs[j] + Math.abs(k) * 0.35; // mild pull toward the source line
+        if (h < best) {
+          best = h;
+          offs[i] = k;
+        }
+      });
+    })
+  );
   // smooth offsets (window +/-8 vertices)
   const sm = new Float32Array(n);
   for (let i = 0; i < n; i++) {
@@ -209,16 +262,11 @@ async function snapToThalweg(pts, maxOff, zoom) {
  * Build conditioned ribbon vertices for one river line.
  * Returns { lon[], lat[], h[], s[], half[], foam[] } with h in metres above the ellipsoid (≈ DEM, EGM96 offset ignored).
  */
-export async function conditionRiverProfile(line, { stepM = 150, maxHalf = 60, zoom = 12, snapM = 0, minWidth = 4 } = {}) {
+export async function conditionRiverProfile(line, { stepM = 150, maxHalf = 60, zoom = 12, snapM = 0, minWidth = 4, foamSlope = [0.006, 0.096] } = {}) {
   let pts = resampleLine(line, stepM);
   if (snapM > 0) pts = await snapToThalweg(pts, snapM, zoom);
   const raw = new Array(pts.length);
-  // Sample in small batches to avoid flooding the tile cache with requests.
-  for (let i = 0; i < pts.length; i += 24) {
-    const batch = pts.slice(i, i + 24).map((p) => sampleTerrariumHeight(p[0], p[1], zoom));
-    const res = await Promise.all(batch);
-    res.forEach((v, j) => (raw[i + j] = v));
-  }
+  (await Promise.all(pts.map((p) => sampleTerrariumHeight(p[0], p[1], zoom)))).forEach((v, j) => (raw[j] = v));
   // Moving-average smoothing (window ~ 1.5 km), then enforce downstream monotonic decrease.
   const win = Math.max(2, Math.round(1500 / stepM));
   const sm = raw.map((_, i) => {
@@ -237,7 +285,6 @@ export async function conditionRiverProfile(line, { stepM = 150, maxHalf = 60, z
   for (let i = 1; i < h.length; i++) h[i] = Math.min(h[i], h[i - 1]);
   // Where the DEM at the centreline sits above the conditioned water line (trees, bridges, buildings and SRTM noise
   // in narrow channels), follow the DEM instead so the surface is not buried by the rendered terrain.
-  for (let i = 0; i < h.length; i++) h[i] = Math.max(h[i], raw[i] - 1.5);
   // Sit the surface a little below the sampled terrain so it reads as set into the channel.
   const s = [0];
   for (let i = 1; i < pts.length; i++) s.push(s[i - 1] + haversine(pts[i - 1], pts[i]));
@@ -245,19 +292,22 @@ export async function conditionRiverProfile(line, { stepM = 150, maxHalf = 60, z
     const j = Math.min(h.length - 1, i + 4);
     const i0 = Math.max(0, i - 4);
     const slope = (h[i0] - h[j]) / Math.max(1, s[j] - s[i0]);
-    return Math.max(0, Math.min(1, (slope - 0.006) / 0.09)) * 0.7;
+    return Math.max(0, Math.min(1, (slope - foamSlope[0]) / (foamSlope[1] - foamSlope[0]))) * 0.7;
   });
   const half = s.map((d) => halfWidth(d, maxHalf, minWidth));
   return { pts, h, s, half, foam };
 }
 
 /** Create a Cesium Primitive ribbon from a conditioned profile. */
-export function createRiverPrimitive(Cesium, profile, { heightOffset = 1.5, opacity = 1.0 } = {}) {
+export function createRiverPrimitive(Cesium, profile, { heightOffset = 1.5, opacity = 1.0, speed = 2.5, tint = [0.035, 0.11, 0.1], fadeEnd = 1e9 } = {}) {
+  tint = new Cesium.Cartesian3(...tint);
   const { pts, h, s, half, foam } = profile;
   const n = pts.length;
   if (n < 2) return null;
   const positions = new Float64Array(n * 2 * 3);
   const info = new Float32Array(n * 2 * 4);
+  const base = new Float32Array(n * 2);
+  const depthA = new Float32Array(n * 2);
   const ell = Cesium.Ellipsoid.WGS84;
   const tmp = new Cesium.Cartesian3();
   for (let i = 0; i < n; i++) {
@@ -286,6 +336,8 @@ export function createRiverPrimitive(Cesium, profile, { heightOffset = 1.5, opac
       info[q + 1] = sg;
       info[q + 2] = foam[i];
       info[q + 3] = half[i];
+      base[i * 2 + side] = profile.baseHalf ? profile.baseHalf[i] : 0;
+      depthA[i * 2 + side] = profile.depth ? profile.depth[i] : 0;
     }
   }
   const indices = new Uint32Array((n - 1) * 6);
@@ -306,6 +358,16 @@ export function createRiverPrimitive(Cesium, profile, { heightOffset = 1.5, opac
         componentsPerAttribute: 4,
         values: info,
       }),
+      baseHalf: new Cesium.GeometryAttribute({
+        componentDatatype: Cesium.ComponentDatatype.FLOAT,
+        componentsPerAttribute: 1,
+        values: base,
+      }),
+      depthM: new Cesium.GeometryAttribute({
+        componentDatatype: Cesium.ComponentDatatype.FLOAT,
+        componentsPerAttribute: 1,
+        values: depthA,
+      }),
     },
     indices,
     primitiveType: Cesium.PrimitiveType.TRIANGLES,
@@ -315,7 +377,7 @@ export function createRiverPrimitive(Cesium, profile, { heightOffset = 1.5, opac
   const material = new Cesium.Material({
     fabric: {
       type: "RiverEyeWater",
-      uniforms: { u_time: 0.0, u_opacity: opacity },
+      uniforms: { u_time: 0.0, u_opacity: opacity, u_level: 1.0, u_turbid: 0.0, u_speed: speed, u_tint: tint, u_fadeEnd: fadeEnd },
       source: MATERIAL_SRC,
     },
     translucent: true,
@@ -335,4 +397,3 @@ export function createRiverPrimitive(Cesium, profile, { heightOffset = 1.5, opac
   });
   return { geometry, appearance, material };
 }
-

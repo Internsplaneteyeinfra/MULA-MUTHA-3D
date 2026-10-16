@@ -4,8 +4,8 @@
  * light shafts, suspended sediment, the water surface seen from below, and a small shoal of freshwater fish with
  * a skinned-in-shader body wave (lateral undulation growing toward the tail).
  *
- * Fish model: "Crucian carp" glTF by Yimit (Sketchfab) in /public/models/fish/crucian. No species claim is made for
- * any specific river; the model is a generic cyprinid.
+ * Fish models: "Barramundi Fish" glTF (Microsoft, CC0, Khronos sample assets) and a crucian-carp glTF by Yimit
+ * (Sketchfab). Illustrative only — no species survey of a specific river is implied.
  */
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
@@ -121,7 +121,7 @@ export function createUnderwaterScene(canvas) {
   }
 
   // ---- Suspended particles ----
-  const pCount = 700;
+  const pCount = 380;
   const pGeo = new THREE.BufferGeometry();
   const pPos = new Float32Array(pCount * 3);
   for (let i = 0; i < pCount; i++) {
@@ -153,116 +153,134 @@ export function createUnderwaterScene(canvas) {
   );
   scene.add(particles);
 
-  // ---- Fish ----
-  const fish = [];
-  let fishMesh = null;
+  // ---- Fish: two species models, instanced, each fish with its own size, tint, heading, speed and wave phase ----
   const dummy = new THREE.Object3D();
-  const N = 15;
-  const phases = new Float32Array(N);
+  const schools = []; // { mesh, fish: [...] }
 
-  const readyPromise = new Promise((resolve) => {
-    new GLTFLoader().load(
-      "/models/fish/crucian/scene.gltf",
-      (gltf) => {
-        let src = null;
-        gltf.scene.updateMatrixWorld(true);
-        gltf.scene.traverse((o) => {
-          if (o.isMesh && !src) src = o;
-        });
-        const geo = src.geometry.clone();
-        geo.applyMatrix4(src.matrixWorld);
-        geo.computeBoundingBox();
-        const size = new THREE.Vector3();
-        geo.boundingBox.getSize(size);
-        const c = new THREE.Vector3();
-        geo.boundingBox.getCenter(c);
-        geo.translate(-c.x, -c.y, -c.z);
-        // Orient: longest axis -> +Z (head toward +Z). Lateral (thinnest) axis -> X, so the body wave is on X.
-        const ax = [size.x, size.y, size.z];
-        const longest = ax.indexOf(Math.max(...ax));
-        const thinnest = ax.indexOf(Math.min(...ax));
-        const m = new THREE.Matrix4();
-        const colsFor = (a) => new THREE.Vector3(a === 0 ? 1 : 0, a === 1 ? 1 : 0, a === 2 ? 1 : 0);
-        const zAxis = colsFor(longest);
-        const xAxis = colsFor(thinnest);
-        const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis);
-        m.makeBasis(xAxis, yAxis, zAxis).invert();
-        geo.applyMatrix4(m);
-        geo.computeBoundingBox();
-        const L = geo.boundingBox.max.z - geo.boundingBox.min.z;
-        geo.scale(1 / L, 1 / L, 1 / L); // length = 1
-        geo.computeBoundingBox();
-        const zmin = geo.boundingBox.min.z;
-        const zmax = geo.boundingBox.max.z;
-        // Decide head end: the fatter cross-section (taller in Y) end near the head.
-        let hHead = 0, hTail = 0;
-        const pos = geo.attributes.position;
-        for (let i = 0; i < pos.count; i++) {
-          const z = pos.getZ(i);
-          if (z > zmax - 0.15) hHead = Math.max(hHead, Math.abs(pos.getY(i)));
-          if (z < zmin + 0.15) hTail = Math.max(hTail, Math.abs(pos.getY(i)));
-        }
-        const headIsPosZ = hHead >= hTail * 0.0 && true; // refined below by tail-fin height test
-        // Tail fin is the high-aspect (tall) lobe at the far end; the head is the opposite end.
-        const flip = hTail > hHead; // tall fin at -z? then the tail is -z, head +z (no flip)
-        void headIsPosZ;
-        if (!flip) {
-          // tail at +z (tall at +z) -> rotate 180° about Y so head is +z
-          geo.rotateY(Math.PI);
-        }
+  /** Normalise a glTF fish: length 1 along +Z (head at +Z), thin axis on X (body wave is lateral). */
+  function prepareFish(gltf) {
+    let src = null;
+    gltf.scene.updateMatrixWorld(true);
+    gltf.scene.traverse((o) => {
+      if (o.isMesh && !src) src = o;
+    });
+    const geo = src.geometry.clone();
+    geo.applyMatrix4(src.matrixWorld);
+    geo.computeBoundingBox();
+    const size = new THREE.Vector3();
+    const c = new THREE.Vector3();
+    geo.boundingBox.getSize(size);
+    geo.boundingBox.getCenter(c);
+    geo.translate(-c.x, -c.y, -c.z);
+    const ax = [size.x, size.y, size.z];
+    const longest = ax.indexOf(Math.max(...ax));
+    const thinnest = ax.indexOf(Math.min(...ax));
+    const unit = (a) => new THREE.Vector3(a === 0 ? 1 : 0, a === 1 ? 1 : 0, a === 2 ? 1 : 0);
+    const zAxis = unit(longest);
+    const xAxis = unit(thinnest);
+    const yAxis = new THREE.Vector3().crossVectors(zAxis, xAxis);
+    geo.applyMatrix4(new THREE.Matrix4().makeBasis(xAxis, yAxis, zAxis).invert());
+    geo.computeBoundingBox();
+    const L = geo.boundingBox.max.z - geo.boundingBox.min.z;
+    geo.scale(1 / L, 1 / L, 1 / L);
+    geo.computeBoundingBox();
+    // Body height near each end: the caudal fin end is taller than the snout end.
+    let hiPos = 0, hiNeg = 0;
+    const pos = geo.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const z = pos.getZ(i);
+      const h = Math.abs(pos.getY(i));
+      if (z > geo.boundingBox.max.z - 0.12) hiPos = Math.max(hiPos, h);
+      if (z < geo.boundingBox.min.z + 0.12) hiNeg = Math.max(hiNeg, h);
+    }
+    if (hiPos > hiNeg) geo.rotateY(Math.PI); // tail was at +Z -> turn so the head points +Z
+    // Keep the dorsal side up.
+    geo.computeBoundingBox();
+    geo.computeVertexNormals();
+    return { geo, material: src.material };
+  }
 
-        const mat = src.material.clone();
-        mat.roughness = 0.38;
-        mat.metalness = 0.15;
-        mat.envMapIntensity = 0.6;
-        mat.onBeforeCompile = (sh) => {
-          sh.uniforms.uTime = uniforms.uTime;
-          sh.vertexShader = sh.vertexShader
-            .replace("#include <common>", "#include <common>\nuniform float uTime; attribute float aPhase;")
-            .replace(
-              "#include <begin_vertex>",
-              `#include <begin_vertex>
-               float zt = clamp((0.5 - position.z) / 1.0, 0.0, 1.0);   // 0 at head, 1 at tail (head = +z)
-               float amp = 0.02 + 0.16 * zt * zt;
-               transformed.x += amp * sin(position.z * 9.0 - uTime * 8.0 + aPhase);`
-            );
-        };
-        mat.side = THREE.DoubleSide;
-        const g = geo;
-        fishMesh = new THREE.InstancedMesh(g, mat, N);
-        fishMesh.frustumCulled = false;
-        for (let i = 0; i < N; i++) phases[i] = Math.random() * Math.PI * 2;
-        g.setAttribute("aPhase", new THREE.InstancedBufferAttribute(phases, 1));
-        scene.add(fishMesh);
+  function fishMaterial(base) {
+    const mat = base.clone();
+    mat.roughness = Math.min(0.55, mat.roughness ?? 0.45);
+    mat.metalness = Math.min(0.2, mat.metalness ?? 0.1);
+    mat.side = THREE.DoubleSide;
+    mat.onBeforeCompile = (sh) => {
+      sh.uniforms.uTime = uniforms.uTime;
+      sh.vertexShader = sh.vertexShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime; attribute float aPhase; attribute float aFreq; varying vec3 vWorldC;")
+        .replace(
+          "#include <begin_vertex>",
+          `#include <begin_vertex>
+           // Carangiform swimming: small head yaw, amplitude growing toward the tail (head = +z).
+           float zt = clamp(0.5 - position.z, 0.0, 1.0);
+           float amp = 0.015 + 0.13 * zt * zt;
+           transformed.x += amp * sin(position.z * 8.0 - uTime * aFreq + aPhase);`
+        )
+        .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n vWorldC = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;");
+      sh.fragmentShader = sh.fragmentShader
+        .replace("#include <common>", "#include <common>\nuniform float uTime; varying vec3 vWorldC;")
+        .replace(
+          "#include <emissivemap_fragment>",
+          `#include <emissivemap_fragment>
+           // Moving caustics on the upper body, fading with depth below the surface.
+           vec2 cq = vWorldC.xz * 2.2 + vec2(uTime * 0.35, uTime * 0.2);
+           float cs = 0.0;
+           for (int i = 0; i < 3; i++) { cq += vec2(sin(cq.y * 1.7 + uTime), cos(cq.x * 1.3 - uTime)) * 0.35; cs += abs(sin(cq.x * 2.2) + sin(cq.y * 2.2)); }
+           cs = pow(1.0 - clamp(cs / 6.0, 0.0, 1.0), 3.0);
+           float up = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
+           totalEmissiveRadiance += vec3(0.55, 0.75, 0.7) * cs * up * 0.16;`
+        );
+    };
+    return mat;
+  }
 
-        // Two small shoals + a few singles, separated and moving in varied directions
-        const shoals = [
-          { c: new THREE.Vector3(-0.9, 1.15, 5.2), n: 6, dir: 0.15, spread: 0.7 },
-          { c: new THREE.Vector3(1.6, 0.8, 8.6), n: 5, dir: -0.45, spread: 0.6 },
-          { c: new THREE.Vector3(-1.9, 1.6, 11.0), n: 4, dir: 0.5, spread: 0.9 },
-        ];
-        let k = 0;
-        shoals.forEach((s) => {
-          for (let i = 0; i < s.n; i++) {
-            fish.push({
-              base: s.c.clone().add(new THREE.Vector3((Math.random() - 0.5) * s.spread, (Math.random() - 0.5) * 0.45, (Math.random() - 0.5) * s.spread * 1.6)),
-              yaw: s.dir + (Math.random() - 0.5) * 0.35,
-              speed: 0.32 + Math.random() * 0.14,
-              scale: FISH_LEN_M * (0.85 + Math.random() * 0.35),
-              wob: Math.random() * 6.28,
-            });
-            k++;
-          }
-        });
-        resolve();
-      },
-      undefined,
-      (e) => {
-        console.warn("fish model failed", e);
-        resolve();
-      }
-    );
-  });
+  function addSchool(prep, specs, lengthM) {
+    const n = specs.length;
+    const geo = prep.geo.clone();
+    const phases = new Float32Array(n);
+    const freqs = new Float32Array(n);
+    specs.forEach((f, i) => {
+      phases[i] = Math.random() * Math.PI * 2;
+      freqs[i] = 6.0 + f.speed * 6.0 + Math.random() * 1.5; // faster swimmers beat faster
+    });
+    geo.setAttribute("aPhase", new THREE.InstancedBufferAttribute(phases, 1));
+    geo.setAttribute("aFreq", new THREE.InstancedBufferAttribute(freqs, 1));
+    const mesh = new THREE.InstancedMesh(geo, fishMaterial(prep.material), n);
+    mesh.frustumCulled = false;
+    const col = new THREE.Color();
+    specs.forEach((f, i) => {
+      f.scale = lengthM * f.size;
+      col.setHSL(0.1 + Math.random() * 0.04, 0.12 + Math.random() * 0.1, 0.78 + Math.random() * 0.2);
+      mesh.setColorAt(i, col);
+    });
+    scene.add(mesh);
+    schools.push({ mesh, fish: specs });
+  }
+
+  /** Loose shoal: positions jittered, headings around a mean with individual deviation. */
+  function shoal(centre, n, dir, spread, speed) {
+    return Array.from({ length: n }, () => ({
+      base: centre.clone().add(new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * spread * 1.8)),
+      yaw: dir + (Math.random() - 0.5) * 0.5,
+      speed: speed * (0.8 + Math.random() * 0.4),
+      size: 0.8 + Math.random() * 0.45,
+      wob: Math.random() * 6.28,
+      turn: (Math.random() - 0.5) * 0.25, // slow individual turning rate (rad/s)
+    }));
+  }
+
+  const loader = new GLTFLoader();
+  const load = (url) =>
+    new Promise((res) => loader.load(url, (g) => res(prepareFish(g)), undefined, (e) => (console.warn("fish model failed", url, e), res(null))));
+  const readyPromise = Promise.all([load("/models/fish/barramundi/BarramundiFish.gltf"), load("/models/fish/crucian/scene.gltf")]).then(
+    ([barra, carp]) => {
+      // Larger perch-like fish cruise singly or in pairs near the bed; small cyprinids school higher in the column.
+      if (barra) addSchool(barra, [...shoal(new THREE.Vector3(-1.2, 0.7, 6.5), 2, 0.35, 1.2, 0.42), ...shoal(new THREE.Vector3(1.8, 0.9, 10.5), 3, -0.6, 1.6, 0.38)], 0.62);
+      if (carp)
+        addSchool(carp, [...shoal(new THREE.Vector3(1.1, 1.4, 9.0), 7, -0.25, 0.9, 0.5), ...shoal(new THREE.Vector3(-1.9, 1.7, 9.8), 6, 0.6, 1.0, 0.46)], FISH_LEN_M * 0.75);
+    }
+  );
 
   function resize(w, h) {
     if (!w || !h) return;
@@ -274,29 +292,37 @@ export function createUnderwaterScene(canvas) {
   const _fw = new THREE.Vector3();
   function render(p, time) {
     uniforms.uTime.value = time;
-    // Camera glides forward along the channel, slightly looking down toward the bed
-    camera.position.set(0.1 + Math.sin(p * 2.0) * 0.18, 1.05 + Math.sin(p * 3.0) * 0.05, 3.0 + p * 6.0);
-    camera.lookAt(-0.2 + Math.sin(p * 1.6) * 0.3, 0.8, camera.position.z + 4.0);
-    if (fishMesh) {
-      for (let i = 0; i < fish.length; i++) {
-        const f = fish[i];
-        const yaw = f.yaw + Math.sin(time * 0.7 + f.wob) * 0.12;
+    // Camera glides slowly along the channel, slightly looking down toward the bed, rising toward the surface at the end.
+    const rise = Math.max(0, (p - 0.75) / 0.25);
+    camera.position.set(0.1 + Math.sin(p * 2.0) * 0.18, 1.05 + Math.sin(p * 3.0) * 0.05 + rise * rise * 1.6, 3.0 + p * 4.5);
+    camera.lookAt(-0.2 + Math.sin(p * 1.6) * 0.3, 0.8 + rise * 2.2, camera.position.z + 4.0);
+    const tc = time - 17.5; // centre of the underwater cut
+    for (const s of schools) {
+      s.fish.forEach((f, i) => {
+        const yaw = f.yaw + f.turn * tc + Math.sin(time * 0.6 + f.wob) * 0.08;
         _fw.set(Math.sin(yaw), 0, Math.cos(yaw));
-        dummy.position.copy(f.base).addScaledVector(_fw, (time - 19.5) * f.speed);
-        dummy.position.y += Math.sin(time * 0.9 + f.wob) * 0.04;
-        dummy.rotation.set(Math.sin(time * 1.3 + f.wob) * 0.04, yaw, 0);
+        // Integrate approximately along a slowly turning heading so motion stays continuous (no wrap/teleport).
+        dummy.position.copy(f.base).addScaledVector(_fw, tc * f.speed);
+        dummy.position.y += Math.sin(time * 0.8 + f.wob) * 0.035;
+        dummy.rotation.set(Math.sin(time * 1.1 + f.wob) * 0.035, yaw, Math.sin(time * 0.9 + f.wob) * 0.03);
         dummy.scale.setScalar(f.scale);
         dummy.updateMatrix();
-        fishMesh.setMatrixAt(i, dummy.matrix);
-      }
-      fishMesh.count = fish.length;
-      fishMesh.instanceMatrix.needsUpdate = true;
+        s.mesh.setMatrixAt(i, dummy.matrix);
+      });
+      s.mesh.instanceMatrix.needsUpdate = true;
     }
     renderer.render(scene, camera);
   }
 
+  /** Compile every material and upload textures while the loading screen is up (canvas stays hidden). */
+  function warmup() {
+    renderer.compile(scene, camera);
+    render(0.5, 17.5);
+  }
+
   return {
     ready: readyPromise,
+    warmup,
     render,
     resize,
     dispose() {

@@ -23,6 +23,16 @@ const REQUIRED = [
   "data/FABDEM_DTM_FINAL.tif",
   "assets/trees/palm.glb",
   "assets/buildings/residential/house_01.glb",
+  // cinematic landing film
+  "data/rivers/hydrorivers_india.json",
+  "data/rivers/channels_jrc.json",
+  "data/rivers/india_boundary_ne10m.geojson",
+  "data/hydrology/geology/overlay.png",
+  "data/hydrology/climate/mula-mutha-flood-water-4.json",
+  "data/naditwin/depth_profile.json",
+  "data/hydrology/climate/mula-mutha-wrd-floodlines.geojson",
+  "models/fish/barramundi/BarramundiFish.gltf",
+  "models/fish/crucian/scene.gltf",
 ];
 
 function fail(msg) {

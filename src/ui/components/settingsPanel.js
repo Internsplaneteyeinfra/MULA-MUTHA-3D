@@ -37,6 +37,12 @@ export function mountSettingsPanel(root) {
       </button>
     </header>
     <div class="layers-panel-body lp-body">
+      <div class="exag-row compact lp-chip-row" role="group" aria-label="Rendering quality">
+        Rendering Quality
+        <button type="button" data-render-quality="low">Low</button>
+        <button type="button" data-render-quality="medium" class="active">Balanced</button>
+        <button type="button" data-render-quality="high">High</button>
+      </div>
       <details class="lp-section" id="settings-sec-sky">
         <summary class="lp-section-head">
           <span class="lp-section-chevron">${lucideHtml(ChevronDown, { size: 14 })}</span>

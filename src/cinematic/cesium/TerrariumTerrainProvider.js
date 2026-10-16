@@ -8,23 +8,140 @@
  */
 const TILE_URL = "https://s3.amazonaws.com/elevation-tiles-prod/terrarium/{z}/{x}/{y}.png";
 const TILE_SIZE = 256;
-const MAX_ZOOM = 13;
+const MAX_ZOOM = 14;
 
 export const TERRARIUM_TILE_URL = TILE_URL;
 
 const cache = new Map();
 
+/**
+ * Stream burning (hydrological conditioning of the displayed DEM): river channels registered here are carved into
+ * terrain tiles at zoom >= BURN_MIN_ZOOM. Inside the channel the ground is set just below the conditioned water level;
+ * a narrow bank ring is lifted to at least the water level so the water surface meets a bank instead of floating over
+ * low DEM noise. Elsewhere the DEM is untouched.
+ */
+const BURN_MIN_ZOOM = 10;
+const BANK_M = 34;
+const channels = []; // { pts: [[lon,lat]...], half: [m...], h: [m...], bbox: [w,s,e,n] }
+export function registerBurnChannel(profile) {
+  const lons = profile.pts.map((p) => p[0]);
+  const lats = profile.pts.map((p) => p[1]);
+  const pad = 0.01;
+  channels.push({ pts: profile.pts, half: profile.half, h: profile.h, bbox: [Math.min(...lons) - pad, Math.min(...lats) - pad, Math.max(...lons) + pad, Math.max(...lats) + pad] });
+}
+
+function tileBounds(z, x, y) {
+  const n = 2 ** z;
+  const lon = (i) => (i / n) * 360 - 180;
+  const lat = (j) => (Math.atan(Math.sinh(Math.PI * (1 - (2 * j) / n))) * 180) / Math.PI;
+  return { w: lon(x), e: lon(x + 1), n: lat(y), s: lat(y + 1) };
+}
+
+function burnTile(out, W, z, x, y) {
+  if (z < BURN_MIN_ZOOM || !channels.length) return;
+  const b = tileBounds(z, x, y);
+  // Per-sample nearest-segment search, but each segment only visits the grid cells inside its own padded bounding
+  // box (was: every sample x every segment, which blocked the main thread for 100+ ms per tile and caused stutter).
+  const N = W * W;
+  const best = new Float32Array(N).fill(Infinity);
+  const bh = new Float32Array(N);
+  const bw = new Float32Array(N);
+  let touched = false;
+  const cosLat = Math.cos((((b.n + b.s) / 2) * Math.PI) / 180);
+  const mx = 111320 * cosLat;
+  const my = 110574;
+  const dLon = (b.e - b.w) / (W - 1);
+  const dLat = (b.s - b.n) / (W - 1); // negative (rows go south)
+  for (const ch of channels) {
+    if (ch.bbox[2] < b.w || ch.bbox[0] > b.e || ch.bbox[3] < b.s || ch.bbox[1] > b.n) continue;
+    for (let k = 1; k < ch.pts.length; k++) {
+      const a = ch.pts[k - 1];
+      const c = ch.pts[k];
+      const reach = Math.max(ch.half[k], ch.half[k - 1]) + BANK_M;
+      const padLon = reach / mx;
+      const padLat = reach / my;
+      const minLon = Math.min(a[0], c[0]) - padLon, maxLon = Math.max(a[0], c[0]) + padLon;
+      const minLat = Math.min(a[1], c[1]) - padLat, maxLat = Math.max(a[1], c[1]) + padLat;
+      if (maxLon < b.w || minLon > b.e || maxLat < b.s || minLat > b.n) continue;
+      const i0 = Math.max(0, Math.floor((minLon - b.w) / dLon));
+      const i1 = Math.min(W - 1, Math.ceil((maxLon - b.w) / dLon));
+      const j0 = Math.max(0, Math.floor((maxLat - b.n) / dLat));
+      const j1 = Math.min(W - 1, Math.ceil((minLat - b.n) / dLat));
+      const dx = (c[0] - a[0]) * mx;
+      const dy = (c[1] - a[1]) * my;
+      const len2 = dx * dx + dy * dy || 1;
+      for (let j = j0; j <= j1; j++) {
+        const lat = b.n + dLat * j;
+        const ay = (a[1] - lat) * my;
+        for (let i = i0; i <= i1; i++) {
+          const ax = (a[0] - (b.w + dLon * i)) * mx;
+          const t = Math.max(0, Math.min(1, -(ax * dx + ay * dy) / len2));
+          const ex = ax + dx * t;
+          const ey = ay + dy * t;
+          const d2 = ex * ex + ey * ey;
+          const idx = j * W + i;
+          if (d2 < best[idx]) {
+            best[idx] = d2;
+            bh[idx] = ch.h[k - 1] + (ch.h[k] - ch.h[k - 1]) * t;
+            bw[idx] = ch.half[k - 1] + (ch.half[k] - ch.half[k - 1]) * t;
+            touched = true;
+          }
+        }
+      }
+    }
+  }
+  if (!touched) return;
+  for (let idx = 0; idx < N; idx++) {
+    if (best[idx] === Infinity) continue;
+    const d = Math.sqrt(best[idx]);
+    const w = bw[idx];
+    if (d <= w) {
+      // channel bed: a shallow dish below the water surface
+      out[idx] = Math.min(out[idx], bh[idx] - (1.0 + 1.5 * (1 - (d / w) ** 2)));
+    } else if (d <= w + BANK_M) {
+      // bank: at least at water level, blending back to the natural DEM
+      const k = (d - w) / BANK_M;
+      const kk = k * k * (3 - 2 * k); // smoothstep blend back to the natural DEM
+      out[idx] = Math.max(out[idx], bh[idx] + 0.25) * (1 - kk) + out[idx] * kk;
+    }
+  }
+}
+
 export function terrariumTileKey(z, x, y) {
   return `${z}/${x}/${y}`;
 }
 
-/** Fetch + decode a Terrarium tile to a Float32Array(256*256) of metres. Cached. */
+// Concurrency limit for tile fetches. Unthrottled, the globe plus terrain sampling issued hundreds of simultaneous
+// requests, and the browser failed many with ERR_INSUFFICIENT_RESOURCES (missing terrain tiles mid-flight).
+const MAX_ACTIVE = 12;
+let active = 0;
+const queue = [];
+function limited(fn) {
+  return new Promise((resolve, reject) => {
+    const run = () => {
+      active++;
+      fn().then(resolve, reject).finally(() => {
+        active--;
+        const next = queue.shift();
+        if (next) next();
+      });
+    };
+    active < MAX_ACTIVE ? run() : queue.push(run);
+  });
+}
+export const terrainBusy = () => active + queue.length;
+
+/** Fetch + decode a Terrarium tile to a Float32Array(256*256) of metres. Cached; fetches are concurrency-limited. */
 export function loadTerrariumTile(z, x, y) {
   const key = terrariumTileKey(z, x, y);
   if (cache.has(key)) return cache.get(key);
-  const p = (async () => {
+  const p = limited(async () => {
     const url = TILE_URL.replace("{z}", z).replace("{x}", x).replace("{y}", y);
-    const res = await fetch(url, { mode: "cors" });
+    let res = await fetch(url, { mode: "cors", signal: AbortSignal.timeout(8000) }).catch(() => null);
+    if (!res || !res.ok) {
+      await new Promise((r) => setTimeout(r, 400)); // one retry for transient failures
+      res = await fetch(url, { mode: "cors", signal: AbortSignal.timeout(8000) });
+    }
     if (!res.ok) throw new Error(`terrarium ${key} -> ${res.status}`);
     const bmp = await createImageBitmap(await res.blob());
     const cv = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
@@ -36,7 +153,7 @@ export function loadTerrariumTile(z, x, y) {
       h[i] = px[j] * 256 + px[j + 1] + px[j + 2] / 256 - 32768;
     }
     return h;
-  })();
+  });
   cache.set(key, p);
   p.catch(() => cache.delete(key));
   return p;
@@ -94,8 +211,10 @@ export function createTerrariumTerrainProvider(Cesium) {
     loadTileDataAvailability() {
       return undefined;
     },
-    requestTileGeometry(x, y, level) {
+    requestTileGeometry(x, y, level, request) {
       if (level > MAX_ZOOM) return undefined;
+      // Honour Cesium's request throttling: returning undefined defers the tile to a later frame.
+      if (request && request.throttle && terrainBusy() > 24 && !cache.has(terrariumTileKey(level, x, y))) return undefined;
       return loadTerrariumTile(level, x, y).then((h) => {
         // Down-sample 256 -> 65 for the mesh (every 4th sample, plus last edge) to keep tiles light.
         const W = 129;
@@ -108,6 +227,7 @@ export function createTerrariumTerrainProvider(Cesium) {
             out[j * W + i] = h[sy * TILE_SIZE + sx];
           }
         }
+        burnTile(out, W, level, x, y);
         return new Cesium.HeightmapTerrainData({
           buffer: out,
           width: W,
