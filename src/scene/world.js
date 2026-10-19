@@ -2241,7 +2241,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           floodLayer.setFloodRise?.(0);
           floodLayer.visible = false;
         }
-        updateBridgePiers(bridges, bedExag);
+        updateBridgePiers(bridges, bedExag, SURFACE_Y + sheetRise);
         applyRiverLook(river, riverLook);
       }
       if (state.hydrologyHidesFlood) {

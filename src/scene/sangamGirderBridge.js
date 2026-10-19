@@ -112,7 +112,9 @@ export function addOpenGirderSpan(bridge, group, opts, theme = DEFAULT_THEME) {
 
   // Abutments, transition aprons and road fusion are handled authoritatively in bridges.js
 
-  const nPier = Math.max(3, Math.min(6, Math.round(visSpan / 22)));
+  const nPier = Number.isFinite(opts.spanCount)
+    ? Math.max(2, Math.round(opts.spanCount))
+    : Math.max(3, Math.min(6, Math.round(visSpan / 22)));
   const shaftGeo = new THREE.CylinderGeometry(pierR, pierR * 1.06, 1, 12);
   const capGeo = new THREE.BoxGeometry(pierR * 2.3, 0.55, thick * 0.5);
   for (let i = 1; i < nPier; i++) {

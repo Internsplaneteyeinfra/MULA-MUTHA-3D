@@ -6,8 +6,9 @@ import { pointInRing } from "../features/fishing/FishingZoneSystem.js";
 import { addYerwadaArchSpan, isYerwadaArchBridge } from "./yerwadaArchBridge.js";
 import { addAmbedkarArchSpan, isAmbedkarArchBridge } from "./ambedkarArchBridge.js";
 import { addSangamGirderSpan, addOpenGirderSpan, girderTheme, isSangamGirderBridge } from "./sangamGirderBridge.js";
-import { addMundhwaArchSpan, isMundhwaArchBridge } from "./mundhwaArchBridge.js";
 import { createBridgeGauges, surveyDepthAt, updateBridgeGauges } from "./bridgeGauges.js";
+import { bridgeDimensionSource, bridgeElevationSource } from "./bridgeDimensions.js";
+import { localToLonLat } from "../geo/geoReference.js";
 
 /**
  * Typical roadway height above normal water (scene SURFACE_Y) for live
@@ -31,11 +32,9 @@ const BRIDGE_APPROACH_M = 36;
 
 export function getBridgeDeckSurfaceY(name, deckY) {
   const n = String(name || "").toLowerCase();
-  if (/ambedkar|babasaheb/.test(n)) return deckY + 0.88;
-  if (/mundhwa/.test(n)) return deckY + 0.70;
-  if (/yerwada|fitzgerald|bund garden/.test(n)) return deckY + 0.68;
-  if (/sangam/.test(n)) return deckY + 0.60;
-  return deckY + 0.45;
+  if (/ambedkar|babasaheb/.test(n)) return deckY + 0.98;
+  if (/yerwada|fitzgerald|bund garden/.test(n)) return deckY + 0.78;
+  return deckY + 0.08;
 }
 
 function deckYForBridge(name, y0, y1) {
@@ -80,6 +79,7 @@ export function createBridges(dataset) {
   const dMid = (minD + maxD) * 0.5;
 
   const spans = collectBridgeSpans(dataset, ring, stations);
+  for (const span of spans) applySourcedPlanDimensions(span);
   dataset.bridgeSpans = spans;
   for (const g of spans) {
     const orig = (dataset.bridges || []).find((b) => String(b.id) === String(g.id));
@@ -111,15 +111,15 @@ export function createBridges(dataset) {
     const y1 = terrainHeightAt(g.end.x, g.end.z, stations);
     const yerwada = isYerwadaArchBridge(g.name);
     const ambedkar = isAmbedkarArchBridge(g.name);
+    const ambedkarStyleArch = ambedkar || /mundhwa|fitzgerald|bund garden/i.test(g.name);
     const sangam = isSangamGirderBridge(g.name);
-    const mundhwa = isMundhwaArchBridge(g.name);
-    const historic = yerwada || mundhwa || ambedkar;
+    const sourcedDims = bridgeDimensionSource(g.id);
     const deckY = deckYForBridge(g.name, y0, y1);
     g.deckY = deckY;
     const orig = (dataset.bridges || []).find((b) => String(b.id) === String(g.id));
     if (orig) orig.deckY = deckY;
     const span = Math.max(36, g.lengthM);
-    const thick = Math.max(10, Math.min(16, g.widthM || 12));
+    const thick = sourcedDims?.widthM || Math.max(10, Math.min(16, g.widthM || 12));
 
     dir.set(g.axisX, 0, g.axisZ).normalize();
     const quat = new THREE.Quaternion().setFromUnitVectors(xAxis, dir);
@@ -129,10 +129,11 @@ export function createBridges(dataset) {
     const mz = (g.start.z + g.end.z) * 0.5;
     const customDeck = true;
 
-    if (yerwada) {
-      addYerwadaArchSpan(bridge, group, {
+    if (ambedkarStyleArch) {
+      addAmbedkarArchSpan(bridge, group, {
         span,
-        thick: Math.max(thick, 13),
+        archCount: sourcedDims?.spans?.count,
+        thick: sourcedDims?.widthM || Math.max(thick, 16),
         deckY,
         mx,
         mz,
@@ -143,10 +144,10 @@ export function createBridges(dataset) {
         maxD,
         dMid,
       });
-    } else if (ambedkar) {
-      addAmbedkarArchSpan(bridge, group, {
+    } else if (yerwada) {
+      addYerwadaArchSpan(bridge, group, {
         span,
-        thick: Math.max(thick, 16),
+        thick: sourcedDims?.widthM || Math.max(thick, 13),
         deckY,
         mx,
         mz,
@@ -161,7 +162,7 @@ export function createBridges(dataset) {
       addSangamGirderSpan(bridge, group, {
         name: g.name,
         span,
-        thick: Math.max(thick, 12),
+        thick: sourcedDims?.widthM || Math.max(thick, 12),
         deckY,
         mx,
         mz,
@@ -174,20 +175,6 @@ export function createBridges(dataset) {
         stations,
         leftW,
         rightW,
-      });
-    } else if (mundhwa) {
-      addMundhwaArchSpan(bridge, group, {
-        span,
-        thick: Math.max(thick, 13),
-        deckY,
-        mx,
-        mz,
-        quat,
-        start: g.start,
-        end: g.end,
-        minD,
-        maxD,
-        dMid,
       });
     } else {
       addOpenGirderSpan(
@@ -209,13 +196,14 @@ export function createBridges(dataset) {
           stations,
           leftW,
           rightW,
+          spanCount: sourcedDims?.spans?.count,
         },
         girderTheme(g.name),
       );
     }
 
     // Robust approach transition aprons and abutments on both banks for all bridges
-    const bridgeWidth = thick * 0.94;
+    const bridgeWidth = sourcedDims?.widthM || thick * 0.94;
     const apronLength = BRIDGE_APPROACH_M;
     const bridgeRoadY = getBridgeDeckSurfaceY(g.name, deckY);
 
@@ -368,6 +356,16 @@ export function createBridges(dataset) {
     });
 
     group.add(bridge);
+    bridge.userData.bridgeId = String(g.id);
+    bridge.userData.dimensionSource = sourcedDims;
+    bridge.userData.elevationSource = bridgeElevationSource(g.id);
+    bridge.userData.modelStructureType = ambedkarStyleArch ? "concrete arch" : yerwada ? "stone arch" : "open girder";
+    bridge.userData.modelLengthM = span;
+    bridge.userData.modelWidthM = thick;
+    bridge.userData.modelDeckY = bridgeRoadY;
+    bridge.userData.modelSoffitY = null;
+    const geoMid = localToLonLat(mx, mz);
+    bridge.userData.modelPosition = { longitude: geoMid.lon, latitude: geoMid.lat, bearingDeg: (Math.atan2(g.axisX, g.axisZ) * 180 / Math.PI + 360) % 360 };
 
     // Seat every pier of this bridge on the surveyed bed at its own position (not the reach mean).
     for (const p of group.userData.piers.slice(pierCountBefore)) {
@@ -381,7 +379,63 @@ export function createBridges(dataset) {
 
   updateBridgePiers(group, state.depthExaggeration);
   group.userData.gauges = createBridgeGauges(group, dataset, state.depthExaggeration);
+  group.userData.dimensionReport = (waterSurfaceY = SURFACE_Y) => createBridgeDimensionReport(group, waterSurfaceY);
+  group.userData.dimensionReportRows = group.userData.dimensionReport(SURFACE_Y);
+  console.table?.(group.userData.dimensionReportRows);
   return group;
+}
+
+function applySourcedPlanDimensions(bridge) {
+  const dims = bridgeDimensionSource(bridge.id);
+  if (!dims) return;
+  const cx = (bridge.start.x + bridge.end.x) * 0.5;
+  const cz = (bridge.start.z + bridge.end.z) * 0.5;
+  const half = dims.lengthM * 0.5;
+  bridge.lengthM = dims.lengthM;
+  bridge.widthM = dims.widthM;
+  bridge.midX = cx;
+  bridge.midZ = cz;
+  bridge.start = { ...bridge.start, x: cx - bridge.axisX * half, z: cz - bridge.axisZ * half };
+  bridge.end = { ...bridge.end, x: cx + bridge.axisX * half, z: cz + bridge.axisZ * half };
+}
+
+function createBridgeDimensionReport(group, waterSurfaceY) {
+  return group.children.filter((child) => child.isGroup && child.userData.modelLengthM != null).map((bridge) => {
+    const source = bridge.userData.dimensionSource;
+    const elevation = bridge.userData.elevationSource;
+    const lengthM = bridge.userData.modelLengthM;
+    const widthM = bridge.userData.modelWidthM;
+    const deckY = bridge.userData.modelDeckY;
+    return {
+      bridgeId: bridge.userData.bridgeId,
+      name: bridge.name,
+      position: bridge.userData.modelPosition,
+      sourceStructureType: source?.structureType || "Unverified",
+      modelStructureType: bridge.userData.modelStructureType,
+      sourceDimensions: source ? `${source.approximate ? "~" : ""}${source.lengthM} × ${source.widthM} m` : "Unverified",
+      modelDimensions: `${lengthM.toFixed(1)} × ${widthM.toFixed(1)} m`,
+      lengthScaleErrorPct: source ? Number((((lengthM - source.lengthM) / source.lengthM) * 100).toFixed(2)) : "Unverified",
+      widthScaleErrorPct: source ? Number((((widthM - source.widthM) / source.widthM) * 100).toFixed(2)) : "Unverified",
+      sourceDeckElevation: elevation ? `${elevation.deckM} m; ${elevation.datum}` : "Unverified",
+      modelDeckElevationSceneY: Number(deckY.toFixed(2)),
+      sourceDeckElevationDatum: elevation?.datum || "Unverified",
+      sourceSoffitElevation: elevation ? `${elevation.soffitM} m; ${elevation.datum}` : "Unverified",
+      modelSoffitElevationSceneY: "Not surveyed",
+      currentWaterSurfaceSceneY: Number(waterSurfaceY.toFixed(2)),
+      currentWaterElevationMSL: "Unavailable: project vertical datum is unverified",
+      deckClearanceSceneM: Number((deckY - waterSurfaceY).toFixed(2)),
+      spans: source?.spans || "Unverified",
+      modelPierCount: (group.userData.piers || []).filter((pier) => pier.bridgeName === bridge.name).length,
+      sourcePierCount: source?.spans?.pierCount ?? "Unverified",
+      sourceHfl25M: elevation?.hfl25M ?? "Unverified",
+      sourceHfl100M: elevation?.hfl100M ?? "Unverified",
+      sourceSoffitClearanceHfl25M: elevation ? Number((elevation.soffitM - elevation.hfl25M).toFixed(2)) : "Unverified",
+      sourceSoffitClearanceHfl100M: elevation ? Number((elevation.soffitM - elevation.hfl100M).toFixed(2)) : "Unverified",
+      datumStatus: elevation?.datum || "No bridge elevation datum verified",
+      source: source?.source || elevation?.source || "No verified dimension source found",
+      confidence: source?.confidence || "unverified",
+    };
+  });
 }
 
 function buildBridgeFromGIS(bridge, roads, stations) {
@@ -639,7 +693,7 @@ function roundRect(ctx, x, y, w, h, r) {
   ctx.closePath();
 }
 
-export function updateBridgePiers(group, exag) {
+export function updateBridgePiers(group, exag, waterSurfaceY = SURFACE_Y) {
   if (group.userData.gauges) updateBridgeGauges(group.userData.gauges, exag);
   for (const p of group.userData.piers || []) {
     const bedY = bedElevation(p.d, p.minD, p.maxD, 0.5, exag);
@@ -649,5 +703,8 @@ export function updateBridgePiers(group, exag) {
     if (p.cap) {
       p.cap.position.set(p.x, p.deckY - 0.9, p.z);
     }
+  }
+  if (group.userData.dimensionReport) {
+    group.userData.dimensionReportRows = group.userData.dimensionReport(waterSurfaceY);
   }
 }

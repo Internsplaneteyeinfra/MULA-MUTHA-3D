@@ -30,7 +30,9 @@ export function addAmbedkarArchSpan(bridge, group, opts) {
   const steel = conc("#b8bcc0", { roughness: 0.45, metalness: 0.35 });
   const pole = conc("#9aa0a6", { roughness: 0.5, metalness: 0.25 });
 
-  const nArch = Math.max(3, Math.min(5, Math.round(span / 36)));
+  const nArch = Number.isFinite(opts.archCount)
+    ? Math.max(1, Math.round(opts.archCount))
+    : Math.max(3, Math.min(5, Math.round(span / 36)));
   const bay = span / nArch;
   const pierW = Math.min(2.8, bay * 0.12);
   const springY = SURFACE_Y - 0.7;
