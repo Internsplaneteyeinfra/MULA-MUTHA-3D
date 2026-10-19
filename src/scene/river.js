@@ -6,10 +6,11 @@ import { spatialIndex, neighbors } from "../geo/corridor.js";
 
 export const SURFACE_Y = 9.4;
 /**
- * Always-on blue-river stage above SURFACE_Y so the channel looks fuller
- * even when flood is off. Flood rise stacks on top of this.
+ * Extra stage above SURFACE_Y for normal (non-flood) viewing.
+ * Keep at 0 so the blue sheet sits in the channel — a raised stage made
+ * the ribbon float above the banks.
  */
-export const BASE_WATER_STAGE_M = 0.55;
+export const BASE_WATER_STAGE_M = 0;
 /** Minimum metres the riverbed stays below the water surface (prevents poke-through). */
 const MIN_BED_SEPARATION = 0.45;
 
@@ -25,14 +26,11 @@ export function depthNorm(d, minD = DEPTH_LEGEND_MIN, maxD = DEPTH_LEGEND_MAX) {
   );
 }
 
-export function bedElevation(d, _minD, _maxD, acrossU, exag) {
-  // Use ACTUAL verified bathymetric depth, strictly relative to water surface.
-  // The lateral interpolation is already handled spatially by the bathymetry cloud/service.
-  const depth = Number(d) || 0;
-  const y = SURFACE_Y - depth * Math.max(1, exag);
-  // We don't enforce a minimum separation for the real bed; 
-  // if depth is 0, it means bank elevation.
-  return y;
+export function bedElevation(d, _minD, _maxD, acrossU, exag, waterY = SURFACE_Y) {
+  // Surveyed depth relative to the active water plane; keep a minimum gap so
+  // the bed never coplanar-z-fights or pokes through the surface.
+  const depth = Math.max(Number(d) || 0, MIN_BED_SEPARATION);
+  return waterY - depth * Math.max(1, exag);
 }
 
 /** Water surface stays at real elevation — exaggeration never moves it. */
@@ -165,13 +163,19 @@ export function createRiver(dataset) {
 /**
  * Rebuild water as a filled ribbon: hydrology wet-width at each station,
  * then a continuous left–right strip (no LULC sawtooth holes).
+ *
+ * @param {object} [jalnetraWater] — optional JalNetra permanent-water mask
+ *   ({ isWaterAtLocal, depthAtLocal }) from POST /api/water-depth.
+ *   When present it is the primary extent; LULC/OSM remain fallbacks.
+ *   Bridge gaps (SAR miss) are fused to corridor halfWidth when neighbours are wet.
  */
-export function clipRiverToHydrology(river, lulc, osmWater, dataset) {
+export function clipRiverToHydrology(river, lulc, osmWater, dataset, jalnetraWater = null) {
   const stations = dataset?.corridor?.stations;
   if (!river?.mesh || !stations?.length) return;
 
-  const across = 28;
-  const built = buildWetRibbon(stations, lulc, osmWater, dataset, across);
+  // Slightly denser across samples → smoother bank edge / fewer long triangles.
+  const across = 36;
+  const built = buildWetRibbon(stations, lulc, osmWater, dataset, across, jalnetraWater);
   if (!built) return;
   applyRibbonToRiver(river, dataset, built);
   console.info("[river] filled hydrology ribbon", {
@@ -179,24 +183,182 @@ export function clipRiverToHydrology(river, lulc, osmWater, dataset) {
     across,
     tris: built.indices.length / 3,
     osmPolygons: osmWater?.count ?? 0,
+    jalnetra: !!jalnetraWater?.isWaterAtLocal,
   });
 }
 
-function wetHalfWidth(st, dirX, dirZ, maxH, lulc, osmWater) {
+/**
+ * Water test for ribbon edge.
+ * When JalNetra SAR mask is present, use it alone (LULC/OSM over-widen the channel).
+ */
+function isRibbonWater(lulc, osmWater, jalnetraWater, x, z) {
+  if (jalnetraWater?.isWaterAtLocal) {
+    return !!jalnetraWater.isWaterAtLocal(x, z);
+  }
+  return isObservedWater(lulc, osmWater, x, z);
+}
+
+/**
+ * @param {number} [bridgeHalfM] — neighbour SAR half-width used only under bridges
+ */
+function wetHalfWidth(st, dirX, dirZ, maxH, lulc, osmWater, jalnetraWater, fuseBridge, bridgeHalfM = 0) {
   const step = 2;
   let seen = false;
-  let outer = 10;
-  for (let d = 0; d <= maxH + 2; d += step) {
-    if (isObservedWater(lulc, osmWater, st.x + dirX * d, st.z + dirZ * d)) {
+  let outer = 6;
+  const hasApi = !!jalnetraWater?.isWaterAtLocal;
+  // Cap search: with SAR, do not scan full corridor width (that floods banks).
+  const searchMax = hasApi
+    ? Math.min(maxH, Math.max(18, (Number(st.halfWidth) || 40) * 0.72))
+    : maxH + 2;
+
+  for (let d = 0; d <= searchMax; d += step) {
+    const x = st.x + dirX * d;
+    const z = st.z + dirZ * d;
+    if (isRibbonWater(lulc, osmWater, jalnetraWater, x, z)) {
       seen = true;
       outer = d;
-    } else if (seen && d > outer + 4) {
+    } else if (seen && d > outer + 3) {
       break;
     }
   }
-  // Slightly wider wet ribbon so blue water reads fuller in the channel.
-  if (!seen) return Math.min(22, maxH * 0.5);
-  return THREE.MathUtils.clamp(outer + 6, 14, maxH * 1.08);
+
+  const corridorHalf = Number(st.halfWidth);
+
+  // Bridge gap only: thin fuse from neighbour SAR width — never full corridor.
+  if (!seen && fuseBridge) {
+    const fuse = Number.isFinite(bridgeHalfM) && bridgeHalfM > 4
+      ? bridgeHalfM * 0.88
+      : Number.isFinite(corridorHalf)
+        ? corridorHalf * 0.45
+        : 12;
+    return THREE.MathUtils.clamp(fuse, 6, searchMax);
+  }
+
+  if (!seen) {
+    // No SAR/LULC water — keep a narrow channel stub (not a wide flood sheet).
+    const fallback = hasApi
+      ? Math.min(12, (Number.isFinite(corridorHalf) ? corridorHalf : 24) * 0.35)
+      : Number.isFinite(corridorHalf)
+        ? corridorHalf * 0.55
+        : maxH * 0.4;
+    return THREE.MathUtils.clamp(fallback, 6, searchMax);
+  }
+
+  // Tight pad — match satellite water edge, do not inflate toward banks.
+  const pad = hasApi ? 1.0 : 2.5;
+  return THREE.MathUtils.clamp(outer + pad, 6, searchMax);
+}
+
+/** Distance from (px, pz) to segment a–b in the XZ plane. */
+function segDist(px, pz, ax, az, bx, bz) {
+  const dx = bx - ax;
+  const dz = bz - az;
+  const L2 = dx * dx + dz * dz || 1e-9;
+  const t = THREE.MathUtils.clamp(((px - ax) * dx + (pz - az) * dz) / L2, 0, 1);
+  return Math.hypot(px - (ax + dx * t), pz - (az + dz * t));
+}
+
+/**
+ * Stations whose centreline point lies under a bridge deck get the width interpolated from the
+ * nearest stations outside the deck on each side (never narrower than what was measured).
+ */
+function fuseWidthsUnderBridges(stations, leftW, rightW, bridges) {
+  const n = stations.length;
+  if (!bridges?.length) return 0;
+  const under = new Uint8Array(n);
+  for (const b of bridges) {
+    const s = b.start;
+    const e = b.end;
+    if (!s || !e || !Number.isFinite(s.x) || !Number.isFinite(e.x)) continue;
+    const reach = (Number(b.widthM) || 12) * 0.5 + 18;
+    for (let i = 0; i < n; i++) {
+      if (segDist(stations[i].x, stations[i].z, s.x, s.z, e.x, e.z) <= reach) under[i] = 1;
+    }
+  }
+  let fused = 0;
+  for (let i = 0; i < n; ) {
+    if (!under[i]) {
+      i++;
+      continue;
+    }
+    let j = i;
+    while (j + 1 < n && under[j + 1]) j++;
+    // The water mask's gap is often longer than the deck (deck shadow, piers): extend the run
+    // while the width is still pinched compared with open water further out (≤ 25 rows).
+    const width = (k) => leftW[k] + rightW[k];
+    const open = (k, dir) => {
+      let m = 0;
+      for (let q = 1; q <= 15; q++) {
+        const kk = k + dir * q;
+        if (kk < 0 || kk >= n) break;
+        m = Math.max(m, width(kk));
+      }
+      return m;
+    };
+    let a = i;
+    while (a > 0 && i - a < 25 && width(a - 1) < 0.7 * open(a - 1, -1)) a--;
+    let b = j;
+    while (b < n - 1 && b - j < 25 && width(b + 1) < 0.7 * open(b + 1, 1)) b++;
+    a = Math.max(0, a - 1);
+    b = Math.min(n - 1, b + 1);
+    for (let k = a + 1; k < b; k++) {
+      const t = b === a ? 0 : (k - a) / (b - a);
+      leftW[k] = Math.max(leftW[k], THREE.MathUtils.lerp(leftW[a], leftW[b], t));
+      rightW[k] = Math.max(rightW[k], THREE.MathUtils.lerp(rightW[a], rightW[b], t));
+      fused++;
+    }
+    i = j + 1;
+  }
+  return fused;
+}
+
+/**
+ * Keep one bank edge (side −1 left, +1 right) advancing downstream: where consecutive edge points
+ * step backwards along the flow (offset > local bend radius), shrink that side's half-width.
+ */
+function preventEdgeFolds(stations, w, side, minHalf = 4) {
+  const n = stations.length;
+  const orig = Float32Array.from(w);
+  const edge = (i) => {
+    const st = stations[i];
+    return [st.x + side * -st.flowZ * w[i], st.z + side * st.flowX * w[i]];
+  };
+  for (let pass = 0; pass < 80; pass++) {
+    let bad = 0;
+    for (let i = 0; i < n - 1; i++) {
+      const a = stations[i];
+      const b = stations[i + 1];
+      let fx = a.flowX + b.flowX;
+      let fz = a.flowZ + b.flowZ;
+      const fl = Math.hypot(fx, fz) || 1;
+      fx /= fl;
+      fz /= fl;
+      const step = Math.max(0.5, (b.x - a.x) * fx + (b.z - a.z) * fz);
+      const [ex0, ez0] = edge(i);
+      const [ex1, ez1] = edge(i + 1);
+      if ((ex1 - ex0) * fx + (ez1 - ez0) * fz >= step * 0.3) continue;
+      bad++;
+      w[i] = Math.max(minHalf, w[i] * 0.93);
+      w[i + 1] = Math.max(minHalf, w[i + 1] * 0.93);
+    }
+    if (!bad) break;
+  }
+  // The pairwise shrink leaves a zigzag edge. Where it acted, replace the width with a smoothed
+  // running minimum (window ±4) — never wider than the shrunk width, so no fold returns.
+  const touched = new Uint8Array(n);
+  for (let i = 0; i < n; i++) if (w[i] < orig[i] - 1e-3) touched[i] = 1;
+  const env = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    let m = Infinity;
+    for (let k = Math.max(0, i - 4); k <= Math.min(n - 1, i + 4); k++) m = Math.min(m, w[k]);
+    env[i] = m;
+  }
+  const sm = smooth1d(env, 3);
+  for (let i = 0; i < n; i++) {
+    let near = false;
+    for (let k = Math.max(0, i - 6); k <= Math.min(n - 1, i + 6) && !near; k++) near = !!touched[k];
+    if (near) w[i] = Math.min(w[i], sm[i]);
+  }
 }
 
 function smooth1d(arr, passes) {
@@ -229,20 +391,108 @@ function samplePointDepth(x, z, index, fallback) {
   return s / w;
 }
 
-function buildWetRibbon(stations, lulc, osmWater, dataset, across) {
+/**
+ * Pull one side of the ribbon back to the mapped channel. Used only on the
+ * Bund Garden bend, where the corridor polygon is about twice the real water.
+ */
+function trimDryHalf(stations, leftW, rightW, osmWater, ch0, ch1) {
+  if (!osmWater?.isWaterAtLocal) return;
+  const reach = (st, side, limit) => {
+    const px = -st.flowZ * side;
+    const pz = st.flowX * side;
+    let outer = 0;
+    let seen = false;
+    const max = Math.max(12, limit);
+    for (let d = 0; d <= max; d += 2) {
+      if (osmWater.isWaterAtLocal(st.x + px * d, st.z + pz * d)) {
+        seen = true;
+        outer = d;
+      } else if (seen && d > outer + 8) break;
+    }
+    return Math.min(limit, seen ? outer + 3 : 16);
+  };
+  for (let i = 0; i < stations.length; i++) {
+    const ch = Number(stations[i].chainage_m);
+    if (!Number.isFinite(ch) || ch < ch0 || ch > ch1) continue;
+    const fade = Math.min(1, (ch - ch0) / 160, (ch1 - ch) / 160);
+    const st = stations[i];
+    const capL = reach(st, -1, leftW[i]);
+    const capR = reach(st, 1, rightW[i]);
+    leftW[i] += (capL - leftW[i]) * fade;
+    rightW[i] += (capR - rightW[i]) * fade;
+  }
+}
+
+function buildWetRibbon(stations, lulc, osmWater, dataset, across, jalnetraWater = null) {
   const n = stations.length;
+  // Pre-mark stations that sit on JalNetra permanent water (for bridge fusion).
+  const apiWet = new Uint8Array(n);
+  if (jalnetraWater?.isWaterAtLocal) {
+    for (let i = 0; i < n; i++) {
+      const st = stations[i];
+      if (jalnetraWater.isWaterAtLocal(st.x, st.z)) apiWet[i] = 1;
+      else {
+        // Sample a few metres off-centre — piers often sit on the CL
+        const px = -st.flowZ;
+        const pz = st.flowX;
+        if (
+          jalnetraWater.isWaterAtLocal(st.x + px * 8, st.z + pz * 8) ||
+          jalnetraWater.isWaterAtLocal(st.x - px * 8, st.z - pz * 8)
+        ) {
+          apiWet[i] = 1;
+        }
+      }
+    }
+  }
+
   const leftW = new Float32Array(n);
   const rightW = new Float32Array(n);
+  // Pass 1 — measure SAR/LULC extents (no bridge inflate).
   for (let i = 0; i < n; i++) {
     const st = stations[i];
     const px = -st.flowZ;
     const pz = st.flowX;
     const maxH = Math.max(12, Number(st.halfWidth) || 40);
-    leftW[i] = wetHalfWidth(st, -px, -pz, maxH, lulc, osmWater);
-    rightW[i] = wetHalfWidth(st, px, pz, maxH, lulc, osmWater);
+    leftW[i] = wetHalfWidth(st, -px, -pz, maxH, lulc, osmWater, jalnetraWater, false, 0);
+    rightW[i] = wetHalfWidth(st, px, pz, maxH, lulc, osmWater, jalnetraWater, false, 0);
   }
-  const lSm = smooth1d(leftW, 10);
-  const rSm = smooth1d(rightW, 10);
+  // Pass 2 — thin bridge fuse from neighbour SAR half-widths only.
+  if (jalnetraWater?.isWaterAtLocal) {
+    for (let i = 0; i < n; i++) {
+      if (apiWet[i]) continue;
+      let fuse = false;
+      let sumL = 0;
+      let sumR = 0;
+      let cnt = 0;
+      for (let k = Math.max(0, i - 3); k <= Math.min(n - 1, i + 3); k++) {
+        if (!apiWet[k] || k === i) continue;
+        fuse = true;
+        sumL += leftW[k];
+        sumR += rightW[k];
+        cnt += 1;
+      }
+      if (!fuse || !cnt) continue;
+      const st = stations[i];
+      const px = -st.flowZ;
+      const pz = st.flowX;
+      const maxH = Math.max(12, Number(st.halfWidth) || 40);
+      leftW[i] = wetHalfWidth(st, -px, -pz, maxH, lulc, osmWater, jalnetraWater, true, sumL / cnt);
+      rightW[i] = wetHalfWidth(st, px, pz, maxH, lulc, osmWater, jalnetraWater, true, sumR / cnt);
+    }
+  }
+  // Bridge decks / shadows read as land in the LULC / SAR masks, which pinched the water to a
+  // gap under every bridge. Across a bridge, bridge the width from the open water either side.
+  fuseWidthsUnderBridges(stations, leftW, rightW, dataset?.bridges);
+  // Light smooth — heavy passes were bloating bank width past the SAR edge.
+  const lSm = smooth1d(leftW, jalnetraWater?.isWaterAtLocal ? 4 : 10);
+  const rSm = smooth1d(rightW, jalnetraWater?.isWaterAtLocal ? 4 : 10);
+  // Edges offset from a curved centreline cross over on the inside of tight bends (folded,
+  // inverted triangles). Narrow the inner edge just enough that it keeps moving downstream.
+  preventEdgeFolds(stations, lSm, -1);
+  preventEdgeFolds(stations, rSm, 1);
+  // Bund Garden → Dhanori bend only. The corridor here is ~200 m, but the mapped
+  // channel covers about half of that — the other half is land.
+  trimDryHalf(stations, lSm, rSm, osmWater, 3400, 5300);
   for (let s = 0; s < n; s++) {
     const st = stations[s];
     st.wetHalfLeft = lSm[s];
@@ -277,7 +527,11 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across) {
       const z = lz + (rz - lz) * u;
       const bank = Math.abs(u * 2 - 1);
       const fallback = 0.55 + 1.25 * (1 - bank);
-      const d = Math.max(0.35, samplePointDepth(x, z, index, fallback));
+      // Prefer JalNetra relative depth when the mask has water here.
+      const apiD = jalnetraWater?.depthAtLocal?.(x, z);
+      const d = Number.isFinite(apiD)
+        ? Math.max(0.35, apiD)
+        : Math.max(0.35, samplePointDepth(x, z, index, fallback));
       positions.push(x, SURFACE_Y, z);
       depths.push(d);
       alongT.push(st.t);
@@ -290,15 +544,24 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across) {
   }
 
   const indices = [];
+  // Naik Bet (about chainage 1+000–2+000). The centreline runs across the island,
+  // so a solid ribbon covers the forest. Keep a quad only when every corner is
+  // mapped water; the two channels stay, the island stays land.
+  const NAIK_CH0 = 980;
+  const NAIK_CH1 = 1980;
+  const at = (idx) => lulc?.classAtLocal?.(positions[idx * 3], positions[idx * 3 + 2]);
   for (let s = 0; s < n - 1; s++) {
+    const chA = Number(stations[s].chainage_m);
+    const chB = Number(stations[s + 1].chainage_m);
+    const naik = lulc?.classAtLocal && chA >= NAIK_CH0 && chA <= NAIK_CH1 && chB >= NAIK_CH0 && chB <= NAIK_CH1;
     for (let a = 0; a < across; a++) {
       const i0 = s * cols + a;
       const i1 = i0 + 1;
       const i2 = i0 + cols;
       const i3 = i2 + 1;
-      // Keep every quad: islands stay dry because the ground there is raised above the water
-      // (terrain.js), and its antialiased shoreline gives a smooth island edge. Dropping whole
-      // quads on land-classed raster cells cut stair-step holes into the water surface.
+      if (naik && (at(i0) !== "water" || at(i1) !== "water" || at(i2) !== "water" || at(i3) !== "water")) {
+        continue;
+      }
       indices.push(i0, i2, i1, i1, i2, i3);
     }
   }
@@ -702,6 +965,8 @@ export function applyRiverLook(river, mode = "water") {
     }
     to.needsUpdate = true;
   }
+  // Hide channel walls in water mode — a vertical turquoise face reads as a
+  // floating water block. Terrain carve brings banks up to the waterline instead.
   river.walls.visible = look !== "water";
   for (const child of river.walls.children) {
     const col = child.geometry.attributes.color;
@@ -745,8 +1010,7 @@ export function applyExaggeration(
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
   const bed = river.bed.geometry.attributes.position;
-  // Base stage keeps blue water a bit high with no flood. During API flood playback the
-  // rise value is already the physical WSE delta — do not stack BASE_WATER_STAGE_M on top.
+  // During API flood playback the rise is the physical WSE delta — skip base stage.
   const base = includeBaseStage ? BASE_WATER_STAGE_M : 0;
   const rise = base + Math.max(0, Number(floodRiseM) || 0);
   const cols = (bath.across || 40) + 1;
@@ -765,13 +1029,11 @@ export function applyExaggeration(
     const finalWaterY = baseSurfaceY + rise;
 
     pos.setY(i, finalWaterY);
-    const x = bath.positions[i * 3];
-    const z = bath.positions[i * 3 + 2];
-    const dtmY = river.dtmHeightAt?.(x, z);
-    const fromSurvey = bedElevation(d, dataset.minDepth, dataset.maxDepth, across, exag);
-    const bedY = Number.isFinite(dtmY)
-      ? Math.min(dtmY, finalWaterY - 0.08)
-      : fromSurvey;
+    // Bed = water surface − surveyed depth (× display exaggeration). The DTM is not used here:
+    // over water FABDEM records the water surface, not the bed, and pulling the bed down to it
+    // made depth (water − bed) disagree with the survey by up to 3.6 m.
+    let bedY = bedElevation(d, dataset.minDepth, dataset.maxDepth, across, exag, finalWaterY);
+    bedY = Math.min(bedY, finalWaterY - MIN_BED_SEPARATION);
     bed.setY(i, bedY);
   }
   pos.needsUpdate = true;
@@ -779,6 +1041,8 @@ export function applyExaggeration(
   river.mesh.geometry.computeVertexNormals();
   river.bed.geometry.computeVertexNormals();
   updateWalls(river.walls, bath, dataset, exag, rise, waterSurfaceSceneY, river.dtmHeightAt);
+  // Bank strip (channelBanks.js): toe on the new bed edge, shore at the new water level.
+  river.banksSync?.(SURFACE_Y + rise);
 }
 
 function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null, dtmHeightAt = null) {
@@ -809,12 +1073,26 @@ function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSce
     const zb = bath.positions[b * 3 + 2];
     const dtmA = dtmHeightAt?.(xa, za);
     const dtmB = dtmHeightAt?.(xb, zb);
-    const ya = Number.isFinite(dtmA)
-      ? Math.min(dtmA, wallTopA - 0.02)
-      : bedElevation(bath.depths[a], dataset.minDepth, dataset.maxDepth, bath.acrossU?.[a] ?? 0.5, exag);
-    const yb = Number.isFinite(dtmB)
-      ? Math.min(dtmB, wallTopB - 0.02)
-      : bedElevation(bath.depths[b], dataset.minDepth, dataset.maxDepth, bath.acrossU?.[b] ?? 0.5, exag);
+    let ya = bedElevation(
+      bath.depths[a],
+      dataset.minDepth,
+      dataset.maxDepth,
+      bath.acrossU?.[a] ?? 0.5,
+      exag,
+      wallTopA + 0.08,
+    );
+    let yb = bedElevation(
+      bath.depths[b],
+      dataset.minDepth,
+      dataset.maxDepth,
+      bath.acrossU?.[b] ?? 0.5,
+      exag,
+      wallTopB + 0.08,
+    );
+    if (Number.isFinite(dtmA) && dtmA < wallTopA - MIN_BED_SEPARATION) ya = Math.min(ya, dtmA);
+    if (Number.isFinite(dtmB) && dtmB < wallTopB - MIN_BED_SEPARATION) yb = Math.min(yb, dtmB);
+    ya = Math.min(ya, wallTopA - MIN_BED_SEPARATION);
+    yb = Math.min(yb, wallTopB - MIN_BED_SEPARATION);
     attr.setY(i, ya);
     attr.setY(i + 1, wallTopA);
     attr.setY(i + 2, yb);

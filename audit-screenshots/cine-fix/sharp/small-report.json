@@ -1,0 +1,83 @@
+{
+  "shots": [
+    {
+      "hit": "Rishikesh",
+      "cap": "Ganga gorge · Rishikesh",
+      "metrics": {
+        "buf": [
+          1366,
+          768,
+          1366,
+          768
+        ],
+        "uw": [
+          300,
+          150,
+          "0"
+        ],
+        "mem": 4
+      }
+    },
+    {
+      "hit": "spillway",
+      "cap": "Khadakwasla Dam · spillway release is a visual simulation",
+      "metrics": {
+        "buf": [
+          1366,
+          768,
+          1366,
+          768
+        ],
+        "uw": [
+          1366,
+          768,
+          "0"
+        ],
+        "mem": 4
+      }
+    },
+    {
+      "hit": "Freshwater",
+      "cap": "Freshwater life · illustrative",
+      "metrics": {
+        "buf": [
+          1366,
+          768,
+          1366,
+          768
+        ],
+        "uw": [
+          1366,
+          768,
+          "0.298"
+        ],
+        "mem": 4
+      }
+    },
+    {
+      "hit": "Mula",
+      "cap": "Mula–Mutha · Pune",
+      "metrics": {
+        "buf": [
+          1366,
+          768,
+          1366,
+          768
+        ],
+        "uw": [
+          1366,
+          768,
+          "0"
+        ],
+        "mem": 4
+      }
+    }
+  ],
+  "errors": [],
+  "seen": [
+    "Rishikesh",
+    "spillway",
+    "Freshwater",
+    "Mula"
+  ]
+}

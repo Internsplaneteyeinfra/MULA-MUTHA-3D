@@ -3,6 +3,7 @@ import { state } from "../state.js";
 import { nearestChainage } from "./chainageMarkers.js";
 import { SURFACE_Y } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
+import { TERRAIN_VERTICAL_EXAG } from "../geo/dtm.js";
 import { bedYAt, sampleDepthAt } from "../features/fishing/FishingZoneSystem.js";
 import { pickNullahAt } from "./drainageLayer.js";
 import { pickDepthZoneAt } from "./depthZonesLayer.js";
@@ -330,11 +331,33 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     return null;
   }
 
-  function landHoverInfo(x, z) {
+  function elevationMetres(x, z, sceneY) {
+    const geo = dataset.frame?.toLonLat?.(x, z);
+    const dtm = dataset.dtm;
+    if (geo && dtm?.sampleLonLat) {
+      const direct = dtm.sampleLonLat(geo.lon, geo.lat);
+      if (Number.isFinite(direct)) return direct;
+      const steps = [0.0002, 0.00045];
+      for (const s of steps) {
+        for (const [dlon, dlat] of [[s, 0], [-s, 0], [0, s], [0, -s]]) {
+          const v = dtm.sampleLonLat(geo.lon + dlon, geo.lat + dlat);
+          if (Number.isFinite(v)) return v;
+        }
+      }
+    }
+    if (Number.isFinite(sceneY) && sceneY > SURFACE_Y - 1 && dtm?.sampleWaterLevelMsl) {
+      const wse = dtm.sampleWaterLevelMsl(x, z);
+      const exag = dtm.exag || TERRAIN_VERTICAL_EXAG;
+      if (Number.isFinite(wse) && exag > 0) return wse + (sceneY - SURFACE_Y) / exag;
+    }
+    return null;
+  }
+
+  function landHoverInfo(x, z, sceneY) {
     const geo = dataset.frame.toLonLat(x, z);
     const cls = lulc?.classAtLonLat(geo.lon, geo.lat) || null;
     const lc = cls ? LULC_HOVER[cls] : null;
-    const elev = dataset.dtm?.sampleLonLat?.(geo.lon, geo.lat);
+    const elev = elevationMetres(x, z, sceneY);
     const bank = distanceToBank(x, z, dataset.corridor?.stations || []);
     return {
       landHover: true,
@@ -939,9 +962,10 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
       return;
     }
     const { x, z } = hit.point;
-    const isRiver = hit.object.name !== "terrain";
-    if (!state.inspectMode && !isRiver) {
-      tooltip.show(e.clientX, e.clientY, landHoverInfo(x, z));
+    const isGround = hit.object.name === "terrain" || hit.object.name === "channelBanks";
+    const isRiver = !isGround;
+    if (!state.inspectMode && isGround) {
+      tooltip.show(e.clientX, e.clientY, landHoverInfo(x, z, hit.point.y));
       state.hover = { x, z, land: true };
       if (fromClick) riverWidthMeasure?.hide?.();
       return;

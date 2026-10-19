@@ -13,7 +13,7 @@ import {
   smoothTangent,
   terrainCameraOpts,
 } from "./riverCamera.js";
-import { terrainHeightAt } from "./terrain.js";
+import { terrainHeightAt, ribbonEdgeDistance } from "./terrain.js";
 
 export function sceneName(mode) {
   switch (mode) {
@@ -40,6 +40,23 @@ export function sceneName(mode) {
 
 export function createCameraSystem(canvas, dataset) {
   const stations = dataset.corridor.stations;
+  /** Surveyed bed under the camera, so silt inspection can drop below the water. */
+  function channelBedY(x, z) {
+    const pts = dataset.points || [];
+    let best = 1.8;
+    let bestD = 140 * 140;
+    const step = Math.max(1, Math.floor(pts.length / 700));
+    for (let i = 0; i < pts.length; i += step) {
+      const p = pts[i];
+      const d2 = (p.x - x) ** 2 + (p.z - z) ** 2;
+      if (d2 < bestD) {
+        bestD = d2;
+        best = Number(p.depth) || best;
+      }
+    }
+    const exag = Math.max(1, Number(state.depthExaggeration) || 1);
+    return SURFACE_Y - Math.max(0.6, best) * exag;
+  }
   const b = dataset.sceneBounds || computeSceneBounds(dataset);
   const overviewBounds =
     dataset.activeSceneBounds ||
@@ -1353,12 +1370,38 @@ export function createCameraSystem(canvas, dataset) {
       return;
     }
 
+    const siltOn = state.active2DAnalysis === "silt";
+    if (siltOn) {
+      // Let the orbit swing below the water. The limit must be set before update().
+      controls.maxPolarAngle = Math.PI * 0.88;
+      controls.minDistance = 1.5;
+      const td = ribbonEdgeDistance(controls.target.x, controls.target.z, stations).d;
+      if (td < 50 && controls.target.y > SURFACE_Y - 0.15) {
+        controls.target.y = channelBedY(controls.target.x, controls.target.z) + 0.4;
+      }
+    } else if (!isMap2D()) {
+      controls.maxPolarAngle = Math.PI * 0.495;
+      controls.minDistance = 12;
+    }
     controls.update();
     if (!isMap2D()) {
       try {
-        const groundY = terrainHeightAt(camera.position.x, camera.position.z, stations);
-        if (Number.isFinite(groundY) && camera.position.y < groundY + 8) {
-          camera.position.y = groundY + 8;
+        if (siltOn) {
+          const d = ribbonEdgeDistance(camera.position.x, camera.position.z, stations).d;
+          if (d < 50) {
+            const floorY = channelBedY(camera.position.x, camera.position.z) + 0.3;
+            if (camera.position.y < floorY) camera.position.y = floorY;
+          } else {
+            const groundY = terrainHeightAt(camera.position.x, camera.position.z, stations);
+            if (Number.isFinite(groundY) && camera.position.y < groundY + 1.2) {
+              camera.position.y = groundY + 1.2;
+            }
+          }
+        } else {
+          const groundY = terrainHeightAt(camera.position.x, camera.position.z, stations);
+          if (Number.isFinite(groundY) && camera.position.y < groundY + 8) {
+            camera.position.y = groundY + 8;
+          }
         }
       } catch (_) {}
     }

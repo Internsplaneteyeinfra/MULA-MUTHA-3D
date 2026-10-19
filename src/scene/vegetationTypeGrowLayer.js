@@ -5,6 +5,7 @@ import { terrainHeightAt } from "./terrain.js";
 import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
+import { SURFACE_Y } from "./river.js";
 
 const MAX_INSTANCES = 16000;
 const DEFAULT_STEP_M = 34;
@@ -218,10 +219,10 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
       if (blocked(x, z, buildings, roads, stations, lulc)) continue;
       const cover = lulc?.classAtLocal(x, z);
       if (cover === "water" || cover === "settlement") continue;
-      if (riverRing && pointInRing(x, z, riverRing) && cover !== "forest") continue;
+      if (riverRing && pointInRing(x, z, riverRing)) continue;
 
       const y = terrainHeightAt(x, z, stations);
-      if (!Number.isFinite(y)) continue;
+      if (!Number.isFinite(y) || y < SURFACE_Y + 0.2) continue;
 
       const assetId = assetForKind(kind, rng);
       const scale = scaleForKind(kind, rng);

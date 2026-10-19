@@ -19,7 +19,7 @@ const CAPTIONS = [
   ["Garhwal Himalaya → Devprayag", "Alaknanda and Bhagirathi meet here to form the Ganga"],
   ["Ganga gorge · Rishikesh", "Channel position and width from JRC Global Surface Water · water shading is illustrative"],
   ["Khadakwasla Dam · spillway release is a visual simulation", "Dam crest from OpenStreetMap; water then follows the Mutha downstream"],
-  ["Freshwater life · illustrative", "Barramundi and carp models; not a species survey of this river"],
+  ["Freshwater life · illustrative", "Textured barramundi model; not a species survey of this river"],
   ["Mula–Mutha · Pune", "Surveyed KML centreline and banks · water shading is illustrative"],
   ["Spectral lithology", "Existing KMZ-derived lithology raster · overlay is blended over satellite terrain"],
   ["Flood-water samples · 3–15 July 2026", "Existing estimated classified sample points · locations shown at their mapped support"],
@@ -55,7 +55,7 @@ export function CinematicHUD({ director, directorState }) {
     <>
       <div className="film-quick-controls">
         <label>Rendering
-          <select aria-label="Rendering quality" defaultValue={director?.getQuality?.() || "balanced"} onChange={(event) => director?.setQuality(event.target.value)}>
+          <select aria-label="Rendering quality" defaultValue={director?.getQuality?.() || "high"} onChange={(event) => director?.setQuality(event.target.value)}>
             <option value="low">Low</option>
             <option value="balanced">Balanced</option>
             <option value="high">High</option>
@@ -92,7 +92,7 @@ export function CinematicHUD({ director, directorState }) {
       )}
 
       {/* Final landing card (24.7–26 s) */}
-      {currentTime >= 24.7 && (
+      {currentTime >= 24.7 && currentTime < 25.85 && (
         <div className="final-landing-card">
           <span className="final-eyebrow">Geospatial River Intelligence</span>
           <h1 className="final-hero-title">RIVER.<span className="eye">EYE</span></h1>

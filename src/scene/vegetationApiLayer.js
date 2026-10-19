@@ -58,7 +58,7 @@ export async function createVegetationApiLayer(dataset, vegetationData) {
       if (blocked(x, z, buildings, roads, stations)) continue;
 
       const y = terrainHeightAt(x, z, stations);
-      if (!Number.isFinite(y) || y < SURFACE_Y - 0.5) continue;
+      if (!Number.isFinite(y) || y < SURFACE_Y + 0.2) continue;
 
       const assetId = assetForKind(kind, rng);
       const scale = scaleForKind(kind, rng);

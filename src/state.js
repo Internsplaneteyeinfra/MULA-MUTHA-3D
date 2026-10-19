@@ -35,6 +35,21 @@ export const state = {
   showWaterDebug: false,
   /** Metres above normal river surface (SURFACE_Y) — illustrative bathtub only. */
   floodRiseM: 0,
+  /**
+   * Live relative stage (m) applied to the 3D river sheet in normal mode.
+   * Derived from GloFAS discharge → Manning depth − survey baseline (not absolute MSL).
+   */
+  liveStageRiseM: 0,
+  /** Live discharge used for the hydraulic profile (m³/s). */
+  discharge_m3s: null,
+  meanVelocity_ms: null,
+  totalVolume_m3: null,
+  hydrologyStatus: "UNAVAILABLE",
+  /** Provenance string for the live Q / stage source (GloFAS, rainfall, gauge, …). */
+  liveWaterSource: null,
+  liveWaterUpdatedAt: null,
+  /** JalNetra POST /api/water-depth product (SAR permanent water + relative depth). */
+  jalnetraWaterDepth: null,
   /** Saved bathtub stage while MODE A (API flood) is active. */
   savedFloodRiseM: null,
   /**

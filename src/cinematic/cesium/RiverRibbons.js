@@ -225,6 +225,7 @@ async function snapToThalweg(pts, maxOff, zoom) {
       );
       let best = Infinity;
       ks.forEach((k, j) => {
+        if (!Number.isFinite(hs[j])) return;
         const h = hs[j] + Math.abs(k) * 0.35; // mild pull toward the source line
         if (h < best) {
           best = h;
@@ -265,8 +266,17 @@ async function snapToThalweg(pts, maxOff, zoom) {
 export async function conditionRiverProfile(line, { stepM = 150, maxHalf = 60, zoom = 12, snapM = 0, minWidth = 4, foamSlope = [0.006, 0.096] } = {}) {
   let pts = resampleLine(line, stepM);
   if (snapM > 0) pts = await snapToThalweg(pts, snapM, zoom);
-  const raw = new Array(pts.length);
-  (await Promise.all(pts.map((p) => sampleTerrariumHeight(p[0], p[1], zoom)))).forEach((v, j) => (raw[j] = v));
+  const raw = await Promise.all(pts.map((p) => sampleTerrariumHeight(p[0], p[1], zoom)));
+  // One slow tile must not reject the whole river. Fill gaps from the nearest sampled height.
+  for (let pass = 0; pass < 2; pass++) {
+    for (let j = 0; j < raw.length; j++) {
+      if (Number.isFinite(raw[j])) continue;
+      const left = raw.slice(0, j).findLast((v) => Number.isFinite(v));
+      const right = raw.slice(j + 1).find((v) => Number.isFinite(v));
+      raw[j] = Number.isFinite(left) ? left : right;
+    }
+  }
+  if (raw.some((v) => !Number.isFinite(v))) throw new Error("terrain sampling failed for an entire river profile");
   // Moving-average smoothing (window ~ 1.5 km), then enforce downstream monotonic decrease.
   const win = Math.max(2, Math.round(1500 / stepM));
   const sm = raw.map((_, i) => {

@@ -1,8 +1,14 @@
 import * as THREE from "three";
 import { state } from "../state.js";
 import { createTerrain, terrainHeightAt, carveTerrainUnderRiver } from "./terrain.js";
+import { buildChannelBanks, syncChannelBanks } from "./channelBanks.js";
 import { createKmlSkeleton } from "./kmlSkeleton.js";
 import { createRiver, applyExaggeration, applyRiverLook, clipRiverToHydrology, SURFACE_Y } from "./river.js";
+import {
+  fetchJalnetraWaterDepth,
+  SURVEY_DEPTH_MIN_M,
+  SURVEY_DEPTH_MAX_M,
+} from "../services/jalnetraWaterDepthService.js";
 import { setWaterSiltMode } from "./waterShader.js";
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
@@ -47,14 +53,21 @@ import { interpolateChainage } from "../geo/chainage.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { loadOsmWater } from "../geo/osmWater.js";
 import { createWaterFill } from "./waterFill.js";
-import { nearestStationU, chainageGisAerialPose } from "./riverCamera.js";
+import {
+  nearestStationU,
+  chainageGisAerialPose,
+  CHAINAGE_BACK_M,
+  CHAINAGE_EYE_HEIGHT,
+  CHAINAGE_FOV,
+  CHAINAGE_LOOK_ABOVE,
+} from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../data/main stream.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
 import { initDigitalTwin } from "../services/digitalTwinService.js";
 import { initHydrologyProfileService, refreshHydrologyProfile } from "../services/hydrology/hydrologyProfileService.js";
 import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
-import { hydrologyTransform } from "../services/hydrology/hydrologyTransform.js";
+import { hydrologyTransform, BASELINE_DEPTH_M } from "../services/hydrology/hydrologyTransform.js";
 import { telemetryService } from "../services/hydrology/hydrologyTelemetryService.js";
 import { hydraulicCalibrationService } from "../services/hydrology/hydraulicCalibrationService.js";
 import { historicalHydrologyService } from "../services/hydrology/historicalHydrologyService.js";
@@ -193,16 +206,68 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   ]);
   clipRiverToHydrology(river, landCover, osmWater, dataset);
   // Keep the ground below the drawn water everywhere — incl. the narrow channel at the river start.
-  const carved = carveTerrainUnderRiver(terrain.mesh, dataset.corridor.stations);
+  let carved = carveTerrainUnderRiver(terrain.mesh, dataset.corridor.stations);
   console.info("[terrain] carved under river water", { vertices: carved });
   logCorridorLandCover(dataset, landCover);
   river.dtmHeightAt = (x, z) => terrainHeightAt(x, z, dataset.corridor.stations);
+  // Dense shore strip over the sunk terrain band — the banks the coarse grid cannot draw.
+  const channelBanks = buildChannelBanks(river, terrain.mesh, dataset.corridor.stations, null, landCover);
+  river.banksSync = (waterY) => syncChannelBanks(channelBanks, river, waterY);
   applyExaggeration(river, dataset, state.depthExaggeration || 1, 0, null);
   const waterFill = createWaterFill(terrain.mesh, river, dataset, landCover, osmWater);
+  /** Water volume follows the current ribbon + bed (it was left on the first ribbon after a refit). */
+  function rebuildWaterFill() {
+    const fresh = createWaterFill(terrain.mesh, river, dataset, landCover, osmWater);
+    if (!fresh || !waterFill) return;
+    waterFill.geometry.dispose();
+    waterFill.geometry = fresh.geometry;
+    fresh.material.dispose();
+  }
 
-  const UNDERWATER_COLOR = "#4a8fa0";
-  /** Light volume tint only — land, depth colours and banks stay readable. */
-  const UNDERWATER_FOG_DENSITY = 0.00038;
+  // JalNetra SAR permanent water + relative depth — tight mask, bridge-gap fuse only.
+  // Depth scale 1.69–3.0 m. Non-blocking: LULC ribbon shows first.
+  fetchJalnetraWaterDepth({
+    depth_min_m: SURVEY_DEPTH_MIN_M,
+    depth_max_m: SURVEY_DEPTH_MAX_M,
+  })
+    .then((wd) => {
+      if (!wd?.mask) return;
+      state.jalnetraWaterDepth = {
+        water_area_ha: wd.water_area_ha,
+        depth_min_m: wd.depth_min_m,
+        depth_max_m: wd.depth_max_m,
+        mean_m: wd.meta?.depth?.mean_m ?? null,
+        s1: wd.meta?.sentinel1_image_date ?? null,
+        s2: wd.meta?.sentinel2_image_date ?? null,
+        provenance: wd.provenance,
+      };
+      clipRiverToHydrology(river, landCover, osmWater, dataset, wd.mask);
+      buildChannelBanks(river, terrain.mesh, dataset.corridor.stations, channelBanks, landCover);
+      applyExaggeration(
+        river,
+        dataset,
+        state.depthExaggeration || 1,
+        state.floodMode === "api" ? Number(state.floodRiseM) || 0 : 0,
+        null,
+        { includeBaseStage: false },
+      );
+      rebuildWaterFill();
+      console.info("[river] JalNetra water-depth fused into ribbon", {
+        water_area_ha: wd.water_area_ha,
+        carved,
+        depthScale: [SURVEY_DEPTH_MIN_M, SURVEY_DEPTH_MAX_M],
+      });
+      document.dispatchEvent(
+        new CustomEvent("jalnetra-water-depth-ready", { detail: state.jalnetraWaterDepth }),
+      );
+    })
+    .catch((err) => {
+      console.warn("[river] JalNetra water-depth unavailable — keeping LULC/OSM ribbon", err?.message || err);
+    });
+
+  const UNDERWATER_COLOR = "#0e5f78";
+  /** Thick enough that the view under the surface reads as water, not open air over the DTM. */
+  const UNDERWATER_FOG_DENSITY = 0.016;
   const underwaterRay = new THREE.Raycaster();
   const UP = new THREE.Vector3(0, 1, 0);
   let underwaterCheckIn = 0;
@@ -284,6 +349,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const bridgeLabels = createBridgeLabels(bridges, dataset);
 
   scene.add(terrain.mesh);
+  scene.add(channelBanks);
   if (terrain.surround) scene.add(terrain.surround);
   scene.add(terrain.outline);
   // scene.add(kmlSkeleton);
@@ -337,6 +403,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       state.meanVelocity_ms = summary.meanVelocity_ms;
       state.totalVolume_m3 = summary.totalVolume_m3;
       state.hydrologyStatus = summary.discharge_status;
+      state.liveWaterSource = summary.source || null;
+      state.liveWaterUpdatedAt = summary.timestamp || new Date().toISOString();
+      // Relative stage: live Manning depth vs survey baseline — keeps the sheet
+      // in the carved channel (absolute station Y previously floated banks).
+      if (Number.isFinite(summary.meanDepth_m)) {
+        const delta = summary.meanDepth_m - BASELINE_DEPTH_M;
+        state.liveStageRiseM = Math.max(-0.45, Math.min(2.0, delta));
+      }
       // Flow speed in shader derived from physical velocity
       if (summary.meanVelocity_ms != null && river.material?.uniforms?.uFlowSpeed) {
         river.material.uniforms.uFlowSpeed.value = hydrologyTransform.velocityToShaderSpeed(summary.meanVelocity_ms);
@@ -344,13 +418,13 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     }
 
     if (profile?.records?.length) {
-      // Map hydraulic depth to each corridor station along the river
+      // HUD / telemetry station Y (smoothed). Sheet uses uniform liveStageRiseM.
       const cStations = dataset.corridor?.stations || [];
       const newY = new Float32Array(corridorStationCount);
       for (let s = 0; s < corridorStationCount; s++) {
         const meters = cStations[s]?.along ?? (s * ((dataset.chainage?.at(-1)?.meters ?? 16796) / corridorStationCount));
         const rec = hydrologyStore.getStationAtChainage(meters);
-        const depth = rec?.water_depth_m?.value ?? 1.72;
+        const depth = rec?.water_depth_m?.value ?? BASELINE_DEPTH_M;
         newY[s] = hydrologyTransform.hydraulicDepthToSceneY(depth);
       }
       targetStationWaterY.set(newY);
@@ -429,7 +503,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const siltAreaTool = createSiltAreaTool();
   scene.add(siltAreaTool.group);
 
-  attachInspect(canvas, getCamera, [river.mesh, river.bed], terrain.mesh, dataset, tooltip, {
+  attachInspect(canvas, getCamera, [river.mesh, river.bed, channelBanks].filter(Boolean), terrain.mesh, dataset, tooltip, {
     getDrainageGroup: () => drainageLayer,
     getDepthZonesGroup: () => depthZonesLayer,
     getNallaFlow: () => nallaFlow,
@@ -526,7 +600,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   prefetchTreeAssets();
   const loadUrbanLayers = async () => {
     try {
-      const lowTier = quality.get().tier === "low";
+        const lowTier = quality.get().tier === "low";
       // Lite OSM still loads trees/vegetation; only skips heavy extras
       if (typeof dataset.loadOsmLater === "function" && !dataset.osm?.loaded) {
         const osm = await dataset.loadOsmLater({ lite: dataset.lite === true || lowTier });
@@ -551,7 +625,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       const qNow = quality.get();
       const maxTrees = qNow.maxTrees || (lowTier ? 2400 : 5500);
       const pending = [];
-      pending.push(createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows })
+      pending.push(createVegetation(dataset, { maxTrees, castShadow: !!qNow.treeShadows, terrainMesh: terrain.mesh })
         .then((gTrees) => {
       treesResult = gTrees;
       treesGroup.add(gTrees);
@@ -632,7 +706,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
   // Yield one frame so the canvas can present, then load the 50 m river-side strip.
   const urbanDone = new Promise((resolve) => {
-    requestAnimationFrame(() => {
+  requestAnimationFrame(() => {
       setTimeout(() => loadUrbanLayers().finally(resolve), 50);
     });
   });
@@ -642,7 +716,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     landCover,
     osmWater,
   })
-    .then((sys) => {
+      .then((sys) => {
         fishing = sys;
         fishGroup.add(sys.group);
         if (sys.zones) cinematic.setFishingZones(sys.zones);
@@ -713,15 +787,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     return chainage.pick?.(chainPickRay, cam.camera, maxDistM) || null;
   }
 
-  // River corridor framing: camera sits over water 42m upstream along tangent, aiming directly at chainage point in center of screen
+  // Low along-river framing: eye just over the water, marker near the middle of the frame.
   function chainageCameraOptions(_point, dragging = false) {
     return {
-      cameraHeight: 18,
-      cameraDistance: 42,
+      cameraHeight: CHAINAGE_EYE_HEIGHT,
+      cameraDistance: CHAINAGE_BACK_M,
       lookAheadDistance: 0,
-      lookY: SURFACE_Y + 1.2,
+      lookY: SURFACE_Y + CHAINAGE_LOOK_ABOVE,
       lateralOffset: 0,
-      fov: 52,
+      fov: CHAINAGE_FOV,
       dur: dragging ? 0.12 : 0.85,
       transitLift: 0,
       ease: dragging ? "outCubic" : "inOutCubic",
@@ -779,8 +853,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const nearBridge = (bridgeLabels.items() || []).some(
       (b) => Number.isFinite(b.x) && p && Math.hypot(b.x - p.x, b.z - p.z) < 120,
     );
-    if (nearBridge) return { height: 26, back: 46, lookAbove: 1.2 };
-    return { height: 18, back: 42, lookAbove: 1.2 };
+    if (nearBridge) return { height: 12, back: CHAINAGE_BACK_M, lookAbove: 3 };
+    return { height: CHAINAGE_EYE_HEIGHT, back: CHAINAGE_BACK_M, lookAbove: CHAINAGE_LOOK_ABOVE };
   }
 
   function nearestChainageToCamera() {
@@ -1093,6 +1167,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   let lastFlood = state.floodRiseM ?? 0;
   let lastWaterOn = state.showWater !== false;
   let lastRiverLook = "water";
+  let lastApiFlood = false;
   applyRiverLook(river, "water");
 
   const labelThrottle = createThrottle(q.labelHz);
@@ -2100,52 +2175,53 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           : waterOn
             ? "water"
             : "depth";
-      // Smooth visual transition for water surface elevation
-      let hasWaterYDiff = false;
-      const lerpSpeed = Math.min(1.0, dt * 2.5); // Smooth 1-2s transition
+      // Keep a smoothed copy of hydraulic station WSE for HUD / telemetry only.
+      // Do NOT bend the rendered ribbon to those Y values in normal mode — that
+      // floats the sheet above banks carved to SURFACE_Y (up to +6 m).
+      const lerpSpeed = Math.min(1.0, dt * 2.5);
       for (let s = 0; s < corridorStationCount; s++) {
         const diff = targetStationWaterY[s] - currentStationWaterY[s];
         if (Math.abs(diff) > 0.001) {
           currentStationWaterY[s] += diff * lerpSpeed;
-          hasWaterYDiff = true;
         } else {
           currentStationWaterY[s] = targetStationWaterY[s];
         }
       }
 
-      // During API flood, force the blue river sheet to SURFACE_Y + rise every frame
-      // so the full channel visibly climbs with water_rise_mm (not only red patches).
+      // API flood: river sheet rises with the flood water (SURFACE_Y + rise).
+      // Normal mode: leave the river sheet at SURFACE_Y — no extra stage.
       const forceRiverRise = apiFloodActive && floodRise >= 0;
+      const sheetRise = forceRiverRise ? floodRise : 0;
       if (
         forceRiverRise ||
         bedExag !== lastExag ||
         state.visualMode !== lastVisual ||
-        floodRise !== lastFlood ||
+        sheetRise !== lastFlood ||
         waterOn !== lastWaterOn ||
         riverLook !== lastRiverLook ||
-        hasWaterYDiff
+        apiFloodActive !== lastApiFlood
       ) {
         lastExag = bedExag;
         lastVisual = state.visualMode;
-        lastFlood = floodRise;
+        lastFlood = sheetRise;
         lastWaterOn = waterOn;
         lastRiverLook = riverLook;
-        // null station array → uniform SURFACE_Y + rise across the whole ribbon
+        lastApiFlood = apiFloodActive;
         applyExaggeration(
           river,
           dataset,
           bedExag,
-          floodRise,
-          forceRiverRise ? null : currentStationWaterY,
-          { includeBaseStage: !forceRiverRise },
+          sheetRise,
+          null,
+          { includeBaseStage: false },
         );
-        riparianLayer?.userData.syncToWater(river.mesh, floodRise);
+        riparianLayer?.userData.syncToWater(river.mesh, sheetRise);
         if (!apiFloodActive) {
           floodLayer.setFloodRise?.(floodRise);
         } else {
-          // Rising stage also fills low ground beside the channel so flood lines read as wet water,
-          // while the API red sheet carries the official extent + flow animation.
-          floodLayer.setFloodRise?.(floodRise);
+          // API flood water is the JalNetra extent sheet only — hide the full-scene bathtub.
+          floodLayer.setFloodRise?.(0);
+          floodLayer.visible = false;
         }
         updateBridgePiers(bridges, bedExag);
         applyRiverLook(river, riverLook);
@@ -2158,6 +2234,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       river.mesh.visible = waterOn;
       if (river.material) river.material.visible = waterOn;
       river.bed.visible = state.showBathymetry !== false;
+      // Walls off in water mode (they look like a floating turquoise block).
       river.walls.visible = state.showBathymetry !== false && riverLook !== "water";
       if (river.wire) river.wire.visible = !!state.showWaterDebug && waterOn;
       // Keep hydrology draped overlays on when a layer is active
@@ -2173,6 +2250,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         aqiRiverLayer.userData?.update?.(dt);
       }
       terrain.mesh.visible = true;
+      channelBanks.visible = true;
       if (terrain.surround) terrain.surround.visible = true;
       state.showTerrain = true;
       kmlSkeleton.visible = state.showMapReferenceGrid || state.showKmlSkeleton;
@@ -2196,7 +2274,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         state.apiFlood?.showLayer !== false &&
         (!!apiFloodLayer.userData?.hasFlood || !!apiFloodLayer.hasFlood || !!apiFloodLayer.children.length);
       apiFloodLayer.visible = showFloodSim;
-      if (showFloodSim) apiFloodLayer.update?.(dt);
+      if (showFloodSim) {
+        apiFloodLayer.update?.(dt);
+        // River sheet uses the rise just published by the flood sheet (same frame).
+        const riseNow = Math.max(0, Number(state.floodRiseM) || 0);
+        if (apiFloodActive && Math.abs(riseNow - lastFlood) > 1e-4) {
+          lastFlood = riseNow;
+          applyExaggeration(river, dataset, bedExag, riseNow, null, { includeBaseStage: false });
+          riparianLayer?.userData.syncToWater(river.mesh, riseNow);
+        }
+      }
       if (urbanResult) urbanResult.visible = true;
       if (urbanResult?.userData?.buildings) urbanResult.userData.buildings.visible = true;
       if (urbanResult?.userData?.roads) urbanResult.userData.roads.visible = true;
@@ -2296,7 +2383,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         scene.background = null;
         atmosphericSky.update(dt, cam.camera);
       }
-      if (waterFill) waterFill.visible = waterOn && underwaterLook;
+      const belowSurface = cam.camera.position.y < SURFACE_Y - 0.15;
+      if (waterFill) waterFill.visible = waterOn && (underwaterLook || belowSurface);
       renderer.render(scene, cam.camera);
     },
   };

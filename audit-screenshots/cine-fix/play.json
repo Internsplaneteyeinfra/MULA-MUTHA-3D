@@ -1,0 +1,328 @@
+{
+  "brandSeen": 1,
+  "logs": [
+    "[cine] boot {firstPose: 50, play: 487, data: 2460, keys: 5866, pathReady: 5869}"
+  ],
+  "rows": [
+    {
+      "wall": 1.44,
+      "t": 0.14,
+      "card": false,
+      "journeyHidden": true,
+      "path": false,
+      "keys": null,
+      "data": null,
+      "play": 487,
+      "scene": "Real satellite imagery · WGS84 globe"
+    },
+    {
+      "wall": 2.46,
+      "t": 1.16,
+      "card": false,
+      "journeyHidden": true,
+      "path": false,
+      "keys": null,
+      "data": null,
+      "play": 487,
+      "scene": "Real satellite imagery · WGS84 globe"
+    },
+    {
+      "wall": 3.46,
+      "t": 2.16,
+      "card": false,
+      "journeyHidden": true,
+      "path": false,
+      "keys": null,
+      "data": 2460,
+      "play": 487,
+      "scene": "Real satellite imagery · WGS84 globe"
+    },
+    {
+      "wall": 4.47,
+      "t": 2.8,
+      "card": false,
+      "journeyHidden": true,
+      "path": false,
+      "keys": null,
+      "data": 2460,
+      "play": 487,
+      "scene": "Real satellite imagery · WGS84 globe"
+    },
+    {
+      "wall": 5.47,
+      "t": 2.8,
+      "card": false,
+      "journeyHidden": true,
+      "path": false,
+      "keys": null,
+      "data": 2460,
+      "play": 487,
+      "scene": "Real satellite imagery · WGS84 globe"
+    },
+    {
+      "wall": 6.49,
+      "t": 2.8,
+      "card": false,
+      "journeyHidden": true,
+      "path": false,
+      "keys": null,
+      "data": 2460,
+      "play": 487,
+      "scene": "Real satellite imagery · WGS84 globe"
+    },
+    {
+      "wall": 7.49,
+      "t": 3.63,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Garhwal Himalaya → Devprayag"
+    },
+    {
+      "wall": 8.5,
+      "t": 4.63,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Garhwal Himalaya → Devprayag"
+    },
+    {
+      "wall": 9.51,
+      "t": 5.67,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Garhwal Himalaya → Devprayag"
+    },
+    {
+      "wall": 10.52,
+      "t": 6.7,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Ganga gorge · Rishikesh"
+    },
+    {
+      "wall": 11.53,
+      "t": 7.63,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Ganga gorge · Rishikesh"
+    },
+    {
+      "wall": 12.53,
+      "t": 8.65,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Ganga gorge · Rishikesh"
+    },
+    {
+      "wall": 13.53,
+      "t": 9.7,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Ganga gorge · Rishikesh"
+    },
+    {
+      "wall": 14.55,
+      "t": 10.72,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Ganga gorge · Rishikesh"
+    },
+    {
+      "wall": 15.56,
+      "t": 11.75,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Khadakwasla Dam · spillway release is a visual simulation"
+    },
+    {
+      "wall": 16.57,
+      "t": 12.72,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Khadakwasla Dam · spillway release is a visual simulation"
+    },
+    {
+      "wall": 17.58,
+      "t": 13.72,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Khadakwasla Dam · spillway release is a visual simulation"
+    },
+    {
+      "wall": 18.72,
+      "t": 14.52,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Khadakwasla Dam · spillway release is a visual simulation"
+    },
+    {
+      "wall": 19.73,
+      "t": 15.88,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Khadakwasla Dam · spillway release is a visual simulation"
+    },
+    {
+      "wall": 20.74,
+      "t": 16.85,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Freshwater life · illustrative"
+    },
+    {
+      "wall": 21.74,
+      "t": 17.87,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Freshwater life · illustrative"
+    },
+    {
+      "wall": 22.76,
+      "t": 18.83,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": ""
+    },
+    {
+      "wall": 23.76,
+      "t": 19.87,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Mula–Mutha · Pune"
+    },
+    {
+      "wall": 24.77,
+      "t": 20.57,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Mula–Mutha · Pune"
+    },
+    {
+      "wall": 25.78,
+      "t": 20.57,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Mula–Mutha · Pune"
+    },
+    {
+      "wall": 26.79,
+      "t": 22.97,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Spectral lithology"
+    },
+    {
+      "wall": 27.79,
+      "t": 23.92,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": "Flood-water samples · 3–15 July 2026"
+    },
+    {
+      "wall": 28.79,
+      "t": 24.78,
+      "card": true,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": ""
+    },
+    {
+      "wall": 29.8,
+      "t": 25.98,
+      "card": false,
+      "journeyHidden": true,
+      "path": true,
+      "keys": 5866,
+      "data": 2460,
+      "play": 487,
+      "scene": ""
+    }
+  ],
+  "videoPath": "C:\\Users\\Sahil.Rajankar\\Desktop\\Shweta\\RIVEREYE\\MULA-MUTHA-3D\\audit-screenshots\\cine-fix\\page@798f5cf5e41be7da4b21f9258162f296.webm"
+}

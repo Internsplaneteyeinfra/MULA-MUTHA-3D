@@ -116,33 +116,38 @@ export function terrariumTileKey(z, x, y) {
 const MAX_ACTIVE = 12;
 let active = 0;
 const queue = [];
-function limited(fn) {
+function pump() {
+  while (active < MAX_ACTIVE && queue.length) {
+    let best = 0;
+    for (let i = 1; i < queue.length; i++) if (queue[i].priority > queue[best].priority) best = i;
+    const job = queue.splice(best, 1)[0];
+    active++;
+    job.fn().then(job.resolve, job.reject).finally(() => {
+      active--;
+      pump();
+    });
+  }
+}
+function limited(fn, priority = 0) {
   return new Promise((resolve, reject) => {
-    const run = () => {
-      active++;
-      fn().then(resolve, reject).finally(() => {
-        active--;
-        const next = queue.shift();
-        if (next) next();
-      });
-    };
-    active < MAX_ACTIVE ? run() : queue.push(run);
+    queue.push({ priority, fn, resolve, reject });
+    pump();
   });
 }
 export const terrainBusy = () => active + queue.length;
 
 /** Fetch + decode a Terrarium tile to a Float32Array(256*256) of metres. Cached; fetches are concurrency-limited. */
-export function loadTerrariumTile(z, x, y) {
+export function loadTerrariumTile(z, x, y, priority = 0) {
   const key = terrariumTileKey(z, x, y);
   if (cache.has(key)) return cache.get(key);
   const p = limited(async () => {
     const url = TILE_URL.replace("{z}", z).replace("{x}", x).replace("{y}", y);
-    let res = await fetch(url, { mode: "cors", signal: AbortSignal.timeout(8000) }).catch(() => null);
+    let res = await fetch(url, { mode: "cors", signal: AbortSignal.timeout(20000) }).catch(() => null);
     if (!res || !res.ok) {
-      await new Promise((r) => setTimeout(r, 400)); // one retry for transient failures
-      res = await fetch(url, { mode: "cors", signal: AbortSignal.timeout(8000) });
+      await new Promise((r) => setTimeout(r, 500));
+      res = await fetch(url, { mode: "cors", signal: AbortSignal.timeout(20000) }).catch(() => null);
     }
-    if (!res.ok) throw new Error(`terrarium ${key} -> ${res.status}`);
+    if (!res || !res.ok) throw new Error(`terrarium ${key} -> ${res ? res.status : "timeout"}`);
     const bmp = await createImageBitmap(await res.blob());
     const cv = new OffscreenCanvas(TILE_SIZE, TILE_SIZE);
     const ctx = cv.getContext("2d", { willReadFrequently: true });
@@ -153,7 +158,7 @@ export function loadTerrariumTile(z, x, y) {
       h[i] = px[j] * 256 + px[j + 1] + px[j + 2] / 256 - 32768;
     }
     return h;
-  });
+  }, priority);
   cache.set(key, p);
   p.catch(() => cache.delete(key));
   return p;
@@ -161,13 +166,14 @@ export function loadTerrariumTile(z, x, y) {
 
 /** Bilinear terrain height (metres) at lon/lat from Terrarium tiles at the given zoom. */
 export async function sampleTerrariumHeight(lonDeg, latDeg, zoom = MAX_ZOOM) {
+  try {
   const n = 2 ** zoom;
   const latRad = (latDeg * Math.PI) / 180;
   const fx = ((lonDeg + 180) / 360) * n;
   const fy = ((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2) * n;
   const tx = Math.floor(fx);
   const ty = Math.floor(fy);
-  const tile = await loadTerrariumTile(zoom, tx, ty);
+  const tile = await loadTerrariumTile(zoom, tx, ty, 3);
   const px = (fx - tx) * (TILE_SIZE - 1);
   const py = (fy - ty) * (TILE_SIZE - 1);
   const x0 = Math.floor(px);
@@ -180,6 +186,10 @@ export async function sampleTerrariumHeight(lonDeg, latDeg, zoom = MAX_ZOOM) {
   return (
     at(x0, y0) * (1 - ax) * (1 - ay) + at(x1, y0) * ax * (1 - ay) + at(x0, y1) * (1 - ax) * ay + at(x1, y1) * ax * ay
   );
+  } catch (err) {
+    console.warn("terrain sample skipped", zoom, lonDeg.toFixed(3), latDeg.toFixed(3), err?.message || err);
+    return NaN;
+  }
 }
 
 export function createTerrariumTerrainProvider(Cesium) {
@@ -211,11 +221,10 @@ export function createTerrariumTerrainProvider(Cesium) {
     loadTileDataAvailability() {
       return undefined;
     },
-    requestTileGeometry(x, y, level, request) {
+    requestTileGeometry(x, y, level) {
       if (level > MAX_ZOOM) return undefined;
-      // Honour Cesium's request throttling: returning undefined defers the tile to a later frame.
-      if (request && request.throttle && terrainBusy() > 24 && !cache.has(terrariumTileKey(level, x, y))) return undefined;
-      return loadTerrariumTile(level, x, y).then((h) => {
+      // Always accept the globe's request. Dropping it left the coarse parent tile on screen.
+      return loadTerrariumTile(level, x, y, 2).then((h) => {
         // Down-sample 256 -> 65 for the mesh (every 4th sample, plus last edge) to keep tiles light.
         const W = 129;
         const out = new Float32Array(W * W);

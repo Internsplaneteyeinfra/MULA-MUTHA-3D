@@ -7,16 +7,20 @@ import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { state } from "../state.js";
 import { analyzeSiltPolygon } from "./siltAreaAnalysis.js";
-import { terrainHeightAt } from "./terrain.js";
-
-/** Low, Moderate, High, Very High: fraction of the local water column (bed → WSE) filled by sediment. */
-const SILT_SEVERITY_FACTOR = [0.1, 0.35, 0.7, 0.95];
+/**
+ * Share of the local water column (bed → surface).
+ * Low stays a thin skin on the bed. Very High rises to the river surface.
+ */
+const SILT_COLUMN_FILL = [0.16, 0.42, 0.72, 0.97];
 const SILT_CLASS_COLORS = [0x0d5c2e, 0x6b7a00, 0xc2410c, 0x991b1b];
-const SURFACE_CLEARANCE_M = 0.03;
+const SURFACE_CLEARANCE_M = 0.12;
+const RISE_MS = 1400;
 
-function sedimentTopY(bedY, factor) {
-  const column = Math.max(0, SURFACE_Y - bedY);
-  return Math.max(bedY, Math.min(bedY + column * factor, SURFACE_Y - SURFACE_CLEARANCE_M));
+function sedimentTopY(bedY, fill) {
+  const ceiling = SURFACE_Y - SURFACE_CLEARANCE_M;
+  const column = Math.max(0.45, ceiling - bedY);
+  const f = Math.min(0.98, Math.max(0.1, Number(fill) || SILT_COLUMN_FILL[0]));
+  return Math.min(ceiling, bedY + Math.max(0.4, column * f));
 }
 
 const MAX_POINTS = 4;
@@ -227,6 +231,12 @@ export function createSiltAreaTool() {
     return best.depth;
   }
 
+  /** Same bed the river draws (survey depth × depth exaggeration), so silt lies on it. */
+  function bedSceneY(x, z) {
+    const exag = Math.max(1, Number(state.depthExaggeration) || 1);
+    return SURFACE_Y - getDepthAt(x, z) * exag;
+  }
+
   function buildOverlay(clip) {
     try {
       window.__MM_SCENE__?.updateSiltWaterMode?.(true, points);
@@ -255,7 +265,6 @@ export function createSiltAreaTool() {
     const ptX = new Float32Array(cw * ch);
     const ptZ = new Float32Array(cw * ch);
     
-    const stations = window.__MM_SCENE__?.dataset?.corridor?.stations;
     const colors = SILT_CLASS_COLORS.map((c) => new THREE.Color(c));
     
     // Pass 1: Extract Data
@@ -270,16 +279,16 @@ export function createSiltAreaTool() {
         const x = (1 - v) * ((1 - u) * nw.x + u * ne.x) + v * ((1 - u) * sw.x + u * se.x);
         const z = (1 - v) * ((1 - u) * nw.z + u * ne.z) + v * ((1 - u) * sw.z + u * se.z);
         
-        const dtmY = stations ? terrainHeightAt(x, z, stations) : null;
-        const bathyY = SURFACE_Y - getDepthAt(x, z);
-        const bedY = Number.isFinite(dtmY) ? dtmY : bathyY;
+        // Surveyed bed, not the land DTM. The DTM inside the channel is the water
+        // surface, which pinned the silt to a slab on top of the river.
+        const bedY = bedSceneY(x, z);
         let severity = 0.0;
         let col = colors[0];
         
         if (alpha >= 195) {
           const clsIdx = Math.round((alpha - 200) / 10);
           if (clsIdx >= 0 && clsIdx <= 3 && bedY < SURFACE_Y - 0.05) {
-            severity = SILT_SEVERITY_FACTOR[clsIdx];
+            severity = SILT_COLUMN_FILL[clsIdx];
             col = colors[clsIdx];
             valid[k] = 1;
           }
@@ -393,12 +402,18 @@ export function createSiltAreaTool() {
       }
     }
     
+    const nTop = cw * ch;
+    const lift = new Float32Array(vPos.length / 3);
+    for (let i = 0; i < nTop; i++) lift[i] = Math.max(0, vPos[i * 3 + 1] - botY[i]);
+
     const geo = new THREE.BufferGeometry();
     geo.setAttribute("position", new THREE.Float32BufferAttribute(vPos, 3));
     geo.setAttribute("color", new THREE.Float32BufferAttribute(vColor, 3));
+    geo.setAttribute("aLift", new THREE.Float32BufferAttribute(lift, 1));
     geo.setIndex(indices);
     geo.computeVertexNormals();
-    
+
+    const growUniform = { value: 0 };
     const mat = new THREE.MeshBasicMaterial({
       vertexColors: true,
       side: THREE.DoubleSide,
@@ -409,11 +424,26 @@ export function createSiltAreaTool() {
       polygonOffsetFactor: -8,
       polygonOffsetUnits: -4,
     });
+    mat.onBeforeCompile = (shader) => {
+      shader.uniforms.uGrow = growUniform;
+      shader.vertexShader = shader.vertexShader
+        .replace(
+          "#include <common>",
+          "#include <common>\nattribute float aLift;\nuniform float uGrow;",
+        )
+        .replace(
+          "#include <begin_vertex>",
+          "#include <begin_vertex>\ntransformed.y -= aLift * (1.0 - uGrow);",
+        );
+    };
+    mat.customProgramCacheKey = () => "siltColumnGrow";
     
     mounds = new THREE.Mesh(geo, mat);
     mounds.name = "siltSediment3d";
     mounds.frustumCulled = false;
     mounds.renderOrder = 22;
+    mounds.userData.growUniform = growUniform;
+    mounds.userData.growStart = performance.now();
     overlay.add(mounds);
     
     group.add(overlay);
@@ -422,11 +452,8 @@ export function createSiltAreaTool() {
   function buildHotspots(list) {
     for (const h of list) {
       const s = makeBadgeSprite(h.id, h.dominant === "Very High" ? "#991B1B" : "#C2410C");
-      const d = getDepthAt(h.x, h.z);
-      const stations = window.__MM_SCENE__?.dataset?.corridor?.stations;
-      const dtmY = stations ? terrainHeightAt(h.x, h.z, stations) : SURFACE_Y - d;
       const clsIdx = ["Low", "Moderate", "High", "Very High"].indexOf(h.dominant);
-      const topY = sedimentTopY(Number.isFinite(dtmY) ? dtmY : SURFACE_Y - d, SILT_SEVERITY_FACTOR[Math.max(0, clsIdx)]);
+      const topY = sedimentTopY(bedSceneY(h.x, h.z), SILT_COLUMN_FILL[Math.max(0, clsIdx)]);
       
       s.position.set(h.x, topY + 0.3, h.z); // 0.3m visual offset
       s.userData.hotspot = h;
@@ -463,13 +490,13 @@ export function createSiltAreaTool() {
         const cz = (minZ + maxZ) / 2;
         const diag = Math.hypot(maxX - minX, maxZ - minZ);
         
-        const dist = Math.max(diag * 1.5, 50); // don't zoom in closer than 50m
-        // 45 degree angle means y = dist * sin(45), offset = dist * cos(45)
-        const yOff = dist * 0.707;
-        const zOff = dist * 0.707;
+        const dist = Math.max(diag * 0.85, 18);
+        const bed = bedSceneY(cx, cz);
+        const yOff = Math.max(6, dist * 0.35);
+        const zOff = Math.max(8, dist * 0.55);
         window.__MM_SCENE__.cameraSystem.setPose(
-          new THREE.Vector3(cx, SURFACE_Y + yOff, cz + zOff),
-          new THREE.Vector3(cx, SURFACE_Y, cz)
+          new THREE.Vector3(cx, bed + yOff, cz + zOff),
+          new THREE.Vector3(cx, bed + 0.4, cz)
         );
       }
       
@@ -645,6 +672,11 @@ export function createSiltAreaTool() {
         overlay.position.y = curr;
       }
     }
+    const grow = mounds?.userData?.growUniform;
+    if (grow && grow.value < 1) {
+      const t = Math.min(1, (performance.now() - mounds.userData.growStart) / RISE_MS);
+      grow.value = 1 - (1 - t) ** 3;
+    }
   }
 
   return {
@@ -687,8 +719,8 @@ export function createSiltAreaTool() {
       riverMat.clippingPlanes = planes;
       
       if (overlay) {
-        overlay.userData.popupTargetY = 15; // Pop up by 15 meters
-      }
+          overlay.userData.popupTargetY = 0;
+        }
     },
     editSiltAnalysis: () => {
       reset({ silent: true });

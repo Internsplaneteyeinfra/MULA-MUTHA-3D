@@ -326,68 +326,115 @@ function antialiasShoreline(pos, heights, nx, nz) {
 }
 
 /**
- * Shape the rendered ground around the river ribbon (call after it is built: stations carry
- * wetHalfLeft / wetHalfRight). The visible river is the blue river bed + water surface ribbon,
- * whose outline is smooth; where the ground pokes through the bed, the shoreline instead follows
- * the ground grid (~27 m × 11 m) as a staircase, and near 0+000 the ground hid the water entirely.
- *
- * Under the ribbon (and a strip just past its edge, so the ribbon edge — not a ground cell edge —
- * is the shoreline) the ground goes well below the bed; beyond the strip it ramps back up to the
- * real ground. Islands (land-cover land inside the channel) keep their raised ground.
- * Trees / buildings / camera still use terrainHeightAt.
+ * Signed distance (m) from (x, z) to the wet ribbon outline: < 0 inside the water, > 0 on land.
+ * Beyond the first / last station the distance runs to the river's end (closed ends).
  */
-export function carveTerrainUnderRiver(mesh, stations, { underDepthM = 8, stripDepthM = 2.4, stripM = 12, bandM = 45, rampSlope = 0.35 } = {}) {
+export function ribbonEdgeDistance(x, z, stations, st = nearest(x, z, stations).st) {
+  const side = (x - st.x) * -st.flowZ + (z - st.z) * st.flowX;
+  const along = (x - st.x) * st.flowX + (z - st.z) * st.flowZ;
+  const half = side >= 0 ? st.wetHalfRight : st.wetHalfLeft;
+  const lateral = Math.abs(side) - half;
+  const beyond =
+    (st === stations[0] && along < 0) || (st === stations[stations.length - 1] && along > 0)
+      ? Math.abs(along)
+      : 0;
+  const d = beyond > 0 ? (lateral > 0 ? Math.hypot(lateral, beyond) : beyond) : lateral;
+  return { d, along, st };
+}
+
+/** Nearest-station lookup with a spatial hash (fast enough for per-vertex use on fine grids). */
+export function makeStationLocator(stations, cell = 120) {
+  const bins = new Map();
+  stations.forEach((s, i) => {
+    const k = `${Math.floor(s.x / cell)},${Math.floor(s.z / cell)}`;
+    if (!bins.has(k)) bins.set(k, []);
+    bins.get(k).push(i);
+  });
+  return (x, z) => {
+    const cx = Math.floor(x / cell);
+    const cz = Math.floor(z / cell);
+    for (let r = 1; r <= 6; r++) {
+      let best = -1;
+      let bestD = Infinity;
+      for (let i = -r; i <= r; i++) {
+        for (let j = -r; j <= r; j++) {
+          const list = bins.get(`${cx + i},${cz + j}`);
+          if (!list) continue;
+          for (const k of list) {
+            const s = stations[k];
+            const d = (s.x - x) ** 2 + (s.z - z) ** 2;
+            if (d < bestD) {
+              bestD = d;
+              best = k;
+            }
+          }
+        }
+      }
+      // Accept once the search ring is wider than the nearest distance found.
+      if (best >= 0 && Math.sqrt(bestD) <= r * cell) return stations[best];
+    }
+    return nearest(x, z, stations).st;
+  };
+}
+
+/** Cell diagonal (m) of the rendered terrain grid. */
+export function terrainCellDiag(mesh) {
+  const p = mesh?.geometry?.parameters;
+  if (!p?.widthSegments) return 40;
+  return Math.hypot(p.width / p.widthSegments, p.height / p.heightSegments);
+}
+
+/**
+ * Sink the coarse terrain grid out of the way of the river so the channel banks can be drawn by
+ * the dense bank strip (channelBanks.js).
+ *
+ * The grid cells (~77 m × 31 m) are far coarser than the channel. Lowering only the vertices
+ * inside the water left grid triangles straddling the shore: they poked up through the water
+ * (up to 13 m) or showed as long brown slopes under it. Here every vertex within one cell
+ * diagonal (+ margin) of the water is sunk well below the deepest possible bed, so no grid
+ * triangle touches the water; the bank strip covers that band with full-resolution heights.
+ *
+ * Idempotent: original heights / colours are restored first, so re-fitting the ribbon (JalNetra
+ * mask) never leaves stale holes from an earlier, wider ribbon.
+ */
+export function carveTerrainUnderRiver(mesh, stations, { deepY = SURFACE_Y - 30, extraBandM = 6 } = {}) {
   if (!mesh?.geometry || !stations?.length || !Number.isFinite(stations[0].wetHalfLeft)) return 0;
-  const pos = mesh.geometry.attributes.position;
-  const col = mesh.geometry.attributes.color;
-  const bank = new THREE.Color("#6a8664").lerp(new THREE.Color("#847252"), 0.45);
-  const under = SURFACE_Y - underDepthM; // under the ribbon: hidden by the bed
-  const strip = SURFACE_Y - stripDepthM; // just past the edge: only needs to sit below the bed
+  const geo = mesh.geometry;
+  const pos = geo.attributes.position;
+  if (!geo.userData.baseY) {
+    geo.userData.baseY = Float32Array.from({ length: pos.count }, (_, i) => pos.getY(i));
+  }
+  const baseY = geo.userData.baseY;
+  const band = terrainCellDiag(mesh) + extraBandM;
   let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity, maxW = 0;
   for (const s of stations) {
     minX = Math.min(minX, s.x); maxX = Math.max(maxX, s.x);
     minZ = Math.min(minZ, s.z); maxZ = Math.max(maxZ, s.z);
     maxW = Math.max(maxW, s.wetHalfLeft, s.wetHalfRight);
   }
-  const pad = maxW + bandM;
+  const pad = maxW + band;
+  const locate = makeStationLocator(stations);
+  const sunk = new Uint8Array(pos.count);
   let changed = 0;
   for (let i = 0; i < pos.count; i++) {
+    let y = baseY[i];
     const x = pos.getX(i);
     const z = pos.getZ(i);
-    if (x < minX - pad || x > maxX + pad || z < minZ - pad || z > maxZ + pad) continue;
-    const { st } = nearest(x, z, stations);
-    // Signed offset across the flow: + toward the right bank (same convention as the ribbon).
-    const side = (x - st.x) * -st.flowZ + (z - st.z) * st.flowX;
-    const along = (x - st.x) * st.flowX + (z - st.z) * st.flowZ;
-    if (Math.abs(along) > 40) continue; // beyond the river's ends
-    const half = side >= 0 ? st.wetHalfRight : st.wetHalfLeft;
-    const d = Math.abs(side) - half; // < 0 inside the ribbon, > 0 on the bank
-    if (d > bandM) continue;
-    const y = pos.getY(i);
-    // Islands / land inside the channel keep their raised ground.
-    if (d < 0 && waterFraction(x, z) < 0.5) continue;
-    let ny;
-    if (d <= 0) {
-      ny = Math.min(y, under);
-    } else if (d <= stripM) {
-      ny = Math.min(y, strip);
-    } else {
-      // Ramp from below the bed back to the real ground; never raise ground above its own height.
-      const rampY = strip + (d - stripM) * rampSlope;
-      const keep = THREE.MathUtils.smoothstep(d, bandM * 0.7, bandM);
-      ny = Math.min(y, THREE.MathUtils.lerp(rampY, y, keep));
+    if (x >= minX - pad && x <= maxX + pad && z >= minZ - pad && z <= maxZ + pad) {
+      const { d } = ribbonEdgeDistance(x, z, stations, locate(x, z));
+      if (d < band) {
+        y = deepY;
+        sunk[i] = 1;
+        changed++;
+      }
     }
-    if (Math.abs(ny - y) < 1e-3) continue;
-    pos.setY(i, ny);
-    if (col && d > 0) col.setXYZ(i, bank.r, bank.g, bank.b);
-    changed++;
+    pos.setY(i, y);
   }
-  if (changed) {
-    pos.needsUpdate = true;
-    if (col) col.needsUpdate = true;
-    mesh.geometry.computeVertexNormals();
-    mesh.geometry.computeBoundingSphere();
-  }
+  geo.userData.sunk = sunk;
+  pos.needsUpdate = true;
+  geo.computeVertexNormals();
+  geo.computeBoundingSphere();
+  geo.computeBoundingBox();
   return changed;
 }
 

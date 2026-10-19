@@ -227,14 +227,14 @@ const frag = /* glsl */ `
     float t = clamp((d - uMinDepth) / max(0.001, uMaxDepth - uMinDepth), 0.0, 1.0);
     float te = smoothstep(0.0, 1.0, t);
 
-    // Natural deep dark blue river water: #087FAF (shallow) -> #07558D (mid) -> #063568 (deep)
-    vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.35, te));
-    c = mix(c, uC2, smoothstep(0.25, 0.70, te));
-    c = mix(c, uC3, smoothstep(0.55, 1.0, te));
+    // Blue-green shallows → mid teal-blue → deep channel (natural river, not neon)
+    vec3 c = mix(uC0, uC1, smoothstep(0.0, 0.32, te));
+    c = mix(c, uC2, smoothstep(0.22, 0.68, te));
+    c = mix(c, uC3, smoothstep(0.52, 1.0, te));
 
-    // Gentle bank lightening so the shoreline blends seamlessly into terrain
+    // Soft bank lightening toward shallow blue-green (no white foam rim)
     float edgeAmt = abs(vAcross * 2.0 - 1.0);
-    c = mix(c, uC0, smoothstep(0.85, 1.0, edgeAmt) * 0.25);
+    c = mix(c, uC0, smoothstep(0.82, 1.0, edgeAmt) * 0.32);
 
     return c;
   }
@@ -340,19 +340,13 @@ const frag = /* glsl */ `
     float surfaceFeatures = clamp(fresnel * 2.2 + spec * 4.0 + foam * 2.0 + sparkle * 2.0, 0.0, 1.0);
     alpha = max(alpha, surfaceFeatures * mix(0.85, 0.65, uIsFlood));
 
-    // Soft shoreline: fade the outer band smoothly into the banks
-    alpha *= 1.0 - smoothstep(0.93, 1.0, edge);
+    // Soft shoreline: tiny outer fade into banks (geometry owns the edge, not alpha)
+    alpha *= 1.0 - smoothstep(0.97, 1.0, edge) * 0.55;
 
     alpha = mix(alpha, mix(0.12, 0.32, depthT) * uOpacity, uCutaway);
     alpha *= mix(0.08, 1.0, revealMask);
     alpha *= mix(1.0, 0.92, clamp(wake * 0.35, 0.0, 1.0));
 
-    // From below the surface the sheet is a back face — keep river water as blue, not a window onto green DTM.
-    // Flood water must NEVER be overridden with blue water tint.
-    if (!gl_FrontFacing && uSiltMode < 0.5 && uIsFlood < 0.5) {
-      col = mix(col, vec3(0.16, 0.42, 0.5), 0.72);
-      alpha = max(alpha, mix(0.70, 0.92, depthT));
-    }
 
     // API flood: FILL the extent with flowing water (not an empty outline).
     if (uIsFlood > 0.5) {
@@ -372,8 +366,9 @@ const frag = /* glsl */ `
       alpha *= wet;
     }
 
-    // SILT ANALYSIS MODE OVERRIDE
-    if (uSiltMode > 0.5) {
+    // SILT ANALYSIS MODE OVERRIDE — only when looking down onto the sheet.
+    // From underneath, the surface stays a water ceiling.
+    if (uSiltMode > 0.5 && gl_FrontFacing) {
       vec2 p = vWorld.xz;
       vec2 poly[4];
       poly[0] = uSiltP0;
@@ -400,6 +395,12 @@ const frag = /* glsl */ `
       }
     }
 
+    // Camera under the sheet: the back face is the water surface above you, not a hole onto the DTM.
+    if (!gl_FrontFacing && uIsFlood < 0.5) {
+      col = vec3(0.10, 0.48, 0.62);
+      alpha = 0.92;
+    }
+
     gl_FragColor = vec4(col, alpha);
   }
 `;
@@ -415,12 +416,11 @@ export function createWaterMaterial(dataset) {
   const piers = Array.from({ length: PIER_MAX }, () => new THREE.Vector4());
   
   const isFlood = !!dataset?.isFlood;
-  // Natural deep dark blue river palette: #087FAF -> #07558D -> #063568
-  // Flood inundation palette: radiant hazard red within valid API extent
-  const c0 = isFlood ? new THREE.Color("#FF4444") : new THREE.Color("#087FAF"); // Shallow fringe
-  const c1 = isFlood ? new THREE.Color("#E53935") : new THREE.Color("#07558D"); // Shallow/mid
-  const c2 = isFlood ? new THREE.Color("#C62828") : new THREE.Color("#06477B"); // Mid/deep
-  const c3 = isFlood ? new THREE.Color("#8E0000") : new THREE.Color("#063568"); // Deep channel
+  // Blue-green shallows → deep blue channel. Flood: hazard red within API extent.
+  const c0 = isFlood ? new THREE.Color("#FF4444") : new THREE.Color("#2A9BA8"); // Shallow fringe
+  const c1 = isFlood ? new THREE.Color("#E53935") : new THREE.Color("#0A7A8C"); // Shallow/mid
+  const c2 = isFlood ? new THREE.Color("#C62828") : new THREE.Color("#065A78"); // Mid/deep
+  const c3 = isFlood ? new THREE.Color("#8E0000") : new THREE.Color("#05365A"); // Deep channel
 
   return new THREE.ShaderMaterial({
     vertexShader: vert,

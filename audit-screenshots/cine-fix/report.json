@@ -1,0 +1,309 @@
+{
+  "firstApi": 1328,
+  "pathReadyWall": 11281,
+  "marks": {
+    "firstPose": 49,
+    "play": 431,
+    "data": 2339,
+    "keys": 10369,
+    "pathReady": true
+  },
+  "samples": [
+    {
+      "t": 0.01,
+      "lon": 73.245,
+      "lat": 22.056,
+      "range": 3549733,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 0.46,
+      "lon": 74.831,
+      "lat": 23.97,
+      "range": 2229570,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 0.91,
+      "lon": 76.406,
+      "lat": 25.874,
+      "range": 1401519,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 1.4,
+      "lon": 77.697,
+      "lat": 27.535,
+      "range": 881398,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 1.85,
+      "lon": 78.358,
+      "lat": 28.561,
+      "range": 599911,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 2.15,
+      "lon": 78.623,
+      "lat": 29.076,
+      "range": 471317,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "data": 2339,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 2.7,
+      "lon": 79.047,
+      "lat": 29.962,
+      "range": 304474,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "data": 2339,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    },
+    {
+      "t": 2.8,
+      "lon": 79.15,
+      "lat": 30.15,
+      "range": 280000,
+      "boot": {
+        "firstPose": 49,
+        "play": 431,
+        "data": 2339,
+        "pathReady": false
+      },
+      "canvas": [
+        1280,
+        720,
+        1280,
+        720
+      ],
+      "loader": false,
+      "brand": false,
+      "journey": true
+    }
+  ],
+  "slow": [
+    {
+      "ms": 350,
+      "name": "https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&family=Roboto:wght@400;500&display"
+    },
+    {
+      "ms": 214,
+      "name": "https://cesium.com/downloads/cesiumjs/releases/1.120/Build/Cesium/Cesium.js"
+    },
+    {
+      "ms": 115,
+      "name": "/src/cinematic/cesium/TilePrefetcher.js?t=1792156683726"
+    },
+    {
+      "ms": 114,
+      "name": "/src/services/jalnetraFloodService.js"
+    },
+    {
+      "ms": 114,
+      "name": "/src/cinematic/cesium/WaterSpray.js"
+    },
+    {
+      "ms": 114,
+      "name": "/src/cinematic/scenes/UnderwaterFishScene.js?t=1792156515198"
+    },
+    {
+      "ms": 114,
+      "name": "/src/cinematic/cesium/Spillway.js?t=1792156683726"
+    },
+    {
+      "ms": 113,
+      "name": "/src/cinematic/cesium/RiverRibbons.js?t=1792156683726"
+    },
+    {
+      "ms": 113,
+      "name": "/node_modules/.vite/deps/proj4.js?v=540279fc"
+    },
+    {
+      "ms": 112,
+      "name": "/src/ui/components/layerToggle.js"
+    },
+    {
+      "ms": 112,
+      "name": "/src/ui/components/hydroIntelPanel.js"
+    },
+    {
+      "ms": 112,
+      "name": "/src/ui/components/geologyWorkspace.js"
+    }
+  ],
+  "at11": {
+    "t": 11.05,
+    "lon": 73.77,
+    "lat": 18.441,
+    "range": 3165,
+    "card": false,
+    "loaderBrand": false,
+    "journeyHidden": true,
+    "uw": "0",
+    "cut": "0.957031",
+    "tiles": false
+  },
+  "atUw": {
+    "t": 17.15,
+    "lon": 73.813,
+    "lat": 18.494,
+    "range": 388,
+    "card": false,
+    "loaderBrand": false,
+    "journeyHidden": true,
+    "uw": "1",
+    "cut": "0",
+    "tiles": false
+  },
+  "at20": {
+    "t": 20.2,
+    "lon": 73.864,
+    "lat": 18.536,
+    "range": 700,
+    "card": false,
+    "loaderBrand": false,
+    "journeyHidden": true,
+    "uw": "0",
+    "cut": "0",
+    "tiles": false
+  },
+  "atBrand": {
+    "t": 25.2,
+    "lon": 73.872,
+    "lat": 18.54,
+    "range": 1550,
+    "card": true,
+    "loaderBrand": false,
+    "journeyHidden": true,
+    "uw": "0",
+    "cut": "0",
+    "tiles": false
+  },
+  "atEnd": {
+    "t": 25.95,
+    "lon": 73.872,
+    "lat": 18.54,
+    "range": 1550,
+    "card": false,
+    "loaderBrand": false,
+    "journeyHidden": true,
+    "uw": "0",
+    "cut": "0",
+    "tiles": false
+  },
+  "fishReqs": [
+    {
+      "status": 200,
+      "url": "/models/fish/barramundi/BarramundiFish.gltf"
+    },
+    {
+      "status": 200,
+      "url": "/models/fish/barramundi/BarramundiFish.bin"
+    },
+    {
+      "status": 200,
+      "url": "/models/fish/barramundi/BarramundiFish_baseColor.png"
+    },
+    {
+      "status": 200,
+      "url": "/models/fish/barramundi/BarramundiFish_occlusionRoughnessMetallic.png"
+    },
+    {
+      "status": 200,
+      "url": "/models/fish/barramundi/BarramundiFish_normal.png"
+    }
+  ],
+  "failed": []
+}

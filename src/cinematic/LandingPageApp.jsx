@@ -61,7 +61,6 @@ export function LandingPageApp() {
       {!ready && (
         // Loading indicator over the live globe (the film's opening view renders underneath while data loads).
         <div className="film-loader" role="status" aria-live="polite">
-          <div className="film-loader-brand">RIVER.<span>EYE</span></div>
           <div className="film-loader-msg">{loading.msg}</div>
           <div className="film-loader-bar"><i style={{ width: `${Math.max(2, loading.pct)}%` }} /></div>
         </div>

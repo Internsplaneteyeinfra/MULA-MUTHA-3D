@@ -52,6 +52,8 @@ function sampleKeys(keys, t) {
   let i = 0;
   while (i < keys.length - 2 && t > keys[i + 1].t) i++;
   const k0 = keys[Math.max(0, i - 1)], k1 = keys[i], k2 = keys[i + 1], k3 = keys[Math.min(keys.length - 1, i + 2)];
+  // A hard key is a scene cut. Never spline across it — that swing flew back out to the globe.
+  if (k2.hard) return (t + 1e-4 >= k2.t ? k2.v : k1.v).slice();
   const dt = k2.t - k1.t;
   const u = (t - k1.t) / dt;
   const u2 = u * u, u3 = u2 * u;
@@ -70,8 +72,10 @@ function sampleKeys(keys, t) {
     return Math.sign(m) * Math.min(Math.abs(m), 3 * Math.abs(d0), 3 * Math.abs(d1));
   };
   return k1.v.map((_, c) => {
-    const m1 = (k0 === k1 ? (k2.v[c] - k1.v[c]) / dt : tangent(k0.v[c], k1.v[c], k2.v[c], k0.t, k1.t, k2.t)) * dt;
-    const m2 = (k3 === k2 ? (k2.v[c] - k1.v[c]) / dt : tangent(k1.v[c], k2.v[c], k3.v[c], k1.t, k2.t, k3.t)) * dt;
+    const a0 = k1.hard ? k1 : k0;
+    const a3 = k3.hard ? k2 : k3;
+    const m1 = (a0 === k1 ? (k2.v[c] - k1.v[c]) / dt : tangent(a0.v[c], k1.v[c], k2.v[c], a0.t, k1.t, k2.t)) * dt;
+    const m2 = (a3 === k2 ? (k2.v[c] - k1.v[c]) / dt : tangent(k1.v[c], k2.v[c], a3.v[c], k1.t, k2.t, a3.t)) * dt;
     return (2 * u3 - 3 * u2 + 1) * k1.v[c] + (u3 - 2 * u2 + u) * m1 + (-2 * u3 + 3 * u2) * k2.v[c] + (u3 - u2) * m2;
   });
 }
@@ -153,34 +157,25 @@ function pointAt(profile, dist) {
 }
 
 /**
- * Rendering profile for this device. Weaker GPUs (integrated / software renderers, low memory, few cores) get
- * coarser terrain/imagery LOD, no MSAA and a smaller tile cache, so tiles finish loading in time instead of the
- * camera arriving on blurry placeholder tiles. Override with ?quality=low|high.
+ * Sharp profile. The globe always draws at the screen's real pixel size (devicePixelRatio).
+ * A smaller resolutionScale upscales a soft image. Screen-space error stays near 1 so imagery
+ * is about one satellite texel per screen pixel. Override LOD only with ?quality=low|high.
  */
 function detectQuality() {
   const forced = new URLSearchParams(window.location.search).get("quality");
   if (["low", "balanced", "high"].includes(forced)) return forced;
-  let renderer = "";
-  try {
-    const gl = document.createElement("canvas").getContext("webgl2") || document.createElement("canvas").getContext("webgl");
-    const ext = gl?.getExtension("WEBGL_debug_renderer_info");
-    renderer = String(ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl?.getParameter(gl.RENDERER) || "");
-    gl?.getExtension("WEBGL_lose_context")?.loseContext();
-  } catch {}
-  const weakGpu = /swiftshader|llvmpipe|microsoft basic|intel\(r\) (hd|uhd)|intel hd|intel uhd|mali|adreno|powervr/i.test(renderer);
-  const lowMem = (navigator.deviceMemory ?? 8) <= 4;
-  const fewCores = (navigator.hardwareConcurrency ?? 8) <= 4;
-  return weakGpu || lowMem || fewCores ? "low" : "balanced";
+  return "high";
 }
+// 4 GB machines report deviceMemory 4. Keep one-texel imagery (sse 1) but cap the tile cache
+// and the framebuffer so the tab is not killed and forced onto a blank canvas.
+const SMALL_PC = (navigator.deviceMemory || 8) <= 4;
+const TILE_CACHE = SMALL_PC ? 1000 : 1800;
 const QUALITY = detectQuality();
 const QP = QUALITY === "low"
-  ? { msaa: 1, sse: 3.2, cache: 1000, resScale: Math.min(0.8, 1 / (window.devicePixelRatio || 1)) }
-  : QUALITY === "high"
-    ? { msaa: 4, sse: 1.6, cache: 4000, resScale: 1 }
-    : { msaa: 2, sse: 2.2, cache: 2000, resScale: Math.min(1, 1.25 / (window.devicePixelRatio || 1)) };
-
-// Fade-through-black windows [start, end] (s). The camera relocates while the screen is black.
-const CUTS = [[10.75, 11.6]]; // 0.25 s fade, fully black 11.0–11.35, 0.25 s fade
+  ? { msaa: 2, sse: 1.5, cache: TILE_CACHE, resScale: 1 }
+  : QUALITY === "balanced"
+    ? { msaa: 2, sse: 1.15, cache: TILE_CACHE, resScale: 1 }
+    : { msaa: 2, sse: 1.0, cache: TILE_CACHE, resScale: 1 };
 // Lower-left geographic label: [start, end, name, place]. Only where the shot is verifiably on that river.
 // The underwater cut starts on the Mutha just below Khadakwasla Dam (Pune) and dissolves before the camera reaches
 // the Mula–Mutha confluence.
@@ -204,8 +199,6 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   let rafId = 0;
   let lastDebugRender = 0;
   let prefetcher = null;
-  let frameAvg = 1 / 60;
-  let lastLodStep = 0;
   // Wall-clock anchors: film time = playAnchorFilm + (now - playAnchorWall) * speed.
   let playAnchorFilm = 0;
   let playAnchorWall = performance.now();
@@ -214,7 +207,6 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   let lastUiUpdate = 0;
   let lastSceneIndex = -1;
   let completionSent = false;
-  let manualQuality = Boolean(new URLSearchParams(window.location.search).get("quality"));
 
   const urlT = new URLSearchParams(window.location.search).get("t");
   const debugAt = urlT != null ? parseFloat(urlT) : null; // ?t=12.5 freezes the film at that time (verification)
@@ -228,8 +220,9 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     // The director renders every frame itself; Cesium's own loop on top of it drew every frame twice.
     useDefaultRenderLoop: false,
     skyAtmosphere: new Cesium.SkyAtmosphere(),
-    contextOptions: { webgl: { alpha: false, preserveDrawingBuffer: true } },
+    contextOptions: { webgl: { alpha: false, antialias: true, preserveDrawingBuffer: false } },
     msaaSamples: QP.msaa,
+    useBrowserRecommendedResolution: false,
   });
   const scene = viewer.scene;
   const globe = scene.globe;
@@ -240,14 +233,32 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   globe.dynamicAtmosphereLighting = true;
   globe.dynamicAtmosphereLightingFromSun = true;
   globe.maximumScreenSpaceError = QP.sse;
-  viewer.resolutionScale = QP.resScale;
+  // Native pixels up to a framebuffer a 4 GB PC can keep. Cesium otherwise ignores devicePixelRatio
+  // and the film is upscaled and soft. FXAA stays off — it smears satellite detail.
+  viewer.useBrowserRecommendedResolution = false;
+  if (scene.postProcessStages?.fxaa) scene.postProcessStages.fxaa.enabled = false;
+  function fitResolution() {
+    const dpr = window.devicePixelRatio || 1;
+    const w = Math.max(1, container.clientWidth);
+    const h = Math.max(1, container.clientHeight);
+    const maxPx = SMALL_PC ? 1920 * 1080 * 1.25 * 1.25 : 2560 * 1440;
+    const native = w * h * dpr * dpr;
+    viewer.resolutionScale = native > maxPx ? Math.sqrt(maxPx / native) : 1;
+    viewer.resize();
+    if (scene.postProcessStages?.fxaa) scene.postProcessStages.fxaa.enabled = false;
+  }
+  fitResolution();
   globe.baseColor = Cesium.Color.fromCssColorString("#0b2a4a"); // ocean tone behind imagery while tiles load
   globe.preloadSiblings = true;
   globe.preloadAncestors = true;
+  // The film updates the camera every frame, so Cesium treats the whole shot as "moving"
+  // and skips tiles away from the centre. That is the soft patch in the corner.
+  globe.cullRequestsWhileMoving = false;
+  globe.loadingDescendantLimit = 20;
   globe.tileCacheSize = QP.cache; // keep pre-streamed tiles resident for the whole 25 s flight
   scene.highDynamicRange = false;
-  scene.fog.enabled = true;
-  scene.fog.density = 0.00018;
+  scene.fog.enabled = false;
+  scene.fog.density = 0;
   scene.skyAtmosphere.hueShift = 0;
   scene.skyAtmosphere.saturationShift = 0.05;
   scene.light = new Cesium.SunLight();
@@ -263,6 +274,10 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     const layer = viewer.imageryLayers.addImageryProvider(p);
     layer.brightness = 1.02;
     layer.saturation = 1.05;
+    if (Cesium.TextureMinificationFilter) {
+      layer.minificationFilter = Cesium.TextureMinificationFilter.LINEAR;
+      layer.magnificationFilter = Cesium.TextureMagnificationFilter.LINEAR;
+    }
   });
 
   // Start fetching the project's actual lithology raster early, but add it only for its timed preview.
@@ -345,6 +360,8 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   const requestUnderwater = () => {
     if (underwater) return underwater;
     underwater = createUnderwaterScene(underwaterCanvas);
+    // The canvas is 300×150 until resized. Leaving it there stretches a tiny buffer over the full frame.
+    underwater.resize(container.clientWidth, container.clientHeight);
     return underwater;
   };
 
@@ -438,13 +455,17 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     const mmBank = mmGeometry.polygon.map(({ lon, lat }) => [lon, lat]);
 
     // Spillway on the real Khadakwasla crest (visual simulation of an overflow release).
+    // Gorge and Mula–Mutha terrain sampling do not depend on it, so they start now instead of after the dam mesh.
     const [ca, cb] = KHADAKWASLA_CREST;
     const lerpLL = (k) => [ca[0] + (cb[0] - ca[0]) * k, ca[1] + (cb[1] - ca[1]) * k];
-    spill = await createSpillway(Cesium, scene, [lerpLL(0.34), lerpLL(0.66)]).catch((e) => {
+    const spillPromise = createSpillway(Cesium, scene, [lerpLL(0.34), lerpLL(0.66)]).catch((e) => {
       console.warn("spillway failed", e);
       return null;
     });
+    const gorgePromise = conditionRiverProfile(gorgeLine, { stepM: 40, maxHalf: 40, minWidth: 40, zoom: 12, snapM: jrcG ? 0 : 450, foamSlope: [0.0012, 0.006] });
+    const mmPromise = conditionRiverProfile(mmLine, { stepM: 30, maxHalf: 38, minWidth: 18, zoom: 14, snapM: 0 });
 
+    spill = await spillPromise;
     // The Mutha surface begins where the spillway tail-water ends, so the released water visibly continues downstream.
     // HydroRIVERS routes the Mutha through the reservoir (its first vertices lie up to 2.3 km inside the lake), so keep
     // only vertices clearly downstream of the dam face.
@@ -476,12 +497,8 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       sm.push(muthaLine[muthaLine.length - 1]);
       muthaLine.splice(0, muthaLine.length, ...sm);
     }
-    [gorge, mutha, mulaMutha] = await Promise.all([
-      // Ganga in the Garhwal gorge is ~70–110 m wide; the 30 m DEM resolves the gorge floor well, so snapping is reliable.
-      conditionRiverProfile(gorgeLine, { stepM: 40, maxHalf: 40, minWidth: 40, zoom: 14, snapM: jrcG ? 0 : 450, foamSlope: [0.0012, 0.006] }),
-      conditionRiverProfile(muthaLine, { stepM: 40, maxHalf: 14, minWidth: 14, zoom: 14, snapM: jrcM ? 0 : 300, foamSlope: [0.002, 0.01] }),
-      conditionRiverProfile(mmLine, { stepM: 30, maxHalf: 38, minWidth: 18, zoom: 14, snapM: 0 }),
-    ]);
+    const muthaPromise = conditionRiverProfile(muthaLine, { stepM: 40, maxHalf: 14, minWidth: 14, zoom: 12, snapM: jrcM ? 0 : 300, foamSlope: [0.002, 0.01] });
+    [gorge, mutha, mulaMutha] = await Promise.all([gorgePromise, muthaPromise, mmPromise]);
     if (destroyed) return;
     // Measured JRC half-widths (resampled index-proportionally onto the conditioned profile).
     const applyHalf = (prof, halfs, lo, hi) => {
@@ -568,6 +585,10 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   // v = [lon, lat, targetHeightM, headingDeg, pitchDeg, log(rangeM)]
   let camKeys = [];
   let sunKeys = []; // v = [utcHours since 2026-03-20T00:00Z]
+  let pathReady = false;
+  const bootT0 = performance.now();
+  const bootMarks = {};
+  const markBoot = (name) => { bootMarks[name] = Math.round(performance.now() - bootT0); };
   const LR = Math.log;
 
   async function buildKeys() {
@@ -611,10 +632,10 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     // Smooth bump 0..1..0 over [a, b] of k (no corners -> no abrupt zoom).
     const bump = (k, a, b) => (k <= a || k >= b ? 0 : Math.sin(((k - a) / (b - a)) * Math.PI) ** 2);
 
-    // 0–3: Earth -> India -> Himalaya
-    push(0.0, 64, 15, 0, 0, -90, 26e6);
-    push(1.3, 74, 21, 0, 0, -86, 8.5e6);
-    push(3.0, 79.2, 29.4, 0, 8, -50, 1.1e6);
+    // 0–2.8: already moving over India. No static full-Earth title hold.
+    push(0.0, 73.2, 22.0, 0, 28, -58, 3.6e6);
+    push(1.35, 77.6, 27.4, 0, 18, -46, 9.2e5);
+    push(2.8, 79.15, 30.15, 1600, 208, -36, 2.8e5);
     // 3–6: Garhwal Himalaya, then down to Devprayag, where the Alaknanda and Bhagirathi form the Ganga
     push(4.4, 79.0, 30.55, 2500, 215 - 360, -30, 1.5e5);
     hd = 215 - 360;
@@ -637,7 +658,7 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       hd = unwrap(hd, spill.downstreamBearing);
       // Instant relocation right after the screen is fully black (no sweep across India requesting unseen tiles),
       // then hold so the dam view's tiles refine before the fade-in.
-      push(11.02, c.lon, c.lat, c.h, hd - 6, -22, 1100);
+      keys.push({ t: 11.02, hard: true, v: [c.lon, c.lat, c.h, hd - 6, -22, LR(1100)] });
       push(11.3, c.lon, c.lat, c.h, hd - 6, -22, 1100);
       push(12.3, c.lon, c.lat, c.h, hd, -20, 900); // over the reservoir, looking downstream at the crest
       push(13.0, c.lon, c.lat, c.h, hd + 8, -26, 260); // closing on the crest
@@ -664,34 +685,37 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       push(26.0, p.lon, p.lat, p.h, hd + 3, -50, 1550);
     }
 
-    // Terrain clearance: steepen pitch / lengthen range until camera + line of sight stay above the DEM.
-    await Promise.all(
-      keys.map(async (k) => {
-        const [lon, lat, h, hdg] = k.v;
-        let pitch = k.v[4];
-        let range = Math.exp(k.v[5]);
-        if (range > 2.5e5) return;
-        for (let iter = 0; iter < 14; iter++) {
-          const pr = (Math.abs(pitch) * Math.PI) / 180;
-          const D = range * Math.cos(pr);
-          const H = range * Math.sin(pr);
-          const fs = [];
-          for (let f = 0.15; f <= 1.0001; f += 0.085) fs.push(f);
-          const gs = await Promise.all(
-            fs.map((f) => {
-              const q = destPoint(lon, lat, (hdg + 180) % 360, D * f);
-              return sampleTerrariumHeight(q[0], q[1], range < 3000 ? 13 : 10).catch(() => -1e9);
-            })
-          );
-          const ok = fs.every((f, i) => gs[i] + Math.min(40, 8 + 0.05 * D * f) <= h + H * f);
-          if (ok) break;
-          if (pitch > -72) pitch -= 4;
-          else range *= 1.2;
-        }
-        k.v[4] = pitch;
-        k.v[5] = Math.log(range);
-      })
-    );
+    // Terrain clearance. Zoom 12 reuses tiles already fetched for the gorge; zoom 13 was a second uncached set
+    // and stalled the film on the Himalaya view for ~20 s. Close keys only, two samples, yielded in small batches
+    // so the opening camera keeps painting.
+    const clearKey = async (k) => {
+      const [lon, lat, h, hdg] = k.v;
+      let pitch = k.v[4];
+      let range = Math.exp(k.v[5]);
+      if (range > 8000) return;
+      for (let iter = 0; iter < 2; iter++) {
+        const pr = (Math.abs(pitch) * Math.PI) / 180;
+        const D = range * Math.cos(pr);
+        const H = range * Math.sin(pr);
+        const fs = [0.55, 1];
+        const gs = await Promise.all(
+          fs.map((f) => {
+            const q = destPoint(lon, lat, (hdg + 180) % 360, D * f);
+            return sampleTerrariumHeight(q[0], q[1], 12).catch(() => -1e9);
+          })
+        );
+        const ok = fs.every((f, i) => gs[i] + Math.min(40, 8 + 0.05 * D * f) <= h + H * f);
+        if (ok) break;
+        if (pitch > -68) pitch -= 6;
+        else range *= 1.18;
+      }
+      k.v[4] = pitch;
+      k.v[5] = Math.log(range);
+    };
+    const close = keys.filter((k) => Math.exp(k.v[5]) <= 2500);
+    for (let i = 0; i < close.length; i += 12) {
+      await Promise.all(close.slice(i, i + 12).filter((_, j) => j % 3 === 0).map(clearKey));
+    }
     // Independent per-key corrections can differ a lot between neighbours (altitude jumps); propagate the steepest
     // pitch / longest range within +-0.6 s and then average, so clearance changes ease in and out.
     const cp = keys.map((k) => k.v[4]);
@@ -786,6 +810,10 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     viewer.camera.lookAt(_target, new Cesium.HeadingPitchRange(Cesium.Math.toRadians(v[3]), Cesium.Math.toRadians(v[4]), Math.exp(v[5])));
 
     const rng = Math.exp(v[5]);
+    // Atmosphere only on the orbital approach. River and dam shots stay clear, not hazed.
+    scene.fog.enabled = rng > 8e5;
+    scene.fog.density = rng > 8e5 ? 0.00004 : 0;
+    globe.showGroundAtmosphere = rng > 5e5;
     overviewEntities.forEach((e) => (e.show = t < 4.6));
     const near = rng < 8e4;
     ribbons.forEach((r) => (r.primitive.show = near));
@@ -808,12 +836,9 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       floodSamples.show = t >= 23.35 && t < 24.7 && near;
     }
 
-    // Controlled cut between distant locations (Rishikesh -> Khadakwasla): short fade through black.
-    if (cutEl) {
-      let a = 0;
-      for (const [t0, t1] of CUTS) a = Math.max(a, smooth(clamp01((t - t0) / 0.3)) * (1 - smooth(clamp01((t - (t1 - 0.3)) / 0.3))));
-      cutEl.style.opacity = String(a);
-    }
+    // The Rishikesh → Khadakwasla jump is a hard cut between two photographs.
+    // A black veil here was a plain colour covering the film.
+    if (cutEl) cutEl.style.opacity = "0";
 
     // Underwater cut (Three.js canvas over Cesium): fade in from the Mutha surface, back out over the Pune reach.
     const uwA = Math.min(clamp01((t - 15.75) / 0.45), 1 - clamp01((t - 18.55) / 0.45));
@@ -825,9 +850,7 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   function frame(now) {
     if (!active || destroyed) return;
     rafId = requestAnimationFrame(frame);
-    // Real elapsed time (not clamped): the timeline is driven by the wall clock, so the film always lasts exactly
-    // TOTAL_DURATION seconds — a slow GPU drops frames instead of stretching the film (the old 0.1 s clamp made a
-    // 25 s film run 60–100 s below 10 fps).
+    // Wall-clock timeline, but a single late frame cannot skip a stretch of the shot.
     const dt = Math.max(0, (now - lastFrame) / 1000);
     lastFrame = now;
     if (!ready) {
@@ -843,7 +866,28 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       if (now - lastDebugRender < 700) return;
       lastDebugRender = now;
     } else if (isPlaying) {
-      currentTime = Math.min(TOTAL_DURATION, playAnchorFilm + ((now - playAnchorWall) / 1000) * playbackSpeed);
+      let proposed = Math.min(TOTAL_DURATION, playAnchorFilm + ((now - playAnchorWall) / 1000) * playbackSpeed);
+      // Later scenes need the surveyed profiles. Hold on the moving Himalaya view, never on a blank frame.
+      if (!pathReady && proposed > 2.8) {
+        proposed = 2.8;
+        playAnchorFilm = 2.8;
+        playAnchorWall = now;
+      }
+      // The previous presented frame had no satellite texture. Keep the last photograph on screen
+      // while the next tiles arrive, instead of filling the film with a flat colour.
+      const uwOn = parseFloat(underwaterCanvas.style.opacity || "0") > 0.15;
+      if (globeShown && !uwOn && !lastFrameHadPhoto && lastPhotoT > 0.15 && now - releasedAt > 4000) {
+        if (!solidSince) solidSince = now;
+        if (now - solidSince < 2500) {
+          proposed = lastPhotoT;
+          playAnchorFilm = lastPhotoT;
+          playAnchorWall = now;
+        } else {
+          releasedAt = now;
+          solidSince = 0;
+        }
+      }
+      currentTime = proposed;
       if (currentTime >= TOTAL_DURATION) {
         isPlaying = false;
         if (!completionSent) {
@@ -859,8 +903,8 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       const scene = requestUnderwater();
       scene.ready.then(() => scene.warmup()).catch((err) => console.warn("underwater scene unavailable", err));
     }
-    if (currentTime >= 19.8 && !lithologyProviderReady) requestLithology();
-    if (currentTime >= 21 && !floodSamplesReady) requestFloodSamples();
+    if (currentTime >= 21.35 && !lithologyProviderReady) requestLithology();
+    if (currentTime >= 22.9 && !floodSamplesReady) requestFloodSamples();
     applyTime(currentTime);
     const tB = performance.now();
     spray?.update(Math.min(dt, 0.05) * (isPlaying || debugAt != null ? 1 : 0.0001), (currentTime > 5.8 && currentTime < 11.2) || (currentTime > 11.8 && currentTime < 16.3));
@@ -868,23 +912,20 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     ribbons.forEach((r) => {
       r.material.uniforms.u_time = (now / 1000) % 1000;
     });
-    // Adaptive detail: sustained slow frames (avg > 45 ms over ~1 s) coarsen terrain/imagery LOD one step.
-    if (isPlaying) {
-      frameAvg = frameAvg * 0.95 + Math.min(dt, 0.25) * 0.05;
-      if (!manualQuality) {
-        const nextTier = frameAvg > 0.045 ? "lower" : frameAvg < 0.023 ? "higher" : null;
-        const stableFor = nextTier === "lower" ? 1400 : 5000;
-        if (nextTier && now - lastLodStep > stableFor) {
-          const tiers = ["low", "balanced", "high"];
-          const index = tiers.indexOf(currentQuality);
-          const next = tiers[Math.max(0, Math.min(2, index + (nextTier === "lower" ? -1 : 1)))];
-          if (next !== currentQuality) applyQuality(next);
-          lastLodStep = now;
-        }
-      }
-    }
     const tC = performance.now();
     scene.render();
+    const uwShowing = parseFloat(underwaterCanvas.style.opacity || "0") > 0.15;
+    lastFrameHadPhoto = frameHasImagery() || uwShowing;
+    if (!globeShown) {
+      if (lastFrameHadPhoto || now - globeHiddenAt > 10000) {
+        globeShown = true;
+        container.style.visibility = "visible";
+      }
+    }
+    if (lastFrameHadPhoto) {
+      lastPhotoT = currentTime;
+      solidSince = 0;
+    }
     const tD = performance.now();
     if (PERF && tD - tA > 150) console.warn(`[perf] slow frame t=${currentTime.toFixed(2)} apply=${(tB - tA).toFixed(0)} spray+uniforms=${(tC - tB).toFixed(0)} render=${(tD - tC).toFixed(0)} ms`);
 
@@ -911,67 +952,108 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     }
   }
 
+  function frameHasImagery() {
+    const tiles = globe._surface && globe._surface._tilesToRender;
+    if (!tiles) return true;
+    if (!tiles.length) return false;
+    let photos = 0;
+    for (let i = 0; i < tiles.length; i++) {
+      const imagery = tiles[i].data && tiles[i].data.imagery;
+      if (!imagery) continue;
+      for (let j = 0; j < imagery.length; j++) {
+        const ready = imagery[j].readyImagery;
+        if (ready && ready.texture) { photos++; break; }
+      }
+    }
+    return photos >= 3 && photos / tiles.length >= 0.5;
+  }
+  let lastPhotoT = 0;
+  let solidSince = 0;
+  let releasedAt = 0;
+  let lastFrameHadPhoto = false;
+  let globeShown = false;
+  let globeHiddenAt = performance.now();
+  container.style.visibility = "hidden";
+
   function onResize() {
+    fitResolution();
     underwater?.resize(container.clientWidth, container.clientHeight);
   }
   window.addEventListener("resize", onResize);
+
+  function armPrefetch() {
+    if (destroyed || camKeys.length < 2) return;
+    prefetcher?.stop();
+    const poses = [];
+    const end = pathReady ? TOTAL_DURATION : 2.8;
+    for (let t = 0; t <= end; t += 0.5) {
+      const v = sampleKeys(camKeys, t);
+      poses.push({ t, lon: v[0], lat: v[1], heading: v[3], pitch: v[4], range: Math.exp(v[5]) });
+    }
+    prefetcher = createTilePrefetcher(poses, {
+      viewportH: container.clientHeight * (window.devicePixelRatio || 1) * QP.resScale,
+      sse: QP.sse,
+      concurrency: SMALL_PC ? 3 : 4,
+    });
+    prefetcher.start();
+    console.info("[cine] prefetch tiles", prefetcher.progress().total);
+  }
 
   (async () => {
     try {
       onProgress?.("Preparing real Earth…", 2);
       if (PERF) console.warn(`[perf] quality=${QUALITY}`);
-      const tI0 = performance.now();
-      await loadData();
-      if (PERF) console.warn(`[perf] loadData ${(performance.now() - tI0).toFixed(0)} ms`);
-      if (destroyed) return;
-      onProgress?.("Planning camera path…", 75);
-      const tI1 = performance.now();
-      await buildKeys();
-      if (PERF) console.warn(`[perf] buildKeys ${(performance.now() - tI1).toFixed(0)} ms`);
-      if (destroyed) return;
-      onResize();
-      // Tiles for the whole flight are downloaded in the background by the look-ahead prefetcher (no camera jumps,
-      // so the live Earth stays on screen during loading). The film starts once the opening view and the first river
-      // shots (to 6.5 s) are in, capped at 8 s; later shots keep prefetching while the film plays.
-      const poses = [];
-      for (let t = 0; t <= TOTAL_DURATION; t += 0.5) {
-        const v = sampleKeys(camKeys, t);
-        poses.push({ t, lon: v[0], lat: v[1], heading: v[3], pitch: v[4], range: Math.exp(v[5]) });
-      }
-      prefetcher = createTilePrefetcher(poses, {
-        viewportH: container.clientHeight * (window.devicePixelRatio || 1) * QP.resScale,
-        sse: QP.sse,
-        // Keep a few browser connections free for Cesium's visible-view requests. A larger look-ahead pool saturated
-        // the imagery host and left the live dam shot on its untextured baseColor even while downloads were pending.
-        concurrency: QUALITY === "low" ? 2 : 3,
+      // Opening poses do not need river profiles, so the camera can move before Mula–Mutha terrain is sampled.
+      camKeys = [
+        { t: 0.0, v: [73.2, 22.0, 0, 28, -58, LR(3.6e6)] },
+        { t: 1.35, v: [77.6, 27.4, 0, 18, -46, LR(9.2e5)] },
+        { t: 2.8, v: [79.15, 30.15, 1600, 208, -36, LR(2.8e5)] },
+      ];
+      sunKeys = [{ t: 0, v: [5.0] }, { t: 3, v: [4.2] }, { t: 26, v: [12.4] }];
+      applyTime(0);
+      scene.render();
+      markBoot("firstPose");
+      const pipeline = (async () => {
+        const tI0 = performance.now();
+        await loadData();
+        markBoot("data");
+        if (PERF) console.warn(`[perf] loadData ${(performance.now() - tI0).toFixed(0)} ms`);
+        if (destroyed) return;
+        onProgress?.("Planning camera path…", 75);
+        const tI1 = performance.now();
+        await buildKeys();
+        markBoot("keys");
+        if (PERF) console.warn(`[perf] buildKeys ${(performance.now() - tI1).toFixed(0)} ms`);
+        pathReady = true;
+        armPrefetch();
+        markBoot("pathReady");
+        console.info("[cine] boot", bootMarks);
+      })();
+      pipeline.catch((err) => {
+        // Keep the live satellite. A terrain timeout must not restart the journey title.
+        console.error("RIVER.EYE path failed", err);
+        onProgress?.("Satellite view ready", 80);
       });
-      prefetcher.start();
-      const waitUntil = (cond, capMs, label) =>
+      onResize();
+      const waitUntil = (cond, capMs) =>
         new Promise((res) => {
           const t0 = performance.now();
           const chk = () => {
             if (destroyed) return res();
-            const { done, total } = prefetcher.progress();
-            onProgress?.(label, 80 + Math.round((19 * done) / Math.max(1, total)));
-            cond() || performance.now() - t0 > capMs ? res() : setTimeout(chk, 120);
+            cond() || performance.now() - t0 > capMs ? res() : setTimeout(chk, 80);
           };
           chk();
         });
-      const tW = performance.now();
       if (debugAt != null) {
-        // Verification mode: frozen frame at ?t — show it only once its own tiles are fully loaded.
+        await pipeline;
         applyTime(debugAt);
-        await waitUntil(() => { scene.render(); return globe.tilesLoaded; }, 15000, "Loading view…");
+        await waitUntil(() => { scene.render(); return globe.tilesLoaded; }, 15000);
       } else {
-        applyTime(0);
-        // Gate only on the opening globe. Upcoming river and terrain tiles continue loading in the background;
-        // waiting for every tile through film-time 6.5 delayed playback and did not ensure later shots were ready.
-        await waitUntil(() => { scene.render(); return globe.tilesLoaded; }, 1400, "Preparing the opening view…");
-        // Start after the opening view has had a brief chance to resolve. The prefetcher streams upcoming shots
-        // without camera jumps; terrain and imagery refine progressively as each scene approaches.
+        // Stay hidden until a real satellite texture is on the globe. A terrain-only frame is the flat colour.
+        await waitUntil(() => frameHasImagery(), 10000);
       }
-      if (PERF) console.warn(`[perf] startup wait ${(performance.now() - tW).toFixed(0)} ms, prefetched ${JSON.stringify(prefetcher.progress())}`);
       if (destroyed) return;
+      markBoot("play");
       ready = true;
       lastFrame = performance.now();
       if (debugAt == null) {
@@ -985,6 +1067,7 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
         viewer, Cesium, get t() { return currentTime; }, seek, pause, play, globe,
         restart, setActive, setQuality, getQuality: () => currentQuality,
         cameraPose: () => sampleKeys(camKeys, currentTime),
+        bootMarks: () => ({ ...bootMarks, pathReady }),
         previewStatus: () => ({ lithologyReady: !!lithologyLayer?.imageryProvider, lithologyAlpha: lithologyLayer?.alpha ?? 0,
           lithologyIndex: lithologyLayer ? viewer.imageryLayers.indexOf(lithologyLayer) : -1,
           lithologySize: lithologyLayer ? [lithologyLayer.imageryProvider.tileWidth, lithologyLayer.imageryProvider.tileHeight] : null,
@@ -1031,20 +1114,22 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
   let currentQuality = QUALITY;
   function applyQuality(tier) {
     const profiles = {
-      low: { sse: 3.2, cache: 1000, scale: Math.min(0.8, 1 / (window.devicePixelRatio || 1)) },
-      balanced: { sse: 2.2, cache: 2000, scale: Math.min(1, 1.25 / (window.devicePixelRatio || 1)) },
-      high: { sse: 1.6, cache: 4000, scale: 1 },
+      low: { sse: 1.5, cache: TILE_CACHE, scale: 1, msaa: 2 },
+      balanced: { sse: 1.15, cache: TILE_CACHE, scale: 1, msaa: 2 },
+      high: { sse: 1.0, cache: TILE_CACHE, scale: 1, msaa: 2 },
     };
     const profile = profiles[tier];
     if (!profile) return false;
     currentQuality = tier;
     globe.maximumScreenSpaceError = profile.sse;
     globe.tileCacheSize = profile.cache;
-    viewer.resolutionScale = profile.scale;
+    viewer.useBrowserRecommendedResolution = false;
+    if (scene.msaaSamples !== undefined) scene.msaaSamples = profile.msaa;
+    fitResolution();
+    if (scene.postProcessStages?.fxaa) scene.postProcessStages.fxaa.enabled = false;
     return true;
   }
   function setQuality(tier) {
-    manualQuality = true;
     return applyQuality(tier);
   }
   function togglePlay() {
@@ -1075,4 +1160,3 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     },
   };
 }
-

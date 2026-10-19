@@ -116,7 +116,9 @@ export class HydraulicProfileEngine {
         const denom = (2 / 3) * width * sqrtS;
         h_normal = Math.max(0.15, Math.pow((Q * manningN) / Math.max(1e-4, denom), 0.6));
       }
-      if (Number.isFinite(surveyH) && surveyH > h_normal) h_normal = surveyH;
+      // Do NOT floor hydraulic depth by survey sounding — survey depth describes
+      // bathymetry capacity / survey-time water, not live stage. Live Q must be
+      // free to produce shallower (or deeper) depths than the survey snapshot.
 
       const area = areaAt(h_normal);
       const perim = perimAt(h_normal);

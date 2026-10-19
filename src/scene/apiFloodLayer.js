@@ -195,13 +195,12 @@ export function createApiFloodLayer(dataset) {
       state.floodRiseM = physicalRiseM;
       const currentWaterY = SURFACE_Y + physicalRiseM;
 
-      // Lift flood sheet with the same rising WSE so channel + extent stay flush.
-      const groundY = mesh.userData?.groundY;
+      // One level plane, flush with the river sheet (SURFACE_Y + rise).
+      // Do not drape onto DTM — that climbed banks and left gaps at the channel.
       const posAttr = mesh.geometry?.attributes?.position;
-      if (groundY && posAttr && groundY.length === posAttr.count) {
-        for (let i = 0; i < posAttr.count; i++) {
-          posAttr.setY(i, Math.max(currentWaterY, groundY[i] + 0.02));
-        }
+      if (posAttr) {
+        const y = currentWaterY + 0.04;
+        for (let i = 0; i < posAttr.count; i++) posAttr.setY(i, y);
         posAttr.needsUpdate = true;
         mesh.geometry.computeBoundingSphere?.();
       }
@@ -891,9 +890,8 @@ export function createApiFloodLayer(dataset) {
         let y;
         let depth;
         if (hasWaterLevel) {
-          // Start at normal river sheet; setProgress lifts with progress × rise_m.
-          const waterSurface = SURFACE_Y;
-          y = Math.max(waterSurface, gy + 0.03);
+          // Start level with the normal river; setProgress raises the whole sheet together.
+          y = SURFACE_Y + 0.04;
           depth = Math.max(0.0, (SURFACE_Y + Math.max(0, waterRiseM || 0)) - gy);
         } else {
           // Precise elevation alignment:

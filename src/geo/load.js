@@ -249,6 +249,7 @@ export async function loadJourneyDataset({
       full: dtm.fullWidth ? `${dtm.fullWidth}×${dtm.fullHeight}` : undefined,
       medianBankM: dtm.medianBankM?.toFixed(2),
       verticalOffset: dtm.verticalOffset?.toFixed(2),
+      waterLevelMsl: dtm.waterLevelProfile,
       lite,
     });
   } catch (dtmErr) {

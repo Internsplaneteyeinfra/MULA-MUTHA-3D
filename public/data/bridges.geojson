@@ -326,6 +326,62 @@
           ]
         ]
       }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "1545663009",
+        "name": "Kharadi–Keshavnagar Bridge",
+        "highway": "secondary",
+        "lanes": 2,
+        "widthM": 12,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.9444649,
+            18.542816
+          ],
+          [
+            73.9443849,
+            18.5428761
+          ],
+          [
+            73.9437523,
+            18.5451592
+          ]
+        ]
+      }
+    },
+    {
+      "type": "Feature",
+      "properties": {
+        "osmId": "1550381920",
+        "name": "Kharadi–Keshavnagar Bridge",
+        "highway": "secondary",
+        "lanes": 2,
+        "widthM": 12,
+        "source": "OpenStreetMap"
+      },
+      "geometry": {
+        "type": "LineString",
+        "coordinates": [
+          [
+            73.9438409,
+            18.5452559
+          ],
+          [
+            73.9444882,
+            18.5428906
+          ],
+          [
+            73.9444649,
+            18.542816
+          ]
+        ]
+      }
     }
   ]
 }

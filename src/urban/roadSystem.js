@@ -84,7 +84,14 @@ export function createRoadSystem(dataset) {
     };
   });
 
-  const bridgeOsmIds = new Set(bridges.map((b) => String(b.id || b.osmId)));
+  const bridgeOsmIds = new Set();
+  for (const b of bridges) {
+    if (b.id) bridgeOsmIds.add(String(b.id));
+    if (b.osmId) bridgeOsmIds.add(String(b.osmId));
+    if (Array.isArray(b.memberIds)) {
+      b.memberIds.forEach((id) => bridgeOsmIds.add(String(id)));
+    }
+  }
   const isBridgeWay = (road) => {
     const osmId = String(road.osmId || road.id || "");
     if (bridgeOsmIds.has(osmId)) return true;
@@ -511,7 +518,7 @@ function isUnderBridgeSpan(x, z, bridgeBoxes, roadHalfWidth = 0) {
 }
 
 function roadHeightAt(x, z, stations, bridgeBoxes) {
-  const ground = terrainHeightAt(x, z, stations) + 0.28;
+  const ground = Math.max(terrainHeightAt(x, z, stations), SURFACE_Y + 0.15) + 0.28;
   if (!bridgeBoxes?.length) return ground;
 
   const nearAbut = findNearBridgeAbutment(x, z, bridgeBoxes, BRIDGE_APPROACH_M);

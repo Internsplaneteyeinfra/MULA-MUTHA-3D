@@ -43,22 +43,24 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
 
       _engineInstance = new HydraulicProfileEngine(stations, soundings);
 
-      // Start live Open-Meteo polling (every 15 min, free, no API key)
+      // Start live GloFAS + Open-Meteo polling (every 15 min, free, no API key)
       startLiveHydrologyPolling();
 
-      // Re-solve hydraulic profile whenever new rainfall data arrives
+      // Re-solve hydraulic profile whenever live discharge arrives
       subscribeLiveHydrology((liveData) => {
-        if (liveData?.available && Number.isFinite(liveData.Q_runoff) && liveData.Q_runoff > 0.5) {
-          refreshHydrologyProfile({
-            discharge_m3s: liveData.Q_total,
-            source: `LIVE_RAINFALL_RUNOFF — ${liveData.weatherDescription ?? ""} — ${liveData.currentRain_mm_hr ?? 0} mm/hr`,
-            provenance: PROVENANCE_STATUS.MODELLED,
-          });
-          console.info(
-            `[LiveHydrology] Profile updated: Q=${liveData.Q_total.toFixed(1)} m³/s`,
-            `(rain=${liveData.currentRain_mm_hr} mm/hr, baseflow=${liveData.Q_baseflow} m³/s)`
-          );
-        }
+        if (!liveData?.available || !Number.isFinite(liveData.Q_total) || liveData.Q_total <= 0) return;
+        const fromGlofas = Number.isFinite(liveData.Q_glofas);
+        refreshHydrologyProfile({
+          discharge_m3s: liveData.Q_total,
+          source: fromGlofas
+            ? `GLOFAS_LIVE — Q=${liveData.Q_glofas} m³/s (${liveData.Q_glofas_date})`
+            : `LIVE_RAINFALL_RUNOFF — ${liveData.weatherDescription ?? ""} — ${liveData.currentRain_mm_hr ?? 0} mm/hr`,
+          provenance: PROVENANCE_STATUS.MODELLED,
+        });
+        console.info(
+          `[LiveHydrology] Profile updated: Q=${liveData.Q_total.toFixed(2)} m³/s`,
+          fromGlofas ? `(GloFAS ${liveData.Q_glofas_date})` : `(rain fallback)`,
+        );
       });
 
       // Attempt initial solve with verified telemetry or initial baseline
@@ -97,10 +99,12 @@ export async function refreshHydrologyProfile(customParams = {}) {
     } else {
       const { getCachedLiveHydrology } = await import("./liveHydrologyService.js");
       const live = getCachedLiveHydrology();
-      // Rainfall-runoff only when rain is actually contributing (not dry-season baseflow 15/35).
-      if (live?.available && Number.isFinite(live.Q_runoff) && live.Q_runoff > 0.5) {
+      // Prefer live GloFAS (or rainfall fallback) when the feed is available.
+      if (live?.available && Number.isFinite(live.Q_total) && live.Q_total > 0) {
         Q = live.Q_total;
-        source = `LIVE_RAINFALL_RUNOFF — ${live.weatherDescription ?? ""} — ${live.currentRain_mm_hr ?? 0} mm/hr`;
+        source = Number.isFinite(live.Q_glofas)
+          ? `GLOFAS_LIVE — Q=${live.Q_glofas} m³/s (${live.Q_glofas_date})`
+          : `LIVE_RAINFALL_RUNOFF — ${live.weatherDescription ?? ""} — ${live.currentRain_mm_hr ?? 0} mm/hr`;
         provenance = PROVENANCE_STATUS.MODELLED;
       } else {
         try {

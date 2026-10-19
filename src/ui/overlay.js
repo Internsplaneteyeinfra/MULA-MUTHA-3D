@@ -567,15 +567,15 @@ export function mountCinematicOverlays(root, dataset) {
   requestAnimationFrame(tick);
 }
 
-/** VIEW → 3D landing: low over the water, looking downstream along the channel. */
+/** VIEW → 3D landing: same low along-river angle used when a chainage is selected. */
 const VIEW_3D_POSE = {
   cameraHeight: 8,
-  cameraDistance: 70,
-  lookAheadDistance: 270,
-  lookY: SURFACE_Y + 5,
+  cameraDistance: 80,
+  lookAheadDistance: 0,
+  lookY: SURFACE_Y + 1.6,
   minHeight: 6,
   minBack: 40,
-  groundClearance: 5,
+  groundClearance: 4,
 };
 
 export function mountUI(root, {

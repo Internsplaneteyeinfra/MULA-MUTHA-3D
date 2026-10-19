@@ -27,6 +27,7 @@ export function girderTheme(name = "") {
   if (/dengle/.test(n)) return { steel: "#909890", pier: "#7ecfc0" };
   if (/aga khan/.test(n)) return { steel: "#8e96a4", pier: "#9ab4dc" };
   if (/sangamwadi/.test(n)) return { steel: "#8a9098", pier: "#86c4d4" };
+  if (/kharadi|keshavnagar/.test(n)) return { steel: "#8a949e", pier: "#8ec6d4" };
   return { ...DEFAULT_THEME };
 }
 

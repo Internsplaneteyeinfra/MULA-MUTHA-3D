@@ -2,7 +2,8 @@ import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 
 const TOP_Y = SURFACE_Y - 0.05;
-const BED_LIFT = 0.06;
+/** Same floor the terrain carve uses, so the column reaches the deep DTM instead of stopping on the survey bed. */
+const DTM_FLOOR_Y = SURFACE_Y - 29.6;
 
 /**
  * Water column only under the clipped river mesh (LULC + OSM water).
@@ -22,18 +23,22 @@ export function createWaterFill(_terrainMesh, river) {
   if (n < 3 || idx.length < 3) return null;
 
   const pos = new Float32Array(n * 6);
+  const col = new Float32Array(n * 6);
   for (let i = 0; i < n; i++) {
     const x = sPos[i * 3];
     const z = sPos[i * 3 + 2];
-    let bot = bPos && bPos.length >= (i + 1) * 3 ? bPos[i * 3 + 1] : TOP_Y - 1.2;
-    if (!Number.isFinite(bot)) bot = TOP_Y - 1.2;
-    bot = Math.min(bot + BED_LIFT, TOP_Y - 0.12);
+    let bed = bPos && bPos.length >= (i + 1) * 3 ? bPos[i * 3 + 1] : TOP_Y - 2;
+    if (!Number.isFinite(bed)) bed = TOP_Y - 2;
+    const bot = Math.min(bed - 0.15, DTM_FLOOR_Y);
     pos[i * 3] = x;
     pos[i * 3 + 1] = TOP_Y;
     pos[i * 3 + 2] = z;
     pos[(n + i) * 3] = x;
     pos[(n + i) * 3 + 1] = bot;
     pos[(n + i) * 3 + 2] = z;
+    // Shallow near the surface, deep blue on the DTM floor.
+    col[i * 3] = 0.22; col[i * 3 + 1] = 0.72; col[i * 3 + 2] = 0.78;
+    col[(n + i) * 3] = 0.02; col[(n + i) * 3 + 1] = 0.16; col[(n + i) * 3 + 2] = 0.28;
   }
 
   const tris = [];
@@ -64,17 +69,17 @@ export function createWaterFill(_terrainMesh, river) {
 
   const geo = new THREE.BufferGeometry();
   geo.setAttribute("position", new THREE.BufferAttribute(pos, 3));
+  geo.setAttribute("color", new THREE.BufferAttribute(col, 3));
   geo.setIndex(tris);
   geo.computeVertexNormals();
 
-  const mat = new THREE.MeshPhysicalMaterial({
-    color: 0x187a9c,
-    roughness: 0.22,
-    metalness: 0,
+  const mat = new THREE.MeshBasicMaterial({
+    vertexColors: true,
     transparent: true,
-    opacity: 0.45,
+    opacity: 0.82,
     side: THREE.DoubleSide,
     depthWrite: false,
+    toneMapped: false,
   });
   const mesh = new THREE.Mesh(geo, mat);
   mesh.name = "riverWaterVolume";

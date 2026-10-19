@@ -14,11 +14,14 @@ const BRIDGE_DISPLAY_NAMES = {
   "207164105": "Fitzgerald Bridge",
   "127048454": "Aga Khan Bridge",
   "116839303": "Mundhwa Bridge",
+  "1545663009": "Kharadi–Keshavnagar Bridge",
+  "1550381920": "Kharadi–Keshavnagar Bridge",
 };
 
 /** OSM ids that are bank stubs of the same crossing — keep one merged deck. */
 const MERGE_GROUPS = [
   { ids: ["117219023", "117218165", "207164105"], name: "Fitzgerald Bridge", widthM: 14 },
+  { ids: ["1545663009", "1550381920"], name: "Kharadi–Keshavnagar Bridge", widthM: 20 },
 ];
 
 /**
@@ -87,6 +90,7 @@ export async function loadOsmBridges(url, frame, corridor) {
     
     merged.push({
       id: group.ids[0],
+      memberIds: group.ids,
       name: group.name,
       highway: members[0].highway,
       widthM: Math.max(group.widthM, ...members.map((m) => m.widthM)),

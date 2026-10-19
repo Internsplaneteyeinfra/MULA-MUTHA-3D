@@ -1,15 +1,23 @@
 import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { interpolateChainage } from "../geo/chainage.js";
-import { pointAlongRiver, smoothTangent, stationAt } from "./riverCamera.js";
+import {
+  CHAINAGE_BACK_M,
+  CHAINAGE_EYE_HEIGHT,
+  CHAINAGE_FOV,
+  CHAINAGE_LOOK_ABOVE,
+  pointAlongRiver,
+  smoothTangent,
+  stationAt,
+} from "./riverCamera.js";
 import { terrainHeightAt } from "./terrain.js";
 
 /**
  * Chainage-to-chainage travel along the river corridor.
  *
  * The camera anchor walks the chainage centerline (never a straight chord across land);
- * the pose at every instant is the same aerial-oblique inspection pose as
- * `chainageGisAerialPose` (44 m up, 95 m back, 240 m ahead).
+ * the pose at every instant is the low along-river chainage view
+ * (`chainageGisAerialPose`: 8 m up, 80 m back, looking at the station).
  * Water flow is untouched — only the camera moves.
  */
 export const CameraMode = Object.freeze({
@@ -32,7 +40,13 @@ const HEADING_TAU_S = 0.18;
 /** Minimum eye distance inside the bank line. */
 const CHANNEL_MARGIN_M = 6;
 
-const BASE_POSE = { height: 18, back: 42, ahead: 0, lookAbove: 1.2, fov: 52 };
+const BASE_POSE = {
+  height: CHAINAGE_EYE_HEIGHT,
+  back: CHAINAGE_BACK_M,
+  ahead: 0,
+  lookAbove: CHAINAGE_LOOK_ABOVE,
+  fov: CHAINAGE_FOV,
+};
 
 export function transitionDuration(distanceM) {
   const d = Math.max(0, distanceM);
@@ -143,8 +157,8 @@ export function createRiverJourney({ dataset, getBridges }) {
   function facingPose(u, x, z, dir, pose, out) {
     const st = stationAt(stations, u);
     const tan = smoothTangent(stations, u, 0.035);
-    const h = pose.height || 18;
-    const dist = pose.back || 42;
+    const h = pose.height || CHAINAGE_EYE_HEIGHT;
+    const dist = pose.back || CHAINAGE_BACK_M;
 
     // Position camera directly over water along local river flow tangent:
     out.p.set(x - dir * tan.x * dist, SURFACE_Y + h, z - dir * tan.z * dist);

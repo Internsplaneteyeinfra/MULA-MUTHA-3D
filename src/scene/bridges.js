@@ -25,6 +25,7 @@ const DECK_ABOVE_WATER_M = [
   { test: /sangam/i, m: 8.2 },
   { test: /dengle/i, m: 7.8 },
   { test: /shivaji/i, m: 7.8 },
+  { test: /kharadi|keshavnagar/i, m: 8.2 },
 ];
 const BRIDGE_APPROACH_M = 36;
 
@@ -41,19 +42,14 @@ function deckYForBridge(name, y0, y1) {
   const n = String(name || "");
   const bank = Math.max(y0, y1);
   const roadY = bank + 0.28;
-  const masonry = /mundhwa|fitzgerald|yerwada|yarwada|bund garden|ambedkar|babasaheb/i.test(n);
-  if (masonry) {
-    let above = 7.4;
-    for (const row of DECK_ABOVE_WATER_M) {
-      if (row.test.test(n)) {
-        above = row.m;
-        break;
-      }
+  let above = 7.6;
+  for (const row of DECK_ABOVE_WATER_M) {
+    if (row.test.test(n)) {
+      above = row.m;
+      break;
     }
-    return Math.max(SURFACE_Y + above, roadY);
   }
-  // Road bridges sit on the approach asphalt — not floating above it.
-  return Math.max(SURFACE_Y + 1.85, roadY);
+  return Math.max(SURFACE_Y + above, roadY);
 }
 
 /**

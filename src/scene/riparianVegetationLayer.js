@@ -42,117 +42,14 @@ const DEFAULT_MAX_TREES = 2600;
 export async function createRiparianVegetationLayer(dataset, opts = {}) {
   const group = new THREE.Group();
   group.name = "riparianVegetation";
-  group.userData = { clusters: [], syncToWater: () => {}, dispose: () => {} };
-
-  const ring = dataset.ringLocal;
-  const stations = dataset.corridor?.stations || [];
-  if (!ring?.length || !stations.length) return group;
-
-  const lulc = await loadLulcClassGrid();
-  const cells = detectLandCells(ring, dataset.points || [], lulc, stations);
-  /** Along-river spans where LULC land would sever the channel (drawn under the water surface). */
-  group.userData.crossings = cells.crossings;
-  const clusters = clusterCells(cells).filter((c) => c.cells.length * cells.cellArea >= MIN_CLUSTER_M2);
-  if (!clusters.length) return group;
-
-  const maxTrees = Math.max(200, Number(opts.maxTrees) || DEFAULT_MAX_TREES);
-  const forestCells = clusters.reduce((s, c) => s + c.cells.filter((x) => x.kind === FOREST && !x.submerged).length, 0);
-  const treeChance = Math.min(TREE_CHANCE, (maxTrees / Math.max(1, forestCells)) * 0.85);
-  const rng = mulberry(0x51a7e5);
-  const landMat = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 });
-
-  const placements = [];
-  for (const cluster of clusters) {
-    const sub = new THREE.Group();
-    sub.name = "riparianCluster";
-    // No artificial island mesh is generated. Vegetation polygon is ONLY a mask.
-    const forest = cluster.cells.filter((c) => c.kind === FOREST && !c.submerged);
-    const raised = cluster.cells.filter((c) => !c.submerged);
-    const labelCells = forest.length ? forest : raised.length ? raised : cluster.cells;
-    const centre = labelCells.reduce((a, c) => ({ x: a.x + c.x, z: a.z + c.z }), { x: 0, z: 0 });
-    centre.x /= labelCells.length;
-    centre.z /= labelCells.length;
-    let anchor = labelCells[0];
-    let best = Infinity;
-    for (const c of labelCells) {
-      const d = (c.x - centre.x) ** 2 + (c.z - centre.z) ** 2 - c.depth * 400;
-      if (d < best) { best = d; anchor = c; }
-    }
-    const probe = [];
-    const probeStep = Math.max(1, Math.floor(labelCells.length / 120));
-    for (let i = 0; i < labelCells.length; i += probeStep) probe.push(labelCells[i]);
-
-    const info = {
-      group: sub,
-      /** Forest (vegetated) area — drives the RIPARIAN / VEGETATED AREA label. */
-      areaM2: Math.round(forest.length * cells.cellArea),
-      landM2: Math.round(cluster.cells.length * cells.cellArea),
-      id: group.userData.clusters.length,
-      surfaceVertex: null,
-      anchor: new THREE.Vector3(anchor.x, SURFACE_Y + INTERIOR_Y + 6, anchor.z),
-      probe,
-      waterOffset: 0,
-    };
-    group.userData.clusters.push(info);
-
-    for (const c of cluster.cells) {
-      if (c.kind !== FOREST) continue;
-      const p = cells.cornerLocal(c.i + 0.5, c.j + 0.5);
-      const dtmH = dataset.dtm?.sampleSceneXY?.(p.x, p.z);
-      const baseY = Math.max(dtmH ?? (SURFACE_Y + 1.2), SURFACE_Y + 0.8);
-      const asset = c.depth >= 1
-        ? riparianTreeAsset(rng)
-        : (rng() < 0.35 ? "grass" : rng() < 0.65 ? "shrub" : riparianTreeAsset(rng));
-      placements.push(treePlacement(c, cells, baseY, stations, info, asset, rng));
-      if (c.depth >= 2 && rng() < 0.55) {
-        placements.push(treePlacement(c, cells, baseY, stations, info, riparianTreeAsset(rng), rng));
-      }
-    }
-  }
-
-  const batches = await buildTreeBatches(placements.slice(0, maxTrees + 800), !!opts.castShadow, rng);
-  for (const b of batches) b.info.group.add(b.mesh);
-
-  /** Keep each patch just above the drawn water: follow the nearest river-surface vertex (flood rise excluded by caller). */
-  group.userData.syncToWater = (surfaceMesh, floodRiseM = 0) => {
-    const pos = surfaceMesh?.geometry?.getAttribute?.("position");
-    if (!pos) return;
-    for (const info of group.userData.clusters) {
-      if (info.surfaceVertex == null || info.surfaceVertex >= pos.count) {
-        let best = 0;
-        let bestD = Infinity;
-        for (let i = 0; i < pos.count; i++) {
-          const d = (pos.getX(i) - info.anchor.x) ** 2 + (pos.getZ(i) - info.anchor.z) ** 2;
-          if (d < bestD) { bestD = d; best = i; }
-        }
-        info.surfaceVertex = best;
-      }
-      const y = pos.getY(info.surfaceVertex) - Math.max(0, Number(floodRiseM) || 0);
-      if (!Number.isFinite(y)) continue;
-      const off = y - SURFACE_Y;
-      if (Math.abs(off - info.waterOffset) < 0.02) continue;
-      info.waterOffset = off;
-      info.group.position.y = off;
-    }
+  group.userData = {
+    clusters: [],
+    crossings: [],
+    syncToWater: () => {},
+    dispose: () => {
+      group.clear();
+    },
   };
-  group.userData.dispose = () => {
-    landMat.dispose();
-    group.traverse((o) => {
-      if (o.isMesh) {
-        o.geometry?.dispose?.();
-        if (o.isInstancedMesh) o.material?.dispose?.();
-      }
-    });
-    group.clear();
-  };
-
-  if (import.meta.env?.DEV) {
-    console.info("[riparian] LULC land inside river polygon", group.userData.clusters.map((c) => ({
-      forestM2: c.areaM2,
-      landM2: c.landM2,
-      lonLat: localToLonLat(c.anchor.x, c.anchor.z),
-    })), { trees: placements.length, channelCrossings: cells.crossings });
-  }
   return group;
 }
 

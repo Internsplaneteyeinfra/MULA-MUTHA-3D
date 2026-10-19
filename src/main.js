@@ -10,7 +10,6 @@ import { loadJourneyDataset } from "./geo/load.js";
 import { createWorld } from "./scene/world.js";
 import { mountUI, createTooltip, mountCinematicOverlays } from "./ui/overlay.js";
 import { registerServiceWorker } from "./cache/registerServiceWorker.js";
-import { createLoadingScene } from "./loadingScene.js";
 import { fetchBodCodViewerData } from "./services/bodCodService.js";
 import { mountAppLoader, hideLoader } from "./ui/appLoader.js";
 
@@ -41,14 +40,21 @@ function ensureGisBoot() {
   return gisBootPromise;
 }
 
+function whenRiverBackdrop() {
+  if (renderRiver) return Promise.resolve();
+  return new Promise((resolve) => {
+    window.addEventListener("rivereye-river-backdrop", resolve, { once: true });
+  });
+}
+
 async function switchToGis() {
-  const ready = await ensureGisBoot();
+  const bootPromise = ensureGisBoot();
+  await whenRiverBackdrop();
+  window.__riverEye?.setActive?.(false);
+  if (landingRootEl) landingRootEl.style.display = "none";
+  const ready = await bootPromise;
   if (!ready) return false;
   currentMode = "gis";
-  window.__riverEye?.setActive?.(false);
-  if (landingRootEl) {
-    landingRootEl.style.display = "none";
-  }
   window.dispatchEvent(new Event("rivereye-gis-ready"));
   return true;
 }
@@ -69,7 +75,7 @@ const loadBar = document.getElementById("load-bar");
 const loadPercent = document.getElementById("load-percent");
 const canvas = document.getElementById("scene");
 const uiRoot = document.getElementById("ui-root");
-const loadingScene = createLoadingScene(document.getElementById("loading-scene"));
+let renderRiver = false;
 
 let targetProgress = 0;
 let displayedProgress = 0;
@@ -95,8 +101,16 @@ function progress(p, msg) {
 
 const INTRO_3D_CHAINAGE_M = 8790;
 
+function showRiverBackdrop() {
+  if (renderRiver) return;
+  renderRiver = true;
+  window.dispatchEvent(new Event("rivereye-river-backdrop"));
+}
+
 async function boot() {
   try {
+    loading.classList.remove("hidden");
+    if (uiRoot) uiRoot.style.visibility = "hidden";
     // Server round trip is slow (~40 s when the viewer id has expired): start it now, in parallel with the scene load.
     const bodCodReady = fetchBodCodViewerData().catch((err) => {
       console.warn("[bod-cod] prefetch failed:", err?.message || err);
@@ -167,30 +181,41 @@ async function boot() {
     });
     function loop(now) {
       requestAnimationFrame(loop);
-      if (paused || currentMode !== "gis") return;
+      if (paused || (!renderRiver && currentMode !== "gis")) return;
       const rawDt = (now - last) / 1000;
       last = now;
       const dt = Math.min(0.1, Math.max(0.001, rawDt));
       app.update(dt);
     }
+    app.update(0.016);
+    showRiverBackdrop();
     requestAnimationFrame(loop);
 
-    await Promise.all([app.whenReady, firstLiveData]);
+    await Promise.all([
+      app.whenReady,
+      firstLiveData,
+      Promise.race([bodCodReady, new Promise((resolve) => setTimeout(resolve, 8000))]),
+    ]);
     progress(0.995, "Finalising…");
     try {
       window.__MM_SCENE__?.warmUp3DView?.(INTRO_3D_CHAINAGE_M, window.__MM_NAV__?.view3DPose);
     } catch (err) {
       console.warn("[boot] 3D warm-up skipped:", err?.message || err);
     }
-    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 400))));
     progress(1, "Ready");
+    await new Promise((resolve) => {
+      const wait = () => (displayedProgress >= 99.5 ? resolve() : requestAnimationFrame(wait));
+      wait();
+    });
+    await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
     loading.classList.add("hidden");
-    loadingScene.setVisible(false);
+    if (uiRoot) uiRoot.style.visibility = "";
     setTimeout(() => window.__MM_NAV__?.enter3D?.({ meters: INTRO_3D_CHAINAGE_M, dur: 3.2 }), 700);
     return true;
   } catch (err) {
     console.error("[boot] failed — full stack:", err);
     if (err?.stack) console.error(err.stack);
+    showRiverBackdrop();
     loadMsg.textContent = `Error: ${err?.message || err}`;
     targetProgress = 100;
     if (loadBar) {
@@ -202,12 +227,15 @@ async function boot() {
 }
 
 if (currentMode === "cinematic") {
+  // The GIS journey card sits underneath the film. Hide it so it cannot cover the opening or return when the film ends.
+  loading.classList.add("hidden");
   mountLandingPage();
   // Defer GIS scene construction until the film ends so Cesium and the river scene do not load together.
   window.addEventListener("rivereye-film-error", () => { void switchToGis(); }, { once: true });
   window.addEventListener(
     "rivereye-film-complete",
-    () => { void switchToGis(); }
+    () => { void switchToGis(); },
+    { once: true },
   );
 } else {
   void ensureGisBoot();

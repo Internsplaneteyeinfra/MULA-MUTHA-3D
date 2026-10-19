@@ -120,18 +120,27 @@ export function pointAlongRiver(stations, u, distanceM) {
 }
 
 /**
- * Aerial-oblique chainage framing:
- * - Stable elevation (42–60m) so banks, flood boundaries, and river geometry are unobstructed.
- * - Positioned behind station along local tangent, looking ahead along the forward curve.
- * - Enforces terrain and bank clearance so the camera never clips through hills or ground.
+ * Chainage view: low over the water, looking along the channel.
+ * The station marker stays near the middle of the frame; tree banks fill both sides.
+ */
+export const CHAINAGE_EYE_HEIGHT = 8;
+export const CHAINAGE_BACK_M = 80;
+export const CHAINAGE_LOOK_ABOVE = 1.6;
+export const CHAINAGE_FOV = 52;
+
+/**
+ * Low along-river chainage framing:
+ * - Eye just above the water, upstream of the station.
+ * - Looks at the chainage marker so it sits near frame center.
+ * - Stays inside the channel so the eye never sits on the bank.
  */
 export function chainageGisAerialPose(stations, {
   u,
   x,
   z,
-  cameraHeight = 18,
-  cameraDistance = 42,
-  lookY = SURFACE_Y + 1.2,
+  cameraHeight = CHAINAGE_EYE_HEIGHT,
+  cameraDistance = CHAINAGE_BACK_M,
+  lookY = SURFACE_Y + CHAINAGE_LOOK_ABOVE,
   lateralOffset = 0,
   outP,
   outL,
@@ -150,8 +159,8 @@ export function chainageGisAerialPose(stations, {
   // Local river direction from smoothed centerline tangent
   const tan = smoothTangent(stations, uu, 0.035);
 
-  const dist = THREE.MathUtils.clamp(cameraDistance, 25, 55);
-  const h = THREE.MathUtils.clamp(cameraHeight, 14, 26);
+  const dist = THREE.MathUtils.clamp(cameraDistance, 20, 400);
+  const h = THREE.MathUtils.clamp(cameraHeight, 5, 280);
 
   // Position camera upstream along tangent directly over water
   const cx = px - tan.x * dist;

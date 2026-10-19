@@ -10,25 +10,26 @@
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
 
-const FISH_LEN_M = 0.42; // typical adult cyprinid ~ 30–50 cm
-
 export function createUnderwaterScene(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, (navigator.deviceMemory || 8) <= 4 ? 1.5 : 2));
   renderer.outputColorSpace = THREE.SRGBColorSpace;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 1.15;
+  renderer.toneMapping = THREE.NeutralToneMapping ?? THREE.ACESFilmicToneMapping;
+  renderer.toneMappingExposure = 1.05;
 
   const scene = new THREE.Scene();
-  const waterColor = new THREE.Color(0x0b4a52);
+  const waterColor = new THREE.Color(0x0e5c66);
   scene.background = waterColor;
-  scene.fog = new THREE.FogExp2(0x0b4a52, 0.115);
-  const camera = new THREE.PerspectiveCamera(58, 16 / 9, 0.05, 80);
+  scene.fog = new THREE.FogExp2(0x0e5c66, 0.007);
+  const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.08, 40);
 
-  scene.add(new THREE.HemisphereLight(0x9fe8e0, 0x1b3a2e, 1.4));
-  const sun = new THREE.DirectionalLight(0xfff2d0, 2.4);
-  sun.position.set(-3, 8, 2);
+  scene.add(new THREE.HemisphereLight(0xd7fff4, 0x1a3a32, 0.85));
+  const sun = new THREE.DirectionalLight(0xfff4dc, 2.6);
+  sun.position.set(-2.2, 7.5, 3.5);
   scene.add(sun);
+  const fill = new THREE.DirectionalLight(0x9fd4cf, 0.55);
+  fill.position.set(4, 2.2, -2);
+  scene.add(fill);
 
   const uniforms = { uTime: { value: 0 } };
 
@@ -51,16 +52,16 @@ export function createUnderwaterScene(canvas) {
       }
       void main(){
         vec2 p=vW.xz;
-        float g=fbm(p*9.); float pebbles=smoothstep(.55,.62,n(p*26.));
-        vec3 sand=mix(vec3(.46,.40,.30),vec3(.62,.56,.43),g);
-        vec3 stone=mix(vec3(.28,.27,.25),vec3(.5,.46,.40),n(p*40.));
+        float g=fbm(p*1.6); float pebbles=smoothstep(.62,.78,n(p*4.5));
+        vec3 sand=mix(vec3(.50,.44,.32),vec3(.66,.58,.44),g);
+        vec3 stone=mix(vec3(.34,.32,.28),vec3(.52,.48,.42),n(p*7.));
         vec3 col=mix(sand,stone,pebbles*.8);
         col*=.72+.5*caustic(p*.9);
         // ripples on sand
         col*=.96+.06*sin(p.x*7.+fbm(p*2.)*9.);
         // Beer–Lambert style attenuation toward the water colour with distance from the camera.
         float d = distance(vW, cameraPosition);
-        col = mix(col, vec3(0.043, 0.29, 0.32), 1.0 - exp(-d * d * 0.0132));
+        col = mix(col, vec3(0.055, 0.36, 0.40), 1.0 - exp(-d * d * 0.004));
         gl_FragColor=vec4(col,1.);
       }`,
   });
@@ -84,7 +85,7 @@ export function createUnderwaterScene(canvas) {
         float d=distance(vW.xz, cameraPosition.xz);
         vec3 c=mix(vec3(.12,.55,.58),vec3(.75,.95,.92),smoothstep(.35,.9,w));
         // Seen from below, the surface fades into the water colour with distance (no visible plane edge).
-        float att = 1.0 - exp(-d * d * 0.0132);
+        float att = 1.0 - exp(-d * d * 0.004);
         c = mix(c, vec3(0.043, 0.29, 0.32), att);
         float a = clamp(.55 + .35 * w, 0., .95) * (1.0 - att * 0.85);
         gl_FragColor=vec4(c,clamp(a,0.,.9));
@@ -121,7 +122,7 @@ export function createUnderwaterScene(canvas) {
   }
 
   // ---- Suspended particles ----
-  const pCount = 380;
+  const pCount = 90;
   const pGeo = new THREE.BufferGeometry();
   const pPos = new Float32Array(pCount * 3);
   for (let i = 0; i < pCount; i++) {
@@ -143,10 +144,10 @@ export function createUnderwaterScene(canvas) {
     pGeo,
     new THREE.PointsMaterial({
       color: 0xcfe9e0,
-      size: 0.012,
+      size: 0.008,
       map: new THREE.CanvasTexture(dot),
       transparent: true,
-      opacity: 0.45,
+      opacity: 0.22,
       depthWrite: false,
       sizeAttenuation: true,
     })
@@ -202,34 +203,34 @@ export function createUnderwaterScene(canvas) {
 
   function fishMaterial(base) {
     const mat = base.clone();
-    mat.roughness = Math.min(0.55, mat.roughness ?? 0.45);
-    mat.metalness = Math.min(0.2, mat.metalness ?? 0.1);
-    mat.side = THREE.DoubleSide;
+    // Keep the painted scales. A metalness map on this asset reads as plastic, and an instance tint was darkening it.
+    mat.metalness = 0.04;
+    mat.metalnessMap = null;
+    mat.emissive = new THREE.Color(0x000000);
+    mat.emissiveMap = null;
+    mat.emissiveIntensity = 0;
+    if (!mat.roughnessMap) mat.roughness = 0.48;
+    mat.side = THREE.FrontSide;
+    const maxAniso = renderer.capabilities.getMaxAnisotropy();
+    for (const tex of [mat.map, mat.normalMap, mat.roughnessMap, mat.aoMap]) {
+      if (!tex) continue;
+      tex.anisotropy = maxAniso;
+      tex.magFilter = THREE.LinearFilter;
+      tex.minFilter = THREE.LinearMipmapLinearFilter;
+      tex.needsUpdate = true;
+    }
     mat.onBeforeCompile = (sh) => {
       sh.uniforms.uTime = uniforms.uTime;
       sh.vertexShader = sh.vertexShader
-        .replace("#include <common>", "#include <common>\nuniform float uTime; attribute float aPhase; attribute float aFreq; varying vec3 vWorldC;")
+        .replace("#include <common>", "#include <common>\nuniform float uTime; attribute float aPhase; attribute float aFreq;")
         .replace(
           "#include <begin_vertex>",
           `#include <begin_vertex>
-           // Carangiform swimming: small head yaw, amplitude growing toward the tail (head = +z).
-           float zt = clamp(0.5 - position.z, 0.0, 1.0);
-           float amp = 0.015 + 0.13 * zt * zt;
-           transformed.x += amp * sin(position.z * 8.0 - uTime * aFreq + aPhase);`
-        )
-        .replace("#include <worldpos_vertex>", "#include <worldpos_vertex>\n vWorldC = (modelMatrix * instanceMatrix * vec4(transformed, 1.0)).xyz;");
-      sh.fragmentShader = sh.fragmentShader
-        .replace("#include <common>", "#include <common>\nuniform float uTime; varying vec3 vWorldC;")
-        .replace(
-          "#include <emissivemap_fragment>",
-          `#include <emissivemap_fragment>
-           // Moving caustics on the upper body, fading with depth below the surface.
-           vec2 cq = vWorldC.xz * 2.2 + vec2(uTime * 0.35, uTime * 0.2);
-           float cs = 0.0;
-           for (int i = 0; i < 3; i++) { cq += vec2(sin(cq.y * 1.7 + uTime), cos(cq.x * 1.3 - uTime)) * 0.35; cs += abs(sin(cq.x * 2.2) + sin(cq.y * 2.2)); }
-           cs = pow(1.0 - clamp(cs / 6.0, 0.0, 1.0), 3.0);
-           float up = clamp(normal.y * 0.5 + 0.5, 0.0, 1.0);
-           totalEmissiveRadiance += vec3(0.55, 0.75, 0.7) * cs * up * 0.16;`
+           // Head stays steady (+z). The body and tail swing harder toward the caudal fin.
+           float along = clamp(0.42 - position.z, 0.0, 1.2);
+           float amp = 0.01 + 0.16 * along * along;
+           transformed.x += amp * sin(position.z * 7.0 - uTime * aFreq + aPhase);
+           transformed.y += amp * 0.08 * cos(position.z * 6.0 - uTime * aFreq + aPhase);`
         );
     };
     return mat;
@@ -248,11 +249,8 @@ export function createUnderwaterScene(canvas) {
     geo.setAttribute("aFreq", new THREE.InstancedBufferAttribute(freqs, 1));
     const mesh = new THREE.InstancedMesh(geo, fishMaterial(prep.material), n);
     mesh.frustumCulled = false;
-    const col = new THREE.Color();
-    specs.forEach((f, i) => {
+    specs.forEach((f) => {
       f.scale = lengthM * f.size;
-      col.setHSL(0.1 + Math.random() * 0.04, 0.12 + Math.random() * 0.1, 0.78 + Math.random() * 0.2);
-      mesh.setColorAt(i, col);
     });
     scene.add(mesh);
     schools.push({ mesh, fish: specs });
@@ -261,7 +259,7 @@ export function createUnderwaterScene(canvas) {
   /** Loose shoal: positions jittered, headings around a mean with individual deviation. */
   function shoal(centre, n, dir, spread, speed) {
     return Array.from({ length: n }, () => ({
-      base: centre.clone().add(new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * 0.5, (Math.random() - 0.5) * spread * 1.8)),
+      base: centre.clone().add(new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * 0.55, (Math.random() - 0.5) * spread * 1.6)),
       yaw: dir + (Math.random() - 0.5) * 0.5,
       speed: speed * (0.8 + Math.random() * 0.4),
       size: 0.8 + Math.random() * 0.45,
@@ -273,14 +271,19 @@ export function createUnderwaterScene(canvas) {
   const loader = new GLTFLoader();
   const load = (url) =>
     new Promise((res) => loader.load(url, (g) => res(prepareFish(g)), undefined, (e) => (console.warn("fish model failed", url, e), res(null))));
-  const readyPromise = Promise.all([load("/models/fish/barramundi/BarramundiFish.gltf"), load("/models/fish/crucian/scene.gltf")]).then(
-    ([barra, carp]) => {
-      // Larger perch-like fish cruise singly or in pairs near the bed; small cyprinids school higher in the column.
-      if (barra) addSchool(barra, [...shoal(new THREE.Vector3(-1.2, 0.7, 6.5), 2, 0.35, 1.2, 0.42), ...shoal(new THREE.Vector3(1.8, 0.9, 10.5), 3, -0.6, 1.6, 0.38)], 0.62);
-      if (carp)
-        addSchool(carp, [...shoal(new THREE.Vector3(1.1, 1.4, 9.0), 7, -0.25, 0.9, 0.5), ...shoal(new THREE.Vector3(-1.9, 1.7, 9.8), 6, 0.6, 1.0, 0.46)], FISH_LEN_M * 0.75);
-    }
-  );
+  const readyPromise = load("/models/fish/barramundi/BarramundiFish.gltf").then((barra) => {
+    if (!barra) return;
+    // One textured species, spread through the water column. The crucian glTF has no texture or mesh buffer in this repo.
+    addSchool(
+      barra,
+      [
+        ...shoal(new THREE.Vector3(-0.35, 0.62, 2.5), 2, 0.2, 0.7, 0.18),
+        ...shoal(new THREE.Vector3(0.45, 0.95, 3.6), 2, -0.25, 0.85, 0.22),
+        ...shoal(new THREE.Vector3(-0.15, 1.25, 4.8), 2, 0.4, 0.9, 0.16),
+      ],
+      0.92,
+    );
+  });
 
   function resize(w, h) {
     if (!w || !h) return;
@@ -293,18 +296,18 @@ export function createUnderwaterScene(canvas) {
   function render(p, time) {
     uniforms.uTime.value = time;
     // Camera glides slowly along the channel, slightly looking down toward the bed, rising toward the surface at the end.
-    const rise = Math.max(0, (p - 0.75) / 0.25);
-    camera.position.set(0.1 + Math.sin(p * 2.0) * 0.18, 1.05 + Math.sin(p * 3.0) * 0.05 + rise * rise * 1.6, 3.0 + p * 4.5);
-    camera.lookAt(-0.2 + Math.sin(p * 1.6) * 0.3, 0.8 + rise * 2.2, camera.position.z + 4.0);
+    const rise = Math.max(0, (p - 0.82) / 0.18);
+    camera.position.set(Math.sin(p * 1.1) * 0.12, 0.92 + rise * 0.7, 0.85 + p * 1.15);
+    camera.lookAt(Math.sin(p * 0.8) * 0.08, 0.78, camera.position.z + 1.7);
     const tc = time - 17.5; // centre of the underwater cut
     for (const s of schools) {
       s.fish.forEach((f, i) => {
-        const yaw = f.yaw + f.turn * tc + Math.sin(time * 0.6 + f.wob) * 0.08;
+        const yaw = f.yaw + f.turn * tc + Math.sin(time * 0.45 + f.wob) * 0.22;
+        const yawRate = f.turn + Math.cos(time * 0.45 + f.wob) * 0.1;
         _fw.set(Math.sin(yaw), 0, Math.cos(yaw));
-        // Integrate approximately along a slowly turning heading so motion stays continuous (no wrap/teleport).
         dummy.position.copy(f.base).addScaledVector(_fw, tc * f.speed);
-        dummy.position.y += Math.sin(time * 0.8 + f.wob) * 0.035;
-        dummy.rotation.set(Math.sin(time * 1.1 + f.wob) * 0.035, yaw, Math.sin(time * 0.9 + f.wob) * 0.03);
+        dummy.position.y = Math.max(0.28, f.base.y + Math.sin(time * 0.7 + f.wob) * 0.06);
+        dummy.rotation.set(Math.sin(time * 1.4 + f.wob) * 0.03, yaw, THREE.MathUtils.clamp(-yawRate * 0.45, -0.35, 0.35));
         dummy.scale.setScalar(f.scale);
         dummy.updateMatrix();
         s.mesh.setMatrixAt(i, dummy.matrix);
