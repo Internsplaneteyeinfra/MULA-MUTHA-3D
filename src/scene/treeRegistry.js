@@ -113,6 +113,14 @@ export function classifyTreeAsset(props = {}, kind = "osm", rng = () => 0.5) {
   if (/pinus|cedrus|conifer|spruce|fir|juniper/.test(text)) return "conifer";
   if (/betula|birch/.test(text)) return "birch";
 
+  if (kind === "gallery") {
+    const r = rng();
+    if (r < 0.32) return "banyan";
+    if (r < 0.58) return "neem";
+    if (r < 0.78) return "broadleaf";
+    if (r < 0.90) return "gulmohar";
+    return "palm";
+  }
   if (kind === "riparian") {
     const r = rng();
     if (r < 0.24) return "bamboo";

@@ -144,6 +144,8 @@ function makeOutlineDistance(bath, stations, cell = 40) {
       }
     }
   });
+  const stamp = new Uint32Array(segs.length);
+  let stampCounter = 0;
   /** Signed distance, or null if no outline within maxR. */
   return (x, z, maxR) => {
     const cx = Math.floor(x / cell);
@@ -151,14 +153,14 @@ function makeOutlineDistance(bath, stations, cell = 40) {
     const R = Math.ceil(maxR / cell);
     let best = Infinity;
     let sign = 1;
-    const seen = new Set();
+    const stampId = ++stampCounter;
     for (let a = -R; a <= R; a++) {
       for (let b = -R; b <= R; b++) {
         const list = bins.get(`${cx + a},${cz + b}`);
         if (!list) continue;
         for (const i of list) {
-          if (seen.has(i)) continue;
-          seen.add(i);
+          if (stamp[i] === stampId) continue;
+          stamp[i] = stampId;
           const [ax, az, bx, bz, inX, inZ] = segs[i];
           const dx = bx - ax;
           const dz = bz - az;
@@ -204,18 +206,27 @@ export function buildChannelBanks(river, terrainMesh, stations, target = null, l
   const nx = Math.ceil((maxX + pad - gx0) / GRID_M) + 1;
   const nz = Math.ceil((maxZ + pad - gz0) / GRID_M) + 1;
 
-  // Pass 1 — signed distance at every node (cheap reject far from the river first).
+  // Pass 1 — signed distance, only at nodes near the river. Candidates are the nodes within each
+  // station's wet half-width + band (the bounding box of the whole river is ~700 k nodes; this is ~10 %).
   const dist = new Float32Array(nx * nz).fill(Infinity);
-  for (let j = 0; j < nz; j++) {
-    const z = gz0 + j * GRID_M;
-    for (let i = 0; i < nx; i++) {
-      const x = gx0 + i * GRID_M;
-      const st = locate(x, z);
-      const roughD = Math.hypot(st.x - x, st.z - z) - Math.max(st.wetHalfLeft, st.wetHalfRight);
-      if (roughD > outerD + 40) continue;
-      const exact = outline?.(x, z, outerD + 50);
-      dist[j * nx + i] = exact ?? ribbonEdgeDistance(x, z, stations, st).d;
-    }
+  const cand = new Uint8Array(nx * nz);
+  for (const s of stations) {
+    const R = Math.max(s.wetHalfLeft, s.wetHalfRight) + outerD + GRID_M;
+    const i0 = Math.max(0, Math.floor((s.x - R - gx0) / GRID_M));
+    const i1 = Math.min(nx - 1, Math.ceil((s.x + R - gx0) / GRID_M));
+    const j0 = Math.max(0, Math.floor((s.z - R - gz0) / GRID_M));
+    const j1 = Math.min(nz - 1, Math.ceil((s.z + R - gz0) / GRID_M));
+    for (let j = j0; j <= j1; j++) cand.fill(1, j * nx + i0, j * nx + i1 + 1);
+  }
+  for (let k = 0; k < cand.length; k++) {
+    if (!cand[k]) continue;
+    const i = k % nx;
+    const x = gx0 + i * GRID_M;
+    const z = gz0 + ((k - i) / nx) * GRID_M;
+    const st = locate(x, z);
+    if (!st) continue;
+    const exact = outline?.(x, z, outerD + 12);
+    dist[k] = exact ?? ribbonEdgeDistance(x, z, stations, st).d;
   }
   // Whole channel included: toward the middle the side slope drops below the bed (hidden),
   // so there is no visible cut-off edge under the water.

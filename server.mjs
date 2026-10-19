@@ -25,6 +25,7 @@ const MIME = {
   ".jpeg": "image/jpeg", ".webp": "image/webp", ".glb": "model/gltf-binary", ".gltf": "model/gltf+json",
   ".tif": "image/tiff", ".tiff": "image/tiff", ".wasm": "application/wasm", ".ico": "image/x-icon",
   ".woff2": "font/woff2", ".woff": "font/woff", ".txt": "text/plain; charset=utf-8",
+  ".mp4": "video/mp4", ".webm": "video/webm",
 };
 const COMPRESSIBLE = new Set([".html", ".js", ".mjs", ".css", ".json", ".geojson", ".kml", ".csv", ".svg", ".txt", ".gltf"]);
 
@@ -78,7 +79,11 @@ function serveStatic(req, res, url) {
   const headers = {
     "content-type": MIME[ext] || "application/octet-stream",
     "accept-ranges": "bytes",
-    "cache-control": file.split(path.sep).includes("assets") ? "public, max-age=31536000, immutable" : "public, max-age=300",
+    "cache-control": file.split(path.sep).includes("assets")
+      ? "public, max-age=31536000, immutable"
+      : file.split(path.sep).includes("video")
+        ? "public, max-age=604800" // landing film: large, changes rarely — keep it a week
+        : "public, max-age=300",
   };
 
   const range = req.headers.range && /^bytes=(\d*)-(\d*)$/.exec(req.headers.range);

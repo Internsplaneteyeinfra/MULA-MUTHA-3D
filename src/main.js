@@ -40,23 +40,36 @@ function ensureGisBoot() {
   return gisBootPromise;
 }
 
-function whenRiverBackdrop() {
-  if (renderRiver) return Promise.resolve();
-  return new Promise((resolve) => {
-    window.addEventListener("rivereye-river-backdrop", resolve, { once: true });
-  });
-}
-
 async function switchToGis() {
   const bootPromise = ensureGisBoot();
-  await whenRiverBackdrop();
+  // The film's last frame (the RIVER.EYE title) stays on screen, with a progress line, until the
+  // scene is built — no blank loader in between. Live film (no video): show the progress card.
+  const holdsTitle = !!document.querySelector(".landing-film-video");
+  if (!holdsTitle) {
+    filmPlaying = false;
+    window.__riverEye?.setActive?.(false);
+    if (landingRootEl) landingRootEl.style.display = "none";
+    if (!gisBootDone) loading.classList.remove("hidden");
+  }
+  const ready = await bootPromise;
+  filmPlaying = false;
   window.__riverEye?.setActive?.(false);
   if (landingRootEl) landingRootEl.style.display = "none";
-  const ready = await bootPromise;
   if (!ready) return false;
   currentMode = "gis";
+  revealGis();
   window.dispatchEvent(new Event("rivereye-gis-ready"));
   return true;
+}
+
+let gisBootDone = false;
+/** Hide the loader and fly into 3D — once, after both the scene is loaded and the film is over. */
+function revealGis() {
+  if (gisRevealed || filmPlaying || !gisBootDone) return;
+  gisRevealed = true;
+  loading.classList.add("hidden");
+  if (uiRoot) uiRoot.style.visibility = "";
+  setTimeout(() => window.__MM_NAV__?.enter3D?.({ meters: INTRO_3D_CHAINAGE_M, dur: 3.2 }), 700);
 }
 
 function switchToCinematic() {
@@ -76,6 +89,9 @@ const loadPercent = document.getElementById("load-percent");
 const canvas = document.getElementById("scene");
 const uiRoot = document.getElementById("ui-root");
 let renderRiver = false;
+/** True while the landing film plays: the GIS scene loads in the background but does not render. */
+let filmPlaying = currentMode === "cinematic";
+let gisRevealed = false;
 
 let targetProgress = 0;
 let displayedProgress = 0;
@@ -96,10 +112,51 @@ function animateProgress() {
 function progress(p, msg) {
   targetProgress = Math.max(0, Math.min(100, Number(p) * 100));
   if (msg) loadMsg.textContent = msg;
+  window.dispatchEvent(new CustomEvent("rivereye-gis-progress", { detail: { pct: targetProgress, msg: loadMsg.textContent } }));
   if (!progressFrame) progressFrame = requestAnimationFrame(animateProgress);
 }
 
 const INTRO_3D_CHAINAGE_M = 8790;
+
+/** Large files the river scene loads — fetched while the film plays so the build does not wait on them. */
+const GIS_PREFETCH = [
+  "/data/osm_buildings.geojson",
+  "/data/osm_roads.geojson",
+  "/data/trees.geojson",
+  "/data/tree_rows.geojson",
+  "/data/vegetation.geojson",
+  "/data/feature_metadata.json",
+  "/data/osm_water.geojson",
+  "/data/water_features.geojson",
+  "/data/bridges.geojson",
+  "/data/FABDEM_DTM_FINAL.tif",
+  "/data/mula_mutha_water_depth.csv",
+  "/data/Mula-Mutha_River_10m_ch_merged.kml",
+  "/data/naditwin/chainage_profile.json",
+  "/data/naditwin/depth_profile.json",
+  "/data/naditwin/landmarks.json",
+  "/data/naditwin/raw_bathymetry_cloud.json",
+  "/data/hydrology/lulc/index.json",
+  "/data/hydrology/lulc/2026/overlay.png",
+  "/data/hydrology/vegetation/vegetation_type_overlay.png",
+  "/data/bathymetry/mula_mutha_depth_overlay.png",
+];
+
+function prefetchGisData() {
+  const base = import.meta.env.BASE_URL.replace(/\/$/, "");
+  let i = 0;
+  // Two at a time, low priority: the film's video stream keeps the bandwidth it needs.
+  const next = () => {
+    const url = GIS_PREFETCH[i++];
+    if (!url || gisBootPromise) return;
+    fetch(base + url, { priority: "low" })
+      .then((r) => r.blob())
+      .catch(() => {})
+      .finally(next);
+  };
+  next();
+  next();
+}
 
 function showRiverBackdrop() {
   if (renderRiver) return;
@@ -109,7 +166,7 @@ function showRiverBackdrop() {
 
 async function boot() {
   try {
-    loading.classList.remove("hidden");
+    if (!filmPlaying) loading.classList.remove("hidden");
     if (uiRoot) uiRoot.style.visibility = "hidden";
     // Server round trip is slow (~40 s when the viewer id has expired): start it now, in parallel with the scene load.
     const bodCodReady = fetchBodCodViewerData().catch((err) => {
@@ -181,7 +238,8 @@ async function boot() {
     });
     function loop(now) {
       requestAnimationFrame(loop);
-      if (paused || (!renderRiver && currentMode !== "gis")) return;
+      // While the film plays the scene is built but not drawn (keeps the film smooth).
+      if (paused || filmPlaying || (!renderRiver && currentMode !== "gis")) return;
       const rawDt = (now - last) / 1000;
       last = now;
       const dt = Math.min(0.1, Math.max(0.001, rawDt));
@@ -208,9 +266,8 @@ async function boot() {
       wait();
     });
     await new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve)));
-    loading.classList.add("hidden");
-    if (uiRoot) uiRoot.style.visibility = "";
-    setTimeout(() => window.__MM_NAV__?.enter3D?.({ meters: INTRO_3D_CHAINAGE_M, dur: 3.2 }), 700);
+    gisBootDone = true;
+    revealGis();
     return true;
   } catch (err) {
     console.error("[boot] failed — full stack:", err);
@@ -230,7 +287,14 @@ if (currentMode === "cinematic") {
   // The GIS journey card sits underneath the film. Hide it so it cannot cover the opening or return when the film ends.
   loading.classList.add("hidden");
   mountLandingPage();
-  // Defer GIS scene construction until the film ends so Cesium and the river scene do not load together.
+  // Building the scene blocks the main thread for seconds at a time, which would freeze the film.
+  // So: download the project's data now (network only), and build at the final title card
+  // (rivereye-film-near-end), which can hold still while the scene finishes.
+  // (Nothing while the film is being recorded: ?capture=1 must give Cesium the whole machine.)
+  if (!urlParams.has("capture")) {
+    setTimeout(prefetchGisData, 1500);
+    window.addEventListener("rivereye-film-near-end", () => void ensureGisBoot(), { once: true });
+  }
   window.addEventListener("rivereye-film-error", () => { void switchToGis(); }, { once: true });
   window.addEventListener(
     "rivereye-film-complete",

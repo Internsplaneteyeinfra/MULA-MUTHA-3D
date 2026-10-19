@@ -26,10 +26,10 @@ export function treeTargetHeight(assetId, placementScale = 1) {
   if (assetId === "bamboo") return Math.max(5.5, Math.min(11, s * 7.5));
   if (assetId === "acacia") return Math.max(7, Math.min(13, s * 9.5));
   if (assetId === "birch") return Math.max(8, Math.min(15, s * 10));
-  if (assetId === "gulmohar") return Math.max(8.5, Math.min(16, s * 11));
-  if (assetId === "palm") return Math.max(9, Math.min(18, s * 12));
-  if (assetId === "neem") return Math.max(9, Math.min(17, s * 12.5));
+  if (assetId === "gulmohar") return Math.max(10, Math.min(20, s * 12));
+  if (assetId === "palm") return Math.max(11, Math.min(22, s * 13));
+  if (assetId === "neem") return Math.max(12, Math.min(24, s * 14));
   if (assetId === "conifer") return Math.max(10, Math.min(20, s * 13));
-  if (assetId === "banyan") return Math.max(11, Math.min(22, s * 15));
-  return Math.max(9, Math.min(18, s * 11.5));
+  if (assetId === "banyan") return Math.max(14, Math.min(28, s * 16));
+  return Math.max(11, Math.min(22, s * 13));
 }

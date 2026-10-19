@@ -51,7 +51,7 @@ export function mountProjectIdentity(root, dataset = null) {
   const el = document.createElement("aside");
   el.className = "hud brand-telemetry-bar";
   el.id = "hud-brand";
-  el.title = "PLANET EYE AI · Mula–Mutha River Intelligence Platform · Live Hydrology Telemetry";
+  el.title = "PLANET EYE AI · Mula–Mutha River Intelligence Platform · Hydraulic profile telemetry";
   el.innerHTML = `
     <div class="gis-brand-mark">
       <span class="planet-eye-logo" aria-label="Planet Eye logo">${lucideHtml(Eye, { size: 20 })}</span>
@@ -61,11 +61,11 @@ export function mountProjectIdentity(root, dataset = null) {
       </div>
     </div>
     <div class="brand-telemetry-divider" aria-hidden="true"></div>
-    <div class="weather-wq water-telemetry-wq" aria-label="Live river water level, flow velocity, and wetted area">
+    <div class="weather-wq water-telemetry-wq" aria-label="Hydraulic profile water level, flow velocity, and wetted area">
       <div class="weather-wq-row is-q">
-        <i data-short="LIVE WSE">LIVE WATER LEVEL (WSE)</i>
+        <i data-short="PROFILE WSE">PROFILE WSE</i>
         <b id="brand-water-stage">—</b>
-        <em id="brand-water-stage-unit">m MSL</em>
+        <em id="brand-water-stage-unit" title="Hydraulic-profile water level at the selected river chainage.">m</em>
       </div>
       <div class="weather-wq-row is-bod">
         <i data-short="VEL">FLOW VELOCITY</i>

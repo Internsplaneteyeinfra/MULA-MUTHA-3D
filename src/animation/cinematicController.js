@@ -447,6 +447,13 @@ export function createCinematicController({
     return true;
   }
 
+  /** Jump the running cinematic to `t` seconds (scrubbing / QA). */
+  function seek(t) {
+    if (!active) return false;
+    elapsed = THREE.MathUtils.clamp(Number(t) || 0, 0, CINEMATIC_DURATION);
+    return true;
+  }
+
   function togglePause() {
     return paused ? resume() : pause();
   }
@@ -633,6 +640,7 @@ export function createCinematicController({
     pause,
     resume,
     togglePause,
+    seek,
     update,
     isActive,
     isPaused,

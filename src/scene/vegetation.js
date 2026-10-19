@@ -44,9 +44,15 @@ export async function createVegetation(dataset, opts = {}) {
   const locate = makeStationLocator(stations);
   // The drawn water sheet only. LULC "water" covers the green banks and was
   // skipping the forest the satellite shows on that land.
-  const isOpenWater = (x, z) => ribbonEdgeDistance(x, z, stations, locate(x, z)).d < 4;
+  const isOpenWater = (x, z) => {
+    const st = locate(x, z);
+    if (!st) return false;
+    return ribbonEdgeDistance(x, z, stations, st).d < 4;
+  };
   const groundY = (x, z) => {
-    const { d } = ribbonEdgeDistance(x, z, stations, locate(x, z));
+    const st = locate(x, z);
+    if (!st) return null;
+    const { d } = ribbonEdgeDistance(x, z, stations, st);
     if (d < 4) return null;
     const raw = rawDtmElevationAt(x, z);
     const real = Number.isFinite(raw) ? raw : terrainHeightAt(x, z, stations);
@@ -130,11 +136,11 @@ export async function createVegetation(dataset, opts = {}) {
     }
   }
   const reach = Math.max(400, (stations.length - 1) * stationGap);
-  const band = 46;
-  const beltBudget = Math.max(120, Math.floor(maxTrees * 0.7));
-  const alongSpacing = Math.max(9, Math.sqrt((reach * 2 * band) / beltBudget));
+  const galleryRows = [8, 18, 30, 46];
+  const forestBudget = Math.max(80, Math.floor(maxTrees * 0.9));
+  const bankTarget = Math.max(40, Math.floor(forestBudget * 0.82));
+  const alongSpacing = Math.max(7, (reach * 2 * galleryRows.length) / bankTarget);
   const alongStep = Math.max(1, Math.round(alongSpacing / stationGap));
-  const rowSpacing = alongSpacing;
   for (let i = 0; i < stations.length; i += alongStep) {
     const st = stations[i];
     const px = -st.flowZ;
@@ -142,37 +148,27 @@ export async function createVegetation(dataset, opts = {}) {
     const corridor = Math.max(18, Number(st.halfWidth) || 40);
     for (const side of [-1, 1]) {
       const wet = Math.max(6, side < 0 ? Number(st.wetHalfLeft) || corridor * 0.45 : Number(st.wetHalfRight) || corridor * 0.45);
-      const outer = Math.max(wet + 16, Math.min(wet + 170, corridor + 28));
-      for (let dist = wet + 7; dist <= outer; dist += rowSpacing) {
-        const along = (rng() - 0.5) * alongSpacing * 0.8;
+      for (const extra of galleryRows) {
+        const dist = wet + extra;
+        const along = (rng() - 0.5) * alongSpacing * 0.45;
         const x = st.x + px * side * dist + st.flowX * along;
         const z = st.z + pz * side * dist + st.flowZ * along;
         if (isOpenWater(x, z)) continue;
         if (blocked(x, z, buildings, roads, stations, true, true)) continue;
-        const y = groundY(x, z);
-        if (y == null) continue;
-        const cover = lulc?.classAtLocal?.(x, z);
-        if (cover === "settlement" && dist > wet + 18) continue;
-        let secondChannel = false;
-        if (dist > wet + band - rowSpacing) {
-          for (let probe = dist + rowSpacing; probe <= dist + 120; probe += rowSpacing) {
-            if (isOpenWater(st.x + px * side * probe, st.z + pz * side * probe)) {
-              secondChannel = true;
-              break;
-            }
-          }
+        let y = groundY(x, z);
+        if (y == null) {
+          const meshY = renderedTerrainHeightAt(opts.terrainMesh, x, z);
+          if (Number.isFinite(meshY) && meshY >= SURFACE_Y - 0.8) y = Math.max(meshY, SURFACE_Y + 0.4);
         }
-        const onIsland = secondChannel || cover === "forest";
-        const list = onIsland ? islandForest : bankForest;
-        if (!onIsland && dist > wet + band) continue;
-        list.push({
+        if (y == null) continue;
+        bankForest.push({
           x,
           z,
           y,
-          scale: 2.1 + rng() * 0.7,
+          scale: 2.8 + rng() * 1.1,
           rotY: rng() * Math.PI * 2,
-          assetId: classifyTreeAsset({}, "forest", rng),
-          kind: "forest",
+          assetId: classifyTreeAsset({}, "gallery", rng),
+          kind: "gallery",
         });
       }
     }
@@ -258,12 +254,11 @@ export async function createVegetation(dataset, opts = {}) {
 
   // Keep the bank forest even when the tree budget is tight — thin it evenly
   // along the whole river instead of dropping the downstream end.
-  const forestBudget = Math.max(80, Math.floor(maxTrees * 0.82));
-  const naikKeep = naikForest.length <= 2600 ? naikForest : thinEven(naikForest, 2600);
-  const beltRoom = Math.max(0, forestBudget - naikKeep.length);
-  const beltKeep = bankForest.length <= beltRoom ? bankForest : thinEven(bankForest, Math.floor(beltRoom * 0.85));
-  const islandRoom = Math.max(0, beltRoom - beltKeep.length);
-  const forestKeep = naikKeep.concat(beltKeep, thinEven(islandForest, islandRoom));
+  const beltKeep = bankForest.length <= bankTarget ? bankForest : thinEven(bankForest, bankTarget);
+  const naikCap = Math.min(1400, Math.max(0, forestBudget - beltKeep.length));
+  const naikKeep = thinEven(naikForest, naikCap);
+  const islandRoom = Math.max(0, forestBudget - beltKeep.length - naikKeep.length);
+  const forestKeep = beltKeep.concat(naikKeep, thinEven(islandForest, islandRoom));
   const restBudget = Math.max(0, maxTrees - forestKeep.length);
   const capped = forestKeep.concat(placements.slice(0, restBudget));
   for (const p of capped) {
@@ -301,7 +296,7 @@ export async function createVegetation(dataset, opts = {}) {
       const p = list[i];
       const targetH = treeTargetHeight(assetId, p.scale);
       const uniform = targetH / Math.max(0.5, proto.nativeH);
-      const crown = p.kind === "forest" ? 1.55 : 1;
+      const crown = p.kind === "forest" || p.kind === "gallery" ? 2.05 : 1;
       // Sit on the ground mesh. Forest crowns overlap so the belt reads as canopy.
       dummy.position.set(p.x, (p.y || 0) + 0.35, p.z);
       dummy.rotation.set(0, p.rotY, 0);
@@ -311,7 +306,7 @@ export async function createVegetation(dataset, opts = {}) {
       const hue = (p.x * 0.001 + p.z * 0.0013) % 1;
       if (mat.vertexColors) {
         color.setRGB(0.92 + hue * 0.08, 0.97, 0.9 + hue * 0.06);
-      } else if (p.kind === "forest") {
+      } else if (p.kind === "forest" || p.kind === "gallery") {
         // Dark closed canopy, like the satellite riparian belt.
         color.set(foliageHex(assetId)).offsetHSL((hue - 0.5) * 0.03, 0.08, -0.08);
       } else {
@@ -429,19 +424,25 @@ function nearest(x, z, stations) {
 }
 
 function polygonArea(verts) {
+  if (!verts?.length) return 0;
   let a = 0;
   for (let i = 0, j = verts.length - 1; i < verts.length; j = i++) {
-    a += verts[j].x * verts[i].z - verts[i].x * verts[j].z;
+    const vi = verts[i];
+    const vj = verts[j];
+    if (!vi || !vj) continue;
+    a += vj.x * vi.z - vi.x * vj.z;
   }
   return Math.abs(a) * 0.5;
 }
 
 function randomInPolygon(verts, rng) {
+  if (!verts?.length) return null;
   let minX = Infinity;
   let maxX = -Infinity;
   let minZ = Infinity;
   let maxZ = -Infinity;
   for (const v of verts) {
+    if (!v) continue;
     minX = Math.min(minX, v.x);
     maxX = Math.max(maxX, v.x);
     minZ = Math.min(minZ, v.z);
@@ -458,6 +459,7 @@ function randomInPolygon(verts, rng) {
 function pointInRing(x, z, ring) {
   let inside = false;
   for (let i = 0, j = ring.length - 1; i < ring.length; j = i++) {
+    if (!ring[i] || !ring[j]) continue;
     const xi = ring[i].x;
     const zi = ring[i].z;
     const xj = ring[j].x;

@@ -250,6 +250,8 @@ function isotonicNonIncreasing(y) {
 /** Per-DTM-cell water level of the nearest station (lon/lat spatial hash). */
 function buildNearestStationGrid(stations, frame, wseRef, fallback, g) {
   const grid = new Float32Array(g.width * g.height).fill(fallback);
+  // The water level changes slowly along the river: solve every STEP-th cell and fill the block.
+  const STEP = 4;
   if (!stations.length) return grid;
   const ll = stations.map((s) => frame.toLonLat(s.x, s.z));
   const cell = 0.002; // degrees (~200 m)
@@ -260,9 +262,11 @@ function buildNearestStationGrid(stations, frame, wseRef, fallback, g) {
     bins.get(k).push(i);
   });
   const cosLat = Math.cos((((g.north + g.south) / 2) * Math.PI) / 180);
-  for (let r = 0; r < g.height; r++) {
+  for (let r0 = 0; r0 < g.height; r0 += STEP) {
+    const r = Math.min(g.height - 1, r0 + (STEP >> 1));
     const lat = g.north - (r / (g.height - 1)) * (g.north - g.south);
-    for (let c = 0; c < g.width; c++) {
+    for (let c0 = 0; c0 < g.width; c0 += STEP) {
+      const c = Math.min(g.width - 1, c0 + (STEP >> 1));
       const lon = g.west + (c / (g.width - 1)) * (g.east - g.west);
       const cx = Math.floor(lon / cell);
       const cy = Math.floor(lat / cell);
@@ -283,7 +287,11 @@ function buildNearestStationGrid(stations, frame, wseRef, fallback, g) {
           }
         }
       }
-      if (best >= 0) grid[r * g.width + c] = wseRef[best];
+      if (best < 0) continue;
+      const v = wseRef[best];
+      for (let rr = r0; rr < Math.min(g.height, r0 + STEP); rr++) {
+        grid.fill(v, rr * g.width + c0, rr * g.width + Math.min(g.width, c0 + STEP));
+      }
     }
   }
   return grid;

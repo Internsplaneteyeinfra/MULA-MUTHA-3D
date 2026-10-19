@@ -390,6 +390,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   let targetStationWaterY = new Float32Array(corridorStationCount).fill(SURFACE_Y);
   let currentStationWaterY = new Float32Array(corridorStationCount).fill(SURFACE_Y);
   let lastWaterYChangeTime = performance.now();
+  let hydrologySimulationRiseM = 0;
+  let renderedHydrologySimulationRiseM = 0;
+  let hydrologySimulationActive = false;
+  let hydrologySimulationNeedsFinalUpdate = false;
 
   // Bootstrap dedicated hydrology profile service
   const hydrologyProfileReady = initHydrologyProfileService(dataset.chainage).then(() => {
@@ -1240,7 +1244,17 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     scene,
     dataset,
     river,
+    getHydrologySimulationRise: () => hydrologySimulationRiseM,
+    getRenderedHydrologySimulationRise: () => renderedHydrologySimulationRiseM,
+    setHydrologySimulationRise(riseM, settled = false) {
+      if (!Number.isFinite(riseM) || (state.floodMode === "api" && apiFloodLayer.userData?.hasFlood)) return false;
+      hydrologySimulationRiseM = riseM;
+      hydrologySimulationActive = true;
+      hydrologySimulationNeedsFinalUpdate ||= !!settled;
+      return true;
+    },
     cameraSystem: cam,
+    seekCinematic: (t) => cinematic.seek(t),
     stopCinematic: () => cinematic.finish(),
     atmosphericSky,
     riverRain,
@@ -2190,13 +2204,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
 
       // API flood: river sheet rises with the flood water (SURFACE_Y + rise).
       // Normal mode: leave the river sheet at SURFACE_Y — no extra stage.
+      const simulationActive = hydrologySimulationActive && !apiFloodActive;
       const forceRiverRise = apiFloodActive && floodRise >= 0;
-      const sheetRise = forceRiverRise ? floodRise : 0;
+      const sheetRise = apiFloodActive ? floodRise : simulationActive ? hydrologySimulationRiseM : 0;
       if (
         forceRiverRise ||
         bedExag !== lastExag ||
         state.visualMode !== lastVisual ||
-        sheetRise !== lastFlood ||
+        Math.abs(sheetRise - lastFlood) > 0.015 ||
+        hydrologySimulationNeedsFinalUpdate ||
         waterOn !== lastWaterOn ||
         riverLook !== lastRiverLook ||
         apiFloodActive !== lastApiFlood
@@ -2207,16 +2223,18 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         lastWaterOn = waterOn;
         lastRiverLook = riverLook;
         lastApiFlood = apiFloodActive;
+        hydrologySimulationNeedsFinalUpdate = false;
         applyExaggeration(
           river,
           dataset,
           bedExag,
           sheetRise,
           null,
-          { includeBaseStage: false },
+          { includeBaseStage: false, allowNegativeRise: simulationActive },
         );
+        if (simulationActive) renderedHydrologySimulationRiseM = sheetRise;
         riparianLayer?.userData.syncToWater(river.mesh, sheetRise);
-        if (!apiFloodActive) {
+        if (!apiFloodActive && !simulationActive) {
           floodLayer.setFloodRise?.(floodRise);
         } else {
           // API flood water is the JalNetra extent sheet only — hide the full-scene bathtub.

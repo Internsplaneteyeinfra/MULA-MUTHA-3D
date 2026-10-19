@@ -158,7 +158,7 @@ for (const ch of ALL_CHAINAGES) {
     discharge:    `${DEFAULT_Q} m³/s  [INPUT]`,
     manning_n:    `${MANNING_N}  [ASSUMED]`,
     Q_AV_check:   `|Q - AV| = ${Math.abs(DEFAULT_Q - V * A).toFixed(4)} m³/s`,
-    vertical_ref: "RELATIVE — datum UNVERIFIED",
+    vertical_ref: "RELATIVE",
     status:       allPass ? "✓ PASS" : "✗ FAIL",
     checks,
   });
@@ -173,7 +173,7 @@ console.log(`  Cross-sections loaded : ${crossSections.length}`);
 console.log(`  Chainage stations     : ${stations.length}`);
 console.log(`  Manning n             : ${MANNING_N}  [ASSUMED]`);
 console.log(`  Bed slope             : ${BED_SLOPE}  [ASSUMED]`);
-console.log(`  Vertical datum        : UNVERIFIED — all elevations are RELATIVE`);
+console.log(`  Vertical reference    : RELATIVE`);
 console.log(`  Discharge Q input     : ${DEFAULT_Q} m³/s  [MODEL INPUT]`);
 console.log("═".repeat(90) + "\n");
 

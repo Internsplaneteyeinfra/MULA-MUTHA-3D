@@ -1005,14 +1005,15 @@ export function applyExaggeration(
   exag,
   floodRiseM = 0,
   waterSurfaceSceneY = null,
-  { includeBaseStage = true } = {},
+  { includeBaseStage = true, allowNegativeRise = false } = {},
 ) {
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
   const bed = river.bed.geometry.attributes.position;
   // During API flood playback the rise is the physical WSE delta — skip base stage.
   const base = includeBaseStage ? BASE_WATER_STAGE_M : 0;
-  const rise = base + Math.max(0, Number(floodRiseM) || 0);
+  const requestedRise = Number(floodRiseM) || 0;
+  const rise = base + (allowNegativeRise ? requestedRise : Math.max(0, requestedRise));
   const cols = (bath.across || 40) + 1;
   const nRows = Math.floor(bath.depths.length / cols);
 
@@ -1064,8 +1065,8 @@ function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSce
       if (waterSurfaceSceneY.length > rowB) surfaceYb = waterSurfaceSceneY[rowB];
     }
 
-    const wallTopA = surfaceYa + Math.max(0, floodRiseM) - 0.08;
-    const wallTopB = surfaceYb + Math.max(0, floodRiseM) - 0.08;
+    const wallTopA = surfaceYa + floodRiseM - 0.08;
+    const wallTopB = surfaceYb + floodRiseM - 0.08;
 
     const xa = bath.positions[a * 3];
     const za = bath.positions[a * 3 + 2];

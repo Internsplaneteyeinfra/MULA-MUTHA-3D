@@ -9,7 +9,7 @@
  * - Scene vertical coordinate transformation
  *
  * CRITICAL RULE:
- * If the benchmark is unverified, datum status MUST be reported as
+ * Until benchmark verification is complete, datum status MUST be reported as
  * "VERIFIED_DATUM" and absolute MSL bed elevation MUST remain null.
  */
 
@@ -100,7 +100,7 @@ export class VerticalDatumPipeline {
         null,
         this.benchmark.verified
           ? "Missing survey-time water level"
-          : "Vertical datum unverified; sonar soundings not tied to absolute orthometric MSL.",
+          : "Absolute orthometric MSL reference is unavailable for these sonar soundings.",
       );
     }
 

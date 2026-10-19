@@ -9,6 +9,7 @@
  */
 import * as THREE from "three";
 import { GLTFLoader } from "three/addons/loaders/GLTFLoader.js";
+import { RoomEnvironment } from "three/addons/environments/RoomEnvironment.js";
 
 export function createUnderwaterScene(canvas) {
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: "high-performance" });
@@ -18,9 +19,15 @@ export function createUnderwaterScene(canvas) {
   renderer.toneMappingExposure = 1.05;
 
   const scene = new THREE.Scene();
-  const waterColor = new THREE.Color(0x0e5c66);
+  // Clear river water (blue-green, not murky): background, fog and the shader attenuation share it.
+  const waterColor = new THREE.Color(0x1d7a86);
   scene.background = waterColor;
-  scene.fog = new THREE.FogExp2(0x0e5c66, 0.007);
+  scene.fog = new THREE.FogExp2(0x1d7a86, 0.006);
+  // Soft image-based light so the textured fish read as 3D instead of near-black silhouettes.
+  const pmrem = new THREE.PMREMGenerator(renderer);
+  const envTex = pmrem.fromScene(new RoomEnvironment(), 0.04).texture;
+  pmrem.dispose();
+  scene.environment = envTex;
   const camera = new THREE.PerspectiveCamera(42, 16 / 9, 0.08, 40);
 
   scene.add(new THREE.HemisphereLight(0xd7fff4, 0x1a3a32, 0.85));
@@ -61,7 +68,7 @@ export function createUnderwaterScene(canvas) {
         col*=.96+.06*sin(p.x*7.+fbm(p*2.)*9.);
         // Beer–Lambert style attenuation toward the water colour with distance from the camera.
         float d = distance(vW, cameraPosition);
-        col = mix(col, vec3(0.055, 0.36, 0.40), 1.0 - exp(-d * d * 0.004));
+        col = mix(col, vec3(0.10, 0.45, 0.50), 1.0 - exp(-d * d * 0.004));
         gl_FragColor=vec4(col,1.);
       }`,
   });
@@ -86,7 +93,7 @@ export function createUnderwaterScene(canvas) {
         vec3 c=mix(vec3(.12,.55,.58),vec3(.75,.95,.92),smoothstep(.35,.9,w));
         // Seen from below, the surface fades into the water colour with distance (no visible plane edge).
         float att = 1.0 - exp(-d * d * 0.004);
-        c = mix(c, vec3(0.043, 0.29, 0.32), att);
+        c = mix(c, vec3(0.10, 0.45, 0.50), att);
         float a = clamp(.55 + .35 * w, 0., .95) * (1.0 - att * 0.85);
         gl_FragColor=vec4(c,clamp(a,0.,.9));
       }`,
@@ -210,7 +217,9 @@ export function createUnderwaterScene(canvas) {
     mat.emissiveMap = null;
     mat.emissiveIntensity = 0;
     if (!mat.roughnessMap) mat.roughness = 0.48;
-    mat.side = THREE.FrontSide;
+    // Fins are single sheets: draw both faces, otherwise one side is culled and the other reads black.
+    mat.side = THREE.DoubleSide;
+    mat.envMapIntensity = 0.5;
     const maxAniso = renderer.capabilities.getMaxAnisotropy();
     for (const tex of [mat.map, mat.normalMap, mat.roughnessMap, mat.aoMap]) {
       if (!tex) continue;
@@ -258,8 +267,9 @@ export function createUnderwaterScene(canvas) {
 
   /** Loose shoal: positions jittered, headings around a mean with individual deviation. */
   function shoal(centre, n, dir, spread, speed) {
-    return Array.from({ length: n }, () => ({
-      base: centre.clone().add(new THREE.Vector3((Math.random() - 0.5) * spread, (Math.random() - 0.5) * 0.55, (Math.random() - 0.5) * spread * 1.6)),
+    return Array.from({ length: n }, (_, i) => ({
+      // Fish are ~1 m long: keep shoal-mates a body length apart (side by side, staggered in depth).
+      base: centre.clone().add(new THREE.Vector3((i - (n - 1) / 2) * Math.max(0.75, spread), (Math.random() - 0.5) * 0.25 + (i % 2) * 0.22, (Math.random() - 0.5) * spread)),
       yaw: dir + (Math.random() - 0.5) * 0.5,
       speed: speed * (0.8 + Math.random() * 0.4),
       size: 0.8 + Math.random() * 0.45,
@@ -277,9 +287,9 @@ export function createUnderwaterScene(canvas) {
     addSchool(
       barra,
       [
-        ...shoal(new THREE.Vector3(-0.35, 0.62, 2.5), 2, 0.2, 0.7, 0.18),
-        ...shoal(new THREE.Vector3(0.45, 0.95, 3.6), 2, -0.25, 0.85, 0.22),
-        ...shoal(new THREE.Vector3(-0.15, 1.25, 4.8), 2, 0.4, 0.9, 0.16),
+        ...shoal(new THREE.Vector3(-0.45, 0.6, 2.6), 2, 0.15, 0.8, 0.18),
+        ...shoal(new THREE.Vector3(0.75, 0.95, 4.0), 2, -0.2, 0.9, 0.2),
+        ...shoal(new THREE.Vector3(-0.5, 1.35, 5.6), 2, 0.3, 0.95, 0.16),
       ],
       0.92,
     );
@@ -300,7 +310,12 @@ export function createUnderwaterScene(canvas) {
     camera.position.set(Math.sin(p * 1.1) * 0.12, 0.92 + rise * 0.7, 0.85 + p * 1.15);
     camera.lookAt(Math.sin(p * 0.8) * 0.08, 0.78, camera.position.z + 1.7);
     const tc = time - 17.5; // centre of the underwater cut
+    // Fish only while the underwater view is fully on screen. During the dissolves they showed as
+    // ghostly fin shapes floating over the satellite view.
+    const fishOn = time >= 15.8 && time < 18.5;
     for (const s of schools) {
+      s.mesh.visible = fishOn;
+      if (!fishOn) continue;
       s.fish.forEach((f, i) => {
         const yaw = f.yaw + f.turn * tc + Math.sin(time * 0.45 + f.wob) * 0.22;
         const yawRate = f.turn + Math.cos(time * 0.45 + f.wob) * 0.1;
@@ -329,6 +344,7 @@ export function createUnderwaterScene(canvas) {
     render,
     resize,
     dispose() {
+      envTex.dispose();
       renderer.dispose();
     },
   };

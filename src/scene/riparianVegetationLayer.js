@@ -5,6 +5,7 @@ import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { nearestStation, lateralDistToCenterline } from "../features/fishing/FishingZoneSystem.js";
+import { terrainHeightAt } from "./terrain.js";
 
 const FOREST = 1;
 const BANK = 2;
@@ -26,7 +27,7 @@ const SUBMERGED_Y = -0.4;
 const EDGE_Y = -0.15;
 const INTERIOR_Y = 0.3;
 const CROWN_Y = 0.35;
-const TREE_CHANCE = 0.12;
+const TREE_CHANCE = 0.3;
 const UNDERGROWTH_CHANCE = 0.22;
 const DEFAULT_MAX_TREES = 2600;
 
@@ -42,11 +43,60 @@ const DEFAULT_MAX_TREES = 2600;
 export async function createRiparianVegetationLayer(dataset, opts = {}) {
   const group = new THREE.Group();
   group.name = "riparianVegetation";
+  const clusters = [];
+  const stations = dataset.corridor?.stations || [];
+  const ring = dataset.ringLocal || [];
+  const lulc = await loadLulcClassGrid().catch((err) => {
+    console.warn("[riparian] LULC unavailable:", err?.message || err);
+    return null;
+  });
+  if (!lulc || ring.length < 3 || !stations.length) {
+    group.userData = { clusters, crossings: [], treeCount: 0, syncToWater: () => {}, dispose: () => group.clear() };
+    return group;
+  }
+
+  const grid = detectLandCells(ring, dataset.points || [], lulc, stations);
+  const crossingResult = markChannelCrossings(grid, grid.inRing, grid.centreCells);
+  grid.submerged.set(crossingResult.submerged);
+  const candidates = clusterCells(grid);
+  const maxTrees = Math.max(0, Number(opts.maxTrees) || DEFAULT_MAX_TREES);
+  const rng = mulberry(0x71a4b39);
+  const placements = [];
+  for (const [index, cluster] of candidates.entries()) {
+    const areaM2 = cluster.cells.length * grid.cellArea;
+    if (areaM2 < MIN_CLUSTER_M2) continue;
+    let sx = 0, sz = 0;
+    const treeStart = placements.length;
+    for (const cell of cluster.cells) {
+      if (placements.length >= maxTrees) break;
+      if (cell.kind !== FOREST || cell.submerged || rng() >= TREE_CHANCE) continue;
+      const near = nearestStation(cell.x, cell.z, stations);
+      if (!near) continue;
+      const lateral = lateralDistToCenterline(cell.x, cell.z, near);
+      if (lateral < Math.max(2, Number(near.halfWidth) * 0.35)) continue;
+      const groundY = terrainHeightAt(cell.x, cell.z, stations);
+      if (!Number.isFinite(groundY) || groundY < SURFACE_Y + 0.25) continue;
+      const placement = treePlacement(cell, grid, groundY, stations, { id: `riparian-${index}` }, riparianTreeAsset(rng), rng);
+      placements.push(placement);
+      sx += cell.x;
+      sz += cell.z;
+    }
+    const count = placements.length - treeStart;
+    if (count) clusters.push({ id: `riparian-${index}`, x: sx / count, z: sz / count, areaM2: Math.round(areaM2), treeCount: count });
+  }
+
+  const batches = await buildTreeBatches(placements, !!opts.castShadow, rng);
+  for (const batch of batches) group.add(batch.mesh);
   group.userData = {
-    clusters: [],
-    crossings: [],
+    clusters,
+    crossings: crossingResult.crossings,
+    treeCount: placements.length,
     syncToWater: () => {},
     dispose: () => {
+      for (const batch of batches) {
+        batch.mesh.material?.dispose?.();
+        batch.mesh.dispose?.();
+      }
       group.clear();
     },
   };
@@ -132,7 +182,7 @@ function detectLandCells(ring, depthPoints, lulc, stations) {
   }
   // Land stays land. Water is clipped out of the water mesh instead of sinking the island.
   const submerged = new Uint8Array(gw * gh);
-  return { gw, gh, keep, submerged, crossings: [], cornerLocal, cellArea };
+  return { gw, gh, keep, submerged, crossings: [], cornerLocal, cellArea, inRing, centreCells };
 }
 
 /**

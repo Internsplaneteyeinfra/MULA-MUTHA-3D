@@ -342,7 +342,7 @@ export function ribbonEdgeDistance(x, z, stations, st = nearest(x, z, stations).
   return { d, along, st };
 }
 
-/** Nearest-station lookup with a spatial hash (fast enough for per-vertex use on fine grids). */
+/** Nearest-station lookup with a spatial hash; null when no station lies within ~6 cells (far from the river). */
 export function makeStationLocator(stations, cell = 120) {
   const bins = new Map();
   stations.forEach((s, i) => {
@@ -373,7 +373,8 @@ export function makeStationLocator(stations, cell = 120) {
       // Accept once the search ring is wider than the nearest distance found.
       if (best >= 0 && Math.sqrt(bestD) <= r * cell) return stations[best];
     }
-    return nearest(x, z, stations).st;
+    // Nothing within ~720 m: far from the river (callers treat null as "not near the water").
+    return null;
   };
 }
 
@@ -421,7 +422,8 @@ export function carveTerrainUnderRiver(mesh, stations, { deepY = SURFACE_Y - 30,
     const x = pos.getX(i);
     const z = pos.getZ(i);
     if (x >= minX - pad && x <= maxX + pad && z >= minZ - pad && z <= maxZ + pad) {
-      const { d } = ribbonEdgeDistance(x, z, stations, locate(x, z));
+      const near = locate(x, z);
+      const { d } = near ? ribbonEdgeDistance(x, z, stations, near) : { d: Infinity };
       if (d < band) {
         y = deepY;
         sunk[i] = 1;

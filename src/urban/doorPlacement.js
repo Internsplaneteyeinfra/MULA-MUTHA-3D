@@ -125,13 +125,72 @@ function pickRoadFacing(metrics, roads) {
   return best;
 }
 
-function distToNearestRoad(x, z, roads) {
-  let best = Infinity;
+/**
+ * Exact distance to the nearest road segment, via a uniform grid of segments (built once per roads
+ * array). Rings are searched outward until no closer segment can exist — same result as a full scan
+ * over every segment of every road, without the per-building O(all segments) cost.
+ */
+const ROAD_CELL_M = 60;
+const roadGrids = new WeakMap();
+function roadGrid(roads) {
+  let g = roadGrids.get(roads);
+  if (g) return g;
+  const cells = new Map();
+  const segs = [];
+  let maxRing = 1;
+  let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
   for (const road of roads) {
-    const verts = road.vertices || [];
-    for (let i = 1; i < verts.length; i++) {
-      const d = distToSegment(x, z, verts[i - 1].x, verts[i - 1].z, verts[i].x, verts[i].z);
-      if (d < best) best = d;
+    const v = road.vertices || [];
+    for (let i = 1; i < v.length; i++) {
+      const a = v[i - 1];
+      const b = v[i];
+      const id = segs.length;
+      segs.push([a.x, a.z, b.x, b.z]);
+      const x0 = Math.floor(Math.min(a.x, b.x) / ROAD_CELL_M);
+      const x1 = Math.floor(Math.max(a.x, b.x) / ROAD_CELL_M);
+      const z0 = Math.floor(Math.min(a.z, b.z) / ROAD_CELL_M);
+      const z1 = Math.floor(Math.max(a.z, b.z) / ROAD_CELL_M);
+      for (let cx = x0; cx <= x1; cx++) {
+        for (let cz = z0; cz <= z1; cz++) {
+          const k = cx * 100003 + cz;
+          let list = cells.get(k);
+          if (!list) cells.set(k, (list = []));
+          list.push(id);
+        }
+      }
+      minX = Math.min(minX, a.x, b.x); maxX = Math.max(maxX, a.x, b.x);
+      minZ = Math.min(minZ, a.z, b.z); maxZ = Math.max(maxZ, a.z, b.z);
+    }
+  }
+  if (segs.length) maxRing = Math.ceil(Math.max(maxX - minX, maxZ - minZ) / ROAD_CELL_M) + 2;
+  g = { cells, segs, maxRing, stamp: new Uint32Array(segs.length), stampId: 0 };
+  roadGrids.set(roads, g);
+  return g;
+}
+
+function distToNearestRoad(x, z, roads) {
+  const g = roadGrid(roads);
+  if (!g.segs.length) return Infinity;
+  const cx = Math.floor(x / ROAD_CELL_M);
+  const cz = Math.floor(z / ROAD_CELL_M);
+  const id = ++g.stampId;
+  let best = Infinity;
+  for (let r = 0; r <= g.maxRing; r++) {
+    // Every unvisited segment is at least (r - 1) cells away.
+    if (best <= (r - 1) * ROAD_CELL_M) break;
+    for (let i = -r; i <= r; i++) {
+      for (let j = -r; j <= r; j++) {
+        if (Math.max(Math.abs(i), Math.abs(j)) !== r) continue; // ring only
+        const list = g.cells.get((cx + i) * 100003 + (cz + j));
+        if (!list) continue;
+        for (const sid of list) {
+          if (g.stamp[sid] === id) continue;
+          g.stamp[sid] = id;
+          const [ax, az, bx, bz] = g.segs[sid];
+          const d = distToSegment(x, z, ax, az, bx, bz);
+          if (d < best) best = d;
+        }
+      }
     }
   }
   return best;

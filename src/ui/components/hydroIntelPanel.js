@@ -283,10 +283,13 @@ export function mountHydroIntelPanel(root) {
   // body.hydro-intel-open mirrors state.hydrologyViewState; CSS uses it to hide Current Hydrology.
   function setHydrologyView(view) {
     const detailed = view === "detailed";
+    const wasDetailed = state.hydrologyViewState === "detailed";
     state.hydrologyViewState = detailed ? "detailed" : "current";
     backdrop.hidden = !detailed;
     backdrop.style.display = detailed ? "flex" : "none";
     document.body.classList.toggle("hydro-intel-open", detailed);
+    if (detailed && !wasDetailed) document.dispatchEvent(new Event("hydrology-intel-open"));
+    if (!detailed && wasDetailed) document.dispatchEvent(new Event("hydrology-intel-close"));
   }
   function show() { setHydrologyView("detailed"); }
   function hide() { setHydrologyView("current"); }
@@ -660,7 +663,7 @@ export function mountHydroIntelPanel(root) {
             <path d="${p50Path}" fill="none" stroke="${C.forecast}" stroke-width="1.5" stroke-dasharray="6,3"/>
             <!-- Active station -->
             ${activeMkr}
-            ${yLabel(L, "Relative elevation (m) · datum unverified")}
+            ${yLabel(L, "Relative elevation (m)")}
             ${xLabel(L, "Chainage (km)")}
           </svg>
         </div>
@@ -866,7 +869,7 @@ export function mountHydroIntelPanel(root) {
             <text x="${L.padL + L.plotW - 4}" y="${parseFloat(thrY) - 5}"
                   fill="${C.threshold}" font-size="9" text-anchor="end">Threshold ${thr.toFixed(2)} m</text>
             ${marginAnn}
-            ${yLabel(L, "Relative elevation (m) · datum unverified")}
+            ${yLabel(L, "Relative elevation (m)")}
             ${xLabel(L, "Station")}
           </svg>
         </div>

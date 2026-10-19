@@ -299,7 +299,7 @@ export async function getRiverStageSeries(leadH = 24) {
       wse_now:  PROVENANCE_STATUS.MODELLED,
       bed:      PROVENANCE_STATUS.MODELLED,
       forecast: PROVENANCE_STATUS.MODELLED,
-      note:     "ForecastEngine hydraulic geometry · datum unverified",
+      note:     "ForecastEngine hydraulic geometry",
     },
   };
 }
@@ -361,6 +361,95 @@ export async function getHydrograph(chainage_m) {
       threshold: PROVENANCE_STATUS.VERIFIED,
       note: `${N_ENSEMBLE_MEMBERS} ensemble members · ${FORECAST_HORIZON_H}h horizon`,
     },
+  };
+}
+
+/**
+ * Water level timeline used by the in-scene playback. Values are the existing
+ * ForecastEngine WSE outputs.
+ */
+export async function getWaterLevelSimulationSeries(kind, chainage_m = 0, resolution = "hourly") {
+  const eng = await getForecastEngine();
+  const cell = eng.cellForChainage(chainage_m);
+  const nowIdx = eng.nowIdx ?? (HYDRO_PAST_H + 24);
+  const values = [];
+  const hours = [];
+
+  if (kind === "discharge") {
+    for (let h = 24; h >= 0; h--) {
+      const idx = Math.max(0, nowIdx - h);
+      const q = eng.qTruth?.[idx];
+      const wse = Number.isFinite(q) ? eng.wseProfile(q)?.[cell] : null;
+      if (Number.isFinite(wse)) { values.push(wse); hours.push(-h); }
+    }
+    for (let k = 0; k < 24; k++) {
+      const [, q50] = eng.qQuantiles(k, [0.1, 0.5]);
+      const wse = eng.wseProfile(q50)?.[cell];
+      if (Number.isFinite(wse)) { values.push(wse); hours.push(k + 1); }
+    }
+  } else if (kind === "stage" || kind === "hydrograph") {
+    const graph = await getHydrograph(chainage_m);
+    if (kind === "hydrograph") {
+      values.push(...graph.observed.wse, ...graph.forecast.p50);
+      hours.push(...graph.observed.hours, ...graph.forecast.hours);
+    } else {
+      values.push(...graph.forecast.p50);
+      hours.push(...graph.forecast.hours);
+    }
+  } else {
+    throw new Error(`Unknown water simulation: ${kind}`);
+  }
+
+  const now = Date.now();
+  const hourlySamples = values
+    .map((value, i) => {
+      const hour = Number(hours[i]);
+      return {
+        value: value == null ? NaN : Number(value),
+        hour,
+        timestamp: now + hour * 60 * 60 * 1000,
+        provenance: hour <= 0 ? "MODEL" : "MODEL FORECAST",
+      };
+    })
+    .filter((sample) => Number.isFinite(sample.value) && Number.isFinite(sample.hour))
+    .sort((a, b) => a.hour - b.hour);
+  if (hourlySamples.length < 2) throw new Error("Hydrology model returned too few valid water-level samples.");
+  const expectedStepHours = kind === "discharge" ? 1 : 2;
+  if (hourlySamples.some((sample, i) => i > 0 && sample.hour - hourlySamples[i - 1].hour > expectedStepHours + 0.01)) {
+    throw new Error("Hydrology model returned a gap in the water-level time series.");
+  }
+
+  const hoursPerSample = { hourly: 1, daily: 24, weekly: 168 }[resolution];
+  if (!hoursPerSample) throw new Error(`Unknown water-level resolution: ${resolution}`);
+  const startHour = hourlySamples[0].hour;
+  const bins = new Map();
+  for (const sample of hourlySamples) {
+    const bin = Math.floor((sample.hour - startHour) / hoursPerSample);
+    if (!bins.has(bin)) bins.set(bin, []);
+    bins.get(bin).push(sample);
+  }
+
+  // Keep only fully covered periods. A partial final day/week must not be
+  // presented as a complete aggregate.
+  const samples = resolution === "hourly"
+    ? hourlySamples
+    : [...bins.entries()]
+      .filter(([, period]) => period[period.length - 1].hour - period[0].hour >= hoursPerSample - 2)
+      .map(([, period]) => ({
+        value: period.reduce((sum, sample) => sum + sample.value, 0) / period.length,
+        hour: period[0].hour,
+        timestamp: period[0].timestamp,
+        provenance: period.some((sample) => sample.provenance === "MODEL FORECAST") ? "MODEL · FORECAST INCLUDED" : "MODEL",
+      }));
+
+  const available = samples.length >= 2;
+  return {
+    samples,
+    resolution,
+    available,
+    reason: available ? null : `The ${resolution} series does not contain two complete periods.`,
+    provenance: PROVENANCE_STATUS.MODELLED,
+    units: "m",
   };
 }
 

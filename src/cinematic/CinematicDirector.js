@@ -210,6 +210,12 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
 
   const urlT = new URLSearchParams(window.location.search).get("t");
   const debugAt = urlT != null ? parseFloat(urlT) : null; // ?t=12.5 freezes the film at that time (verification)
+  // ?capture=1: the film renders whatever time the recorder sets (scripts/record-landing-film.mjs) and reports
+  // when that frame's tiles are in. Used to bake the stored landing video.
+  const captureMode = new URLSearchParams(window.location.search).has("capture");
+  let captureT = 0;
+  let captureSprayT = 0;
+  let underwaterReady = false;
 
   // ---------- Cesium viewer ----------
   const viewer = new Cesium.Viewer(container, {
@@ -841,7 +847,9 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     if (cutEl) cutEl.style.opacity = "0";
 
     // Underwater cut (Three.js canvas over Cesium): fade in from the Mutha surface, back out over the Pune reach.
-    const uwA = Math.min(clamp01((t - 15.75) / 0.45), 1 - clamp01((t - 18.55) / 0.45));
+    // Dissolve in before the globe camera is down at the water surface, where the satellite photo is magnified
+    // into blurry / blocky pixels; dissolve out once the Pune reach is a sharp aerial view again.
+    const uwA = Math.min(clamp01((t - 15.25) / 0.5), 1 - clamp01((t - 18.55) / 0.45));
     underwaterCanvas.style.opacity = String(uwA);
     underwaterCanvas.style.visibility = uwA > 0.002 ? "visible" : "hidden";
     if (uwA > 0.002) underwater?.render(clamp01((t - 15.75) / 3.25), t);
@@ -859,7 +867,10 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       return;
     }
 
-    if (debugAt != null) {
+    if (captureMode) {
+      currentTime = captureT;
+      isPlaying = false;
+    } else if (debugAt != null) {
       // Verification mode (?t=): hold the film at one instant and render sparsely so software-GL capture stays responsive.
       currentTime = debugAt;
       isPlaying = false;
@@ -899,18 +910,26 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
 
     const tA = performance.now();
     // Begin scene-specific work shortly before its preview rather than during the opening globe.
-    if (currentTime >= 13.8 && !underwater) {
+    // Fish model + textures (~3 MB) must be ready before the 16 s cut — loading at 13.8 s left the cut without fish.
+    if (currentTime >= 1 && !underwater) {
       const scene = requestUnderwater();
-      scene.ready.then(() => scene.warmup()).catch((err) => console.warn("underwater scene unavailable", err));
+      scene.ready.then(() => { scene.warmup(); underwaterReady = true; }).catch((err) => console.warn("underwater scene unavailable", err));
     }
     if (currentTime >= 21.35 && !lithologyProviderReady) requestLithology();
     if (currentTime >= 22.9 && !floodSamplesReady) requestFloodSamples();
     applyTime(currentTime);
     const tB = performance.now();
-    spray?.update(Math.min(dt, 0.05) * (isPlaying || debugAt != null ? 1 : 0.0001), (currentTime > 5.8 && currentTime < 11.2) || (currentTime > 11.8 && currentTime < 16.3));
-    if (spill) spill.material.uniforms.u_time = (now / 1000) % 1000;
+    // Capture: animations follow film time (one step per recorded frame), not wall-clock.
+    let sprayDt = Math.min(dt, 0.05) * (isPlaying || debugAt != null ? 1 : 0.0001);
+    if (captureMode) {
+      sprayDt = Math.max(0, Math.min(0.05, currentTime - captureSprayT));
+      captureSprayT = currentTime;
+    }
+    spray?.update(sprayDt, (currentTime > 5.8 && currentTime < 11.2) || (currentTime > 11.8 && currentTime < 16.3));
+    const shaderT = captureMode ? currentTime : (now / 1000) % 1000;
+    if (spill) spill.material.uniforms.u_time = shaderT;
     ribbons.forEach((r) => {
-      r.material.uniforms.u_time = (now / 1000) % 1000;
+      r.material.uniforms.u_time = shaderT;
     });
     const tC = performance.now();
     scene.render();
@@ -1044,9 +1063,9 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
           };
           chk();
         });
-      if (debugAt != null) {
+      if (debugAt != null || captureMode) {
         await pipeline;
-        applyTime(debugAt);
+        applyTime(debugAt ?? 0);
         await waitUntil(() => { scene.render(); return globe.tilesLoaded; }, 15000);
       } else {
         // Stay hidden until a real satellite texture is on the globe. A terrain-only frame is the flat colour.
@@ -1056,7 +1075,37 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       markBoot("play");
       ready = true;
       lastFrame = performance.now();
-      if (debugAt == null) {
+      if (captureMode) {
+        window.__filmCapture = {
+          duration: TOTAL_DURATION,
+          setTime(t) {
+            captureT = Math.max(0, Math.min(TOTAL_DURATION, Number(t) || 0));
+          },
+          /**
+           * Frame complete: no visible tile is waiting (high/medium load queues empty, no tile download in
+           * flight) and, around the underwater cut, the fish scene is ready. globe.tilesLoaded alone never
+           * turns true here: a few low-priority ancestor tiles stay queued indefinitely.
+           */
+          settled() {
+            const needFish = captureT >= 15 && captureT < 19.1;
+            if (needFish && !underwaterReady) return false;
+            if (globe.tilesLoaded) return true;
+            const sf = globe._surface;
+            const visibleQueued = (sf?._tileLoadQueueHigh?.length ?? 0) + (sf?._tileLoadQueueMedium?.length ?? 0);
+            const inFlight = Cesium.RequestScheduler?.statistics?.numberOfActiveRequests ?? 0;
+            return visibleQueued === 0 && inFlight === 0;
+          },
+          debug() {
+            const sf = globe._surface;
+            return {
+              tilesLoaded: globe.tilesLoaded,
+              qHigh: sf?._tileLoadQueueHigh?.length, qMed: sf?._tileLoadQueueMedium?.length, qLow: sf?._tileLoadQueueLow?.length,
+              render: sf?._tilesToRender?.length, photo: frameHasImagery(),
+              prefetch: prefetcher?.progress?.(), inFlight: Cesium.RequestScheduler?.statistics?.numberOfActiveRequests,
+            };
+          },
+        };
+      } else if (debugAt == null) {
         filmStartWall = lastFrame;
         reanchor(0);
         isPlaying = true;

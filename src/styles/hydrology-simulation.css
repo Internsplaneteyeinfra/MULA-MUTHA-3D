@@ -1,0 +1,136 @@
+.hydrology-simulation-controls {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  align-items: center;
+  align-self: flex-start;
+  width: auto;
+  margin: -8px 0 0 2px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: transparent;
+  box-shadow: none;
+  backdrop-filter: none;
+  pointer-events: auto;
+}
+.left-ui-stack > .hydrology-simulation-controls { width: max-content; }
+.hydrology-simulation-mode-row,
+.hydrology-resolution-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
+.hydrology-simulation-controls[hidden],
+.hydrology-simulation-completion[hidden] { display: none !important; }
+.hydrology-simulation-button {
+  width: 38px !important;
+  height: 36px !important;
+  padding: 0;
+  color: rgba(220, 235, 235, 0.86);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 10px;
+  background: rgba(25, 45, 48, 0.42);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.14);
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+.hydrology-simulation-button:hover,
+.hydrology-simulation-button:focus-visible {
+  color: rgb(125, 211, 252);
+  border-color: rgba(56, 189, 248, 0.4);
+  background: rgba(56, 189, 248, 0.1);
+  outline: none;
+}
+.hydrology-simulation-icon { width: 17px; height: 17px; }
+.hydrology-resolution-button {
+  width: 22px;
+  height: 19px;
+  padding: 0;
+  color: rgba(220, 235, 235, 0.72);
+  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 6px;
+  background: rgba(25, 45, 48, 0.3);
+  cursor: pointer;
+}
+.hydrology-resolution-button.is-selected,
+.hydrology-resolution-button:hover:not(:disabled),
+.hydrology-resolution-button:focus-visible {
+  color: #b9f3ff;
+  border-color: rgba(56, 189, 248, 0.42);
+  background: rgba(56, 189, 248, 0.13);
+  outline: none;
+}
+.hydrology-resolution-button:disabled { opacity: 0.35; cursor: not-allowed; }
+.hydrology-simulation-completion {
+  position: fixed;
+  z-index: 1200;
+  top: 50%;
+  left: 50%;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+  color: rgba(255, 255, 255, 0.97);
+  font: 500 clamp(24px, 3.2vw, 48px)/1.2 Inter, "Segoe UI", sans-serif;
+  letter-spacing: 0.015em;
+  text-align: center;
+  text-shadow: 0 2px 18px rgba(0, 0, 0, 0.48);
+  pointer-events: none;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  opacity: 0;
+  transform: translate(-50%, calc(-50% + 8px));
+  transition: opacity 400ms ease, transform 400ms ease;
+}
+.hydrology-simulation-completion-label,
+.hydrology-simulation-completion-datum {
+  font: 700 10px/1.3 Inter, "Segoe UI", sans-serif;
+  letter-spacing: 0.13em;
+}
+.hydrology-simulation-completion-label { color: rgba(220, 242, 248, 0.85); }
+.hydrology-simulation-completion strong { font: 600 clamp(30px, 4vw, 52px)/1.1 Inter, "Segoe UI", sans-serif; }
+.hydrology-simulation-completion-datum { color: rgba(220, 242, 248, 0.68); font-size: 9px; }
+.hydrology-simulation-completion.is-visible {
+  opacity: 1;
+  transform: translate(-50%, -50%);
+}
+.hydrology-level-change {
+  position: fixed;
+  z-index: 1190;
+  top: 50%;
+  right: calc(68px + 28px);
+  width: 190px;
+  max-width: min(240px, 38vw);
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  gap: 9px;
+  color: rgba(255, 255, 255, 0.98);
+  font-family: Inter, "Segoe UI", sans-serif;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+  text-align: center;
+  text-shadow: 0 2px 16px rgba(0, 0, 0, 0.58);
+  pointer-events: none;
+  transform: translateY(-50%);
+}
+.hydrology-measure { display: flex; align-items: baseline; justify-content: center; gap: 8px; white-space: nowrap; }
+.hydrology-measure-arrow { color: rgba(255, 255, 255, 0.84); font-size: 20px; font-weight: 500; transition: opacity 140ms ease, text-shadow 140ms ease; opacity: 0.48; }
+.hydrology-measure-rise,
+.hydrology-measure-fall { font-size: 20px; font-weight: 550; align-items: center; }
+.hydrology-measure-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
+.hydrology-measure-stack .hydrology-measure-label { text-align: left; }
+.hydrology-measure-net { flex-direction: column; align-items: center; gap: 2px; margin: 1px 0; }
+.hydrology-measure-label { font-size: 9px; font-weight: 650; letter-spacing: 0.16em; color: rgba(220, 241, 248, 0.7); }
+.hydrology-measure-net [data-measure="net"] { font-size: clamp(30px, 3.4vw, 46px); line-height: 1.04; font-weight: 700; }
+.hydrology-level-change.is-rising .hydrology-measure-rise .hydrology-measure-arrow,
+.hydrology-level-change.is-falling .hydrology-measure-fall .hydrology-measure-arrow { opacity: 1; text-shadow: 0 0 13px rgba(255, 255, 255, 0.7); }
+.hydrology-level-change.is-stable .hydrology-measure-arrow { opacity: 0.38; }
+.hydrology-simulation-progress { margin-top: 2px; color: rgba(220, 235, 235, 0.75); font: 500 9px/1.3 Inter, "Segoe UI", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+#ui-root.layers-open .hydrology-level-change {
+  right: calc(68px + 16px + var(--layers-panel-w) + 14px + 12px);
+}
+@media (max-width: 640px) {
+  .hydrology-level-change { right: 80px; max-width: calc(100vw - 104px); }
+  #ui-root.layers-open .hydrology-level-change { right: calc(80px + var(--layers-panel-w)); }
+}

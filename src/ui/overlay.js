@@ -29,6 +29,7 @@ import { mountCrossSectionModal } from "./components/crossSectionModal.js";
 import { mountThresholdGraph } from "./components/thresholdGraph.js";
 import { isDigitalTwinActive } from "./dtMode.js";
 import { mountHydroIntelPanel } from "./components/hydroIntelPanel.js";
+import { mountHydrologySimulationControls } from "./components/hydrologySimulationControls.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
 import {
   cancelJalnetraFloodRequest,
@@ -607,6 +608,7 @@ export function mountUI(root, {
   if (leftStack.firstElementChild !== riverData.el) {
     leftStack.prepend(riverData.el);
   }
+  mountHydrologySimulationControls(leftStack);
   const profileAnalysis = mountProfileAnalysisPanel(root, dataset);
   riverData.bindProfileAnalysis?.(profileAnalysis);
   const flowBtn = mountWaterFlowControl(root);
