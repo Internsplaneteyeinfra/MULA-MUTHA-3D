@@ -54,6 +54,45 @@ export function mountHydrologySimulationControls(root) {
     <div class="hydrology-simulation-progress" data-measure="progress"></div>`;
   document.getElementById("ui-root")?.appendChild(indicator);
 
+  // Free-floating (not docked in the hydrology panel): sit below the flood panels when they are
+  // open instead of covering them (the CSS top is a fixed height).
+  const placeBelowFloodDock = () => {
+    if (el.classList.contains("is-panel-docked")) {
+      el.style.top = "";
+      return;
+    }
+    // Bottom of the last visible flood panel (the dock element itself can be taller).
+    const dock = document.getElementById("flood-left-dock");
+    let bottom = 0;
+    if (dock && !dock.hidden) {
+      for (const child of dock.children) {
+        if (child.hidden || child === el) continue;
+        const r = child.getBoundingClientRect();
+        if (r.height > 0 && r.width > 0) bottom = Math.max(bottom, r.bottom);
+      }
+    }
+    el.style.top = bottom > 0 ? `${Math.round(bottom + 8)}px` : "";
+  };
+  let placeRaf = 0;
+  const schedulePlace = () => {
+    if (!placeRaf) placeRaf = requestAnimationFrame(() => { placeRaf = 0; placeBelowFloodDock(); });
+  };
+  const watchFloodDock = () => {
+    const dock = document.getElementById("flood-left-dock");
+    if (!dock || typeof ResizeObserver === "undefined") return false;
+    const ro = new ResizeObserver(schedulePlace);
+    ro.observe(dock);
+    for (const child of dock.children) ro.observe(child);
+    new MutationObserver((records) => {
+      for (const r of records) for (const n of r.addedNodes) if (n.nodeType === 1) ro.observe(n);
+      schedulePlace();
+    }).observe(dock, { attributes: true, subtree: true, childList: true, attributeFilter: ["hidden", "data-open"] });
+    schedulePlace();
+    return true;
+  };
+  if (!watchFloodDock()) setTimeout(watchFloodDock, 1500);
+  window.addEventListener("resize", schedulePlace);
+
   const measure = (key) => indicator.querySelector(`[data-measure="${key}"]`);
   let phase = "ready";
   let frame = 0;
@@ -73,12 +112,14 @@ export function mountHydrologySimulationControls(root) {
     }
     simulationDock.appendChild(el);
     el.classList.add("is-panel-docked");
+    el.style.top = "";
     el.hidden = phase === "simulating" || phase === "settling";
   }
 
   function undockControls() {
     root.appendChild(el);
     el.classList.remove("is-panel-docked");
+    schedulePlace();
     simulationDock?.remove();
     simulationDock = null;
     el.hidden = phase === "simulating" || phase === "settling";

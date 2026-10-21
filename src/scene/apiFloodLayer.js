@@ -59,6 +59,10 @@ export function createApiFloodLayer(dataset) {
   /** Sampling-grid coordinates per cell index (floodAttr/distAttr index space, not the compacted mesh). */
   let gridX = null;
   let gridZ = null;
+  /** Columns of the sampling grid (row-major, PlaneGeometry vertex order). */
+  let gridCols = 0;
+  /** Cached detected flood patches for the current mesh (see getFloodPatches). */
+  let floodPatches = null;
   let anim = {
     active: false,
     paused: false,
@@ -107,6 +111,8 @@ export function createApiFloodLayer(dataset) {
     spillElevationsAttr = null;
     gridX = null;
     gridZ = null;
+    gridCols = 0;
+    floodPatches = null;
   }
 
   /** Distance to the centreline polyline (segments, not samples, so the front grows as a band, not beads). */
@@ -402,6 +408,8 @@ export function createApiFloodLayer(dataset) {
     spillElevationsAttr = new Float32Array(pos.count).fill(Infinity);
     gridX = new Float32Array(pos.count);
     gridZ = new Float32Array(pos.count);
+    gridCols = segsX + 1;
+    floodPatches = null;
     const colors = new Float32Array(pos.count * 3);
     const debugColors = new Float32Array(pos.count * 3);
 
@@ -1312,6 +1320,83 @@ export function createApiFloodLayer(dataset) {
   group.userData.getProgress = () => anim.progress;
   group.userData.getSceneIndex = () => sceneIndex;
   group.userData.getScenes = () => scenes;
+  /**
+   * Detected flood patches: connected areas of flooded cells in the rendered flood grid (the red
+   * extent from the flood product). Each patch: area, the flooded cell nearest its centroid (so the
+   * point is always inside the patch, even for curved shapes), that point's lat/lon, and the nearest
+   * river chainage. Patches smaller than minHa are ignored (isolated raster specks). Sorted by
+   * chainage, numbered 1…N.
+   */
+  group.userData.getFloodPatches = ({ minHa = 0.05 } = {}) => {
+    if (!mesh || !floodAttr || !gridX || !gridCols) return [];
+    if (floodPatches && floodPatches.minHa === minHa) return floodPatches.list;
+    const n = floodAttr.length;
+    const cols = gridCols;
+    const cellHa = mesh.userData.cellAreaHa || 0;
+    const label = new Int32Array(n).fill(-1);
+    const stack = new Int32Array(n);
+    const raw = [];
+    for (let s = 0; s < n; s++) {
+      if (label[s] >= 0 || !(floodAttr[s] > 0.5)) continue;
+      const id = raw.length;
+      let top = 0;
+      stack[top++] = s;
+      label[s] = id;
+      let count = 0, sx = 0, sz = 0;
+      const cells = [];
+      while (top) {
+        const k = stack[--top];
+        count++;
+        sx += gridX[k];
+        sz += gridZ[k];
+        cells.push(k);
+        const c = k % cols;
+        const nb = [c > 0 ? k - 1 : -1, c < cols - 1 ? k + 1 : -1, k - cols, k + cols];
+        for (const m of nb) {
+          if (m < 0 || m >= n || label[m] >= 0 || !(floodAttr[m] > 0.5)) continue;
+          label[m] = id;
+          stack[top++] = m;
+        }
+      }
+      raw.push({ count, cx: sx / count, cz: sz / count, cells });
+    }
+    const chain = dataset.chainage || [];
+    const list = [];
+    for (const r of raw) {
+      const areaHa = r.count * cellHa;
+      if (areaHa < minHa) continue;
+      let best = r.cells[0];
+      let bd = Infinity;
+      for (const k of r.cells) {
+        const d = (gridX[k] - r.cx) ** 2 + (gridZ[k] - r.cz) ** 2;
+        if (d < bd) { bd = d; best = k; }
+      }
+      const x = gridX[best];
+      const z = gridZ[best];
+      let ll = null;
+      try { ll = localToLonLat(x, z); } catch { ll = null; }
+      let ch = null;
+      let chD = Infinity;
+      for (const c of chain) {
+        const d = (c.x - x) ** 2 + (c.z - z) ** 2;
+        if (d < chD) { chD = d; ch = c; }
+      }
+      list.push({
+        x, z,
+        areaHa,
+        lat: ll?.lat ?? null,
+        lon: ll?.lon ?? null,
+        chainageM: ch?.meters ?? null,
+        chainageLabel: ch?.label ?? null,
+        distanceToChainageM: ch ? Math.sqrt(chD) : null,
+      });
+    }
+    list.sort((a, b) => (a.chainageM ?? 0) - (b.chainageM ?? 0));
+    list.forEach((f, i) => { f.id = i + 1; });
+    floodPatches = { minHa, list };
+    return list;
+  };
+
   /** Real flooded grid cells + perimeter segments (scene metres) for the compare thumbnails. */
   group.userData.getThumbnailData = () => {
     if (!mesh || !floodAttr || !distAttr || !gridX) return null;

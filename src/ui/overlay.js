@@ -23,6 +23,7 @@ import { mountChainagePanel } from "./components/chainagePanel.js";
 import { mountFloodResultPanel } from "./floodResultPanel.js";
 import { mountFloodPlaybackControls } from "./floodPlaybackControls.js";
 import { mountFloodComparePanel } from "./components/floodComparePanel.js";
+import { mountFloodListPanel } from "./components/floodListPanel.js";
 import { validYmd, validNumber, fmtYmd, fmtHa, joinValid } from "./floodFieldFormat.js";
 import { mountTwinAnalyticsDock } from "./components/twinAnalyticsDock.js";
 import { mountCrossSectionModal } from "./components/crossSectionModal.js";
@@ -684,6 +685,8 @@ export function mountUI(root, {
     },
   });
   const floodCompare = mountFloodComparePanel(floodDock, { dataset });
+  // FLOODS (1, 2, 3…): detected flood areas, directly below FLOOD COMPARE.
+  mountFloodListPanel(floodDock);
   /**
    * Raise river water to the flood product's water_rise (mm→m × progress).
    * Does not move camera or chainage — only the water surface rises, then holds.
