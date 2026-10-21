@@ -1,23 +1,44 @@
 .hydrology-simulation-controls {
+  position: fixed;
+  z-index: 1100;
+  top: clamp(295px, 32vh, 390px);
+  left: clamp(10px, 1.2vw, 22px);
   display: flex;
   flex-direction: column;
   gap: 5px;
-  align-items: center;
+  align-items: flex-start;
   align-self: flex-start;
   width: auto;
-  margin: -8px 0 0 2px;
+  margin: 0;
+  padding: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  border-radius: 12px;
+  background: rgba(20, 44, 54, 0.74);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.22);
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  pointer-events: auto;
+}
+.hydrology-simulation-controls.is-panel-docked {
+  position: relative;
+  z-index: auto;
+  top: auto;
+  left: auto;
+  width: auto;
   padding: 0;
   border: 0;
   border-radius: 0;
   background: transparent;
   box-shadow: none;
   backdrop-filter: none;
-  pointer-events: auto;
 }
-.left-ui-stack > .hydrology-simulation-controls { width: max-content; }
+.hydrology-simulation-dock { padding: 8px 12px 10px; border-bottom: 1px solid rgba(255,255,255,.12); }
+.hydrology-simulation-controls.is-panel-docked { margin: 0; align-items: flex-start; }
+.hydrology-simulation-controls.is-panel-docked .hydrology-simulation-mode-row { justify-content: flex-start; }
 .hydrology-simulation-mode-row,
 .hydrology-resolution-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .hydrology-simulation-controls[hidden],
+.hydrology-level-change[hidden],
 .hydrology-simulation-completion[hidden] { display: none !important; }
 .hydrology-simulation-button {
   width: 38px !important;
@@ -46,7 +67,7 @@
   height: 19px;
   padding: 0;
   color: rgba(220, 235, 235, 0.72);
-  font: 600 10px/1 Inter, "Segoe UI", sans-serif;
+  font: 600 11px/1 Inter, "Segoe UI", sans-serif;
   border: 1px solid rgba(255, 255, 255, 0.1);
   border-radius: 6px;
   background: rgba(25, 45, 48, 0.3);
@@ -63,7 +84,7 @@
 .hydrology-resolution-button:disabled { opacity: 0.35; cursor: not-allowed; }
 .hydrology-simulation-completion {
   position: fixed;
-  z-index: 1200;
+  z-index: 9040;
   top: 50%;
   left: 50%;
   width: max-content;
@@ -89,14 +110,15 @@
 }
 .hydrology-simulation-completion-label { color: rgba(220, 242, 248, 0.85); }
 .hydrology-simulation-completion strong { font: 600 clamp(30px, 4vw, 52px)/1.1 Inter, "Segoe UI", sans-serif; }
-.hydrology-simulation-completion-datum { color: rgba(220, 242, 248, 0.68); font-size: 9px; }
+.hydrology-simulation-completion .hydrology-simulation-error-detail { max-width: min(760px, 90vw); font: 500 clamp(16px, 1.8vw, 24px)/1.35 Inter, "Segoe UI", sans-serif; }
+.hydrology-simulation-completion-datum { color: rgba(220, 242, 248, 0.82); font-size: 12px; line-height: 1.5; letter-spacing: 0.04em; }
 .hydrology-simulation-completion.is-visible {
   opacity: 1;
   transform: translate(-50%, -50%);
 }
 .hydrology-level-change {
   position: fixed;
-  z-index: 1190;
+  z-index: 9030;
   top: 50%;
   right: calc(68px + 28px);
   width: 190px;
@@ -121,12 +143,12 @@
 .hydrology-measure-stack { display: flex; flex-direction: column; align-items: flex-start; gap: 2px; }
 .hydrology-measure-stack .hydrology-measure-label { text-align: left; }
 .hydrology-measure-net { flex-direction: column; align-items: center; gap: 2px; margin: 1px 0; }
-.hydrology-measure-label { font-size: 9px; font-weight: 650; letter-spacing: 0.16em; color: rgba(220, 241, 248, 0.7); }
+.hydrology-measure-label { font-size: 10px; font-weight: 650; letter-spacing: 0.13em; color: rgba(220, 241, 248, 0.7); }
 .hydrology-measure-net [data-measure="net"] { font-size: clamp(30px, 3.4vw, 46px); line-height: 1.04; font-weight: 700; }
 .hydrology-level-change.is-rising .hydrology-measure-rise .hydrology-measure-arrow,
 .hydrology-level-change.is-falling .hydrology-measure-fall .hydrology-measure-arrow { opacity: 1; text-shadow: 0 0 13px rgba(255, 255, 255, 0.7); }
 .hydrology-level-change.is-stable .hydrology-measure-arrow { opacity: 0.38; }
-.hydrology-simulation-progress { margin-top: 2px; color: rgba(220, 235, 235, 0.75); font: 500 9px/1.3 Inter, "Segoe UI", sans-serif; letter-spacing: 0.08em; text-transform: uppercase; }
+.hydrology-simulation-progress { margin-top: 3px; color: rgba(220, 235, 235, 0.82); font: 500 11px/1.35 Inter, "Segoe UI", sans-serif; letter-spacing: 0.06em; text-transform: uppercase; }
 #ui-root.layers-open .hydrology-level-change {
   right: calc(68px + 16px + var(--layers-panel-w) + 14px + 12px);
 }

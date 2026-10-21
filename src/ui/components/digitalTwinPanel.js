@@ -108,6 +108,9 @@ export function mountDigitalTwinPanel(root) {
     const id = replaySelect.value;
     const ev = id ? historicalHydrologyService.selectEvent(id) : (historicalHydrologyService.selectEvent(null), null);
     replaySelect.disabled = true;
+    // Historical/live hydrology replay is a separate scenario. Clear any completed
+    // in-scene forecast override so its stage cannot leak into the next replay.
+    document.dispatchEvent(new Event("hydrology-scenario-change"));
     schedule();
     try {
       if (ev) {

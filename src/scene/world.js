@@ -1253,6 +1253,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologySimulationNeedsFinalUpdate ||= !!settled;
       return true;
     },
+    clearHydrologySimulation() {
+      hydrologySimulationRiseM = 0;
+      hydrologySimulationActive = false;
+      hydrologySimulationNeedsFinalUpdate = true;
+    },
     cameraSystem: cam,
     seekCinematic: (t) => cinematic.seek(t),
     stopCinematic: () => cinematic.finish(),
@@ -2165,6 +2170,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           ? Math.max(6.5, state.depthExaggeration * 3.2)
           : state.depthExaggeration;
       const apiFloodActive = state.floodMode === "api" && !!apiFloodLayer.userData?.hasFlood;
+      if (apiFloodActive && hydrologySimulationActive) {
+        // Do not resurrect a stale hydrology run after API flood playback ends.
+        hydrologySimulationRiseM = 0;
+        hydrologySimulationActive = false;
+        hydrologySimulationNeedsFinalUpdate = true;
+      }
       // River stage follows flood-product water rise (mm→m × progress). Camera/chainage stay fixed.
       let floodRise = state.floodRiseM ?? 0;
       if (apiFloodActive) {
@@ -2232,7 +2243,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           null,
           { includeBaseStage: false, allowNegativeRise: simulationActive },
         );
-        if (simulationActive) renderedHydrologySimulationRiseM = sheetRise;
+        renderedHydrologySimulationRiseM = simulationActive ? sheetRise : 0;
         riparianLayer?.userData.syncToWater(river.mesh, sheetRise);
         if (!apiFloodActive && !simulationActive) {
           floodLayer.setFloodRise?.(floodRise);

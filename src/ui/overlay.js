@@ -608,7 +608,6 @@ export function mountUI(root, {
   if (leftStack.firstElementChild !== riverData.el) {
     leftStack.prepend(riverData.el);
   }
-  mountHydrologySimulationControls(leftStack);
   const profileAnalysis = mountProfileAnalysisPanel(root, dataset);
   riverData.bindProfileAnalysis?.(profileAnalysis);
   const flowBtn = mountWaterFlowControl(root);
@@ -637,6 +636,7 @@ export function mountUI(root, {
   const csModal = mountCrossSectionModal(root);
   mountThresholdGraph(root);
   mountHydroIntelPanel(root);
+  mountHydrologySimulationControls(root);
   // Start hidden — toggled from analytics nav [data-analytics=digital_twin]
   dtDock.el.hidden = true;
 
