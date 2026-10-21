@@ -273,9 +273,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   let underwaterCheckIn = 0;
   let underwater = false;
   let underwaterLook = false;
-  /** Camera below the water surface with river / fill water directly above it (throttled raycast). */
+  /** Rise of the rendered water surface above SURFACE_Y (stage / flood / simulation), set by the loop. */
+  let renderedWaterRiseM = 0;
+  /**
+   * Camera below the current water surface (normal level + any stage / flood rise) with water around
+   * it: inside the river channel, or — when the water is raised — over ground lower than the water.
+   */
   function cameraInRiverWater(camera, dt) {
-    if (camera.position.y >= SURFACE_Y - 0.02 || !river.mesh.visible) {
+    const waterTopY = SURFACE_Y + renderedWaterRiseM;
+    if (camera.position.y >= waterTopY - 0.02 || !river.mesh.visible) {
       underwaterCheckIn = 0;
       underwater = false;
       return false;
@@ -294,8 +300,16 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       underwater = true;
       return true;
     }
+    // Raised water: anywhere the ground is below the water level is under water.
+    if (renderedWaterRiseM > 0.05) {
+      const ground = terrainHeightAt(camera.position.x, camera.position.z, stations);
+      if (Number.isFinite(ground) && ground < waterTopY) {
+        underwater = true;
+        return true;
+      }
+    }
     underwaterRay.set(camera.position, UP);
-    underwaterRay.far = SURFACE_Y + 2 - camera.position.y;
+    underwaterRay.far = waterTopY + 2 - camera.position.y;
     underwater = underwaterRay.intersectObject(river.mesh, true).length > 0;
     return underwater;
   }
@@ -1169,6 +1183,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   let lastExag = state.depthExaggeration;
   let lastVisual = state.visualMode;
   let lastFlood = state.floodRiseM ?? 0;
+  /** Illustrative water stage as drawn: eases toward state.floodRiseM so the water visibly spreads. */
+  let illustrativeRiseShown = 0;
   let lastWaterOn = state.showWater !== false;
   let lastRiverLook = "water";
   let lastApiFlood = false;
@@ -2217,7 +2233,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       // Normal mode: leave the river sheet at SURFACE_Y — no extra stage.
       const simulationActive = hydrologySimulationActive && !apiFloodActive;
       const forceRiverRise = apiFloodActive && floodRise >= 0;
-      const sheetRise = apiFloodActive ? floodRise : simulationActive ? hydrologySimulationRiseM : 0;
+      // Illustrative Water Stage (Layers slider): rise / fall smoothly to the chosen stage.
+      const illustrativeOn = !apiFloodActive && !simulationActive && state.floodMode !== "api";
+      const illustrativeTarget = illustrativeOn ? Math.max(0, Number(state.floodRiseM) || 0) : 0;
+      if (Math.abs(illustrativeTarget - illustrativeRiseShown) > 0.005) {
+        // ~1.5 m/s, at least 15 % of the remaining gap per second — big jumps still take a few seconds.
+        const step = Math.max(1.5, Math.abs(illustrativeTarget - illustrativeRiseShown) * 0.6) * dt;
+        illustrativeRiseShown += Math.sign(illustrativeTarget - illustrativeRiseShown) * Math.min(step, Math.abs(illustrativeTarget - illustrativeRiseShown));
+      } else {
+        illustrativeRiseShown = illustrativeTarget;
+      }
+      if (illustrativeOn) floodRise = illustrativeRiseShown;
+      const sheetRise = apiFloodActive
+        ? floodRise
+        : simulationActive
+          ? hydrologySimulationRiseM
+          : illustrativeRiseShown;
       if (
         forceRiverRise ||
         bedExag !== lastExag ||
@@ -2244,6 +2275,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           { includeBaseStage: false, allowNegativeRise: simulationActive },
         );
         renderedHydrologySimulationRiseM = simulationActive ? sheetRise : 0;
+        renderedWaterRiseM = sheetRise;
         riparianLayer?.userData.syncToWater(river.mesh, sheetRise);
         if (!apiFloodActive && !simulationActive) {
           floodLayer.setFloodRise?.(floodRise);
@@ -2382,6 +2414,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (isMap2DMode() && !state.cinematicActive && cam.camera.isOrthographicCamera) {
         // True 2D GIS view — no fog, haze, or atmospheric wash
         setUnderwaterLook(false);
+        floodLayer.userData.setUnderwater?.(false);
         applyMap2DClarity();
       } else if (state.cinematicUnderwater) {
         setUnderwaterLook(true);
@@ -2395,6 +2428,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       } else if (cameraInRiverWater(cam.camera, dt)) {
         // Fill the water column without hiding land, depth colour, or banks.
         setUnderwaterLook(true);
+        floodLayer.userData.setUnderwater?.(true);
         atmosphericSky.setVisible(state.skyEnabled !== false);
         atmosphericSky.update(dt, cam.camera);
         if (scene.fog !== groundFog) scene.fog = groundFog;
@@ -2404,6 +2438,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         else scene.background.set(UNDERWATER_COLOR);
       } else {
         setUnderwaterLook(false);
+        floodLayer.userData.setUnderwater?.(false);
         restoreAtmosphereClarity();
         const atmospheric = Math.min(0.00006, 0.00003 + h / 7_500_000);
         groundFog.density = cutaway ? 0.000028 : atmospheric * (0.7 + (state.skyAtmosphere ?? 0.55) * 0.5);

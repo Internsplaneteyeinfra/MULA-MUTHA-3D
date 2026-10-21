@@ -1,5 +1,6 @@
 import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
+import { FLOOD_RED } from "./waterShader.js";
 import { terrainHeightAt } from "./terrain.js";
 import { computeSceneBounds } from "../geo/sceneBounds.js";
 
@@ -33,15 +34,18 @@ export function createFloodLayer(dataset) {
   }
   geo.computeVertexNormals();
 
-  const material = new THREE.MeshPhysicalMaterial({
-    color: new THREE.Color("#B91C1C"),
+  // Same vivid flood red as the API flood + legend (#FF3030). Lit standard material, no
+  // transmission (transmission over dark ground darkened it to maroon).
+  const material = new THREE.MeshStandardMaterial({
+    // Slightly deeper base than the legend so lit + tone-mapped it lands on the same vivid red.
+    color: new THREE.Color("#E01616"),
+    emissive: new THREE.Color(FLOOD_RED),
+    // Low glow: scene light already brightens it; more glow lifted G/B and read as salmon.
+    emissiveIntensity: 0.12,
     transparent: true,
-    opacity: 0.38,
-    roughness: 0.12,
-    metalness: 0.04,
-    transmission: 0.35,
-    thickness: 1.4,
-    ior: 1.33,
+    opacity: 0.9,
+    roughness: 0.25,
+    metalness: 0.0,
     depthWrite: false,
     side: THREE.DoubleSide,
   });
@@ -80,11 +84,31 @@ export function createFloodLayer(dataset) {
 
     // Opacity scales with stage — reads as water filling low ground / flood lines
     const t = THREE.MathUtils.clamp(rise / 8, 0, 1);
-    material.opacity = THREE.MathUtils.lerp(0.32, 0.55, t);
+    opacityAbove = THREE.MathUtils.lerp(0.86, 0.94, t);
+    if (!underwaterView) material.opacity = opacityAbove;
     mesh.visible = true;
   }
 
+  /**
+   * Seen from under the water (camera below the stage), the flood sheet is the water surface
+   * overhead: draw it as water blue, not the red hazard colour shown from above.
+   */
+  const RED = new THREE.Color("#E01616");
+  const WATER_CEILING = new THREE.Color("#2f8fb0");
+  let underwaterView = false;
+  let opacityAbove = material.opacity;
+  function setUnderwater(on) {
+    if (on === underwaterView) return;
+    underwaterView = on;
+    if (on) opacityAbove = material.opacity;
+    material.color.copy(on ? WATER_CEILING : RED);
+    material.emissive.copy(on ? WATER_CEILING : RED);
+    material.emissiveIntensity = on ? 0.25 : 0.12;
+    material.opacity = on ? 0.55 : opacityAbove;
+  }
+
   mesh.userData.setFloodRise = setFloodRise;
+  mesh.userData.setUnderwater = setUnderwater;
   mesh.userData.groundY = groundY;
   mesh.setFloodRise = setFloodRise;
   return mesh;
