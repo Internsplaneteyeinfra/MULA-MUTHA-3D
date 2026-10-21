@@ -2,7 +2,7 @@ import * as THREE from "three";
 import { lonLatToLocal, localToLonLat } from "../geo/geoReference.js";
 import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
-import { createWaterMaterial, syncWaterMaterial } from "./waterShader.js";
+import { createWaterMaterial, syncWaterMaterial, FLOOD_RED } from "./waterShader.js";
 import { verticalDatumPipeline } from "../services/hydrology/verticalDatumPipeline.js";
 import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
 import { state } from "../state.js";
@@ -949,7 +949,7 @@ export function createApiFloodLayer(dataset) {
     material.polygonOffsetFactor = -1.5;
     material.polygonOffsetUnits = -1.5;
     if (material.uniforms) {
-      material.uniforms.uOpacity.value = 0.86; // Filled flood water body
+      material.uniforms.uOpacity.value = 1.0; // Filled flood water body (alpha set in the shader)
       material.uniforms.uAnimEnabled.value = 1.0;
       material.uniforms.uOverallSpeed.value = 1.05; // Visible flowing motion
       material.uniforms.uFlowSpeed.value = 0.95;
@@ -962,7 +962,7 @@ export function createApiFloodLayer(dataset) {
       material.uniforms.uIsFlood.value = 1.0;
 
       if (material.uniforms.uFrontColor) {
-        material.uniforms.uFrontColor.value.set("#C62828");
+        material.uniforms.uFrontColor.value.set(FLOOD_RED);
       }
       if (material.uniforms.uFrontLine) material.uniforms.uFrontLine.value = 0;
 

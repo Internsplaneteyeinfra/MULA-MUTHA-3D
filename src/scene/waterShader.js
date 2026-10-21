@@ -324,7 +324,7 @@ const frag = /* glsl */ `
     spec = min(spec, 0.38);
     col = mix(baseCol, col, 0.95);
     vec3 skyRefl = mix(uSkyColor, vec3(1.0, 0.84, 0.84), uIsFlood);
-    col = col * (1.0 - fresnel * 0.18) + skyRefl * fresnel * 0.35 + vec3(0.95, 0.98, 1.0) * spec;
+    col = col * (1.0 - fresnel * 0.18 * (1.0 - uIsFlood)) + skyRefl * fresnel * mix(0.35, 0.22, uIsFlood) + vec3(0.95, 0.98, 1.0) * spec;
 
     // -----------------------------------------------------------
     // DEPTH-BASED UNDERWATER TRANSMISSION
@@ -351,8 +351,9 @@ const frag = /* glsl */ `
     // API flood: FILL the extent with flowing water (not an empty outline).
     if (uIsFlood > 0.5) {
       // Solid fill inside the polygon — only a tiny soft tip at the shoreline
-      alpha = clamp(mix(0.58, 0.86, depthT) * uOpacity, 0.50, 0.90);
-      alpha *= mix(0.82, 1.0, smoothstep(0.0, 4.0, vEdgeDist));
+      // Near-opaque: blue river water or dark ground showing through turned the red to wine.
+      alpha = clamp(mix(0.90, 0.96, depthT) * uOpacity, 0.88, 0.96);
+      alpha *= mix(0.9, 1.0, smoothstep(0.0, 4.0, vEdgeDist));
       float ahead = vRiverDist - uFloodProgressDist;
       float aa = max(fwidth(vRiverDist), 1e-3);
       // Growing wet front from river → banks (water flows outward into flood lines)
@@ -411,16 +412,20 @@ function qualityToFloat(q) {
   return 1;
 }
 
+/** Flood water colour — identical to the flood legend swatch (floodComparePanel.js, #ff3030). */
+export const FLOOD_RED = "#FF3030";
+
 export function createWaterMaterial(dataset) {
   const preset = WATER_PRESETS[state.waterPreset || DEFAULT_WATER_PRESET] || WATER_PRESETS.calmRealistic;
   const piers = Array.from({ length: PIER_MAX }, () => new THREE.Vector4());
   
   const isFlood = !!dataset?.isFlood;
-  // Blue-green shallows → deep blue channel. Flood: hazard red within API extent.
-  const c0 = isFlood ? new THREE.Color("#FF4444") : new THREE.Color("#2A9BA8"); // Shallow fringe
-  const c1 = isFlood ? new THREE.Color("#E53935") : new THREE.Color("#0A7A8C"); // Shallow/mid
-  const c2 = isFlood ? new THREE.Color("#C62828") : new THREE.Color("#065A78"); // Mid/deep
-  const c3 = isFlood ? new THREE.Color("#8E0000") : new THREE.Color("#05365A"); // Deep channel
+  // Blue-green shallows → deep blue channel. Flood: one vivid red — the flood legend's
+  // #FF3030 — at every depth (a depth ramp down to #8E0000 read as maroon / wine).
+  const c0 = isFlood ? new THREE.Color(FLOOD_RED) : new THREE.Color("#2A9BA8"); // Shallow fringe
+  const c1 = isFlood ? new THREE.Color(FLOOD_RED) : new THREE.Color("#0A7A8C"); // Shallow/mid
+  const c2 = isFlood ? new THREE.Color(FLOOD_RED) : new THREE.Color("#065A78"); // Mid/deep
+  const c3 = isFlood ? new THREE.Color(FLOOD_RED) : new THREE.Color("#05365A"); // Deep channel
 
   return new THREE.ShaderMaterial({
     vertexShader: vert,

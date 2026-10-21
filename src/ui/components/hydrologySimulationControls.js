@@ -15,7 +15,8 @@ const RESOLUTIONS = [
   { id: "weekly", short: "W", label: "Weekly", disabled: true },
 ];
 const RUN_MS = 28000;
-const MESSAGE_MS = 7000;
+/** Completion / error message: shown this long, then fades out (water stays at its final level). */
+const MESSAGE_MS = 8000;
 const STABLE_TOLERANCE_M = 0.02;
 
 export function mountHydrologySimulationControls(root) {
@@ -223,7 +224,19 @@ export function mountHydrologySimulationControls(root) {
           phase = "ready";
           el.hidden = false;
           requestAnimationFrame(() => message.classList.add("is-visible"));
-          // Keep the final timestamp and WSE change visible until another run starts.
+          // Show the result for 8 s, then fade it out. The water keeps its final level.
+          const shownAt = performance.now();
+          const dismiss = (time) => {
+            if (run !== generation) return;
+            if (time - shownAt >= MESSAGE_MS - 400) message.classList.remove("is-visible");
+            if (time - shownAt >= MESSAGE_MS) {
+              message.hidden = true;
+              frame = 0;
+              return;
+            }
+            frame = requestAnimationFrame(dismiss);
+          };
+          frame = requestAnimationFrame(dismiss);
         };
         frame = requestAnimationFrame(showCompletion);
       };
