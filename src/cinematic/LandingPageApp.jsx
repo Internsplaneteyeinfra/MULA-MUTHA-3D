@@ -11,7 +11,25 @@ import { createCinematicDirector } from "./CinematicDirector.js";
 import { CinematicHUD } from "./ui/CinematicHUD.jsx";
 import "./ui/cinematic-hud.css";
 
-const FILM_VIDEO_URL = `${import.meta.env.BASE_URL}video/landing-film.mp4`;
+const VIDEO_BASE = `${import.meta.env.BASE_URL}video/`;
+const FILM_POSTER_URL = `${VIDEO_BASE}landing-film-poster.jpg`;
+
+/**
+ * Streaming copy of the film for this visitor: 1080p (~4.9 Mbit/s, 16 MB) by default, 720p
+ * (~2.5 Mbit/s, 8 MB) on slow / data-saver connections or small screens. The 35 MB master
+ * (landing-film.mp4) is only the recording source — it needs ~11 Mbit/s and stalled on hosting.
+ */
+function pickFilmUrl() {
+  const c = navigator.connection;
+  const slow =
+    c?.saveData ||
+    /(^|-)(2g|3g)$/.test(c?.effectiveType || "") ||
+    (Number.isFinite(c?.downlink) && c.downlink > 0 && c.downlink < 8);
+  const small = Math.max(window.screen?.width || 0, window.screen?.height || 0) * (window.devicePixelRatio || 1) < 1600;
+  return `${VIDEO_BASE}${slow || small ? "landing-film-720.mp4" : "landing-film-1080.mp4"}`;
+}
+/** Seconds of film buffered before playback starts (no stop-start stutter on slower links). */
+const START_BUFFER_S = 6;
 /** The RIVER.EYE title card (24.7–26 s): the scene builds here, the title holds until it is ready. */
 const TITLE_CARD_T = 24.85;
 const NEAR_END_T = 24.5;
@@ -34,6 +52,41 @@ export function LandingPageApp() {
 /** Stored film: full-screen video, Replay / Skip, and the same events the live film sends. */
 function VideoFilm({ onUnavailable }) {
   const videoRef = useRef(null);
+  const [filmUrl] = useState(pickFilmUrl);
+  const [stalled, setStalled] = useState(false);
+  const startedRef = useRef(false);
+  /** Start once ~6 s is buffered (or the whole file) — then the download stays ahead of playback. */
+  const tryStart = () => {
+    const v = videoRef.current;
+    if (!v || startedRef.current) return;
+    const ahead = v.buffered.length ? v.buffered.end(v.buffered.length - 1) - v.currentTime : 0;
+    const whole = Number.isFinite(v.duration) && v.buffered.length && v.buffered.end(v.buffered.length - 1) >= v.duration - 0.1;
+    if (ahead >= START_BUFFER_S || whole || v.readyState >= 4) {
+      startedRef.current = true;
+      v.play().catch(() => {});
+    }
+  };
+  useEffect(() => {
+    // Tell the app when the film is fully downloaded, so its own data downloads do not compete.
+    const v = videoRef.current;
+    if (!v) return undefined;
+    let done = false;
+    const check = () => {
+      if (done || !v.buffered.length || !Number.isFinite(v.duration)) return;
+      if (v.buffered.end(v.buffered.length - 1) >= v.duration - 0.1) {
+        done = true;
+        window.dispatchEvent(new Event("rivereye-film-downloaded"));
+      }
+    };
+    v.addEventListener("progress", check);
+    v.addEventListener("canplaythrough", check);
+    const fallback = setTimeout(() => !done && window.dispatchEvent(new Event("rivereye-film-downloaded")), 20000);
+    return () => {
+      v.removeEventListener("progress", check);
+      v.removeEventListener("canplaythrough", check);
+      clearTimeout(fallback);
+    };
+  }, []);
   const [ended, setEnded] = useState(false);
   const [build, setBuild] = useState(null); // { pct, msg } while the river scene builds
   const nearEndSent = useRef(false);
@@ -87,12 +140,17 @@ function VideoFilm({ onUnavailable }) {
       <video
         ref={videoRef}
         className="landing-film-video"
-        src={FILM_VIDEO_URL}
-        autoPlay
+        src={filmUrl}
+        poster={FILM_POSTER_URL}
         muted
         playsInline
         preload="auto"
         disablePictureInPicture
+        onProgress={tryStart}
+        onCanPlayThrough={tryStart}
+        onLoadedData={tryStart}
+        onWaiting={() => setStalled(true)}
+        onPlaying={() => setStalled(false)}
         onPlay={() => window.dispatchEvent(new Event("rivereye-film-start"))}
         onTimeUpdate={(e) => {
           if (e.currentTarget.currentTime >= NEAR_END_T) sendNearEnd();
@@ -100,6 +158,7 @@ function VideoFilm({ onUnavailable }) {
         onEnded={finish}
         onError={onUnavailable}
       />
+      {stalled && !ended && <div className="film-buffering" aria-hidden="true" />}
       <div className="film-quick-controls">
         <button type="button" onClick={() => window.__riverEye?.restart?.()} aria-label="Replay cinematic">↺ Replay</button>
         {!ended && (

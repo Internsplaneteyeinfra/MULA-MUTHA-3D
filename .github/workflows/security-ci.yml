@@ -541,6 +541,7 @@ jobs:
               --include="*.json" \
               --exclude-dir=node_modules \
               --exclude-dir=.git \
+              --exclude-dir=.github \
               --exclude-dir=.venv \
               2>/dev/null || true)
             if [ -n "$hits" ]; then

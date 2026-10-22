@@ -518,3 +518,10 @@
   transition: width 0.4s ease;
   z-index: 1;
 }
+/* Small spinner if the stored film ever waits for data */
+.film-buffering {
+  position: absolute; z-index: 4; left: 50%; top: 50%; width: 34px; height: 34px; margin: -17px 0 0 -17px;
+  border-radius: 50%; border: 3px solid rgba(255, 255, 255, 0.22); border-top-color: #38bdf8;
+  animation: film-spin 0.9s linear infinite; pointer-events: none;
+}
+@keyframes film-spin { to { transform: rotate(360deg); } }

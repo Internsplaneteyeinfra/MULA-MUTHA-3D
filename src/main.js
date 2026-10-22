@@ -292,7 +292,9 @@ if (currentMode === "cinematic") {
   // (rivereye-film-near-end), which can hold still while the scene finishes.
   // (Nothing while the film is being recorded: ?capture=1 must give Cesium the whole machine.)
   if (!urlParams.has("capture")) {
-    setTimeout(prefetchGisData, 1500);
+    // After the film itself has downloaded (stored video) — never compete with its stream.
+    window.addEventListener("rivereye-film-downloaded", prefetchGisData, { once: true });
+    if (urlParams.has("live")) setTimeout(prefetchGisData, 1500);
     window.addEventListener("rivereye-film-near-end", () => void ensureGisBoot(), { once: true });
   }
   window.addEventListener("rivereye-film-error", () => { void switchToGis(); }, { once: true });

@@ -111,5 +111,18 @@ for (let i = 0; i < frames; i++) {
 }
 ff.stdin.end();
 await ffDone;
+
+// Web copies the landing page streams (master is too heavy to stream: ~11 Mbit/s).
+const run = (args) =>
+  new Promise((res, rej) => {
+    const p = spawn("ffmpeg", ["-y", "-loglevel", "error", ...args], { stdio: "inherit" });
+    p.on("close", (c) => (c === 0 ? res() : rej(new Error(`ffmpeg exited ${c}`))));
+  });
+const dir = dirname(OUT);
+const web = ["-c:v", "libx264", "-preset", "slow", "-crf", "23", "-pix_fmt", "yuv420p", "-profile:v", "high", "-g", "60", "-movflags", "+faststart", "-an"];
+await run(["-i", OUT, ...web, "-maxrate", "5M", "-bufsize", "10M", "-level", "4.1", `${dir}/landing-film-1080.mp4`]);
+await run(["-i", OUT, "-vf", "scale=1280:720:flags=lanczos", ...web, "-maxrate", "2.5M", "-bufsize", "5M", "-level", "4.0", `${dir}/landing-film-720.mp4`]);
+await run(["-i", OUT, "-frames:v", "1", "-vf", "scale=1280:-2", "-q:v", "4", `${dir}/landing-film-poster.jpg`]);
+console.info("Web copies: landing-film-1080.mp4, landing-film-720.mp4, landing-film-poster.jpg");
 await browser.close();
 console.info(`Done → ${OUT} (${((Date.now() - started) / 1000).toFixed(0)} s, ${timeouts} frames hit the tile wait limit)`);

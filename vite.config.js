@@ -1,12 +1,23 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+import { rmSync } from "node:fs";
+import { resolve } from "node:path";
+
+/** The 35 MB film master is the recording source only; visitors stream the 1080p / 720p copies. */
+const dropFilmMaster = {
+  name: "drop-film-master",
+  apply: "build",
+  closeBundle() {
+    rmSync(resolve("dist/video/landing-film.mp4"), { force: true });
+  },
+};
 
 /** Portable static hosting (GitHub Pages / Netlify / S3). Override with VITE_BASE. */
 const base = process.env.VITE_BASE || "/";
 
 export default defineConfig({
   base,
-  plugins: [react()],
+  plugins: [react(), dropFilmMaster],
   assetsInclude: ["**/*.kml"],
   server: {
     host: true,
