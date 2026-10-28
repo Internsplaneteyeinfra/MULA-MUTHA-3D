@@ -1,5 +1,5 @@
 /**
- * RIVER.EYE cinematic director — 26.0 s, single CesiumJS renderer for everything above water.
+ * RIVER.EYE cinematic director — 27.1 s, single CesiumJS renderer for everything above water.
  *
  *  Architecture (one globe, one coordinate system):
  *   - CesiumJS owns the globe, terrain, imagery, sun, atmosphere and the camera (WGS84 throughout).
@@ -10,8 +10,8 @@
  *  Data: HydroRIVERS v10 (HydroSHEDS) centerlines, Natural Earth 10 m India boundary, local surveyed Mula–Mutha KML
  *  centerline, ArcGIS World Imagery, AWS Terrain Tiles (SRTM/NASADEM) elevation.
  *
- *  Timeline: 0–3 Earth→India · 3–5.3 Himalaya→Devprayag · 5.3–10.9 Ganga gorge approach/tracking · 11–16 Khadakwasla
- *            spillway + Mutha · 16–18.9 underwater · 18.9–21.5 Pune tracking · 22–24.7 lithology/flood previews · 24.7–26 brand.
+ *  Timeline: 0–3 Earth→India · 3–5.3 Himalaya→Devprayag · 5.3–12.4 Ganga gorge tracking · 12.5–17.5 Khadakwasla
+ *            spillway + Mutha · 17.5–19 underwater · 19–22.6 Pune tracking · 23.1–25.8 previews · 25.8–27.1 brand.
  */
 import { riverAudio } from "./audio/AudioSynthesizer.js";
 import { createTerrariumTerrainProvider, sampleTerrariumHeight, registerBurnChannel } from "./cesium/TerrariumTerrainProvider.js";
@@ -25,15 +25,15 @@ import { parseChainageAnalysisKml } from "../geo/kml.js";
 export const SCENES = [
   { id: "earth_to_india", number: "01", name: "Real Earth to India", subName: "Satellite imagery on a WGS84 globe", start: 0, end: 3, color: "#06b6d4" },
   { id: "himalayas", number: "02", name: "Himalaya & River Birth", subName: "Garhwal Himalaya to Devprayag, where the Ganga begins", start: 3, end: 6, color: "#38bdf8" },
-  { id: "river_tracking", number: "03", name: "River Tracking", subName: "Ganga gorge to Lakshman Jhula, Rishikesh", start: 6, end: 11, color: "#10b981" },
-  { id: "dam_spillway", number: "04", name: "Dam & Spillway", subName: "Khadakwasla Dam (simulated release) · Mutha River", start: 11, end: 16, color: "#84cc16" },
-  { id: "underwater_life", number: "05", name: "Underwater Life", subName: "Freshwater fish, illustrative", start: 16, end: 19, color: "#f97316" },
-  { id: "pune_reach", number: "06", name: "Mula–Mutha, Pune", subName: "River tracking through Pune", start: 19, end: 21.5, color: "#a78bfa" },
-  { id: "lithology_preview", number: "07", name: "River Corridor Lithology", subName: "Existing spectral lithology layer", start: 22, end: 23.35, color: "#38bdf8" },
-  { id: "flood_preview", number: "08", name: "Flood-water Samples", subName: "Estimated flood-water sample extent · 3–15 July 2026", start: 23.35, end: 24.7, color: "#2f9bd6" },
-  { id: "final_landing", number: "09", name: "RIVER.EYE", subName: "See the river. Understand the flow. Protect the future.", start: 24.7, end: 26, color: "#eab308" },
+  { id: "river_tracking", number: "03", name: "River Tracking", subName: "Ganga gorge to Lakshman Jhula, Rishikesh", start: 6, end: 12.5, color: "#10b981" },
+  { id: "dam_spillway", number: "04", name: "Dam & Spillway", subName: "Khadakwasla Dam (simulated release) · Mutha River", start: 12.5, end: 17.5, color: "#84cc16" },
+  { id: "underwater_life", number: "05", name: "Underwater Life", subName: "Freshwater fish, illustrative", start: 17.5, end: 19, color: "#f97316" },
+  { id: "pune_reach", number: "06", name: "Mula–Mutha, Pune", subName: "River tracking through Pune", start: 19, end: 23.1, color: "#a78bfa" },
+  { id: "lithology_preview", number: "07", name: "River Corridor Lithology", subName: "Existing spectral lithology layer", start: 23.1, end: 24.45, color: "#38bdf8" },
+  { id: "flood_preview", number: "08", name: "Flood-water Samples", subName: "Estimated flood-water sample extent · 3–15 July 2026", start: 24.45, end: 25.8, color: "#2f9bd6" },
+  { id: "final_landing", number: "09", name: "RIVER.EYE", subName: "See the river. Understand the flow. Protect the future.", start: 25.8, end: 27.1, color: "#eab308" },
 ];
-export const TOTAL_DURATION = 26.0;
+export const TOTAL_DURATION = 27.1;
 
 const RIVER_COLORS = {
   Ganga: "#22d3ee", Yamuna: "#60a5fa", Brahmaputra: "#34d399", Narmada: "#2dd4bf",
@@ -180,9 +180,9 @@ const QP = QUALITY === "low"
 // The underwater cut starts on the Mutha just below Khadakwasla Dam (Pune) and dissolves before the camera reaches
 // the Mula–Mutha confluence.
 const RIVER_LABELS = [
-  [6.0, 10.75, "GANGA RIVER", "Rishikesh, Uttarakhand"],
-  [11.6, 18.55, "MUTHA RIVER", "Khadakwasla, Pune"], // dam, downstream reach and the underwater cut below it
-  [19.0, 26.01, "MULA–MUTHA RIVER", "Pune, Maharashtra"],
+  [6.0, 12.4, "GANGA RIVER", "Rishikesh, Uttarakhand"],
+  [13.1, 18.8, "MUTHA RIVER", "Khadakwasla, Pune"], // dam, downstream reach and the underwater cut below it
+  [19.1, 27.11, "MULA–MUTHA RIVER", "Pune, Maharashtra"],
 ];
 const PERF = new URLSearchParams(window.location.search).has("perf");
 
@@ -652,11 +652,11 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     seg(gorge, 5.3, 7.3, 0, closeStart,
       (k) => lerp(7000, 3200, smooth(k)),
       (k) => lerp(-38, -62, smooth(k)), 900, 5);
-    // 7.3–10.9: the final 2.6 km are followed at a constant camera scale and look-ahead distance.
-    seg(gorge, 7.3, 10.9, closeStart, L - 150, 3200, -62, 900, 5);
+    // 7.3–12.4: the final 2.6 km are followed at a gentler pace and constant camera scale.
+    seg(gorge, 7.3, 12.4, closeStart, L - 150, 3200, -62, 900, 5);
 
-    { const k = keys[keys.length - 1]; keys.push({ t: 11.0, v: k.v.slice() }); } // hold through the fade-out
-    // 11–16: controlled cut (fade through black, see CUTS) from Rishikesh to Khadakwasla Dam — no 1,500 km fly-over,
+    { const k = keys[keys.length - 1]; keys.push({ t: 12.5, v: k.v.slice() }); } // hold through the fade-out
+    // 12.5–17.5: controlled cut (fade through black) from Rishikesh to Khadakwasla Dam — no 1,500 km fly-over,
     // which used to descend through un-streamed tile levels and showed blurred brown low-resolution terrain.
     if (spill) {
       const c = spill.crestCentre;
@@ -664,31 +664,31 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       hd = unwrap(hd, spill.downstreamBearing);
       // Instant relocation right after the screen is fully black (no sweep across India requesting unseen tiles),
       // then hold so the dam view's tiles refine before the fade-in.
-      keys.push({ t: 11.02, hard: true, v: [c.lon, c.lat, c.h, hd - 6, -22, LR(1100)] });
-      push(11.3, c.lon, c.lat, c.h, hd - 6, -22, 1100);
-      push(12.3, c.lon, c.lat, c.h, hd, -20, 900); // over the reservoir, looking downstream at the crest
-      push(13.0, c.lon, c.lat, c.h, hd + 8, -26, 260); // closing on the crest
-      push(13.6, tc.lon, tc.lat, spill.toeH, hd + 14, -32, 170); // tracking down the falling water to the toe
+      keys.push({ t: 12.52, hard: true, v: [c.lon, c.lat, c.h, hd - 6, -22, LR(1100)] });
+      push(12.8, c.lon, c.lat, c.h, hd - 6, -22, 1100);
+      push(13.8, c.lon, c.lat, c.h, hd, -20, 900); // over the reservoir, looking downstream at the crest
+      push(14.5, c.lon, c.lat, c.h, hd + 8, -26, 260); // closing on the crest
+      push(15.1, tc.lon, tc.lat, spill.toeH, hd + 14, -32, 170); // tracking down the falling water to the toe
       const m0 = pointAt(mutha, 250);
-      push(14.2, m0.lon, m0.lat, m0.h, hd + 6, -20, 220); // into the turbulence downstream
+      push(15.7, m0.lon, m0.lat, m0.h, hd + 6, -20, 220); // into the turbulence downstream
     }
-    seg(mutha, 14.6, 16.0, 700, 1500, 230, -16, 400, 4);
+    seg(mutha, 16.1, 17.5, 700, 1500, 230, -16, 400, 4);
 
-    // 16–19: underwater (Three.js canvas covers Cesium); camera relocates to the Pune reach behind it
+    // 17.5–19: short underwater cut; camera relocates to the Pune reach behind it
     const pS = pointAt(mulaMutha, 400);
     const pS2 = pointAt(mulaMutha, 1400);
     hd = unwrap(hd, bearingDeg([pS.lon, pS.lat], [pS2.lon, pS2.lat]));
-    push(18.4, pS.lon, pS.lat, pS.h, hd, -40, 700);
-    // 19–21.5: natural river tracking along the surveyed Mula–Mutha reach (surveyed depth tints the water colour)
-    seg(mulaMutha, 18.9, 21.5, 400, 2200, 700, -42, 500, 4);
-    // 21.5–24.7: one gentle pullback, then a stable, river-centred view for the GIS previews.
+    push(18.8, pS.lon, pS.lat, pS.h, hd, -40, 700);
+    // 19–22.6: natural river tracking along the surveyed Mula–Mutha reach at a gentler pace.
+    seg(mulaMutha, 19.0, 22.6, 400, 2200, 700, -42, 500, 4);
+    // 22.6–25.8: one gentle pullback, then a stable, river-centred view for the GIS previews.
     {
       const p = pointAt(mulaMutha, 2200);
-      push(22.0, p.lon, p.lat, p.h, hd, -49, 1450);
+      push(23.1, p.lon, p.lat, p.h, hd, -49, 1450);
       hd = keys[keys.length - 1].v[3];
-      push(24.7, p.lon, p.lat, p.h, hd + 2, -50, 1550);
+      push(25.8, p.lon, p.lat, p.h, hd + 2, -50, 1550);
       // Final landing holds the same aerial composition so the river remains identifiable behind branding.
-      push(26.0, p.lon, p.lat, p.h, hd + 3, -50, 1550);
+      push(27.1, p.lon, p.lat, p.h, hd + 3, -50, 1550);
     }
 
     // Terrain clearance. Zoom 12 reuses tiles already fetched for the gorge; zoom 13 was a second uncached set
@@ -781,17 +781,17 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       }
     } else if (t < 6.2) {
       pin(out, "Devprayag · Ganga begins", DEVPRAYAG[0], DEVPRAYAG[1], 470, window01(t, 4.6, 6.2));
-    } else if (t < 11) {
+    } else if (t < 12.5) {
       const p = pointAt(gorge, gorge.s[gorge.s.length - 1] - 80);
-      pin(out, "Ganga · Lakshman Jhula, Rishikesh", p.lon, p.lat, p.h, window01(t, 9.9, 11.0, 0.3));
-    } else if (t < 16 && spill) {
+      pin(out, "Ganga · Lakshman Jhula, Rishikesh", p.lon, p.lat, p.h, window01(t, 11.4, 12.5, 0.3));
+    } else if (t < 17.5 && spill) {
       const c = spill.crestCentre;
-      pin(out, "Khadakwasla Dam · spillway (simulation)", c.lon, c.lat, c.h + 10, window01(t, 12.0, 13.8));
+      pin(out, "Khadakwasla Dam · spillway (simulation)", c.lon, c.lat, c.h + 10, window01(t, 13.5, 15.3));
       const m = pointAt(mutha, 2000);
-      pin(out, "Mutha River", m.lon, m.lat, m.h, window01(t, 14.6, 16.0));
-    } else if (t >= 19 && t < 22) {
+      pin(out, "Mutha River", m.lon, m.lat, m.h, window01(t, 16.1, 17.5));
+    } else if (t >= 19 && t < 23.1) {
       const p = pointAt(mulaMutha, 120);
-      pin(out, "Mula–Mutha · Sangam, Pune", p.lon, p.lat, p.h, window01(t, 19.0, 21.0));
+      pin(out, "Mula–Mutha · Sangam, Pune", p.lon, p.lat, p.h, window01(t, 19.0, 22.1));
     }
     return out;
   }
@@ -826,20 +826,20 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
 
     // Spillway release ramps in as the camera arrives (simulation), stays on through the downstream tracking.
     if (spill) {
-      spill.material.uniforms.u_flow = smooth(clamp01((t - 11.6) / 0.6));
-      spill.primitive.show = t > 11.4 && t < 16.4;
+      spill.material.uniforms.u_flow = smooth(clamp01((t - 13.1) / 0.6));
+      spill.primitive.show = t > 12.9 && t < 17.9;
     }
-    const lithoFade = clamp01(Math.min((t - 21.88) / 0.28, (23.47 - t) / 0.24));
+    const lithoFade = clamp01(Math.min((t - 22.98) / 0.28, (24.57 - t) / 0.24));
     if (lithologyLayer) {
       lithologyLayer.alpha = 0.82 * smooth(lithoFade);
-      lithologyLayer.show = t >= 21.88 && t < 23.47;
+      lithologyLayer.show = t >= 22.98 && t < 24.57;
       if (lithologyLayer.show && scene.imageryLayers.indexOf(lithologyLayer) !== scene.imageryLayers.length - 1) scene.imageryLayers.raiseToTop(lithologyLayer);
     }
     if (floodSamples) {
-      const floodFade = smooth(clamp01(Math.min((t - 23.35) / 0.2, (24.7 - t) / 0.2)));
+      const floodFade = smooth(clamp01(Math.min((t - 24.45) / 0.2, (25.8 - t) / 0.2)));
       const sampleColor = floodSampleColor.withAlpha(0.48 * floodFade);
       for (let i = 0; i < floodSamples.length; i++) floodSamples.get(i).color = sampleColor;
-      floodSamples.show = t >= 23.35 && t < 24.7 && near;
+      floodSamples.show = t >= 24.45 && t < 25.8 && near;
     }
 
     // The Rishikesh → Khadakwasla jump is a hard cut between two photographs.
@@ -849,10 +849,10 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
     // Underwater cut (Three.js canvas over Cesium): fade in from the Mutha surface, back out over the Pune reach.
     // Dissolve in before the globe camera is down at the water surface, where the satellite photo is magnified
     // into blurry / blocky pixels; dissolve out once the Pune reach is a sharp aerial view again.
-    const uwA = Math.min(clamp01((t - 15.25) / 0.5), 1 - clamp01((t - 18.55) / 0.45));
+    const uwA = Math.min(clamp01((t - 16.75) / 0.35), 1 - clamp01((t - 18.65) / 0.35));
     underwaterCanvas.style.opacity = String(uwA);
     underwaterCanvas.style.visibility = uwA > 0.002 ? "visible" : "hidden";
-    if (uwA > 0.002) underwater?.render(clamp01((t - 15.75) / 3.25), t);
+    if (uwA > 0.002) underwater?.render(clamp01((t - 17.1) / 1.5), t);
   }
 
   function frame(now) {
@@ -910,13 +910,13 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
 
     const tA = performance.now();
     // Begin scene-specific work shortly before its preview rather than during the opening globe.
-    // Fish model + textures (~3 MB) must be ready before the 16 s cut — loading at 13.8 s left the cut without fish.
+    // Fish model + textures (~3 MB) must be ready before the 17.5 s cut.
     if (currentTime >= 1 && !underwater) {
       const scene = requestUnderwater();
       scene.ready.then(() => { scene.warmup(); underwaterReady = true; }).catch((err) => console.warn("underwater scene unavailable", err));
     }
-    if (currentTime >= 21.35 && !lithologyProviderReady) requestLithology();
-    if (currentTime >= 22.9 && !floodSamplesReady) requestFloodSamples();
+    if (currentTime >= 22.45 && !lithologyProviderReady) requestLithology();
+    if (currentTime >= 24.0 && !floodSamplesReady) requestFloodSamples();
     applyTime(currentTime);
     const tB = performance.now();
     // Capture: animations follow film time (one step per recorded frame), not wall-clock.
@@ -925,7 +925,7 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       sprayDt = Math.max(0, Math.min(0.05, currentTime - captureSprayT));
       captureSprayT = currentTime;
     }
-    spray?.update(sprayDt, (currentTime > 5.8 && currentTime < 11.2) || (currentTime > 11.8 && currentTime < 16.3));
+    spray?.update(sprayDt, (currentTime > 5.8 && currentTime < 12.7) || (currentTime > 13.3 && currentTime < 17.8));
     const shaderT = captureMode ? currentTime : (now / 1000) % 1000;
     if (spill) spill.material.uniforms.u_time = shaderT;
     ribbons.forEach((r) => {
@@ -966,7 +966,7 @@ export function createCinematicDirector({ container, underwaterCanvas, cutOverla
       activeScene: SCENES[stateSceneIndex],
       labels: computeLabels(currentTime),
       riverLabel: RIVER_LABELS.find(([a, b]) => currentTime >= a && currentTime < b) ?? null,
-      analysisPreview: currentTime >= 22 && currentTime < 23.35 ? "lithology" : currentTime >= 23.35 && currentTime < 24.7 ? "flood" : null,
+      analysisPreview: currentTime >= 23.1 && currentTime < 24.45 ? "lithology" : currentTime >= 24.45 && currentTime < 25.8 ? "flood" : null,
     });
     }
   }

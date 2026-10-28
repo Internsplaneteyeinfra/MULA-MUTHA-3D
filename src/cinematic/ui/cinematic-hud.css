@@ -470,6 +470,11 @@
 .film-video-mode {
   background: #000;
 }
+/* The recorded film already opens on satellite imagery; don't cover it with the live-globe boot placeholder. */
+.film-video-mode::before,
+.film-video-mode::after {
+  display: none;
+}
 .landing-film-video {
   position: absolute;
   inset: 0;
@@ -479,6 +484,14 @@
   background: #000;
   z-index: 1;
 }
+.flood-spill-overlay {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  z-index: 2;
+  pointer-events: none;
+}
 .film-video-mode .film-quick-controls {
   z-index: 5;
 }
@@ -486,37 +499,137 @@
 .film-capture .film-quick-controls {
   display: none !important;
 }
-/* Progress line under the held title card while the river scene builds */
+/* River-name loader while the held title card waits for the 3D scene. */
 .film-build-status {
   position: absolute;
   z-index: 6;
   left: 50%;
-  bottom: max(48px, env(safe-area-inset-bottom));
+  bottom: max(24px, env(safe-area-inset-bottom));
   transform: translateX(-50%);
-  width: min(360px, 80vw);
+  width: min(500px, calc(100vw - 32px));
+  box-sizing: border-box;
+  padding: 16px 18px 14px;
   display: grid;
-  gap: 8px;
+  gap: 12px;
   color: rgba(235, 249, 255, 0.86);
-  font: 500 12px/1.3 system-ui, sans-serif;
-  text-align: center;
+  font: 500 12px/1.35 system-ui, sans-serif;
+  text-align: left;
   pointer-events: none;
+  border: 1px solid rgba(150, 226, 245, 0.28);
+  border-radius: 16px;
+  background: linear-gradient(130deg, rgba(5, 20, 33, 0.9), rgba(8, 43, 57, 0.82));
+  box-shadow: 0 16px 48px rgba(0, 0, 0, 0.35), inset 0 1px rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px) saturate(1.25);
+  -webkit-backdrop-filter: blur(16px) saturate(1.25);
+  animation: film-loader-enter 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both;
 }
-.film-build-status::after {
-  content: "";
-  grid-row: 2;
-  grid-column: 1;
-  height: 3px;
-  border-radius: 2px;
-  background: rgba(186, 230, 253, 0.18);
+.film-build-heading {
+  display: flex;
+  align-items: center;
+  gap: 10px;
 }
-.film-build-status i {
-  grid-row: 2;
-  grid-column: 1;
-  height: 3px;
-  border-radius: 2px;
-  background: #38bdf8;
-  transition: width 0.4s ease;
-  z-index: 1;
+.film-build-pulse {
+  flex: 0 0 9px;
+  width: 9px;
+  height: 9px;
+  border-radius: 50%;
+  background: #60e2e8;
+  box-shadow: 0 0 0 4px rgba(42, 198, 216, 0.12), 0 0 18px rgba(77, 228, 233, 0.72);
+  animation: film-loader-pulse 1.5s ease-in-out infinite;
+}
+.film-build-copy {
+  min-width: 0;
+  flex: 1;
+  display: grid;
+  gap: 2px;
+}
+.film-build-kicker {
+  color: rgba(134, 220, 236, 0.72);
+  font-size: 9px;
+  font-weight: 750;
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+}
+.film-build-message {
+  overflow: hidden;
+  color: rgba(245, 251, 255, 0.94);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.film-build-percent {
+  color: #a8f1f4;
+  font-size: 11px;
+  font-weight: 750;
+  font-variant-numeric: tabular-nums;
+}
+.film-river-marquee {
+  display: grid;
+  gap: 6px;
+  overflow: hidden;
+  padding: 9px 0;
+  border: 1px solid rgba(145, 224, 235, 0.13);
+  border-radius: 10px;
+  background: linear-gradient(100deg, rgba(30, 130, 151, 0.13), rgba(16, 53, 69, 0.2));
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 7%, #000 93%, transparent);
+}
+.film-river-track {
+  display: flex;
+  width: max-content;
+  align-items: center;
+  gap: 14px;
+  white-space: nowrap;
+}
+.film-river-track--left {
+  animation: river-flow-right 26s linear infinite;
+}
+.film-river-track--right {
+  animation: river-flow-left 26s linear infinite;
+}
+.film-river-name {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.045em;
+  text-shadow: 0 1px 12px rgba(2, 12, 20, 0.85);
+}
+.film-river-name i {
+  color: #72e9e6;
+  font-size: 7px;
+  font-style: normal;
+  text-shadow: 0 0 10px rgba(92, 228, 230, 0.7);
+}
+@keyframes river-flow-left {
+  from { transform: translateX(0); }
+  to { transform: translateX(-50%); }
+}
+@keyframes river-flow-right {
+  from { transform: translateX(-50%); }
+  to { transform: translateX(0); }
+}
+.film-build-progress {
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(186, 230, 253, 0.16);
+}
+.film-build-progress i {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #2bc6d8, #81f3de 55%, #71c8ff);
+  box-shadow: 0 0 12px rgba(72, 221, 226, 0.5);
+  transition: width 0.45s ease;
+}
+@keyframes film-loader-enter {
+  from { opacity: 0; transform: translate(-50%, 12px); }
+  to { opacity: 1; transform: translate(-50%, 0); }
+}
+@keyframes film-loader-pulse {
+  50% { box-shadow: 0 0 0 7px rgba(42, 198, 216, 0.04), 0 0 22px rgba(77, 228, 233, 0.9); }
 }
 /* Small spinner if the stored film ever waits for data */
 .film-buffering {

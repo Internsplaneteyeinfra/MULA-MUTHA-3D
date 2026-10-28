@@ -22,7 +22,7 @@ const CAPTIONS = [
   ["Freshwater life · illustrative", "Textured barramundi model; not a species survey of this river"],
   ["Mula–Mutha · Pune", "Surveyed KML centreline and banks · water shading is illustrative"],
   ["Spectral lithology", "Existing KMZ-derived lithology raster · overlay is blended over satellite terrain"],
-  ["Flood-water samples · 3–15 July 2026", "Existing estimated classified sample points · locations shown at their mapped support"],
+  ["Flood spread · illustrative", "Water spills beyond the Mula–Mutha into nearby low-lying settlements"],
   null,
 ];
 
@@ -81,18 +81,18 @@ export function CinematicHUD({ director, directorState }) {
       ))}
 
       {analysisPreview && (
-        <aside className="analysis-preview-card" aria-label={analysisPreview === "lithology" ? "Lithology legend" : "Flood-water sample legend"}>
-          <strong>{analysisPreview === "lithology" ? "SPECTRAL LITHOLOGY" : "FLOOD-WATER SAMPLES"}</strong>
+        <aside className="analysis-preview-card" aria-label={analysisPreview === "lithology" ? "Lithology legend" : "Illustrative flood spread"}>
+          <strong>{analysisPreview === "lithology" ? "SPECTRAL LITHOLOGY" : "FLOOD SPREAD · ILLUSTRATIVE"}</strong>
           {analysisPreview === "lithology" ? (
             <ul>{LITHOLOGY_CLASSES.map((c) => <li key={c.id}><i style={{ background: c.color }} /><span>{c.label}</span></li>)}</ul>
           ) : (
-            <p>Estimated mapped flood-water samples<br />3–15 July 2026 · period 4</p>
+            <p>Estimated flood-water samples<br />3–15 July 2026 · period 4</p>
           )}
         </aside>
       )}
 
-      {/* Final landing card (24.7–26 s) */}
-      {currentTime >= 24.7 && currentTime < 25.85 && (
+      {/* Final landing card (25.8–27.1 s) */}
+      {currentTime >= 25.8 && currentTime < 27.0 && (
         <div className="final-landing-card">
           <span className="final-eyebrow">Geospatial River Intelligence</span>
           <h1 className="final-hero-title">RIVER.<span className="eye">EYE</span></h1>
@@ -111,8 +111,8 @@ export function CinematicHUD({ director, directorState }) {
       )}
 
       {/* Scene Caption Overlay: states what the viewer is actually looking at */}
-      {/* (the underwater caption ends when the underwater view dissolves back to the river, at 18.55 s) */}
-      {CAPTIONS[activeSceneIndex] && !(activeSceneIndex === 4 && currentTime >= 18.55) && (
+      {/* The underwater caption ends as the fish view dissolves back to the river. */}
+      {CAPTIONS[activeSceneIndex] && !(activeSceneIndex === 4 && currentTime >= 18.65) && (
         <div className="scene-caption-overlay">
           <span className="caption-chip">{CAPTIONS[activeSceneIndex][0]}</span>
           <span className="caption-text">{CAPTIONS[activeSceneIndex][1]}</span>

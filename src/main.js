@@ -249,10 +249,13 @@ async function boot() {
     showRiverBackdrop();
     requestAnimationFrame(loop);
 
+    // Keep the intro handoff quick: the core river/terrain scene is ready already. Urban detail,
+    // fishing, hydrology, live weather/discharge and BOD/COD continue loading in the background.
+    // Waiting for those optional layers here held the title card at 97% for several extra seconds.
     await Promise.all([
-      app.whenReady,
-      firstLiveData,
-      Promise.race([bodCodReady, new Promise((resolve) => setTimeout(resolve, 8000))]),
+      Promise.race([app.whenReady, new Promise((resolve) => setTimeout(resolve, 2500))]),
+      Promise.race([firstLiveData, new Promise((resolve) => setTimeout(resolve, 1200))]),
+      Promise.race([bodCodReady, new Promise((resolve) => setTimeout(resolve, 700))]),
     ]);
     progress(0.995, "Finalising…");
     try {
