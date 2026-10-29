@@ -191,9 +191,17 @@ export function clipRiverToHydrology(river, lulc, osmWater, dataset, jalnetraWat
  * Water test for ribbon edge.
  * When JalNetra SAR mask is present, use it alone (LULC/OSM over-widen the channel).
  */
-function isRibbonWater(lulc, osmWater, jalnetraWater, x, z) {
+function isRibbonWater(lulc, osmWater, jalnetraWater, x, z, st = null) {
   if (jalnetraWater?.isWaterAtLocal) {
-    return !!jalnetraWater.isWaterAtLocal(x, z);
+    if (jalnetraWater.isWaterAtLocal(x, z)) return true;
+    // The permanent-water SAR mask has gaps at the Sangamwadi Bridge approach.
+    // Keep mapped LULC/OSM water at the bridge approach and across the Sangam
+    // confluence where the SAR mask misses the second channel.
+    const chainage = Number(st?.chainage_m);
+    if ((chainage >= 0 && chainage <= 250) || (chainage >= 420 && chainage <= 600)) {
+      return isObservedWater(lulc, osmWater, x, z);
+    }
+    return false;
   }
   return isObservedWater(lulc, osmWater, x, z);
 }
@@ -206,18 +214,22 @@ function wetHalfWidth(st, dirX, dirZ, maxH, lulc, osmWater, jalnetraWater, fuseB
   let seen = false;
   let outer = 6;
   const hasApi = !!jalnetraWater?.isWaterAtLocal;
+  const chainage = Number(st.chainage_m);
+  const sangamConfluence = chainage >= 420 && chainage <= 600;
   // Cap search: with SAR, do not scan full corridor width (that floods banks).
   const searchMax = hasApi
-    ? Math.min(maxH, Math.max(18, (Number(st.halfWidth) || 40) * 0.72))
+    ? sangamConfluence
+      ? maxH
+      : Math.min(maxH, Math.max(18, (Number(st.halfWidth) || 40) * 0.72))
     : maxH + 2;
 
   for (let d = 0; d <= searchMax; d += step) {
     const x = st.x + dirX * d;
     const z = st.z + dirZ * d;
-    if (isRibbonWater(lulc, osmWater, jalnetraWater, x, z)) {
+    if (isRibbonWater(lulc, osmWater, jalnetraWater, x, z, st)) {
       seen = true;
       outer = d;
-    } else if (seen && d > outer + 3) {
+    } else if (seen && d > outer + 3 && !sangamConfluence) {
       break;
     }
   }
@@ -455,6 +467,15 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across, jalnetraWater
     const maxH = Math.max(12, Number(st.halfWidth) || 40);
     leftW[i] = wetHalfWidth(st, -px, -pz, maxH, lulc, osmWater, jalnetraWater, false, 0);
     rightW[i] = wetHalfWidth(st, px, pz, maxH, lulc, osmWater, jalnetraWater, false, 0);
+    // The mapped open-water strip is continuous at the Sangamwadi approach,
+    // but its classified width pinches at the bridge shadow. Preserve a clear
+    // channel there using the KML corridor width as a conservative floor.
+    const chainage = Number(st.chainage_m);
+    if (chainage >= 0 && chainage <= 250) {
+      const approachHalf = Math.min(42, Math.max(18, maxH * 0.8));
+      leftW[i] = Math.max(leftW[i], approachHalf);
+      rightW[i] = Math.max(rightW[i], approachHalf);
+    }
   }
   // Pass 2 — thin bridge fuse from neighbour SAR half-widths only.
   if (jalnetraWater?.isWaterAtLocal) {
@@ -483,9 +504,11 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across, jalnetraWater
   // Bridge decks / shadows read as land in the LULC / SAR masks, which pinched the water to a
   // gap under every bridge. Across a bridge, bridge the width from the open water either side.
   fuseWidthsUnderBridges(stations, leftW, rightW, dataset?.bridges);
-  // Light smooth — heavy passes were bloating bank width past the SAR edge.
-  const lSm = smooth1d(leftW, jalnetraWater?.isWaterAtLocal ? 4 : 10);
-  const rSm = smooth1d(rightW, jalnetraWater?.isWaterAtLocal ? 4 : 10);
+  // Smooth mapped edge noise along the reach before building the ribbon.
+  // This removes pixel-step teeth while preserving the wider confluence area.
+  const edgeSmoothPasses = jalnetraWater?.isWaterAtLocal ? 18 : 22;
+  const lSm = smooth1d(leftW, edgeSmoothPasses);
+  const rSm = smooth1d(rightW, edgeSmoothPasses);
   // Edges offset from a curved centreline cross over on the inside of tight bends (folded,
   // inverted triangles). Narrow the inner edge just enough that it keeps moving downstream.
   preventEdgeFolds(stations, lSm, -1);
@@ -544,24 +567,15 @@ function buildWetRibbon(stations, lulc, osmWater, dataset, across, jalnetraWater
   }
 
   const indices = [];
-  // Naik Bet (about chainage 1+000–2+000). The centreline runs across the island,
-  // so a solid ribbon covers the forest. Keep a quad only when every corner is
-  // mapped water; the two channels stay, the island stays land.
-  const NAIK_CH0 = 980;
-  const NAIK_CH1 = 1980;
-  const at = (idx) => lulc?.classAtLocal?.(positions[idx * 3], positions[idx * 3 + 2]);
+  // Keep the water sheet continuous. The terrain/bank surface above it carries the
+  // mapped island mask; clipping individual quads here snaps its edge to coarse
+  // land-cover cells and creates long, jagged water fingers.
   for (let s = 0; s < n - 1; s++) {
-    const chA = Number(stations[s].chainage_m);
-    const chB = Number(stations[s + 1].chainage_m);
-    const naik = lulc?.classAtLocal && chA >= NAIK_CH0 && chA <= NAIK_CH1 && chB >= NAIK_CH0 && chB <= NAIK_CH1;
     for (let a = 0; a < across; a++) {
       const i0 = s * cols + a;
       const i1 = i0 + 1;
       const i2 = i0 + cols;
       const i3 = i2 + 1;
-      if (naik && (at(i0) !== "water" || at(i1) !== "water" || at(i2) !== "water" || at(i3) !== "water")) {
-        continue;
-      }
       indices.push(i0, i2, i1, i1, i2, i3);
     }
   }

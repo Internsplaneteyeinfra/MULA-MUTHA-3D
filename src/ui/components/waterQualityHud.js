@@ -16,7 +16,7 @@ import { state } from "../../state.js";
 export const WATER_QUALITY_OPTIONS = [
   {
     id: "salinity",
-    tip: "Salinity (NDSI)",
+    tip: "Salinity (ppt)",
     icon: Waves,
     tone: "wq-tone-salinity",
     layerId: "salinity",

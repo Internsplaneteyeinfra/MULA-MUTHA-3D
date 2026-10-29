@@ -43,7 +43,7 @@ export function emptyOsmContext() {
     metadata: null,
     kmlValidation: null,
     alignment: { ok: true },
-    source: "OpenStreetMap © contributors",
+    source: "OpenStreetMap and open building-footprint datasets",
     loaded: false,
   };
 }
@@ -52,8 +52,10 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   const lite = urls.lite === true;
   const roadsUrl = urls.roads || "/data/osm_roads.geojson";
   const roadsFallback = "/data/roads.geojson";
-  const buildingsUrl = urls.buildings || "/data/osm_buildings.geojson";
-  const buildingsFallback = "/data/buildings.geojson";
+  // buildings.geojson is the current merged footprint inventory (OSM + open
+  // building datasets). The osm_* file is a smaller legacy export.
+  const buildingsUrl = urls.buildings || "/data/buildings.geojson";
+  const buildingsFallback = "/data/osm_buildings.geojson";
   const vegUrl = urls.vegetation || "/data/vegetation.geojson";
   const greenLegacy = "/data/osm_green.geojson";
   const treesUrl = urls.trees || "/data/trees.geojson";
@@ -87,8 +89,10 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
   const extraM = bankStrip ? RIVER_SIDE_M : FULL_CORRIDOR_M;
   // Roads stay on the full corridor even in lite — vertex stripping broke streets
   const roads = projectLines(roadsFc, frame, corridor, FULL_CORRIDOR_M, false);
-  const buildingsAll = projectBuildings(buildingsFc, frame, corridor, extraM, bankStrip);
-  const buildings = stratifyAlongCorridor(buildingsAll, corridor, lite ? 2500 : 4500);
+  // Keep every valid footprint in the active corridor. The building renderer
+  // already assigns distant features to cheaper LODs; this avoids silently
+  // dropping whole neighborhoods at a fixed count cap.
+  const buildings = projectBuildings(buildingsFc, frame, corridor, extraM, bankStrip);
   const green = projectPolygons(vegFc, frame, corridor, extraM, bankStrip);
   const trees = projectTrees(treesFc, frame, corridor, extraM, bankStrip);
   const treeRows = projectLines(treeRowsFc, frame, corridor, extraM, bankStrip);
@@ -107,7 +111,7 @@ export async function loadOsmContext(frame, corridor, urls = {}) {
     metadata,
     kmlValidation,
     alignment,
-    source: "OpenStreetMap © contributors",
+    source: "OpenStreetMap and open building-footprint datasets",
     loaded: !!(roadsFc || buildingsFc || vegFc || treesFc),
   };
 }
@@ -363,88 +367,8 @@ function validateOsmAlignment(corridor, roads, buildings) {
   if (median != null && median > 1800) {
     ok = false;
     issues.push(
-      `OSM–KML alignment WARNING: median building distance to river corridor is ${median.toFixed(0)} m. Possible projection/origin mismatch. Features were NOT shifted.`,
+      `Building-footprint/KML alignment WARNING: median building distance to river corridor is ${median.toFixed(0)} m. Possible projection/origin mismatch. Features were NOT shifted.`,
     );
   }
   return { ok, issues, medianDistM: median, sampleCount: dists.length };
-}
-
-/**
- * Keep buildings evenly along the river so east corridor is not dropped
- * when west/central density is high.
- */
-function stratifyAlongCorridor(buildings, corridor, maxKeep) {
-  if (!buildings?.length) return [];
-  if (buildings.length <= maxKeep) return buildings;
-  const stations = corridor?.stations || [];
-  if (stations.length < 2) return buildings.slice(0, maxKeep);
-
-  const bins = 40;
-  const buckets = Array.from({ length: bins }, () => []);
-  for (const b of buildings) {
-    let bestI = 0;
-    let bestD = Infinity;
-    const step = Math.max(1, Math.floor(stations.length / 80));
-    for (let i = 0; i < stations.length; i += step) {
-      const s = stations[i];
-      const d2 = (s.x - b.midX) ** 2 + (s.z - b.midZ) ** 2;
-      if (d2 < bestD) {
-        bestD = d2;
-        bestI = i;
-      }
-    }
-    const u = bestI / (stations.length - 1);
-    const bi = Math.min(bins - 1, Math.floor(u * bins));
-    buckets[bi].push({ b, d: Math.sqrt(bestD) });
-  }
-  for (const bucket of buckets) bucket.sort((a, c) => a.d - c.d);
-
-  const per = Math.max(1, Math.floor(maxKeep / bins));
-  const out = [];
-  for (const bucket of buckets) {
-    // Mix near-bank + mid-distance so inland blocks are not emptied
-    const near = bucket.filter((x) => x.d < 900);
-    const mid = bucket.filter((x) => x.d >= 900 && x.d < 2200);
-    const far = bucket.filter((x) => x.d >= 2200);
-    const take = [];
-    const quotas = [
-      Math.ceil(per * 0.52),
-      Math.ceil(per * 0.33),
-      Math.ceil(per * 0.15),
-    ];
-    for (const [pool, q] of [
-      [near, quotas[0]],
-      [mid, quotas[1]],
-      [far, quotas[2]],
-    ]) {
-      for (let i = 0; i < pool.length && take.length < per && i < q; i++) {
-        take.push(pool[i].b);
-      }
-    }
-    // Fill remainder from leftover nearest
-    if (take.length < per) {
-      const taken = new Set(take);
-      for (const item of bucket) {
-        if (take.length >= per) break;
-        if (!taken.has(item.b)) take.push(item.b);
-      }
-    }
-    out.push(...take);
-  }
-  // Fill remainder with nearest leftover buildings
-  if (out.length < maxKeep) {
-    const taken = new Set(out);
-    const rest = [];
-    for (const bucket of buckets) {
-      for (const item of bucket) {
-        if (!taken.has(item.b)) rest.push(item);
-      }
-    }
-    rest.sort((a, c) => a.d - c.d);
-    for (const item of rest) {
-      if (out.length >= maxKeep) break;
-      out.push(item.b);
-    }
-  }
-  return out.slice(0, maxKeep);
 }

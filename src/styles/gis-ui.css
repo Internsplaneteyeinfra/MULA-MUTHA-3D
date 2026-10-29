@@ -4833,6 +4833,10 @@
 #ui-root.gis-ui.map-focus .river-data-panel.is-collapsed .river-measure-panel {
   display: none !important;
 }
+#ui-root.gis-ui.salinity-focus .river-data-panel,
+#ui-root.gis-ui.salinity-focus .river-data-fab {
+  display: none !important;
+}
 #ui-root.gis-ui.map-focus .river-data-heading {
   display: block;
 }

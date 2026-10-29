@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { localToLonLat } from "../geo/geoReference.js";
 import { RIVER_SIDE_M, FULL_CORRIDOR_M } from "../geo/osmContext.js";
-import { terrainHeightAt } from "./terrain.js";
+import { terrainHeightAt, renderedTerrainHeightAt } from "./terrain.js";
 import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
@@ -47,6 +47,7 @@ export async function createPermanentVegetationTypeTrees(dataset, opts = {}) {
     maxInstances: opts.maxInstances,
     stepM: opts.stepM,
     castShadow: !!opts.castShadow,
+    terrainMesh: opts.terrainMesh,
     permanent: true,
   });
 }
@@ -221,7 +222,8 @@ export async function createVegetationTypeGrowLayer(dataset, opts = {}) {
       if (cover === "water" || cover === "settlement") continue;
       if (riverRing && pointInRing(x, z, riverRing)) continue;
 
-      const y = terrainHeightAt(x, z, stations);
+      const renderedY = renderedTerrainHeightAt(opts.terrainMesh, x, z);
+      const y = Number.isFinite(renderedY) ? renderedY : terrainHeightAt(x, z, stations);
       if (!Number.isFinite(y) || y < SURFACE_Y + 0.2) continue;
 
       const assetId = assetForKind(kind, rng);

@@ -4,7 +4,7 @@
  * The rendered terrain grid (~77 m × 31 m cells) cannot represent a 30–250 m wide channel: its
  * triangles straddled the shore, poking up to 13 m through the water or showing as long brown
  * slopes under it. carveTerrainUnderRiver() sinks that grid out of the way near the water, and
- * this patch draws the channel sides and banks instead, on an 8 m grid, from the signed distance
+ * this patch draws the channel sides and banks instead, on a 4 m grid, from the signed distance
  * d to the ribbon outline (d < 0 in the water):
  *
  *   d < 0   channel side under the water, sloping from the waterline down below the river bed
@@ -25,15 +25,17 @@ import {
   rawDtmElevationAt,
 } from "./terrain.js";
 
-const GRID_M = 8;
+// Sample more finely than the source DTM cells so the bank mesh meets the water ribbon smoothly.
+const GRID_M = 4;
 const SHORE_FLOOR_M = 6; // banks stay at/above the waterline within this distance
 const MAX_BANK_LIFT_M = 0.6; // banks follow a rising water level only this far (floods overtop)
 /**
- * Steepest bank rise from the waterline (m per m). FABDEM's 30 m pixels mix water and steep
- * embankments, giving up to ~48 m of rise within 1.5 m of the shore; the bank ramps up to the
- * real ground at this slope instead of forming a cliff at the water's edge.
+ * Maximum bank rise after the eased shoreline transition (scene metres per horizontal metre).
+ * The source DTM can jump sharply where a pixel mixes water and land, so constrain the first
+ * 24 m of bank and then rejoin the sampled terrain gradually instead of creating a cliff.
  */
-const MAX_BANK_SLOPE = 0.95;
+const MAX_BANK_SLOPE = 0.24;
+const BANK_EASE_M = 24;
 const UNDER_SLOPE = 0.8; // channel side under the water
 
 /**
@@ -47,7 +49,12 @@ export function channelBankY(d, realY, coarseY, waterY, blendStart = Infinity, o
   const real = Number.isFinite(realY) ? realY : shore + 0.2;
   // Short ramp off the waterline, then the real ground — so a bank like Naik Bet
   // keeps its elevation instead of staying a flat shelf.
-  let y = Math.min(real, shore + 0.1 + d * MAX_BANK_SLOPE);
+  const t = THREE.MathUtils.clamp(d / BANK_EASE_M, 0, 1);
+  // Cubic ease has zero slope at the waterline and meets the capped linear grade smoothly.
+  const easedRise = d < BANK_EASE_M
+    ? MAX_BANK_SLOPE * BANK_EASE_M * (2 * t * t - t * t * t)
+    : MAX_BANK_SLOPE * d;
+  let y = Math.min(real, shore + 0.1 + easedRise);
   if (d < SHORE_FLOOR_M) y = Math.max(y, shore + 0.08);
   const coarseOk = Number.isFinite(coarseY) && coarseY > SURFACE_Y - 4;
   if (coarseOk && outerD > blendStart) {

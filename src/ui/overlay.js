@@ -364,7 +364,7 @@ export function createTooltip(root) {
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
           <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${
             info.hydrologySalinity
-              ? "Salinity scale · NDSI"
+              ? "Salinity scale · ppt"
               : info.layer === "water_quality_tss"
                 ? "TSS scale · mg/L"
                 : info.layer === "water_quality_ndci"

@@ -560,6 +560,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     const layer = await createRiparianVegetationLayer(dataset, {
       maxTrees: qNow.tier === "low" ? 1800 : 4200,
       castShadow: !!qNow.treeShadows,
+      terrainMesh: terrain.mesh,
     });
     riparianLayer = layer;
     layer.userData.syncToWater(river.mesh, lastFlood);
@@ -588,6 +589,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         maxInstances: qNow.maxVegTypeTrees || 8500,
         stepM: qNow.vegTypeStepM || 34,
         castShadow: !!qNow.treeShadows,
+        terrainMesh: terrain.mesh,
       });
       if (vegTypePermanent?.userData?.dispose) {
         try {
@@ -687,7 +689,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         setTimeout(() => vegStatus.hide(), 6000);
         return;
       }
-      const layer = await createVegetationApiLayer(dataset, data);
+      const layer = await createVegetationApiLayer(dataset, data, { terrainMesh: terrain.mesh });
       // Preserve API legend/category colors for Land Use → Vegetation Extent HUD
       layer.userData.vegetationLegend = {
         type: "classes",

@@ -964,6 +964,16 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     const { x, z } = hit.point;
     const isGround = hit.object.name === "terrain" || hit.object.name === "channelBanks";
     const isRiver = !isGround;
+    const activeHydro = getHydrologyGroup?.();
+    if (
+      isRiver &&
+      activeHydro?.visible &&
+      activeHydro.userData?.getActiveId?.() === "salinity"
+    ) {
+      tooltip.hide();
+      state.hover = null;
+      return;
+    }
     if (!state.inspectMode && isGround) {
       tooltip.show(e.clientX, e.clientY, landHoverInfo(x, z, hit.point.y));
       state.hover = { x, z, land: true };

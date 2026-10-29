@@ -20,8 +20,8 @@ import { RIVER_SIDE_M } from "../geo/osmContext.js";
 const WATER_CLEAR_M = 3;
 
 /**
- * Four-tier OSM footprint city (ArcGIS-style principles, Pune geography).
- * Hero → Near → Mid → Distant/HLOD — all actual OSM polygons via geoReference.
+ * Four-tier city built from mapped open building footprints (Pune geography).
+ * Hero → Near → Mid → Distant/HLOD — source polygons stay georeferenced.
  */
 export async function createBuildingSystem(dataset) {
   const group = new THREE.Group();
@@ -125,14 +125,14 @@ export async function createBuildingSystem(dataset) {
   const roofSubset = doorPlacements.filter((r) => r.dist < 650).slice(0, isLite ? 200 : 1100);
   group.add(createRooftopDetails(roofSubset, stations));
 
-  console.info("Urban buildings (4-tier OSM footprints)", {
+  console.info("Urban buildings (4-tier open footprints)", {
     footprints: raw.length,
     hero: heroRecs.length,
     near: nearRecs.length,
     mid: midRecs.length,
     distant: distantRecs.length,
     skippedWater,
-    source: "OSM footprints + geoReference",
+    source: "Open building footprints + geoReference",
   });
 
   return group;

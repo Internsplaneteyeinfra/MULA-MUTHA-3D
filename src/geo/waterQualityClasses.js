@@ -43,62 +43,62 @@ export const TSS_CLASSES = /** @type {WqClass[]} */ ([
 ]);
 
 /**
- * Salinity — 5 NDSI classes (unitless index, −1 to 1), as defined in public/data/hydrology/salinity.geojson.
+ * Salinity — 5 classes in parts per thousand (ppt).
  */
 export const SALINITY_CLASSES = /** @type {WqClass[]} */ ([
   {
     id: "very_low",
     kmlClass: "Very Low Salinity",
-    label: "Very Low Salinity",
+    label: "Very Low",
     color: "#0000FF",
-    range: "−1.00 to −0.60",
-    unit: "NDSI",
-    min: -1.0,
-    max: -0.6,
+    range: "0–0.5 ppt",
+    unit: "ppt",
+    min: 0,
+    max: 0.5,
     inclusiveMax: false,
   },
   {
     id: "low",
     kmlClass: "Low Salinity",
-    label: "Low Salinity",
+    label: "Low",
     color: "#00BFFF",
-    range: "−0.60 to −0.20",
-    unit: "NDSI",
-    min: -0.6,
-    max: -0.2,
+    range: "0.5–5 ppt",
+    unit: "ppt",
+    min: 0.5,
+    max: 5,
     inclusiveMax: false,
   },
   {
     id: "moderate",
     kmlClass: "Moderate Salinity",
-    label: "Moderate Salinity",
+    label: "Moderate",
     color: "#00FF00",
-    range: "−0.20 to 0.20",
-    unit: "NDSI",
-    min: -0.2,
-    max: 0.2,
+    range: "5–18 ppt",
+    unit: "ppt",
+    min: 5,
+    max: 18,
     inclusiveMax: false,
   },
   {
     id: "high",
     kmlClass: "High Salinity",
-    label: "High Salinity",
+    label: "High",
     color: "#FFFF00",
-    range: "0.20 to 0.60",
-    unit: "NDSI",
-    min: 0.2,
-    max: 0.6,
+    range: "18–30 ppt",
+    unit: "ppt",
+    min: 18,
+    max: 30,
     inclusiveMax: false,
   },
   {
     id: "very_high",
     kmlClass: "Very High Salinity",
-    label: "Very High Salinity",
+    label: "Very High",
     color: "#FF0000",
-    range: "0.60 to 1.00",
-    unit: "NDSI",
-    min: 0.6,
-    max: 1.0,
+    range: ">30 ppt",
+    unit: "ppt",
+    min: 30,
+    max: null,
     inclusiveMax: true,
   },
 ]);
@@ -142,9 +142,9 @@ export const WQ_LAYER_SCHEMES = {
     id: "salinity",
     title: "Salinity",
     metric: "Salinity",
-    unit: "NDSI",
+    unit: "ppt",
     classes: SALINITY_CLASSES,
-    subtitle: "5 classes · NDSI",
+    subtitle: "5 classes · ppt",
   },
   water_quality_ndci: {
     id: "water_quality_ndci",
@@ -160,7 +160,7 @@ export const WQ_LAYER_SCHEMES = {
  * Classify a numeric sample into the official scheme.
  * Boundary rules:
  * - TSS: 10 → Low, 50 → Moderate, >50 → High
- * - Salinity (NDSI): lower edge inclusive, 1.00 → Very High
+ * - Salinity (ppt): lower edge inclusive, values above 30 → Very High
  * - Chlorophyll-a: 2 → Low, >2 → High
  * @param {number} value
  * @param {WqClass[]} classes
@@ -210,6 +210,6 @@ export function classRepresentativeValue(c) {
 export function formatWqValue(value, unit) {
   const v = Number(value);
   if (!Number.isFinite(v)) return "—";
-  const digits = unit === "NDSI" ? 2 : 1;
+  const digits = unit === "ppt" ? 2 : 1;
   return `${v.toFixed(digits)} ${unit}`;
 }

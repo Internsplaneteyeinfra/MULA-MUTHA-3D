@@ -1,6 +1,6 @@
 import * as THREE from "three";
 import { lonLatToLocal } from "../geo/geoReference.js";
-import { terrainHeightAt } from "./terrain.js";
+import { terrainHeightAt, renderedTerrainHeightAt } from "./terrain.js";
 import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { SURFACE_Y } from "./river.js";
@@ -13,7 +13,7 @@ const RIVER_CLEAR_EXTRA_M = 3;
  * Build an independent Three.js InstancedMesh vegetation layer from
  * JalNetra vegetation-type samples (API is spatial source of truth).
  */
-export async function createVegetationApiLayer(dataset, vegetationData) {
+export async function createVegetationApiLayer(dataset, vegetationData, opts = {}) {
   const group = new THREE.Group();
   group.name = "vegetationApi";
   group.visible = true;
@@ -57,7 +57,8 @@ export async function createVegetationApiLayer(dataset, vegetationData) {
       if (riverRing && pointInRing(x, z, riverRing)) continue;
       if (blocked(x, z, buildings, roads, stations)) continue;
 
-      const y = terrainHeightAt(x, z, stations);
+      const renderedY = renderedTerrainHeightAt(opts.terrainMesh, x, z);
+      const y = Number.isFinite(renderedY) ? renderedY : terrainHeightAt(x, z, stations);
       if (!Number.isFinite(y) || y < SURFACE_Y + 0.2) continue;
 
       const assetId = assetForKind(kind, rng);

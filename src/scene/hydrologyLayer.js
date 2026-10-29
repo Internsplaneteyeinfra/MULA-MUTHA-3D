@@ -252,8 +252,8 @@ const BUILTIN_LAYER_DEFS = {
     flipU: false,
     flipV: true,
     legendTitle: "Salinity",
-    legendSubtitle: "5 classes · NDSI · src/data/salinity.kmz",
-    unit: "NDSI",
+    legendSubtitle: "5 classes · ppt",
+    unit: "ppt",
     classes: SALINITY_CLASSES,
     legendClasses: SALINITY_CLASSES,
     renderType: "terrainDrapedTexture",
@@ -1395,10 +1395,12 @@ export function createHydrologyLayer(dataset) {
                 color: c.color,
                 range: c.range || null,
                 pct:
-                  (coverage && (coverage[c.label] || coverage[String(c.label)])) ||
-                  c.pct ||
-                  c.range ||
-                  null,
+                  id === "salinity"
+                    ? c.range || null
+                    : (coverage && (coverage[c.label] || coverage[String(c.label)])) ||
+                      c.pct ||
+                      c.range ||
+                      null,
               })),
             }
           : { type: "image", url: def.legend, title: def.name, layerId: id };
@@ -1656,7 +1658,7 @@ export function createHydrologyLayer(dataset) {
       lon: ll.lon,
       lat: ll.lat,
       hydrology: id,
-      range: hit.range || hit.pct || schemeClass?.range || null,
+      range: id === "salinity" ? schemeClass?.range || null : hit.range || hit.pct || schemeClass?.range || null,
       unit: scheme?.unit || hit.unit || null,
       metric: scheme?.metric || null,
       value: hit.value ?? (schemeClass ? classRepresentativeValue(schemeClass) : null),
@@ -2529,7 +2531,7 @@ function resolveClassMeta(def, rawLabel, feature = null) {
     return {
       label: hit.label,
       color: normalizeHex(hit.color) || CLASS_COLOR[hit.label] || "#888888",
-      range: hit.range || feature?.range || null,
+      range: def?.id === "salinity" ? hit.range || null : hit.range || feature?.range || null,
       unit,
       value: mid,
       valueText: mid != null && unit ? formatWqValue(mid, unit) : null,

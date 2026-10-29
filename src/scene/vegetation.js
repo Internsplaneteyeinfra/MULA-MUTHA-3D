@@ -17,8 +17,9 @@ import { SURFACE_Y } from "./river.js";
 const MAX_TREES = 16000;
 
 /**
- * Vegetation from OSM trees + parks + dense Google Earth island forest canopy.
- * Nothing is planted on open water. Island and bank trees stand proud of the water.
+ * Mapped OpenStreetMap tree points plus clearly approximate vegetation instances
+ * derived from green-area / land-cover polygons. Polygon samples are visual canopy,
+ * not surveyed individual tree locations. Nothing is planted on open water.
  * Uses reference GLB models (palm, broadleaf, conifer, birch, grass).
  * @param {object} dataset
  * @param {{ maxTrees?: number, castShadow?: boolean }} [opts]
@@ -28,6 +29,8 @@ export async function createVegetation(dataset, opts = {}) {
   const green = dataset.osm?.green || dataset.osm?.vegetation || [];
   const buildings = dataset.osm?.buildings || [];
   const roads = dataset.osm?.roads || [];
+  const nearBuilding = createProximityTest(buildings, () => 14);
+  const nearRoad = createProximityTest(roads, (road) => (road.widthM || 5) * 0.85);
   const osmTrees = dataset.osm?.trees || [];
   const rng = mulberry(33);
   const placements = [];
@@ -52,9 +55,18 @@ export async function createVegetation(dataset, opts = {}) {
   const groundY = (x, z) => {
     const st = locate(x, z);
     if (!st) return null;
-    const { d } = ribbonEdgeDistance(x, z, stations, st);
+    let { d } = ribbonEdgeDistance(x, z, stations, st);
+    let raw = rawDtmElevationAt(x, z);
+    // Naik Bet is dry land inside the mapped river corridor. The river ribbon
+    // crosses the island there, so use its land-cover class to retain the DTM
+    // surface for vegetation instead of treating the island as submerged.
+    const chainage = Number(st.chainage_m);
+    const cover = lulc?.classAtLocal?.(x, z);
+    if (chainage >= 700 && chainage <= 1980 && d < 90 && cover && cover !== "water") {
+      d = Math.max(d, 18);
+      raw = Math.max(Number.isFinite(raw) ? raw : SURFACE_Y, SURFACE_Y + 1.4);
+    }
     if (d < 4) return null;
-    const raw = rawDtmElevationAt(x, z);
     const real = Number.isFinite(raw) ? raw : terrainHeightAt(x, z, stations);
     const meshY = renderedTerrainHeightAt(opts.terrainMesh, x, z);
     const coarse = Number.isFinite(meshY) && meshY > SURFACE_Y - 4 ? meshY : NaN;
@@ -64,7 +76,7 @@ export async function createVegetation(dataset, opts = {}) {
 
   for (const ot of osmTrees) {
     if (isOpenWater(ot.x, ot.z)) continue;
-    if (blocked(ot.x, ot.z, buildings, roads, stations, true, true)) continue;
+    if (blocked(ot.x, ot.z, nearBuilding, nearRoad, stations, true, true)) continue;
     const rawY = groundY(ot.x, ot.z);
     if (rawY == null) continue;
     const h = ot.tree_height || 8;
@@ -85,6 +97,8 @@ export async function createVegetation(dataset, opts = {}) {
         lat: ot.lat,
         height: h,
         height_source: ot.height_source,
+        source: ot.source || "OPENSTREETMAP",
+        from_tree_row: !!ot.from_tree_row,
         genus: ot.genus,
         species: ot.species,
         assetId,
@@ -94,86 +108,51 @@ export async function createVegetation(dataset, opts = {}) {
     pickables.push(placement);
   }
 
-  // Naik Bet and the other dry land inside the corridor: a closed canopy sitting
-  // on the bank surface (same height the ground mesh uses), like the raised clump
-  // downstream. Nothing is planted in the water sheet.
-  const islandForest = [];
-  const bankForest = [];
+  // Add visual trees to Naik Bet (around chainage 0+700–1+980). Use denser
+  // placement in classified forest and lighter, scattered planting on its
+  // barren/open land so the plain gains trees without becoming a solid canopy.
+  const forestCanopy = [];
   const stationGap =
     stations.length > 1
       ? Math.hypot(stations[1].x - stations[0].x, stations[1].z - stations[0].z) || 12
       : 12;
-  // Naik Bet: the centreline crosses the island, so the ribbon distance says
-  // "water" there. Plant on the land-cover forest anyway, on the real ground.
-  const naikForest = [];
-  const naikAlong = Math.max(1, Math.round(9 / stationGap));
-  for (let i = 0; i < stations.length; i += naikAlong) {
+  const forestSpacing = 14;
+  const forestAlongStep = Math.max(1, Math.round(forestSpacing / stationGap));
+  const mappedTreeCount = placements.filter((p) => p.kind === "osm").length;
+  const forestBudget = Math.max(0, maxTrees - mappedTreeCount);
+  for (let i = 0; i < stations.length && forestCanopy.length < forestBudget; i += forestAlongStep) {
     const st = stations[i];
-    const ch = Number(st.chainage_m);
-    if (ch < 980 || ch > 1980) continue;
+    const chainage = Number(st.chainage_m);
+    if (chainage < 700 || chainage > 1980) continue;
     const px = -st.flowZ;
     const pz = st.flowX;
-    const half = Math.max(40, Number(st.halfWidth) || 80);
-    for (let dist = -half + 10; dist <= half - 10; dist += 9) {
-      const jitter = (rng() - 0.5) * 4;
-      const x = st.x + px * dist + st.flowX * jitter;
-      const z = st.z + pz * dist + st.flowZ * jitter;
-      if (lulc?.classAtLocal?.(x, z) !== "forest") continue;
-      if (blocked(x, z, buildings, roads, stations, true, true)) continue;
-      const raw = rawDtmElevationAt(x, z);
-      const real = Math.max(Number.isFinite(raw) ? raw : SURFACE_Y + 1.4, SURFACE_Y + 1.4);
-      const y = channelBankY(18, real, NaN, SURFACE_Y, blendStart, outerD);
-      if (!(y >= SURFACE_Y + 0.4)) continue;
-      naikForest.push({
+    const half = Math.max(8, Number(st.halfWidth) || 20);
+    const maxOffset = half + 220;
+    for (let dist = -maxOffset; dist <= maxOffset && forestCanopy.length < forestBudget; dist += forestSpacing) {
+      const alongJitter = (rng() - 0.5) * forestSpacing * 0.5;
+      const bankJitter = (rng() - 0.5) * forestSpacing * 0.5;
+      const x = st.x + px * (dist + bankJitter) + st.flowX * alongJitter;
+      const z = st.z + pz * (dist + bankJitter) + st.flowZ * alongJitter;
+      const cover = lulc?.classAtLocal?.(x, z);
+      if (cover !== "forest" && cover !== "barren") continue;
+      // Naik Bet land pixels may sit under the centerline's broad water ribbon;
+      // groundY restores their mapped land elevation before placement.
+      const keepChance = cover === "forest" ? 0.68 : 0.2;
+      if (rng() > keepChance) continue;
+      if (blocked(x, z, nearBuilding, nearRoad, stations, false, true)) continue;
+      const y = groundY(x, z);
+      if (y == null) continue;
+      forestCanopy.push({
         x,
         z,
         y,
-        scale: 2.3 + rng() * 0.8,
+        scale: 0.85 + rng() * 0.35,
         rotY: rng() * Math.PI * 2,
         assetId: classifyTreeAsset({}, "forest", rng),
-        kind: "forest",
+        kind: "naikForest",
       });
     }
   }
-  const reach = Math.max(400, (stations.length - 1) * stationGap);
-  const galleryRows = [8, 18, 30, 46];
-  const forestBudget = Math.max(80, Math.floor(maxTrees * 0.9));
-  const bankTarget = Math.max(40, Math.floor(forestBudget * 0.82));
-  const alongSpacing = Math.max(7, (reach * 2 * galleryRows.length) / bankTarget);
-  const alongStep = Math.max(1, Math.round(alongSpacing / stationGap));
-  for (let i = 0; i < stations.length; i += alongStep) {
-    const st = stations[i];
-    const px = -st.flowZ;
-    const pz = st.flowX;
-    const corridor = Math.max(18, Number(st.halfWidth) || 40);
-    for (const side of [-1, 1]) {
-      const wet = Math.max(6, side < 0 ? Number(st.wetHalfLeft) || corridor * 0.45 : Number(st.wetHalfRight) || corridor * 0.45);
-      for (const extra of galleryRows) {
-        const dist = wet + extra;
-        const along = (rng() - 0.5) * alongSpacing * 0.45;
-        const x = st.x + px * side * dist + st.flowX * along;
-        const z = st.z + pz * side * dist + st.flowZ * along;
-        if (isOpenWater(x, z)) continue;
-        if (blocked(x, z, buildings, roads, stations, true, true)) continue;
-        let y = groundY(x, z);
-        if (y == null) {
-          const meshY = renderedTerrainHeightAt(opts.terrainMesh, x, z);
-          if (Number.isFinite(meshY) && meshY >= SURFACE_Y - 0.8) y = Math.max(meshY, SURFACE_Y + 0.4);
-        }
-        if (y == null) continue;
-        bankForest.push({
-          x,
-          z,
-          y,
-          scale: 2.8 + rng() * 1.1,
-          rotY: rng() * Math.PI * 2,
-          assetId: classifyTreeAsset({}, "gallery", rng),
-          kind: "gallery",
-        });
-      }
-    }
-  }
-
   for (const poly of green) {
     const polyOsmId = String(poly.id || poly.osmId || "");
     if (polyOsmId.includes("61458970")) continue;
@@ -190,7 +169,7 @@ export async function createVegetation(dataset, opts = {}) {
       const p = randomInPolygon(poly.vertices, rng);
       if (!p) continue;
       if (isOpenWater(p.x, p.z)) continue;
-      if (blocked(p.x, p.z, buildings, roads, stations, false, true)) continue;
+      if (blocked(p.x, p.z, nearBuilding, nearRoad, stations, false, true)) continue;
       const bank = nearest(p.x, p.z, stations);
       if (dataset.lite && bank.lat > bank.half + RIVER_SIDE_M) continue;
       const rawY = groundY(p.x, p.z);
@@ -198,20 +177,6 @@ export async function createVegetation(dataset, opts = {}) {
       const assetId = classifyTreeAsset(props, dense ? "forest" : "park", rng);
       const h = 7.5 + rng() * 6.5;
       const ll = dataset.frame ? dataset.frame.toLonLat(p.x, p.z) : null;
-      const treeSpecies =
-        assetId === "banyan"
-          ? "Ficus benghalensis"
-          : assetId === "neem"
-            ? "Azadirachta indica"
-            : assetId === "gulmohar"
-              ? "Delonix regia"
-              : assetId === "acacia"
-                ? "Vachellia nilotica"
-                : assetId === "bamboo"
-                  ? "Bambusa vulgaris"
-                  : assetId === "palm"
-                    ? "Phoenix sylvestris"
-                    : "Riparian Broadleaf";
       const treePlacement = {
         x: p.x,
         z: p.z,
@@ -221,13 +186,14 @@ export async function createVegetation(dataset, opts = {}) {
         assetId,
         kind: dense ? "forest" : "park",
         meta: {
-          type: "tree",
-          osmId: props.id || props.osmId || `tree_${placements.length}`,
-          name: props.name || treeSpecies,
-          species: treeSpecies,
-          genus: treeSpecies.split(" ")[0],
+          type: "land-cover vegetation",
+          osmId: props.id || props.osmId || `vegetation_${placements.length}`,
+          name: props.name || (dense ? "Mapped forest cover" : "Mapped green area"),
+          source: "LAND_COVER_DERIVED_VISUAL",
+          species: null,
+          genus: null,
           height: Math.round(h * 10) / 10,
-          height_source: "GOOGLE_EARTH_SURVEY",
+          height_source: "VISUAL_ESTIMATE",
           lon: ll?.lon,
           lat: ll?.lat,
           assetId,
@@ -235,32 +201,14 @@ export async function createVegetation(dataset, opts = {}) {
       };
       placements.push(treePlacement);
       pickables.push(treePlacement);
-      if (ll && dataset.osm?.trees) {
-        dataset.osm.trees.push({
-          id: treePlacement.meta.osmId,
-          x: p.x,
-          z: p.z,
-          lon: ll.lon,
-          lat: ll.lat,
-          tree_height: treePlacement.meta.height,
-          height_source: treePlacement.meta.height_source,
-          species: treeSpecies,
-          genus: treePlacement.meta.genus,
-          source: "GOOGLE_EARTH_CANOPY",
-        });
-      }
     }
   }
 
-  // Keep the bank forest even when the tree budget is tight — thin it evenly
-  // along the whole river instead of dropping the downstream end.
-  const beltKeep = bankForest.length <= bankTarget ? bankForest : thinEven(bankForest, bankTarget);
-  const naikCap = Math.min(1400, Math.max(0, forestBudget - beltKeep.length));
-  const naikKeep = thinEven(naikForest, naikCap);
-  const islandRoom = Math.max(0, forestBudget - beltKeep.length - naikKeep.length);
-  const forestKeep = beltKeep.concat(naikKeep, thinEven(islandForest, islandRoom));
-  const restBudget = Math.max(0, maxTrees - forestKeep.length);
-  const capped = forestKeep.concat(placements.slice(0, restBudget));
+  // Keep mapped tree points ahead of area-derived instances when the device's
+  // budget is reached. No continuous bank rows are fabricated.
+  const mappedTrees = placements.filter((p) => p.kind === "osm");
+  const areaDerived = placements.filter((p) => p.kind !== "osm");
+  const capped = mappedTrees.concat(forestCanopy, areaDerived).slice(0, maxTrees);
   for (const p of capped) {
     if (p.y == null) {
       p.y = terrainHeightAt(p.x, p.z, stations) || SURFACE_Y + 0.5;
@@ -296,8 +244,8 @@ export async function createVegetation(dataset, opts = {}) {
       const p = list[i];
       const targetH = treeTargetHeight(assetId, p.scale);
       const uniform = targetH / Math.max(0.5, proto.nativeH);
-      const crown = p.kind === "forest" || p.kind === "gallery" ? 2.05 : 1;
-      // Sit on the ground mesh. Forest crowns overlap so the belt reads as canopy.
+      const crown = p.kind === "naikForest" ? 1.25 : p.kind === "forest" ? 1.7 : 1;
+      // Enlarge crowns modestly only inside mapped forest patches.
       dummy.position.set(p.x, (p.y || 0) + 0.35, p.z);
       dummy.rotation.set(0, p.rotY, 0);
       dummy.scale.set(uniform * crown, uniform, uniform * crown);
@@ -306,8 +254,8 @@ export async function createVegetation(dataset, opts = {}) {
       const hue = (p.x * 0.001 + p.z * 0.0013) % 1;
       if (mat.vertexColors) {
         color.setRGB(0.92 + hue * 0.08, 0.97, 0.9 + hue * 0.06);
-      } else if (p.kind === "forest" || p.kind === "gallery") {
-        // Dark closed canopy, like the satellite riparian belt.
+      } else if (p.kind === "forest" || p.kind === "naikForest") {
+        // Darker canopy within mapped forest polygons.
         color.set(foliageHex(assetId)).offsetHSL((hue - 0.5) * 0.03, 0.08, -0.08);
       } else {
         color.set(foliageHex(assetId)).offsetHSL((hue - 0.5) * 0.05, 0.04, (hue - 0.5) * 0.03);
@@ -391,20 +339,46 @@ function createProceduralFallback(trees, stations, rng) {
 }
 
 /** Darken the grass strip beside the channel so the bank reads as forest floor. Heights stay unchanged. */
-function blocked(x, z, buildings, roads, stations, allowNearRoad = false, isLandOrIsland = false) {
+function blocked(x, z, nearBuilding, nearRoad, stations, allowNearRoad = false, isLandOrIsland = false) {
   if (!isLandOrIsland) {
     const near = nearest(x, z, stations);
     if (near.lat < near.half + 4) return true;
   }
-  for (const b of buildings) {
-    if (Math.hypot(b.midX - x, b.midZ - z) < 14) return true;
-  }
-  if (!allowNearRoad) {
-    for (const r of roads) {
-      if (Math.hypot(r.midX - x, r.midZ - z) < (r.widthM || 5) * 0.85) return true;
+  if (nearBuilding(x, z)) return true;
+  if (!allowNearRoad && nearRoad(x, z)) return true;
+  return false;
+}
+
+/** Build a small point-proximity index so dense forest sampling avoids O(n) scans per tree. */
+function createProximityTest(features, radiusFor, cellSize = 32) {
+  const cells = new Map();
+  const key = (x, z) => `${x}:${z}`;
+  for (const feature of features) {
+    const x = Number(feature.midX);
+    const z = Number(feature.midZ);
+    if (!Number.isFinite(x) || !Number.isFinite(z)) continue;
+    const radius = Math.max(0, Number(radiusFor(feature)) || 0);
+    const minX = Math.floor((x - radius) / cellSize);
+    const maxX = Math.floor((x + radius) / cellSize);
+    const minZ = Math.floor((z - radius) / cellSize);
+    const maxZ = Math.floor((z + radius) / cellSize);
+    const entry = { x, z, radius };
+    for (let gx = minX; gx <= maxX; gx++) {
+      for (let gz = minZ; gz <= maxZ; gz++) {
+        const k = key(gx, gz);
+        if (!cells.has(k)) cells.set(k, []);
+        cells.get(k).push(entry);
+      }
     }
   }
-  return false;
+  return (x, z) => {
+    const bucket = cells.get(key(Math.floor(x / cellSize), Math.floor(z / cellSize)));
+    if (!bucket) return false;
+    for (const feature of bucket) {
+      if (Math.hypot(feature.x - x, feature.z - z) < feature.radius) return true;
+    }
+    return false;
+  };
 }
 
 function nearest(x, z, stations) {
@@ -468,15 +442,6 @@ function pointInRing(x, z, ring) {
     if (hit) inside = !inside;
   }
   return inside;
-}
-
-function thinEven(list, budget) {
-  if (list.length <= budget) return list;
-  if (budget <= 0) return [];
-  const stride = list.length / budget;
-  const out = [];
-  for (let i = 0; i < budget; i++) out.push(list[Math.floor(i * stride)]);
-  return out;
 }
 
 function mulberry(a) {

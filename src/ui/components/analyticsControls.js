@@ -330,6 +330,7 @@ export function mountAnalyticsControls(root, dataset) {
   }
 
   function clearHydroLegend() {
+    root.classList.remove("salinity-focus");
     hydroLegend.hidden = true;
     hydroLegend.innerHTML = "";
     landUseTheme.hide();
@@ -511,6 +512,7 @@ export function mountAnalyticsControls(root, dataset) {
   }
 
   function renderHydroLegend(result) {
+    root.classList.toggle("salinity-focus", result?.legend?.layerId === "salinity");
     if (!result?.available || !result.legend) {
       clearHydroLegend();
       return;

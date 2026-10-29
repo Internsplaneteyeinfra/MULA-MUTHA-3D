@@ -5,7 +5,15 @@ import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { nearestStation, lateralDistToCenterline } from "../features/fishing/FishingZoneSystem.js";
-import { terrainHeightAt } from "./terrain.js";
+import {
+  makeStationLocator,
+  rawDtmElevationAt,
+  renderedTerrainHeightAt,
+  ribbonEdgeDistance,
+  terrainCellDiag,
+  terrainHeightAt,
+} from "./terrain.js";
+import { channelBankY } from "./channelBanks.js";
 
 const FOREST = 1;
 const BANK = 2;
@@ -59,6 +67,26 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
   const crossingResult = markChannelCrossings(grid, grid.inRing, grid.centreCells);
   grid.submerged.set(crossingResult.submerged);
   const candidates = clusterCells(grid);
+  const locate = makeStationLocator(stations);
+  const cellDiag = terrainCellDiag(opts.terrainMesh);
+  const blendStart = cellDiag * 2 + 6;
+  const outerD = blendStart + cellDiag * 0.35;
+  const groundAt = (x, z) => {
+    const st = locate(x, z);
+    if (!st) return terrainHeightAt(x, z, stations);
+    let d = ribbonEdgeDistance(x, z, stations, st).d;
+    let raw = rawDtmElevationAt(x, z);
+    const cover = lulc.classAtLocal?.(x, z);
+    const chainage = Number(st.chainage_m);
+    if (chainage >= 980 && chainage <= 1980 && d < 90 && cover && cover !== "water") {
+      d = Math.max(d, 18);
+      raw = Math.max(Number.isFinite(raw) ? raw : SURFACE_Y, SURFACE_Y + 1.4);
+    }
+    const real = Number.isFinite(raw) ? raw : terrainHeightAt(x, z, stations);
+    const meshY = renderedTerrainHeightAt(opts.terrainMesh, x, z);
+    const coarse = Number.isFinite(meshY) && meshY > SURFACE_Y - 4 ? meshY : NaN;
+    return channelBankY(d, real, coarse, SURFACE_Y, blendStart, outerD);
+  };
   const maxTrees = Math.max(0, Number(opts.maxTrees) || DEFAULT_MAX_TREES);
   const rng = mulberry(0x71a4b39);
   const placements = [];
@@ -74,9 +102,10 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
       if (!near) continue;
       const lateral = lateralDistToCenterline(cell.x, cell.z, near);
       if (lateral < Math.max(2, Number(near.halfWidth) * 0.35)) continue;
-      const groundY = terrainHeightAt(cell.x, cell.z, stations);
+      const groundY = groundAt(cell.x, cell.z);
       if (!Number.isFinite(groundY) || groundY < SURFACE_Y + 0.25) continue;
-      const placement = treePlacement(cell, grid, groundY, stations, { id: `riparian-${index}` }, riparianTreeAsset(rng), rng);
+      const placement = treePlacement(cell, grid, groundAt, stations, { id: `riparian-${index}` }, riparianTreeAsset(rng), rng);
+      if (!placement) continue;
       placements.push(placement);
       sx += cell.x;
       sz += cell.z;
@@ -361,11 +390,12 @@ function clusterCells(grid) {
 
 
 
-function treePlacement(c, grid, baseY, stations, info, assetId, rng) {
+function treePlacement(c, grid, groundAt, stations, info, assetId, rng) {
   const half = Math.sqrt(grid.cellArea) * 0.45;
   const x = c.x + (rng() - 0.5) * 2 * half;
   const z = c.z + (rng() - 0.5) * 2 * half;
-  const y = baseY;
+  const y = groundAt(x, z);
+  if (!Number.isFinite(y) || y < SURFACE_Y + 0.25) return null;
   const isPlant = assetId === "grass" || assetId === "reeds" || assetId === "shrub";
   const scale = isPlant ? 0.8 + rng() * 0.6 : 0.9 + rng() * 0.4;
   const heightM = isPlant ? (assetId === "shrub" ? 2.8 + rng() * 1.0 : 1.6 + rng() * 1.0) : 7.5 + rng() * 5.0;
