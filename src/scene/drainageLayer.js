@@ -79,6 +79,8 @@ export function createDrainageLayer(dataset) {
           intName: f.intName || "",
           wikidata: f.wikidata || "",
           layer: f.layer || "",
+          // Source KML placemarks (→ JalNetra stream ids) this channel was built from
+          placemarkIndices: Number.isInteger(f.placemarkIndex) ? [f.placemarkIndex] : [],
         },
         pts: (f.vertices || [])
           .filter((v) => Number.isFinite(v?.x) && Number.isFinite(v?.z))
@@ -103,7 +105,8 @@ export function createDrainageLayer(dataset) {
     const merged = mergePaths(list.map((p) => p.pts), JOIN_DIST_M);
     // Prefer meta from longest segment (richest geometry)
     const bestMeta = [...list].sort((a, b) => b.pts.length - a.pts.length)[0]?.meta || list[0].meta;
-    for (const pts of merged) chains2d.push({ pts, meta: { ...bestMeta } });
+    const placemarkIndices = [...new Set(list.flatMap((p) => p.meta.placemarkIndices))];
+    for (const pts of merged) chains2d.push({ pts, meta: { ...bestMeta, placemarkIndices } });
   }
   for (const p of unnamed) {
     const merged = mergePaths([p.pts], JOIN_DIST_M);

@@ -16,7 +16,8 @@ const KML_URL =
   "/data/mula_mutha_river.kml";
 
 const VIEWER_ID_KEY = "mm-bod-cod-viewer-id-v2";
-const REQUEST_TIMEOUT_MS = 90_000;
+// The live pipeline routinely takes 40–130 s (and the gateway gives up at 300 s).
+const REQUEST_TIMEOUT_MS = 240_000;
 
 /** In-memory full payload (history is too large for localStorage). */
 let memoryCache = null;
@@ -50,6 +51,8 @@ async function readCachedPayload() {
     db.close();
     if (!rec?.data?.reaches?.length) return null;
     if (Date.now() - rec.savedAt > CACHE_TTL_MS) return null;
+    // "today" snapshot is per calendar day — never show yesterday's as today.
+    if (new Date(rec.savedAt).toDateString() !== new Date().toDateString()) return null;
     return rec.data;
   } catch {
     return null;
@@ -218,24 +221,30 @@ export function classShortLabel(cls, labels) {
   return cls || "—";
 }
 
-export function formatMgL(v, digits = 1) {
+/** 2 dp by default — the API publishes mg/L at 2 dp, so shown values match it exactly. */
+export function formatMgL(v, digits = 2) {
   const n = Number(v);
   if (!Number.isFinite(n)) return "—";
   return `${n.toFixed(digits)} mg/L`;
 }
 
 /**
- * Unified history + forecast timeline (hourly).
- * @returns {{ dates: string[], historyCount: number, forecastCount: number }}
+ * Unified history → today → forecast timeline (hourly).
+ * The API's `today` snapshot is its own point (it differs from the last history hour),
+ * so the default view shows exactly what the endpoint reports for today.
+ * @returns {{ dates: string[], historyCount: number, forecastCount: number, todayIndex: number }}
  */
 export function buildBodCodTimeline(data) {
   const r0 = data?.reaches?.[0];
   const hist = Array.isArray(r0?.history?.dates) ? r0.history.dates : [];
   const fcst = Array.isArray(r0?.forecast?.dates) ? r0.forecast.dates : [];
+  const hasToday = Number.isFinite(Number(r0?.today?.p50));
+  const todayDate = String(r0?.today?.date || data?.generated || "");
   return {
-    dates: [...hist, ...fcst],
+    dates: hasToday ? [...hist, todayDate, ...fcst] : [...hist, ...fcst],
     historyCount: hist.length,
     forecastCount: fcst.length,
+    todayIndex: hasToday ? hist.length : -1,
   };
 }
 
@@ -246,10 +255,11 @@ export function buildBodCodTimeline(data) {
 export function sampleReachAt(reach, timeIndex, data, timeline) {
   const edges = data?.bod_edges || [2, 3, 6, 10];
   const histN = timeline?.historyCount ?? reach?.history?.dates?.length ?? 0;
+  const todayIndex = timeline?.todayIndex ?? -1;
   const dates = timeline?.dates || [];
   const i = Math.max(0, Math.min(dates.length - 1, Number(timeIndex) || 0));
 
-  if (i < histN && reach?.history?.p50?.length) {
+  if (i !== todayIndex && i < histN && reach?.history?.p50?.length) {
     const h = reach.history;
     const p50 = Number(h.p50[i]);
     const support = String(h.support?.[i] || "prior");
@@ -268,8 +278,8 @@ export function sampleReachAt(reach, timeIndex, data, timeline) {
     };
   }
 
-  const fi = i - histN;
-  if (reach?.forecast?.p50?.length && fi >= 0 && fi < reach.forecast.p50.length) {
+  const fi = i - histN - (todayIndex >= 0 ? 1 : 0);
+  if (i !== todayIndex && reach?.forecast?.p50?.length && fi >= 0 && fi < reach.forecast.p50.length) {
     const f = reach.forecast;
     const p50 = Number(f.p50[fi]);
     return {
@@ -299,8 +309,53 @@ export function sampleReachAt(reach, timeIndex, data, timeline) {
     support: String(t.support || "prior"),
     tier: String(t.tier || "Estimated"),
     kind: "today",
-    date: data?.generated || dates[i] || "",
+    date: dates[i] || data?.generated || "",
   };
+}
+
+/** Scene river length (m) the twin's km are mapped onto. */
+export function corridorLengthM(dataset) {
+  const chainage = Array.isArray(dataset?.chainage) ? dataset.chainage : [];
+  const stations = dataset?.corridor?.stations || [];
+  return (
+    Number(dataset?.corridor?.length) ||
+    Number(chainage[chainage.length - 1]?.meters) ||
+    Number(stations[stations.length - 1]?.along) ||
+    17000
+  );
+}
+
+/**
+ * Chainage meters per JalNetra km. The twin chains the same KML, but its total km can
+ * differ slightly from ours, so reaches are stretched to end where the river ends.
+ * Every chainage → reach lookup (ribbon, HUD, weather, inspect) must use this.
+ */
+export function bodCodKmToM(data, corridorLenM) {
+  const maxKm = Math.max(...(data?.reaches || []).map((r) => Number(r.km?.[1]) || 0), 0.001);
+  return corridorLenM / maxKm;
+}
+
+/** Reach index covering a chainage (meters), else nearest by midpoint; -1 when no data. */
+export function reachIndexAtMeters(data, meters, corridorLenM) {
+  const list = data?.reaches || [];
+  if (!list.length) return -1;
+  const m = Number(meters);
+  if (!Number.isFinite(m)) return 0;
+  const kmToM = bodCodKmToM(data, corridorLenM);
+  let best = 0;
+  let bestD = Infinity;
+  for (let i = 0; i < list.length; i++) {
+    const [a, b] = Array.isArray(list[i].km) ? list[i].km : [0, 0];
+    const m0 = Number(a) * kmToM;
+    const m1 = Number(b) * kmToM;
+    if (m >= m0 && m <= m1 + 0.5) return i;
+    const d = Math.abs((m0 + m1) / 2 - m);
+    if (d < bestD) {
+      bestD = d;
+      best = i;
+    }
+  }
+  return best;
 }
 
 /** Snapshot all reaches at one time index (for ribbon + strip). */
@@ -351,10 +406,11 @@ export function riverAccuracyAt(data, timeIndex, timeline) {
   };
 }
 
-/** Default time index = last history hour (today), else last date. */
+/** Default time index = API `today` snapshot, else last history hour, else last date. */
 export function defaultTimeIndex(timeline) {
   const n = timeline?.dates?.length || 0;
   if (!n) return 0;
+  if (timeline.todayIndex >= 0) return timeline.todayIndex;
   const h = timeline.historyCount || 0;
   if (h > 0) return h - 1;
   return n - 1;

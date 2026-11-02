@@ -5,6 +5,7 @@
 import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { interpolateChainage } from "../geo/chainage.js";
+import { corridorLengthM, bodCodKmToM } from "../services/bodCodService.js";
 
 const DEFAULT_COLORS = {
   A: "#2E7DD1",
@@ -26,11 +27,7 @@ export function createBodCodLayer(dataset) {
 
   const chainage = Array.isArray(dataset?.chainage) ? dataset.chainage : [];
   const stations = dataset?.corridor?.stations || [];
-  const corridorLenM =
-    Number(dataset?.corridor?.length) ||
-    Number(chainage[chainage.length - 1]?.meters) ||
-    Number(stations[stations.length - 1]?.along) ||
-    17000;
+  const corridorLenM = corridorLengthM(dataset);
 
   /** @type {{ mesh:THREE.Mesh, reach:object, mat:THREE.MeshBasicMaterial, radius:number }[]} */
   let segments = [];
@@ -56,12 +53,8 @@ export function createBodCodLayer(dataset) {
     if (chainage.length < 2 && stations.length < 2) return;
 
     const colors = { ...DEFAULT_COLORS, ...(payload.class_colors || {}) };
-    const dataMaxKm = Math.max(
-      ...payload.reaches.map((r) => Number(r.km?.[1]) || 0),
-      0.001,
-    );
     // Map twin km onto this corridor so the ribbon ends with the river, not past it.
-    kmToM = corridorLenM / dataMaxKm;
+    kmToM = bodCodKmToM(payload, corridorLenM);
 
     for (const reach of payload.reaches) {
       const [km0, km1] = Array.isArray(reach.km) ? reach.km : [0, 2];

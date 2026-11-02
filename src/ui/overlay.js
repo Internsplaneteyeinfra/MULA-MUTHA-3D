@@ -3,6 +3,7 @@ import { SURFACE_Y } from "../scene/river.js";
 import { sceneName } from "../scene/cinematic.js";
 import { whenChainageSettled } from "../scene/riverJourney.js";
 import { mountProjectIdentity } from "./components/projectIdentity.js";
+import { waterLevelAt } from "./components/digitalTwinPanel.js";
 import { mountWeatherWidget } from "./components/weatherWidget.js";
 import { mountAnalyticsControls } from "./components/analyticsControls.js";
 import { mountRiverDataPanel } from "./components/riverDataPanel.js";
@@ -62,6 +63,26 @@ function tipRows(rows) {
     .filter(([, v]) => v != null && String(v).trim() !== "")
     .map(([k, v]) => `<div class="kv"><span class="k">${tipEsc(k)}</span><span class="v">${tipEsc(v)}</span></div>`)
     .join("");
+}
+
+/** BOD / COD / class lines for a hovered joining stream (JalNetra streams-bod-cod `today`). */
+function joiningBodCodTipHtml(info) {
+  const v = info.bodCod;
+  if (!v) {
+    return info.bodCodStatus
+      ? `<div style="margin-top:4px;font-size:9px;color:#8ba3b0;">${tipEsc(info.bodCodStatus)}</div>`
+      : "";
+  }
+  const mg = (n) => (Number.isFinite(n) ? `${n.toFixed(2)} mg/L` : "—");
+  const line = (k, val) =>
+    `<div style="display:flex;justify-content:space-between;gap:10px;font-size:10px;line-height:1.35;"><span style="color:#8ba3b0;">${k}</span><span style="color:#fff;font-weight:600;font-family:var(--font-mono, monospace);">${tipEsc(val)}</span></div>`;
+  return `
+    <div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(154,212,224,0.18);">
+      ${line("BOD", mg(v.bod))}
+      ${line("COD", mg(v.cod))}
+      ${line("Class", v.cls)}
+      <div style="font-size:8.5px;color:#6f8794;margin-top:2px;">At river entry · ${tipEsc(v.date)} · ${tipEsc(v.streamId)}</div>
+    </div>`;
 }
 
 export function createTooltip(root) {
@@ -138,7 +159,9 @@ export function createTooltip(root) {
         el.innerHTML = `
           <div class="hover-title" style="font-weight: 700; font-size: 9px; color: #8ba3b0; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.05em; line-height: 1.15;">${tipEsc(what)}</div>
           <div class="hover-value" style="font-size: 11px; color: #ffffff; font-weight: 600; font-family: var(--font-mono, monospace); line-height: 1.15;">(${tipEsc(val)})</div>
+          ${info.joiningHover ? joiningBodCodTipHtml(info) : ""}
         `;
+        if (info.joiningHover) el.style.maxWidth = "190px";
         return;
       }
 
@@ -300,6 +323,7 @@ export function createTooltip(root) {
           ${row("Length", info.lengthM != null ? `${Math.round(info.lengthM)} m` : "")}
           ${row("Flow", info.flowDirection || (info.joiningHover ? "→ River" : null))}
           ${row("Joins river", info.connectsToRiver == null ? "" : info.connectsToRiver ? "Connected" : "Disconnected")}
+          ${info.joiningHover ? joiningBodCodTipHtml(info) : ""}
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
           <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${info.joiningHover ? "Hover preview · click to select" : "Water moving toward Mula–Mutha"}</em>
@@ -431,20 +455,23 @@ export function createTooltip(root) {
         return;
       }
       if (info.hydrologyInspect) {
+        // Live readings only — same water level as the top PROFILE WSE (gauge → profile WSE).
+        const level = waterLevelAt(info.stationRecord);
+        const depth = info.dynamicDepthM ?? info.surveyDepthM;
+        el.classList.add("tooltip--river");
         el.innerHTML = `
-          <h3>MULA–MUTHA HYDROLOGY</h3>
-          <div class="kv"><span class="k">Chainage</span><span class="v depth">${info.chainageLabel ?? "—"}</span></div>
-          <div class="kv"><span class="k">Coordinates</span><span class="v">${info.lat.toFixed(6)}° N, ${info.lon.toFixed(6)}° E</span></div>
-          <div class="kv"><span class="k">River Width</span><span class="v">${info.widthM != null ? Number(info.widthM).toFixed(1) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Water Surface</span><span class="v">${info.waterSurface != null ? Number(info.waterSurface).toFixed(2) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Survey Depth</span><span class="v depth">${info.surveyDepthM != null ? Number(info.surveyDepthM).toFixed(2) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Dynamic Depth</span><span class="v">${info.dynamicDepthM != null ? Number(info.dynamicDepthM).toFixed(2) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Bed Elevation</span><span class="v">${info.bedElevationMsl != null ? Number(info.bedElevationMsl).toFixed(2) + " m MSL" : "—"}</span></div>
-          <div class="kv"><span class="k">Cross-Section Area</span><span class="v">${info.crossSectionAreaM2 != null ? Number(info.crossSectionAreaM2).toFixed(1) + " m²" : "—"}</span></div>
-          <div class="kv"><span class="k">Hydraulic Radius</span><span class="v">${info.hydraulicRadiusM != null ? Number(info.hydraulicRadiusM).toFixed(2) + " m" : "—"}</span></div>
-          <div class="kv"><span class="k">Discharge (Q)</span><span class="v">${info.dischargeM3s != null ? Number(info.dischargeM3s).toFixed(1) + " m³/s" : "—"}</span></div>
-          <div class="kv"><span class="k">Velocity (v)</span><span class="v">${info.velocityMs != null ? Number(info.velocityMs).toFixed(2) + " m/s" : "—"}</span></div>
-          <div class="kv"><span class="k">Froude (Fr)</span><span class="v">${info.froudeNumber != null ? Number(info.froudeNumber).toFixed(2) : "—"}</span></div>
+          <h3 style="display:flex;align-items:center;justify-content:space-between;gap:8px;">MULA–MUTHA RIVER
+            <span style="display:inline-flex;align-items:center;gap:4px;font-size:9px;letter-spacing:.08em;color:#3ddc97;"><span style="width:6px;height:6px;border-radius:50%;background:#3ddc97;box-shadow:0 0 6px #3ddc97;"></span>LIVE</span>
+          </h3>
+          ${tipRows([
+            ["Chainage", info.chainageLabel],
+            ["Lat, Long", Number.isFinite(info.lat) && Number.isFinite(info.lon) ? `${info.lat.toFixed(5)}, ${info.lon.toFixed(5)}` : null],
+            ["Water Level", tipNum(level, 2, " m")],
+            ["Water Depth", tipNum(depth, 2, " m")],
+            ["Width", tipNum(info.widthM, 1, " m")],
+            ["Discharge", tipNum(info.dischargeM3s, 1, " m³/s")],
+            ["Velocity", tipNum(info.velocityMs, 2, " m/s")],
+          ])}
           <button id="tip-cs-btn" style="margin-top:8px;width:100%;background:rgba(79,200,235,0.2);border:1px solid rgba(79,200,235,0.4);color:#00f2fe;padding:5px 8px;border-radius:4px;font-size:10px;font-weight:600;cursor:pointer">
             📊 View Cross-Section Geometry
           </button>

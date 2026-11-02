@@ -38,6 +38,9 @@
 .hydrology-simulation-mode-row,
 .hydrology-resolution-row { display: flex; align-items: center; justify-content: center; gap: 5px; }
 .hydrology-simulation-controls[hidden],
+/* Floating H/D/W toolbar sits in the left column — never cover an open geology panel
+   (Joining Streams, Bank Erosion, Lithology, Main Stem, Bathymetry). */
+body:has(.left-ui-stack > .geology-panel.is-visible) .hydrology-simulation-controls:not(.is-panel-docked),
 .hydrology-level-change[hidden],
 .hydrology-simulation-completion[hidden] { display: none !important; }
 .hydrology-simulation-button {

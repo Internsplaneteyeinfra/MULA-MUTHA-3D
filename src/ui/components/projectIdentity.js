@@ -5,6 +5,7 @@ import { formatStation } from "../../geo/chainage.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 import { wseSpatialService } from "../../services/hydrology/wseSpatialService.js";
 import { waterLevelAt } from "./digitalTwinPanel.js";
+import { fetchStreamsBodCod, streamBodCodToday } from "../../services/streamsBodCodService.js";
 function num(v) {
   const n = Number(v);
   return v == null || !Number.isFinite(n) ? null : n;
@@ -84,13 +85,94 @@ export function mountProjectIdentity(root, dataset = null) {
   const stageEl = el.querySelector("#brand-water-stage");
   const velocityEl = el.querySelector("#brand-water-velocity");
   const areaEl = el.querySelector("#brand-water-area");
+  const rows = [...el.querySelectorAll(".water-telemetry-wq .weather-wq-row")];
+  const HYDRAULIC_LABELS = rows.map((r) => ({
+    label: r.querySelector("i")?.textContent || "",
+    short: r.querySelector("i")?.dataset.short || "",
+    unit: r.querySelector("em")?.textContent || "",
+  }));
+  const STREAM_LABELS = [
+    { label: "STREAM BOD", short: "BOD", unit: "mg/L" },
+    { label: "STREAM COD", short: "COD", unit: "mg/L" },
+    { label: "BOD CLASS", short: "CLASS", unit: "" },
+  ];
 
   let lastMeters = null;
+
+  /** Joining Streams: big numbers show the stream's BOD/COD where it enters the river. */
+  let selectedStream = null;
+  let hoverStream = null;
+  let shownStream = undefined;
+  let streamToken = 0;
+
+  function setLabels(labels, title) {
+    rows.forEach((r, i) => {
+      const l = labels[i];
+      const iEl = r.querySelector("i");
+      const unitEl = r.querySelector("em");
+      if (iEl) {
+        iEl.textContent = l.label;
+        iEl.dataset.short = l.short;
+      }
+      if (unitEl) {
+        unitEl.textContent = l.unit;
+        unitEl.hidden = !l.unit;
+      }
+    });
+    el.querySelector(".water-telemetry-wq")?.setAttribute("title", title);
+  }
+
+  async function renderStream() {
+    const rec = state.joiningStreamsMode ? hoverStream || selectedStream : null;
+    if (rec === shownStream) return;
+    shownStream = rec;
+    const token = ++streamToken;
+    if (!rec) {
+      setLabels(HYDRAULIC_LABELS, "");
+      if (lastMeters != null) update(lastMeters, true);
+      return;
+    }
+    setLabels(STREAM_LABELS, "");
+    stageEl.textContent = "…";
+    velocityEl.textContent = "…";
+    areaEl.textContent = "…";
+    let v = null;
+    let failed = false;
+    try {
+      v = streamBodCodToday(rec, await fetchStreamsBodCod());
+    } catch {
+      failed = true;
+    }
+    if (token !== streamToken) return;
+    // Let the next hover/select retry once the backoff allows it
+    if (failed) shownStream = undefined;
+    const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "—");
+    stageEl.textContent = fmt(v?.bod);
+    velocityEl.textContent = fmt(v?.cod);
+    areaEl.textContent = v?.cls || "—";
+    setLabels(
+      STREAM_LABELS,
+      v
+        ? `JalNetra streams BOD/COD · ${v.streamId} · today ${v.date} · at river entry`
+        : failed
+          ? "Streams BOD/COD unavailable"
+          : "No BOD/COD series for this stream",
+    );
+  }
+
+  document.addEventListener("joining-stream-bod", (e) => {
+    const d = e.detail || {};
+    if ("selected" in d) selectedStream = d.selected || null;
+    if ("hover" in d) hoverStream = d.hover || null;
+    void renderStream();
+  });
 
   function update(meters, force = false) {
     if (!Number.isFinite(meters)) return;
     if (meters === lastMeters && !force) return;
     lastMeters = meters;
+    // Stream BOD/COD owns the numbers while a joining stream is shown
+    if (shownStream) return;
 
     const rec = profileRecordAt(meters);
     const hydraulic = wseSpatialService.getWSEAtChainage(meters);

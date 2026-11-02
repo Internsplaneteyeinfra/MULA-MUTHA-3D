@@ -6,6 +6,8 @@ import {
   buildBodCodTimeline,
   defaultTimeIndex,
   sampleReachAt,
+  corridorLengthM,
+  reachIndexAtMeters,
 } from "../../services/bodCodService.js";
 import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
 import { mountWeatherOverview } from "../../weather/WeatherOverview.js";
@@ -134,27 +136,10 @@ export function mountWeatherWidget(root) {
   }
 
   function reachAtMeters(meters) {
-    const list = bodData?.reaches || [];
-    if (!list.length) return null;
-    const m = Number(meters);
-    if (!Number.isFinite(m)) return list[0];
-    const km = m / 1000;
-    for (const r of list) {
-      const [a, b] = Array.isArray(r.km) ? r.km : [0, 2];
-      if (km >= Number(a) && km <= Number(b) + 1e-6) return r;
-    }
-    let best = list[0];
-    let bestD = Infinity;
-    for (const r of list) {
-      const [a, b] = Array.isArray(r.km) ? r.km : [0, 2];
-      const mid = (Number(a) + Number(b)) / 2;
-      const d = Math.abs(mid - km);
-      if (d < bestD) {
-        bestD = d;
-        best = r;
-      }
-    }
-    return best;
+    // Same chainage → reach mapping as the ribbon / HUD, so all panels agree.
+    const lenM = corridorLengthM(window.__MM_SCENE__?.dataset);
+    const idx = reachIndexAtMeters(bodData, meters, lenM);
+    return idx >= 0 ? bodData.reaches[idx] : null;
   }
 
   function renderBodCod() {
@@ -171,8 +156,11 @@ export function mountWeatherWidget(root) {
           : 0;
     const reach = reachAtMeters(meters);
     const sample = sampleReachAt(reach, bodTimeIndex, bodData, bodTimeline);
-    bodEl.textContent = formatMetricNumber(sample?.p50, 1);
-    codEl.textContent = formatMetricNumber(sample?.cod_p50, 1);
+    bodEl.textContent = formatMetricNumber(sample?.p50, 2);
+    codEl.textContent = formatMetricNumber(sample?.cod_p50, 2);
+    bodEl.title = codEl.title = reach
+      ? `${reach.name || reach.id} · ${sample?.kind === "today" ? "today" : sample?.date || ""}`
+      : "";
   }
 
   function formatMetricNumber(v, digits = 1) {

@@ -10,6 +10,12 @@ import { pickDepthZoneAt } from "./depthZonesLayer.js";
 import { hydrologyStore } from "../services/hydrology/hydrologyStore.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { aqiCategory } from "../services/aqiService.js";
+import {
+  peekStreamsBodCod,
+  fetchStreamsBodCod,
+  streamBodCodToday,
+  streamsBodCodError,
+} from "../services/streamsBodCodService.js";
 
 const LULC_HOVER = {
   water: { label: "Water Bodies", color: "#2196F3" },
@@ -395,7 +401,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         rows.push(["Reach", reach.name || reach.id]);
         if (reach.cls) rows.push(["BOD/COD class", reach.cls]);
         if (Number.isFinite(reach.bod)) rows.push(["BOD", `${reach.bod.toFixed(2)} mg/L`]);
-        if (Number.isFinite(reach.cod)) rows.push(["COD", `${reach.cod.toFixed(1)} mg/L`]);
+        if (Number.isFinite(reach.cod)) rows.push(["COD", `${reach.cod.toFixed(2)} mg/L`]);
       }
     }
     return rows;
@@ -707,6 +713,10 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               return;
             }
             window.__MM_SCENE__?.hoverJoiningStream?.(flowRec);
+            document.dispatchEvent(new CustomEvent("joining-stream-bod", { detail: { hover: flowRec } }));
+            const streamsData = peekStreamsBodCod();
+            if (!streamsData) fetchStreamsBodCod().catch(() => {});
+            const bodCod = streamsData ? streamBodCodToday(flowRec, streamsData) : null;
             let lon = nullah.hit.lon ?? flowRec?.outletLon;
             let lat = nullah.hit.lat ?? flowRec?.outletLat;
             if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
@@ -730,17 +740,27 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               lat,
               flowDirection: "→ River",
               connectsToRiver: true,
+              bodCod,
+              bodCodStatus: bodCod
+                ? ""
+                : streamsData
+                  ? "No BOD/COD series"
+                  : streamsBodCodError()
+                    ? "BOD/COD unavailable"
+                    : "BOD/COD loading…",
             });
             state.hover = { x: nullah.hit.x, z: nullah.hit.z, nullah: m.name };
             return;
           }
           // Disconnected channel under cursor — ignore in Joining Streams
           window.__MM_SCENE__?.hoverJoiningStream?.(null);
+          document.dispatchEvent(new CustomEvent("joining-stream-bod", { detail: { hover: null } }));
           if (!fromClick) return;
         }
       }
       // Missed drainage — clear hover only; keep selection locked
       window.__MM_SCENE__?.hoverJoiningStream?.(null);
+      document.dispatchEvent(new CustomEvent("joining-stream-bod", { detail: { hover: null } }));
       if (!fromClick) {
         // fall through for other hover tips only when not over a nullah
       }

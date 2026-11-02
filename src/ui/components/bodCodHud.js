@@ -14,6 +14,9 @@ import {
   formatTimelineLabel,
   formatTimelineScaleLabel,
   supportStyle,
+  corridorLengthM,
+  reachIndexAtMeters,
+  bodCodKmToM,
 } from "../../services/bodCodService.js";
 
 /**
@@ -119,20 +122,8 @@ export function mountBodCodHud(root, hooks = {}) {
   function pickIndexForMeters(meters) {
     const idx = window.__MM_SCENE__?.findBodCodReachAtMeters?.(meters);
     if (Number.isFinite(idx) && idx >= 0) return idx;
-    const list = reaches();
-    if (!list.length || !Number.isFinite(meters)) return 0;
-    let best = 0;
-    let bestD = Infinity;
-    for (let i = 0; i < list.length; i++) {
-      const [a, b] = list[i].km || [0, 2];
-      const mid = ((Number(a) + Number(b)) / 2) * 1000;
-      const d = Math.abs(mid - meters);
-      if (d < bestD) {
-        bestD = d;
-        best = i;
-      }
-    }
-    return best;
+    const lenM = corridorLengthM(window.__MM_SCENE__?.dataset);
+    return Math.max(0, reachIndexAtMeters(data, meters, lenM));
   }
 
   function applyTime(nextIndex, { rebuildRibbon = true } = {}) {
@@ -165,7 +156,9 @@ export function mountBodCodHud(root, hooks = {}) {
     const fcstH = timeline.forecastCount || 0;
     const endNote = fcstH ? ` · +${fcstH}h` : "";
     const kind =
-      timeIndex >= timeline.historyCount
+      timeIndex === timeline.todayIndex
+        ? "Today"
+        : timeIndex >= timeline.historyCount
         ? "Forecast"
         : snaps[0]?.sample?.support === "sat" || snaps[0]?.sample?.support === "anchor"
           ? "Observed"
@@ -273,14 +266,15 @@ export function mountBodCodHud(root, hooks = {}) {
       return;
     }
     const colors = data?.class_colors || {};
+    const kmToM = bodCodKmToM(data, corridorLengthM(window.__MM_SCENE__?.dataset));
     const segments = list.map((r, i) => {
       const [a, b] = Array.isArray(r.km) ? r.km : [i * 2, i * 2 + 2];
       const sample = snaps[i]?.sample || sampleReachAt(r, timeIndex, data, timeline);
       const cls = String(sample.cls || "NA").toUpperCase();
       const style = supportStyle(sample.support);
       return {
-        startM: Number(a) * 1000,
-        endM: Number(b) * 1000,
+        startM: Number(a) * kmToM,
+        endM: Number(b) * kmToM,
         color: colors[cls] || colors.NA || "#6B7A7F",
         style,
         active: i === reachIndex,

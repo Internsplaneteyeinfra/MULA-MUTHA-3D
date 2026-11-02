@@ -168,7 +168,7 @@ function detectChainageIntervalM(chainage) {
 export function parseDrainageKml(text) {
   const features = [];
   const placemarks = [...text.matchAll(/<Placemark[\s\S]*?<\/Placemark>/gi)];
-  for (const block of placemarks) {
+  for (const [placemarkIndex, block] of placemarks.entries()) {
     const content = block[0];
     const nameM = content.match(/<name>\s*([^<]*)\s*<\/name>/i);
     const name = nameM?.[1]?.trim() || "";
@@ -186,6 +186,8 @@ export function parseDrainageKml(text) {
         features.push({
           name,
           waterway,
+          // KML order = JalNetra streams-bod-cod stream_id (S01 = placemark 0)
+          placemarkIndex,
           osmId: props.osm_id || props.full_id || "",
           osmType: props.osm_type || "",
           nameEn: props["name:en"] || "",

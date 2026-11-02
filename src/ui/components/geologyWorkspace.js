@@ -9,6 +9,8 @@ import {
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
 import { mountFocusThemeHud } from "../mapFocus.js";
+import { fetchStreamsBodCod, streamForDrainage } from "../../services/streamsBodCodService.js";
+import { formatMgL } from "../../services/bodCodService.js";
 
 /** Reference lithology classes — exact percentages; colors match geology overlay raster. */
 export const LITHOLOGY_CLASSES = [
@@ -366,12 +368,16 @@ export function mountGeologyWorkspace(root) {
     if (m.osmId) rows.push(["OSM", String(m.osmId)]);
     if (m.nameMr) rows.push(["Name (MR)", String(m.nameMr)]);
 
-    joiningKv.innerHTML = rows
-      .map(
-        ([k, v]) =>
-          `<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${v}</span></div>`,
-      )
-      .join("");
+    joiningKv.innerHTML =
+      rows
+        .map(
+          ([k, v]) =>
+            `<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${v}</span></div>`,
+        )
+        .join("") +
+      `<div class="js-bod" id="js-bod-rows"><div class="js-kv"><span class="js-k">BOD / COD</span><span class="js-v">Loading…</span></div></div>`;
+    renderJoiningBod(rec);
+    document.dispatchEvent(new CustomEvent("joining-stream-bod", { detail: { selected: rec } }));
 
     const total = window.__MM_SCENE__?.getJoiningStreamCount?.() ?? 0;
     const idx = rec.navigationNumber ?? (rec.navIndex ?? 0) + 1;
@@ -379,7 +385,44 @@ export function mountGeologyWorkspace(root) {
     if (joiningPanelCount) joiningPanelCount.textContent = total ? `${idx} / ${total}` : "0 / 0";
   }
 
+  /** JalNetra /api/streams-bod-cod `today` values for this channel, shown exactly as published. */
+  let joiningBodToken = 0;
+  async function renderJoiningBod(rec) {
+    const token = ++joiningBodToken;
+    let body;
+    try {
+      const data = await fetchStreamsBodCod();
+      const s = streamForDrainage(rec, data);
+      const t = s?.today;
+      body = t
+        ? [
+            ["BOD", formatMgL(t.bod_p50)],
+            ["COD", formatMgL(t.cod_p50)],
+            ["Class", String(t.class_band || "—")],
+            ["As of", `${t.date || data.generated || "—"} · ${s.stream_id}`],
+          ]
+        : [["BOD / COD", "No series for this channel"]];
+    } catch (err) {
+      console.warn("[streams-bod-cod]", err);
+      body = [["BOD / COD", "Data unavailable"]];
+    }
+    const host = joiningKv?.querySelector("#js-bod-rows");
+    if (token !== joiningBodToken || !host) return;
+    host.innerHTML = body
+      .map(
+        ([k, v]) =>
+          `<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${escapeText(v)}</span></div>`,
+      )
+      .join("");
+  }
+
+  function escapeText(v) {
+    return String(v).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+  }
+
   function clearJoiningCard() {
+    joiningBodToken++;
+    document.dispatchEvent(new CustomEvent("joining-stream-bod", { detail: { selected: null, hover: null } }));
     if (joiningTitle) {
       joiningTitle.textContent = "";
       joiningTitle.hidden = true;
@@ -564,6 +607,8 @@ export function mountGeologyWorkspace(root) {
     if (id === "joining_streams") {
       try {
         state.joiningStreamsMode = true;
+        // Slow POST (~45 s) — start it now so the card has values by first selection
+        fetchStreamsBodCod().catch(() => {});
         root.classList.add("joining-streams-mode");
         window.__MM_SCENE__?.setJoiningStreams?.(true);
         if (gen !== activateGen) return;

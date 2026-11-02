@@ -415,6 +415,7 @@ function loadDrainageNetworkFromRaw(text) {
     const out = filtered.map((f) => ({
       name: String(f.name || f.nameEn || f.intName || "").trim(),
       waterway: f.waterway,
+      placemarkIndex: f.placemarkIndex,
       osmId: f.osmId,
       osmType: f.osmType,
       nameEn: f.nameEn,
