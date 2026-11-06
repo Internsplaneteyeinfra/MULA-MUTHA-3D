@@ -320,8 +320,8 @@
       "opacity": 1,
       "liftM": 1.5,
       "gridSegments": 128,
-      "legendTitle": "Silt Volume Surface",
-      "legendSubtitle": "Volume surface · fixed 0–94.31 · Jan–Jul 2026 KMZ",
+      "legendTitle": "Silt Volume Surface (m³)",
+      "legendSubtitle": "Volume surface · fixed 0–94.31 m³ · Jan–Jul 2026 KMZ",
       "source": "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
       "bounds": {
         "north": 18.547336008158936,
@@ -330,11 +330,11 @@
         "west": 73.85490125235805
       },
       "classes": [
-        { "id": "v0", "label": "0", "color": "#FFFFD4", "range": "low" },
-        { "id": "v25", "label": "~24", "color": "#FED98E" },
-        { "id": "v50", "label": "~47", "color": "#FE9929" },
-        { "id": "v75", "label": "~71", "color": "#D95F0E" },
-        { "id": "v100", "label": "94.3", "color": "#993404", "range": "high" }
+        { "id": "v0", "label": "0 m³", "color": "#FFFFD4", "range": "low" },
+        { "id": "v25", "label": "~24 m³", "color": "#FED98E" },
+        { "id": "v50", "label": "~47 m³", "color": "#FE9929" },
+        { "id": "v75", "label": "~71 m³", "color": "#D95F0E" },
+        { "id": "v100", "label": "94.3 m³", "color": "#993404", "range": "high" }
       ],
       "periods": [
         { "id": "2026-01", "label": "Jan", "year": 2026, "month": 1, "overlay": "/data/hydrology/silt/volume/2026-01/overlay.png", "legend": "/data/hydrology/silt/volume/2026-01/legend.png" },

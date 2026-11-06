@@ -106,7 +106,7 @@ export function createTooltip(root) {
           what = info.layerTitle || "LAND USE";
           const isVolume = info.siltVolume || /volume/i.test(String(info.layerTitle));
           if (isVolume) {
-             val = info.value != null ? Number(info.value).toFixed(Number(info.value) >= 10 ? 1 : 2) : (info.label || "—");
+             val = info.value != null ? `${Number(info.value).toFixed(Number(info.value) >= 10 ? 1 : 2)} m³` : (info.label || "—");
           } else {
              val = info.label || info.class_label || "—";
           }
@@ -220,11 +220,11 @@ export function createTooltip(root) {
         const isVolume = info.siltVolume || /volume/i.test(String(title));
         const label = isVolume
           ? info.value != null
-            ? Number(info.value).toFixed(Number(info.value) >= 10 ? 1 : 2)
+            ? `${Number(info.value).toFixed(Number(info.value) >= 10 ? 1 : 2)} m³`
             : info.label || "—"
           : info.label || info.class_label || "—";
         const extra = isVolume
-          ? `<span class="be-pct">/ ${Number(info.valueMax ?? 94.31).toFixed(1)}</span>`
+          ? `<span class="be-pct">/ ${Number(info.valueMax ?? 94.31).toFixed(1)} m³</span>`
           : info.pct
             ? `<span class="be-pct">${info.pct}</span>`
             : "";

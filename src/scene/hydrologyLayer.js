@@ -195,11 +195,11 @@ const SILT_VOLUME_BOUNDS = { ...SILT_CLASS_BOUNDS };
 /** Continuous silt volume ramp (YlOrBr). `value` is the scale endpoint for hover sampling. */
 export const SILT_VOLUME_MAX = 94.31;
 const SILT_VOLUME_CLASSES = [
-  { id: "v0", label: "0", color: "#FFFFD4", value: 0, range: "low" },
-  { id: "v25", label: "~24", color: "#FED98E", value: SILT_VOLUME_MAX * 0.25, range: "" },
-  { id: "v50", label: "~47", color: "#FE9929", value: SILT_VOLUME_MAX * 0.5, range: "" },
-  { id: "v75", label: "~71", color: "#D95F0E", value: SILT_VOLUME_MAX * 0.75, range: "" },
-  { id: "v100", label: "94.3", color: "#993404", value: SILT_VOLUME_MAX, range: "high" },
+  { id: "v0", label: "0 m³", color: "#FFFFD4", value: 0, range: "low" },
+  { id: "v25", label: "~24 m³", color: "#FED98E", value: SILT_VOLUME_MAX * 0.25, range: "" },
+  { id: "v50", label: "~47 m³", color: "#FE9929", value: SILT_VOLUME_MAX * 0.5, range: "" },
+  { id: "v75", label: "~71 m³", color: "#D95F0E", value: SILT_VOLUME_MAX * 0.75, range: "" },
+  { id: "v100", label: "94.3 m³", color: "#993404", value: SILT_VOLUME_MAX, range: "high" },
 ];
 
 export const SILT_VOLUME_PERIODS = [
