@@ -1,20 +1,14 @@
 import { CloudSun } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { fetchWeatherAt } from "../../services/weatherService.js";
-import {
-  fetchBodCodViewerData,
-  buildBodCodTimeline,
-  defaultTimeIndex,
-  sampleReachAt,
-  corridorLengthM,
-  reachIndexAtMeters,
-} from "../../services/bodCodService.js";
+import { loadBodCodPixels, lookupBodCodAt } from "../../services/bodCodPixelService.js";
 import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
 import { mountWeatherOverview } from "../../weather/WeatherOverview.js";
 import { state } from "../../state.js";
 
 /**
  * Top-right LIVE WEATHER + always-on BOD/COD + chainage-local modelled discharge.
+ * BOD/COD come from main-stream pixel samples (no map layer) at the selected chainage.
  * Weather icon opens Open-Meteo past/future detail graphs.
  */
 export function mountWeatherWidget(root) {
@@ -78,12 +72,8 @@ export function mountWeatherWidget(root) {
   let lastSuccessful = "";
   let weatherAvailable = false;
 
-  /** @type {object | null} */
-  let bodData = null;
-  let bodTimeline = { dates: [], historyCount: 0, forecastCount: 0 };
-  let bodTimeIndex = 0;
   let lastMeters = null;
-  let bodLoadPromise = null;
+  let bodLookupSerial = 0;
   let dischargeSerial = 0;
 
   const dateFmt = new Intl.DateTimeFormat("en-IN", {
@@ -112,55 +102,35 @@ export function mountWeatherWidget(root) {
   update();
   const timer = window.setInterval(update, 1000);
 
-  function ensureBodData() {
-    if (bodData?.reaches?.length) return Promise.resolve(bodData);
-    if (bodLoadPromise) return bodLoadPromise;
-    bodLoadPromise = fetchBodCodViewerData()
-      .then((data) => {
-        bodData = data;
-        bodTimeline = buildBodCodTimeline(data);
-        bodTimeIndex = defaultTimeIndex(bodTimeline);
-        renderBodCod();
-        return data;
-      })
-      .catch((err) => {
-        console.warn("[weather-wq]", err?.message || err);
-        bodEl.textContent = "—";
-        codEl.textContent = "—";
-        return null;
-      })
-      .finally(() => {
-        bodLoadPromise = null;
-      });
-    return bodLoadPromise;
-  }
-
-  function reachAtMeters(meters) {
-    // Same chainage → reach mapping as the ribbon / HUD, so all panels agree.
-    const lenM = corridorLengthM(window.__MM_SCENE__?.dataset);
-    const idx = reachIndexAtMeters(bodData, meters, lenM);
-    return idx >= 0 ? bodData.reaches[idx] : null;
-  }
-
-  function renderBodCod() {
-    if (!bodData?.reaches?.length) {
+  async function renderBodCod() {
+    const lat = lastPoint?.lat;
+    const lon = lastPoint?.lon;
+    const serial = ++bodLookupSerial;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
       bodEl.textContent = "—";
       codEl.textContent = "—";
+      bodEl.title = codEl.title = "";
       return;
     }
-    const meters =
-      lastMeters != null
-        ? lastMeters
-        : Number.isFinite(state.selectedChainageMeters)
-          ? state.selectedChainageMeters
-          : 0;
-    const reach = reachAtMeters(meters);
-    const sample = sampleReachAt(reach, bodTimeIndex, bodData, bodTimeline);
-    bodEl.textContent = formatMetricNumber(sample?.p50, 2);
-    codEl.textContent = formatMetricNumber(sample?.cod_p50, 2);
-    bodEl.title = codEl.title = reach
-      ? `${reach.name || reach.id} · ${sample?.kind === "today" ? "today" : sample?.date || ""}`
-      : "";
+    try {
+      const hit = await lookupBodCodAt(lat, lon);
+      if (serial !== bodLookupSerial) return;
+      if (!hit) {
+        bodEl.textContent = "—";
+        codEl.textContent = "—";
+        bodEl.title = codEl.title = "No BOD/COD pixel near this chainage";
+        return;
+      }
+      bodEl.textContent = formatMetricNumber(hit.bod, 2);
+      codEl.textContent = formatMetricNumber(hit.cod, 2);
+      bodEl.title = codEl.title = `Main-stream pixel · ${hit.lat.toFixed(5)}, ${hit.lon.toFixed(5)}`;
+    } catch (err) {
+      if (serial !== bodLookupSerial) return;
+      console.warn("[weather-wq]", err?.message || err);
+      bodEl.textContent = "—";
+      codEl.textContent = "—";
+      bodEl.title = codEl.title = "BOD/COD unavailable";
+    }
   }
 
   function formatMetricNumber(v, digits = 1) {
@@ -197,22 +167,9 @@ export function mountWeatherWidget(root) {
 
   function updateBodCodForChainage(point) {
     lastMeters = point?.meters ?? state.selectedChainageMeters ?? null;
-    void ensureBodData().then(() => renderBodCod());
+    void renderBodCod();
     void renderDischarge();
   }
-
-  function onBodCodTime(e) {
-    if (Number.isFinite(e.detail?.timeIndex)) {
-      bodTimeIndex = e.detail.timeIndex;
-    }
-    if (e.detail?.data?.reaches?.length) {
-      bodData = e.detail.data;
-      bodTimeline = buildBodCodTimeline(bodData);
-    }
-    renderBodCod();
-  }
-
-  document.addEventListener("bod-cod-time-change", onBodCodTime);
 
   function updateForChainage(point) {
     lastPoint = point
@@ -263,8 +220,8 @@ export function mountWeatherWidget(root) {
   el.querySelector("#weather-icon-btn")?.addEventListener("click", openDetail);
   el.querySelector("#weather-open-detail")?.addEventListener("click", openDetail);
 
-  // Prefetch twin + live Q so numbers appear without waiting for Water Quality open
-  void ensureBodData();
+  // Prefetch pixel samples + live Q so numbers appear on first chainage select
+  void loadBodCodPixels().catch(() => {});
   void renderDischarge();
 
   return {
@@ -274,7 +231,6 @@ export function mountWeatherWidget(root) {
     dispose: () => {
       window.clearTimeout(requestTimer);
       window.clearInterval(timer);
-      document.removeEventListener("bod-cod-time-change", onBodCodTime);
       detail.dispose();
     },
   };
