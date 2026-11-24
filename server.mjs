@@ -11,6 +11,7 @@ import path from "node:path";
 import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream";
+import { handleRainfallApi } from "./scripts/rainfallApiMiddleware.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "dist");
 const PORT = Number(process.env.PORT) || 4176;
@@ -129,10 +130,16 @@ http
       void proxy(req, res, url);
       return;
     }
-    if (!["GET", "HEAD"].includes(req.method)) {
-      res.writeHead(405).end();
-      return;
-    }
-    serveStatic(req, res, url);
+    // Rainfall Simulation API (river response — not flood inundation)
+    void handleRainfallApi(req, res, url.pathname).then((handled) => {
+      if (handled) return;
+      if (!["GET", "HEAD"].includes(req.method)) {
+        res.writeHead(405).end();
+        return;
+      }
+      serveStatic(req, res, url);
+    });
   })
-  .listen(PORT, "0.0.0.0", () => console.log(`[server] dist on :${PORT}, ${PROXY_PREFIX} → ${RIVEREYE_API}`));
+  .listen(PORT, "0.0.0.0", () =>
+    console.log(`[server] dist on :${PORT}, ${PROXY_PREFIX} → ${RIVEREYE_API}, /api/rainfall-simulation`),
+  );

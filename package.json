@@ -1,5 +1,5 @@
 {
-  "name": "mula-mutha-cinematic",
+  "name": "mula-mutha-3d",
   "version": "1.0.0",
   "private": true,
   "description": "Standalone Mula–Mutha hydrology visualization (EPSG:32643, KML corridor, Excel bathymetry, OSM context).",

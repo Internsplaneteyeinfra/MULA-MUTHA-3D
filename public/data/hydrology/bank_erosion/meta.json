@@ -1,16 +1,36 @@
 {
   "id": "bank_erosion",
-  "source": "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
-  "sourceKmz": "bank_erosion_hotspot_smoothed.kmz",
+  "name": "Bank erosion",
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/bank_erosion_hotspots_2016_2026.kml",
   "bounds": {
-    "north": 18.5474258397,
-    "south": 18.5207458757,
-    "east": 73.9935113007,
-    "west": 73.8547215893
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
   },
-  "overlayWidth": 8192,
-  "overlayHeight": 1575,
-  "overlayUrl": "/data/hydrology/bank_erosion/overlay.png",
-  "legendUrl": "/data/hydrology/bank_erosion/legend.png",
-  "smoothed": true
+  "overlay": "/data/hydrology/bank_erosion/overlay.png",
+  "legendClasses": [
+    {
+      "color": "#90EE90",
+      "label": "0 = No / Very Low Erosion (0)"
+    },
+    {
+      "color": "#FFFF00",
+      "label": "1 = Low Erosion (1-2)"
+    },
+    {
+      "color": "#FFA500",
+      "label": "2 = Moderate Erosion (3-4)"
+    },
+    {
+      "color": "#FF0000",
+      "label": "3 = High Erosion (5-7)"
+    },
+    {
+      "color": "#800000",
+      "label": "4 = Very High Erosion (8+)"
+    }
+  ],
+  "updated": "2026-11-11"
 }

@@ -1,10 +1,24 @@
 {
   "id": "water_quality_ndci",
   "name": "Chlorophyll-a",
-  "type": "kmlPolygons",
-  "data": "/data/hydrology/water_quality/NDCI.kml",
-  "source": "src/data/NDCI.kml",
-  "smoothed": false,
-  "classes": 2,
-  "unit": "ug/L"
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/chlorophyl.kml",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "overlay": "/data/hydrology/water_quality/ndci/overlay.png",
+  "legendClasses": [
+    {
+      "color": "#C8E6C9",
+      "label": "Low Chlorophyll (NDCI < 0)"
+    },
+    {
+      "color": "#1B5E20",
+      "label": "High Chlorophyll (NDCI ≥ 0)"
+    }
+  ],
+  "updated": "2026-11-11"
 }

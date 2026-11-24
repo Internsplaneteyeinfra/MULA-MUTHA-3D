@@ -1,0 +1,14 @@
+{
+  "id": "2022-10",
+  "year": 2022,
+  "month": 10,
+  "name": "Silt Volume Surface — October 2022",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "source": "vol-oct.kml",
+  "kind": "volume"
+}

@@ -146,14 +146,17 @@ export function mountChainageStepHud(root, dataset) {
     ".lu-theme-classes",
     ".lu-hud",
     ".wq-hud",
+    ".poll-hud",
     ".geology-workspace",
     ".focus-theme-classes",
     ".climate-impact-classes",
     ".aqi-classes",
     ".bod-cod-classes",
+    ".pollution-keypoints",
+    ".pollution-side-hud",
   ];
   const TOP_ROW_SELECTORS = [".analytics-controls", ".top-navigation", ...SUB_ROW_SELECTORS];
-  const GAP_PX = 10;
+  const GAP_PX = 14;
 
   function isVisible(node) {
     if (!node || node === el || node.hidden) return false;

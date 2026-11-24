@@ -3,6 +3,7 @@ import {
   FlaskConical,
   LeafyGreen,
   Hexagon,
+  Bug,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
@@ -11,12 +12,12 @@ import { state } from "../../state.js";
  * Water Quality floating HUD — same icon-only chrome as Land Use.
  * Labels appear only on hover (CSS tooltips).
  *
- * Order: Salinity → TSS → Chlorophyll-a → BOD–COD
+ * Order: Salinity → TSS → Chlorophyll-a → Coliform → BOD–COD
  */
 export const WATER_QUALITY_OPTIONS = [
   {
     id: "salinity",
-    tip: "Salinity (ppt)",
+    tip: "Salinity",
     icon: Waves,
     tone: "wq-tone-salinity",
     layerId: "salinity",
@@ -24,7 +25,7 @@ export const WATER_QUALITY_OPTIONS = [
   },
   {
     id: "tss",
-    tip: "TSS (mg/L)",
+    tip: "TSS",
     icon: FlaskConical,
     tone: "wq-tone-tss",
     layerId: "water_quality_tss",
@@ -32,10 +33,18 @@ export const WATER_QUALITY_OPTIONS = [
   },
   {
     id: "ndci",
-    tip: "Chlorophyll-a (µg/L)",
+    tip: "Chlorophyll-a",
     icon: LeafyGreen,
     tone: "wq-tone-ndci",
     layerId: "water_quality_ndci",
+    fallbackLayerId: null,
+  },
+  {
+    id: "coliform",
+    tip: "Coliform",
+    icon: Bug,
+    tone: "wq-tone-coliform",
+    layerId: "water_quality_coliform",
     fallbackLayerId: null,
   },
   {

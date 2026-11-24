@@ -1810,7 +1810,25 @@
 #ui-root.gis-ui.api-flood-mode .river-data-panel,
 #ui-root.gis-ui.api-flood-mode .river-data-fab,
 #ui-root.gis-ui.flood-sim-open .left-ui-stack,
-#ui-root.gis-ui.api-flood-mode .left-ui-stack {
+#ui-root.gis-ui.api-flood-mode .left-ui-stack,
+#ui-root.gis-ui.rainfall-sim-open .left-ui-stack,
+#ui-root.gis-ui.rainfall-sim-open .river-data-panel,
+#ui-root.gis-ui.rainfall-sim-open .river-data-fab,
+#ui-root.gis-ui.flood-sim-open .river-data-panel,
+#ui-root.gis-ui.flood-sim-open .river-data-fab {
+  display: none !important;
+}
+
+/* Hydrology Discharge/Stage/Hydrograph + H/D/W toolbar: off during Flood / Rainfall */
+#ui-root.gis-ui.flood-sim-open .hydrology-simulation-controls,
+#ui-root.gis-ui.api-flood-mode .hydrology-simulation-controls,
+#ui-root.gis-ui.rainfall-sim-open .hydrology-simulation-controls,
+#ui-root.gis-ui.flood-sim-open .hydrology-level-change,
+#ui-root.gis-ui.api-flood-mode .hydrology-level-change,
+#ui-root.gis-ui.rainfall-sim-open .hydrology-level-change,
+#ui-root.gis-ui.flood-sim-open .hydrology-simulation-completion,
+#ui-root.gis-ui.api-flood-mode .hydrology-simulation-completion,
+#ui-root.gis-ui.rainfall-sim-open .hydrology-simulation-completion {
   display: none !important;
 }
 #ui-root.gis-ui.api-flood-mode .flood-playback {
@@ -4759,6 +4777,13 @@
 #ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--main-stem {
   display: none !important;
 }
+#ui-root.gis-ui.map-focus .poll-hud,
+.poll-hud.poll-hud--top {
+  top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
+  left: 50% !important;
+  transform: translateX(-50%) !important;
+  z-index: 28;
+}
 #ui-root.gis-ui.map-focus .lu-hud,
 .lu-hud.lu-hud--top {
   top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
@@ -4774,11 +4799,44 @@
   z-index: 26;
 }
 
-/* Pollution focus — single clean top stack, no overlapping HUDs */
+/*
+ * Submenu open: vertical order is owned by chainageStepHud.js (poll-hud is in
+ * SUB_ROW_SELECTORS). Keep z-index so icons paint above the map, not the number.
+ */
+#ui-root.gis-ui.pollution-hud-open .poll-hud,
+#ui-root.gis-ui.water-quality-open .wq-hud,
+#ui-root.gis-ui.land-use-open .lu-hud {
+  z-index: 26;
+}
+#ui-root.gis-ui.pollution-hud-open .chainage-step-hud,
+#ui-root.gis-ui.water-quality-open .chainage-step-hud,
+#ui-root.gis-ui.land-use-open .chainage-step-hud {
+  z-index: 18;
+}
+#ui-root.gis-ui.pollution-hud-open .chainage-destination-marker,
+#ui-root.gis-ui.water-quality-open .chainage-destination-marker,
+#ui-root.gis-ui.land-use-open .chainage-destination-marker,
+#ui-root.gis-ui.map-focus .chainage-destination-marker {
+  opacity: 0 !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+
+/* Pollution focus — icons → class chips → side tour (no chainage duplicate) */
+#ui-root.gis-ui.map-focus.pollution-focus .poll-hud,
+#ui-root.gis-ui.map-focus.pollution-focus .poll-hud.poll-hud--top {
+  top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
+  z-index: 29;
+}
 #ui-root.gis-ui.map-focus.pollution-focus .lu-theme-classes,
 #ui-root.gis-ui.map-focus.pollution-focus .focus-theme-classes {
-  top: calc(max(10px, env(safe-area-inset-top)) + 8px) !important;
+  top: calc(max(14px, env(safe-area-inset-top)) + 58px) !important;
   z-index: 28;
+}
+#ui-root.gis-ui.map-focus.pollution-focus .lu-theme-back,
+#ui-root.gis-ui.map-focus.pollution-focus .focus-theme-back {
+  top: calc(max(14px, env(safe-area-inset-top)) + 14px) !important;
+  z-index: 30;
 }
 /* Chainage step is merged into the side tour bar — hide the duplicate */
 #ui-root.gis-ui.map-focus.pollution-focus .chainage-step-hud,
@@ -4787,7 +4845,7 @@
 }
 #ui-root.gis-ui.map-focus.pollution-focus .pollution-keypoints,
 #ui-root.gis-ui.map-focus.pollution-focus .pollution-side-hud {
-  top: calc(max(10px, env(safe-area-inset-top)) + 72px) !important;
+  top: calc(max(14px, env(safe-area-inset-top)) + 118px) !important;
   z-index: 27;
 }
 
@@ -6719,8 +6777,59 @@
   cursor: default;
   pointer-events: none;
 }
-.lu-theme-classes.is-legend-only .lu-theme-class:hover .lu-theme-class-letter,
-.lu-theme-class.is-legend-chip:hover .lu-theme-class-letter {
+
+/* Pollution class colors: hover tips + glow (still legend-only, no filter) */
+.lu-theme-classes.is-legend-only.is-hoverable-legend .lu-theme-class,
+.lu-theme-classes.is-hoverable-legend .lu-theme-class.is-legend-chip {
+  position: relative;
+  pointer-events: auto;
+  cursor: help;
+}
+.lu-theme-classes.is-hoverable-legend .lu-theme-class-letter {
+  transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
+}
+.lu-theme-classes.is-hoverable-legend .lu-theme-class::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 8px);
+  transform: translateX(-50%) translateY(-3px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.88);
+  border: 1px solid rgba(210, 230, 240, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f4fafc;
+  font: 600 11px/1.25 var(--font-ui);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  z-index: 30;
+  box-shadow: 0 8px 18px rgba(0, 0, 0, 0.28);
+}
+.lu-theme-classes.is-hoverable-legend .lu-theme-class:hover::after,
+.lu-theme-classes.is-hoverable-legend .lu-theme-class:focus-visible::after,
+.lu-theme-classes.is-hoverable-legend .lu-theme-class.is-map-hover::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.lu-theme-classes.is-hoverable-legend .lu-theme-class:hover .lu-theme-class-letter,
+.lu-theme-classes.is-hoverable-legend .lu-theme-class:focus-visible .lu-theme-class-letter,
+.lu-theme-classes.is-hoverable-legend .lu-theme-class.is-map-hover .lu-theme-class-letter {
+  transform: scale(1.12);
+  box-shadow:
+    0 0 0 2px rgba(255, 255, 255, 0.88),
+    0 0 16px color-mix(in srgb, var(--lu-class-color) 60%, transparent);
+  filter: brightness(1.08);
+}
+.lu-theme-classes.is-hoverable-legend.has-map-hover .lu-theme-class:not(.is-map-hover) {
+  opacity: 0.45;
+}
+.lu-theme-classes.is-legend-only:not(.is-hoverable-legend) .lu-theme-class:hover .lu-theme-class-letter,
+.lu-theme-classes:not(.is-hoverable-legend) .lu-theme-class.is-legend-chip:hover .lu-theme-class-letter {
   transform: none;
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.22);
 }
@@ -6811,6 +6920,25 @@
   gap: 10px;
   padding: 8px 10px;
   pointer-events: auto;
+}
+.lu-theme-year.is-year-month {
+  gap: 12px;
+  padding: 8px 12px;
+}
+.lu-theme-ym-group {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+.lu-theme-ym-divider {
+  width: 1px;
+  align-self: stretch;
+  min-height: 36px;
+  background: rgba(255, 255, 255, 0.22);
+  margin: 0 2px;
+}
+.lu-theme-year.is-year-month .lu-theme-year-center {
+  min-width: 72px;
 }
 /* Arrow-only period steppers (no adjacent month labels) */
 .lu-theme-period-arrow {
@@ -7013,7 +7141,7 @@
   }
   #ui-root.gis-ui.map-focus.pollution-focus .pollution-keypoints,
   #ui-root.gis-ui.map-focus.pollution-focus .pollution-side-hud {
-    top: calc(max(10px, env(safe-area-inset-top)) + 78px) !important;
+    top: calc(max(14px, env(safe-area-inset-top)) + 124px) !important;
   }
 }
 .lu-hud {
@@ -7353,6 +7481,7 @@
 .wq-hud__item.wq-tone-ndci { color: #7dcf7a; }
 .wq-hud__item.wq-tone-ndwi { color: #5eb8e8; }
 .wq-hud__item.wq-tone-wst { color: #e8b86a; }
+.wq-hud__item.wq-tone-coliform { color: #f0b078; }
 .wq-hud__item.wq-tone-bod { color: #b89ae8; }
 
 .wq-hud__item.is-active .wq-hud__icon {
@@ -7395,6 +7524,179 @@
   display: block;
   opacity: 0.88;
   font-size: 11px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   Pollution — floating icon-only HUD (same chrome as Land Use)
+   Garbage · Eutrophication · Nitrogen
+   ═══════════════════════════════════════════════════════════ */
+.poll-hud {
+  position: fixed;
+  left: 50%;
+  top: calc(max(14px, env(safe-area-inset-top)) + 62px);
+  transform: translateX(-50%) translateY(-6px);
+  z-index: 22;
+  width: auto;
+  max-width: min(420px, calc(100vw - 28px));
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  pointer-events: none;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+  opacity: 0;
+  transition: opacity 200ms ease-out, transform 200ms ease-out;
+}
+.poll-hud[hidden] {
+  display: none !important;
+}
+.poll-hud.is-open {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.poll-hud > * {
+  pointer-events: auto;
+}
+.poll-hud__row {
+  display: flex;
+  flex-wrap: nowrap;
+  align-items: center;
+  justify-content: center;
+  gap: clamp(16px, 2.6vw, 32px);
+  padding: 0;
+  margin: 0;
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+}
+.poll-hud__item {
+  appearance: none;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  width: 28px;
+  min-width: 26px;
+  padding: 0;
+  margin: 0;
+  border: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  border-radius: 0;
+  cursor: pointer;
+  color: inherit;
+  transition: transform 170ms ease-out, filter 170ms ease-out;
+}
+.poll-hud__item:hover {
+  transform: scale(1.06);
+  background: transparent !important;
+}
+.poll-hud__item:focus-visible {
+  outline: none;
+}
+.poll-hud__item:focus-visible .poll-hud__icon {
+  filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
+}
+.poll-hud__item::after {
+  content: attr(data-tip);
+  position: absolute;
+  left: 50%;
+  top: calc(100% + 10px);
+  transform: translateX(-50%) translateY(-3px);
+  padding: 6px 10px;
+  border-radius: 6px;
+  background: rgba(12, 18, 24, 0.82);
+  border: 1px solid rgba(210, 230, 240, 0.22);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  color: #f4fafc;
+  font: 600 12px/1.2 var(--font-ui);
+  letter-spacing: 0.01em;
+  white-space: nowrap;
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 160ms ease-out, transform 160ms ease-out;
+  z-index: 3;
+}
+.poll-hud__item:hover::after,
+.poll-hud__item:focus-visible::after {
+  opacity: 1;
+  transform: translateX(-50%) translateY(0);
+}
+.poll-hud__icon {
+  display: grid;
+  place-items: center;
+  width: 26px;
+  height: 26px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.35));
+  transition: filter 170ms ease-out, transform 170ms ease-out;
+}
+.poll-hud__svg {
+  display: block;
+  width: 26px;
+  height: 26px;
+}
+.poll-hud__dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: currentColor;
+  opacity: 0;
+  transition: opacity 160ms ease-out;
+}
+.poll-hud__item.poll-tone-garbage { color: #e8b86a; }
+.poll-hud__item.poll-tone-eutro { color: #8ec8f5; }
+.poll-hud__item.poll-tone-nitrogen { color: #a6e090; }
+.poll-hud__item.is-active .poll-hud__icon {
+  filter: drop-shadow(0 0 10px rgba(140, 220, 160, 0.55));
+  transform: scale(1.08);
+}
+.poll-hud__item.is-active .poll-hud__dot {
+  opacity: 0.9;
+}
+.poll-hud__item:hover .poll-hud__icon {
+  filter: drop-shadow(0 0 8px rgba(160, 230, 180, 0.4));
+}
+.poll-hud__status {
+  margin: 4px 0 0;
+  padding: 8px 12px;
+  max-width: min(360px, calc(100vw - 40px));
+  border-radius: 8px;
+  background: rgba(10, 16, 22, 0.78);
+  border: 1px solid rgba(210, 230, 240, 0.18);
+  color: rgba(230, 240, 245, 0.92);
+  font: 500 12px/1.35 var(--font-ui);
+  text-align: center;
+}
+.poll-hud__status[hidden] {
+  display: none !important;
+}
+.poll-hud__status strong {
+  display: block;
+  margin-bottom: 4px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  font-size: 11px;
+}
+.poll-hud__status.is-unavail strong {
+  color: #f0b070;
+}
+.poll-hud__status span {
+  display: block;
+  opacity: 0.88;
+  font-size: 11px;
+}
+@media (max-width: 720px) {
+  .poll-hud__row { gap: 14px; }
+  .poll-hud__item { width: 26px; }
+  .poll-hud__icon,
+  .poll-hud__svg { width: 24px; height: 24px; }
 }
 
 /* Active Water Quality (droplet) — cyan glass + downward caret */
@@ -7459,6 +7761,34 @@
   display: none !important;
   opacity: 0 !important;
   visibility: hidden !important;
+}
+
+/* Pollution pickaxe — hide tip while submenu icons are open; never stack WQ tip over it */
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button[data-analytics="Pollution"]::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill:hover::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill:focus-visible::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill.active::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill[aria-pressed="true"]::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button[data-analytics="Water Quality"]::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button[data-analytics="hydrology"]::after,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-droplet::after {
+  content: none !important;
+  display: none !important;
+  opacity: 0 !important;
+  visibility: hidden !important;
+  pointer-events: none !important;
+}
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button[data-analytics="Pollution"],
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill.active,
+#ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill[aria-pressed="true"] {
+  color: #ffc9a8;
+  background: rgba(232, 154, 28, 0.16);
+  border-color: rgba(232, 154, 28, 0.7);
+  box-shadow:
+    0 0 0 1px rgba(232, 154, 28, 0.3),
+    0 0 14px rgba(232, 154, 28, 0.35),
+    inset 0 1px 0 rgba(255, 230, 190, 0.18);
 }
 
 @media (max-width: 720px) {
@@ -8319,11 +8649,11 @@
   border-radius: 999px;
   background: linear-gradient(
     90deg,
-    #abd5f8 0%,
-    #7d9fcc 28%,
-    #4e669f 57%,
-    #1e2d72 85%,
-    #06115b 100%
+    #48c0f3 0%,
+    #0083d4 28%,
+    #006cb4 57%,
+    #005085 85%,
+    #001f3e 100%
   );
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18);
 }

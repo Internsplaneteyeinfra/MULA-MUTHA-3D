@@ -159,6 +159,8 @@ export function mountFocusThemeHud(root, hooks = {}) {
       focusKind === "geology" ||
       focusKind === "waterquality" ||
       focusKind === "landuse";
+    // Pollution legend chips: keep legend-only (no filter) but allow hover tips/glow
+    const hoverableLegend = focusKind === "pollution";
 
     const list = Array.isArray(classes) ? classes : [];
     const preferScale =
@@ -168,21 +170,32 @@ export function mountFocusThemeHud(root, hooks = {}) {
     if (!list.length) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
-      classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
+      classesEl.classList.remove(
+        "is-numeric-scale",
+        "is-legend-only",
+        "is-hoverable-legend",
+        "has-selection",
+      );
       root.classList.remove("lu-theme-classes-open");
     } else {
       const anyScale = preferScale && list.some((c) => !!scaleDisplayText(c));
       classesEl.classList.toggle("is-numeric-scale", anyScale || focusKind === "waterquality");
       classesEl.classList.toggle("is-legend-only", noSelect);
+      classesEl.classList.toggle("is-hoverable-legend", hoverableLegend);
       classesEl.classList.remove("has-selection");
       classesEl.innerHTML = list
         .map((c) => {
           const filterLabel = c.label || c.id || "—";
           const scaleText = preferScale ? scaleDisplayText(c) : null;
+          const rangeText = String(c.range || c.pct || "").trim();
           const displayName = scaleText || (preferScale ? "" : filterLabel);
           const key = letterKey(filterLabel, c.key);
           const color = c.color || "#888";
-          const tip = scaleText ? `${filterLabel} · ${scaleText}` : filterLabel;
+          const tip = scaleText
+            ? `${filterLabel} · ${scaleText}`
+            : rangeText
+              ? `${filterLabel} · ${rangeText}`
+              : filterLabel;
           const tag = noSelect ? "div" : "button";
           const interactiveAttrs = noSelect
             ? `role="listitem" tabindex="0"`
@@ -190,6 +203,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
           return `
           <${tag} class="lu-theme-class${scaleText ? " is-numeric" : ""}${noSelect ? " is-legend-chip" : ""}"
             data-label="${escapeAttr(filterLabel)}"
+            data-tip="${escapeAttr(tip)}"
             style="--lu-class-color:${escapeAttr(color)}"
             title="${escapeAttr(tip)}"
             aria-label="${escapeAttr(tip)}"
@@ -252,7 +266,12 @@ export function mountFocusThemeHud(root, hooks = {}) {
     if (!k) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
-      classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
+      classesEl.classList.remove(
+        "is-numeric-scale",
+        "is-legend-only",
+        "is-hoverable-legend",
+        "has-selection",
+      );
       extraEl.hidden = true;
       extraEl.innerHTML = "";
       backEl.hidden = true;
@@ -263,7 +282,12 @@ export function mountFocusThemeHud(root, hooks = {}) {
     state.landUseSelectedClass = null;
     classesEl.hidden = true;
     classesEl.innerHTML = "";
-    classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
+    classesEl.classList.remove(
+      "is-numeric-scale",
+      "is-legend-only",
+      "is-hoverable-legend",
+      "has-selection",
+    );
     extraEl.hidden = true;
     extraEl.innerHTML = "";
     backEl.hidden = true;
@@ -271,9 +295,19 @@ export function mountFocusThemeHud(root, hooks = {}) {
     exitMapFocus(root, k);
   }
 
+  function highlightClass(label) {
+    const target = String(label || "").trim().toLowerCase();
+    classesEl.querySelectorAll(".lu-theme-class").forEach((el) => {
+      const match = target && String(el.dataset.label || "").toLowerCase() === target;
+      el.classList.toggle("is-map-hover", match);
+    });
+    classesEl.classList.toggle("has-map-hover", !!target);
+  }
+
   return {
     showClasses,
     hide,
+    highlightClass,
     backEl,
     classesEl,
     isVisible: () => !backEl.hidden,

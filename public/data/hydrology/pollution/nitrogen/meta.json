@@ -1,0 +1,28 @@
+{
+  "id": "pollution_nitrogen",
+  "name": "Nitrogen",
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/Nitrogen mulamutha.kml",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "overlay": "/data/hydrology/pollution/nitrogen/overlay.png",
+  "legendClasses": [
+    {
+      "color": "#1a9641",
+      "label": "Low (risk <= 0.33)"
+    },
+    {
+      "color": "#ffffbf",
+      "label": "Moderate (0.33 - 0.66)"
+    },
+    {
+      "color": "#d7191c",
+      "label": "High (risk > 0.66)"
+    }
+  ],
+  "updated": "2026-11-11"
+}

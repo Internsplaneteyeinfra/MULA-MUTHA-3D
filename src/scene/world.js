@@ -28,6 +28,7 @@ import { createSiltAreaTool } from "./siltAreaTool.js";
 import { createFlowParticles } from "./flowParticles.js";
 import { createWaterEffects } from "./waterEffects.js";
 import { createRiverRain } from "./riverRain.js";
+import { createRainfallSimulationParticles } from "./rainfallSimulationParticles.js";
 import { createChainageLayer, nearestChainage } from "./chainageMarkers.js";
 import { createProjectionValidation } from "./validation.js";
 import { createCoordinateGrid, mountCoordinateLabels } from "./coordinateGrid.js";
@@ -62,7 +63,7 @@ import {
   CHAINAGE_LOOK_ABOVE,
 } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
-import mainStemKmlRaw from "../data/main stream.kml?raw";
+import mainStemKmlRaw from "../assets/hydrology/main-stream.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
 import { initDigitalTwin } from "../services/digitalTwinService.js";
 import { initHydrologyProfileService, refreshHydrologyProfile } from "../services/hydrology/hydrologyProfileService.js";
@@ -357,6 +358,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const particles = createFlowParticles(dataset);
   const waterFx = createWaterEffects(dataset);
   const riverRain = createRiverRain(dataset);
+  const rainfallSimParticles = createRainfallSimulationParticles(dataset);
   const chainage = createChainageLayer(dataset);
   const validation = createProjectionValidation(dataset);
   const bridges = createBridges(dataset);
@@ -378,6 +380,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   // scene.add(particles.mesh);
   scene.add(waterFx.group);
   scene.add(riverRain.group);
+  scene.add(rainfallSimParticles.group);
   scene.add(chainage.group);
   scene.add(bridges);
   scene.add(validation);
@@ -1268,7 +1271,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       if (!Number.isFinite(riseM) || (state.floodMode === "api" && apiFloodLayer.userData?.hasFlood)) return false;
       hydrologySimulationRiseM = riseM;
       hydrologySimulationActive = true;
-      hydrologySimulationNeedsFinalUpdate ||= !!settled;
+      // Always mark dirty when settled, or when rise changed enough to need a mesh rebuild.
+      if (settled || Math.abs(riseM - renderedHydrologySimulationRiseM) > 0.002) {
+        hydrologySimulationNeedsFinalUpdate = true;
+      }
       return true;
     },
     clearHydrologySimulation() {
@@ -1276,11 +1282,18 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologySimulationActive = false;
       hydrologySimulationNeedsFinalUpdate = true;
     },
+    /** Keep last calculated stage visible after rainfall sim completes (do not auto-clear). */
+    settleHydrologySimulation() {
+      if (!hydrologySimulationActive) return false;
+      hydrologySimulationNeedsFinalUpdate = true;
+      return true;
+    },
     cameraSystem: cam,
     seekCinematic: (t) => cinematic.seek(t),
     stopCinematic: () => cinematic.finish(),
     atmosphericSky,
     riverRain,
+    rainfallSimParticles,
     bridgeLabelStates: () => bridgeLabels.items(),
     riparianAreas: () => (riparianLayer?.userData.clusters || []).map((c) => ({
       areaM2: c.areaM2, x: c.anchor.x, z: c.anchor.z, waterOffset: c.waterOffset,
@@ -2023,7 +2036,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     hoverJoiningStream(recOrNull) {
       nallaFlow.userData?.setHovered?.(recOrNull || null);
     },
-    /** Geology → Main Stem: Mula–Mutha centerline from main stream.kml */
+    /** Geology → Main Stem: Mula–Mutha centerline from assets/hydrology/main-stream.kml */
     setMainStem(on) {
       const active = !!on;
       state.mainStemMode = active;
@@ -2036,7 +2049,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         stats: mainStemLayer.userData?.stats || null,
       };
     },
-    /** Geology → Bathymetry: mula_mutha_depth_blueshade_smoothed.kmz raster */
+    /** Geology → Bathymetry: RIverDepth_mulamutha.kml raster (0.25–2.6 m) */
     setBathymetry(on) {
       const active = !!on;
       state.bathymetryMode = active;
@@ -2392,10 +2405,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         particles.mesh.visible = false;
         waterFx.group.visible = false;
       } else {
-      if (particles.mesh.visible) particles.update(dt);
-      if (waterFx.group.visible) waterFx.update(dt);
+        if (particles.mesh.visible) particles.update(dt);
+        if (waterFx.group.visible) waterFx.update(dt);
         riverRain.update(dt);
       }
+      // Rainfall Simulation particles stay active in 2D/3D while a sim is running
+      rainfallSimParticles.update(dt);
       if (chainThrottle.ready(dt)) {
         chainage.update(cam.camera);
         if (state.lithologyTipActive) pinLithologyPickTip();

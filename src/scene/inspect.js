@@ -833,8 +833,11 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         hydroId === "water_quality_tss" ||
         hydroId === "water_quality_ndwi" ||
         hydroId === "water_quality_ndci" ||
+        hydroId === "water_quality_coliform" ||
         hydroId === "water_quality_wst" ||
-        hydroId === "pollution"
+        hydroId === "pollution" ||
+        hydroId === "pollution_eutrophication" ||
+        hydroId === "pollution_nitrogen"
           ? pickWorldXZ()
           : { wx: null, wz: null };
       if (wx != null) {
@@ -844,9 +847,12 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             water_quality_tss: "TSS",
             water_quality_ndwi: "NDWI — Water Detection",
             water_quality_ndci: "Chlorophyll-a",
+            water_quality_coliform: "Coliform",
             water_quality_wst: "WST — Temperature",
             salinity: "SALINITY",
             pollution: "POLLUTION",
+            pollution_eutrophication: "Eutrophication",
+            pollution_nitrogen: "Nitrogen",
           };
 
           if (hydroId === "pollution" && fromClick) {
@@ -908,9 +914,23 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             layer: hydroId,
             layerTitle: layerTitles[hydroId] || hydroId,
           });
+          if (
+            hydroId === "pollution_eutrophication" ||
+            hydroId === "pollution_nitrogen" ||
+            hydroId === "pollution"
+          ) {
+            document.dispatchEvent(
+              new CustomEvent("pollution-class-hover", {
+                detail: { label: feat.class_label || feat.class || feat.category || null },
+              }),
+            );
+          }
           state.hover = { x: feat.x, z: feat.z, salinity: feat.class_label, layer: hydroId };
           return;
         }
+        document.dispatchEvent(
+          new CustomEvent("pollution-class-hover", { detail: { label: null } }),
+        );
         if (hydroId === "pollution" && fromClick) {
           window.__MM_SCENE__?.clearGarbageSelection?.();
         }
@@ -1230,6 +1250,9 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
     state.landUseTipActive = false;
     tooltip.hide();
     state.hover = null;
+    document.dispatchEvent(
+      new CustomEvent("pollution-class-hover", { detail: { label: null } }),
+    );
   });
 }
 

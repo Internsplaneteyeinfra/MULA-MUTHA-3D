@@ -2,16 +2,27 @@
   "id": "water_quality_tss",
   "name": "TSS",
   "type": "groundOverlay",
-  "source": "src/data/TSS.kmz",
+  "source": "src/jalnetra kml/tss.kml",
   "bounds": {
-    "north": 18.548421173,
-    "south": 18.5193301309,
-    "east": 73.9941221551,
-    "west": 73.853726256
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
   },
   "overlay": "/data/hydrology/water_quality/tss/overlay.png",
-  "legend": "/data/hydrology/water_quality/tss/legend.png",
-  "overlayWidth": 3552,
-  "overlayHeight": 736,
-  "smoothed": false
+  "legendClasses": [
+    {
+      "color": "#2196F3",
+      "label": "Low (TSS ≤ 0.62)"
+    },
+    {
+      "color": "#FFC107",
+      "label": "Medium (0.62–1.17)"
+    },
+    {
+      "color": "#F44336",
+      "label": "High (TSS > 1.17)"
+    }
+  ],
+  "updated": "2026-11-11"
 }

@@ -1,0 +1,14 @@
+{
+  "id": "2026-11",
+  "year": 2026,
+  "month": 11,
+  "name": "Silt Volume Surface — November 2026",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "source": "vol-nov.kml",
+  "kind": "volume"
+}

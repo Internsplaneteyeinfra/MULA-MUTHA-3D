@@ -36,6 +36,7 @@ const VEG_HEALTH_ORDER = [
 const LEGEND_ONLY_LAYER_IDS = new Set([
   "landuse_lulc",
   "silt_classification",
+  "silt_volume_surface",
   "vegetation_extent",
   "vegetation_health",
 ]);
@@ -237,14 +238,106 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     syncClassSelection();
   }
 
+  function periodsInYear(year) {
+    const y = Number(year);
+    return periods
+      .filter((p) => typeof p === "object" && Number(p.year) === y)
+      .sort((a, b) => Number(a.month) - Number(b.month));
+  }
+
+  function resolvePeriodForYear(year, preferredMonth = null) {
+    const inYear = periodsInYear(year);
+    if (!inYear.length) return null;
+    if (preferredMonth != null) {
+      const same = inYear.find((p) => Number(p.month) === Number(preferredMonth));
+      if (same) return same;
+    }
+    return inYear[inYear.length - 1];
+  }
+
   function renderYearStepper() {
+    if (mode === "yearMonth" && periods.length) {
+      const active =
+        periods.find((p) => typeof p === "object" && String(p.id) === String(activePeriod)) ||
+        periods[periods.length - 1];
+      const curYear = Number(active?.year) || Number(activeYear);
+      const yearList = [
+        ...new Set(
+          periods
+            .map((p) => (typeof p === "object" ? Number(p.year) : NaN))
+            .filter(Number.isFinite),
+        ),
+      ].sort((a, b) => a - b);
+      const yIdx = Math.max(0, yearList.indexOf(curYear));
+      const prevYear = yIdx > 0 ? yearList[yIdx - 1] : null;
+      const nextYear = yIdx >= 0 && yIdx < yearList.length - 1 ? yearList[yIdx + 1] : null;
+
+      const monthList = periodsInYear(curYear);
+      const mIdx = Math.max(
+        0,
+        monthList.findIndex((p) => String(p.id) === String(activePeriod)),
+      );
+      const curMonth = monthList[mIdx] || monthList[monthList.length - 1] || active;
+      const prevMonth = mIdx > 0 ? monthList[mIdx - 1] : null;
+      const nextMonth =
+        mIdx >= 0 && mIdx < monthList.length - 1 ? monthList[mIdx + 1] : null;
+      const monthLabel =
+        curMonth?.label ||
+        (Number.isFinite(Number(curMonth?.month))
+          ? MONTH_NAMES[Number(curMonth.month) - 1]
+          : "—");
+
+      yearEl.classList.remove("is-period-only");
+      yearEl.classList.add("is-period-nav", "is-year-month");
+      yearEl.setAttribute("aria-label", "Silt year and month");
+      yearEl.innerHTML = `
+        <div class="lu-theme-ym-group" role="group" aria-label="Year">
+          <button type="button" class="lu-theme-period-arrow is-prev" id="lu-ym-year-prev"
+            ${prevYear == null ? "disabled" : ""} data-year="${prevYear ?? ""}"
+            aria-label="Previous year" title="Previous year">
+            <span aria-hidden="true">←</span>
+          </button>
+          <div class="lu-theme-year-center">
+            <span class="lu-theme-year-eyebrow">Year</span>
+            <strong class="lu-theme-year-current">${curYear || "—"}</strong>
+          </div>
+          <button type="button" class="lu-theme-period-arrow is-next" id="lu-ym-year-next"
+            ${nextYear == null ? "disabled" : ""} data-year="${nextYear ?? ""}"
+            aria-label="Next year" title="Next year">
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+        <div class="lu-theme-ym-divider" aria-hidden="true"></div>
+        <div class="lu-theme-ym-group" role="group" aria-label="Month">
+          <button type="button" class="lu-theme-period-arrow is-prev" id="lu-ym-month-prev"
+            ${prevMonth == null ? "disabled" : ""} data-period="${escapeAttr(prevMonth?.id ?? "")}"
+            aria-label="Previous month" title="Previous month">
+            <span aria-hidden="true">←</span>
+          </button>
+          <div class="lu-theme-year-center">
+            <span class="lu-theme-year-eyebrow">Month</span>
+            <strong class="lu-theme-year-current">${escapeHtml(monthLabel)}</strong>
+          </div>
+          <button type="button" class="lu-theme-period-arrow is-next" id="lu-ym-month-next"
+            ${nextMonth == null ? "disabled" : ""} data-period="${escapeAttr(nextMonth?.id ?? "")}"
+            aria-label="Next month" title="Next month">
+            <span aria-hidden="true">→</span>
+          </button>
+        </div>
+      `;
+      yearEl.hidden = false;
+      root.classList.add("lu-theme-year-open");
+      bindYearMonthButtons();
+      return;
+    }
+
     if (mode === "year" && years.length) {
       const idx = Math.max(0, years.indexOf(Number(activeYear)));
       const cur = years[idx] ?? activeYear;
       const prev = idx > 0 ? years[idx - 1] : null;
       const next = idx >= 0 && idx < years.length - 1 ? years[idx + 1] : null;
 
-      yearEl.classList.remove("is-period-only");
+      yearEl.classList.remove("is-period-only", "is-year-month");
       yearEl.classList.add("is-period-nav");
       yearEl.innerHTML = `
         <button type="button" class="lu-theme-period-arrow is-prev" id="lu-year-prev"
@@ -276,7 +369,7 @@ export function mountLandUseThemeHud(root, hooks = {}) {
       const prevId = idx > 0 ? ids[idx - 1] : null;
       const nextId = idx >= 0 && idx < ids.length - 1 ? ids[idx + 1] : null;
 
-      yearEl.classList.remove("is-period-only");
+      yearEl.classList.remove("is-period-only", "is-year-month");
       yearEl.classList.add("is-period-nav");
       yearEl.innerHTML = `
         <button type="button" class="lu-theme-period-arrow is-prev" id="lu-period-prev"
@@ -300,7 +393,7 @@ export function mountLandUseThemeHud(root, hooks = {}) {
       return;
     }
 
-    yearEl.classList.remove("is-period-only", "is-period-nav");
+    yearEl.classList.remove("is-period-only", "is-period-nav", "is-year-month");
     yearEl.hidden = true;
     yearEl.innerHTML = "";
     root.classList.remove("lu-theme-year-open");
@@ -316,12 +409,35 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     yearEl.querySelector("#lu-period-next")?.addEventListener("click", onPeriodClick);
   }
 
+  function bindYearMonthButtons() {
+    yearEl.querySelector("#lu-ym-year-prev")?.addEventListener("click", onSiltYearClick);
+    yearEl.querySelector("#lu-ym-year-next")?.addEventListener("click", onSiltYearClick);
+    yearEl.querySelector("#lu-ym-month-prev")?.addEventListener("click", onPeriodClick);
+    yearEl.querySelector("#lu-ym-month-next")?.addEventListener("click", onPeriodClick);
+  }
+
   async function onYearClick(e) {
     const year = Number(e.currentTarget?.dataset?.year);
     if (!Number.isFinite(year) || busy) return;
     busy = true;
     try {
       await hooks.onYearChange?.(year);
+    } finally {
+      busy = false;
+    }
+  }
+
+  async function onSiltYearClick(e) {
+    const year = Number(e.currentTarget?.dataset?.year);
+    if (!Number.isFinite(year) || busy) return;
+    const current = periods.find(
+      (p) => typeof p === "object" && String(p.id) === String(activePeriod),
+    );
+    const next = resolvePeriodForYear(year, current?.month);
+    if (!next?.id) return;
+    busy = true;
+    try {
+      await hooks.onPeriodChange?.(next.id);
     } finally {
       busy = false;
     }
@@ -366,6 +482,39 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     // Always legend-only — coverage % / names on hover; no class filter or selection
     renderClasses(legend.classes || [], { legendOnly: true, layerId });
 
+    const wantsYearMonth =
+      legend.pickerMode === "yearMonth" ||
+      (Array.isArray(legend.periods) &&
+        legend.periods.length &&
+        legend.periods.some(
+          (p) =>
+            p &&
+            typeof p === "object" &&
+            Number.isFinite(Number(p.year)) &&
+            Number.isFinite(Number(p.month)),
+        ));
+
+    if (wantsYearMonth && Array.isArray(legend.periods) && legend.periods.length) {
+      mode = "yearMonth";
+      periods = legend.periods;
+      years = Array.isArray(legend.years)
+        ? legend.years.map(Number).filter(Number.isFinite)
+        : [
+            ...new Set(
+              periods
+                .map((p) => (typeof p === "object" ? Number(p.year) : NaN))
+                .filter(Number.isFinite),
+            ),
+          ].sort((a, b) => a - b);
+      activePeriod = legend.activePeriod || periods[periods.length - 1]?.id;
+      const active =
+        periods.find((p) => typeof p === "object" && String(p.id) === String(activePeriod)) ||
+        periods[periods.length - 1];
+      activeYear = Number(legend.activeYear) || Number(active?.year) || null;
+      renderYearStepper();
+      return;
+    }
+
     if (Array.isArray(legend.years) && legend.years.length) {
       mode = "year";
       years = legend.years.map(Number).filter(Number.isFinite);
@@ -404,7 +553,7 @@ export function mountLandUseThemeHud(root, hooks = {}) {
     classesEl.hidden = true;
     classesEl.innerHTML = "";
     classesEl.classList.remove("is-numeric-scale", "is-legend-only", "has-selection");
-    yearEl.classList.remove("is-period-only", "is-period-nav");
+    yearEl.classList.remove("is-period-only", "is-period-nav", "is-year-month");
     yearEl.hidden = true;
     yearEl.innerHTML = "";
     backEl.hidden = true;
@@ -419,12 +568,12 @@ export function mountLandUseThemeHud(root, hooks = {}) {
   function updateYear(year) {
     if (!Number.isFinite(Number(year))) return;
     activeYear = Number(year);
-    if (mode === "year") renderYearStepper();
+    if (mode === "year" || mode === "yearMonth") renderYearStepper();
   }
 
   function updatePeriod(periodId) {
     activePeriod = periodId;
-    if (mode === "period") renderYearStepper();
+    if (mode === "period" || mode === "yearMonth") renderYearStepper();
   }
 
   return {

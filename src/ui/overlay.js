@@ -32,6 +32,7 @@ import { mountThresholdGraph } from "./components/thresholdGraph.js";
 import { isDigitalTwinActive } from "./dtMode.js";
 import { mountHydroIntelPanel } from "./components/hydroIntelPanel.js";
 import { mountHydrologySimulationControls } from "./components/hydrologySimulationControls.js";
+import { mountRainfallSimulationPanel } from "./components/rainfallSimulationPanel.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
 import {
   cancelJalnetraFloodRequest,
@@ -130,7 +131,10 @@ export function createTooltip(root) {
           val = info.displayName || info.name || "—";
         } else if (info.hydrologySalinity || info.hydrologyWaterQuality) {
           what = info.hydrologySalinity ? "SALINITY" : info.layerTitle || "WATER QUALITY";
-          const isNumericWq = info.hydrologySalinity || info.layer === "water_quality_tss" || info.layer === "water_quality_ndci";
+          const isNumericWq =
+            info.hydrologySalinity ||
+            info.layer === "water_quality_tss" ||
+            info.layer === "water_quality_ndci";
           val = info.valueText ? info.valueText : (isNumericWq && info.range ? info.range : info.class_label || info.class || "—");
         } else if (info.depthZoneHover) {
           what = "DEPTH ZONE";
@@ -365,7 +369,10 @@ export function createTooltip(root) {
               water_quality_tss: "TSS",
               water_quality_ndwi: "NDWI — Water Detection",
               water_quality_ndci: "Chlorophyll-a",
+              water_quality_coliform: "Coliform",
               water_quality_wst: "WST — Temperature",
+              pollution_eutrophication: "Eutrophication",
+              pollution_nitrogen: "Nitrogen",
             }[info.layer] || "WATER QUALITY");
         const swatch = info.color
           ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${info.color};border:1px solid rgba(255,255,255,.35);margin-right:6px;vertical-align:middle"></span>`
@@ -388,12 +395,18 @@ export function createTooltip(root) {
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
           <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">${
             info.hydrologySalinity
-              ? "Salinity scale · ppt"
+              ? "Relative salinity · 0–1"
               : info.layer === "water_quality_tss"
-                ? "TSS scale · mg/L"
+                ? "TSS spectral proxy"
                 : info.layer === "water_quality_ndci"
-                  ? "Chlorophyll-a scale · µg/L"
-                  : "Classified overlay · hover class"
+                  ? "Chlorophyll-a · NDCI"
+                  : info.layer === "water_quality_coliform"
+                    ? "Coliform · relative CFU class"
+                    : info.layer === "pollution_eutrophication"
+                      ? "Eutrophication · trophic class"
+                      : info.layer === "pollution_nitrogen"
+                        ? "Nitrogen · risk class"
+                        : "Classified overlay · hover class"
           }</em>
         `;
         return;
@@ -406,7 +419,7 @@ export function createTooltip(root) {
           <div class="kv"><span class="k">Elevation</span><span class="v">${info.elevation != null ? Number(info.elevation).toFixed(1) + " m" : "—"}</span></div>
           ${info.lat != null ? `<div class="kv"><span class="k">Latitude</span><span class="v">${Number(info.lat).toFixed(6)}° N</span></div>` : ""}
           ${info.lon != null ? `<div class="kv"><span class="k">Longitude</span><span class="v">${Number(info.lon).toFixed(6)}° E</span></div>` : ""}
-          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">mula_mutha_depth_blueshade_smoothed.kmz · raster colour → depth</em>
+          <em style="display:block;margin-top:6px;font-size:9px;color:var(--muted);">RIverDepth_mulamutha.kml · Sentinel-2 relative depth · 0.25–2.6 m</em>
         `;
         return;
       }
@@ -714,6 +727,10 @@ export function mountUI(root, {
   const floodCompare = mountFloodComparePanel(floodDock, { dataset });
   // FLOODS (1, 2, 3…): detected flood areas, directly below FLOOD COMPARE.
   mountFloodListPanel(floodDock);
+
+  // Rainfall Simulation — independent left dock (does not use flood APIs / inundation).
+  const rainfallPanel = mountRainfallSimulationPanel(root);
+  rainfallPanel.onClose = () => toggleRainfallBar(false);
   /**
    * Raise river water to the flood product's water_rise (mm→m × progress).
    * Does not move camera or chainage — only the water surface rises, then holds.
@@ -1139,6 +1156,7 @@ export function mountUI(root, {
   let chainPanel = null;
   const nav = mountNavigationControls(root, {
     onOverview: () => {
+      exitFloodRainfallModes();
       map2dData?.leave();
       onCamera("overview");
       nav.syncActive();
@@ -1146,11 +1164,13 @@ export function mountUI(root, {
       chainPanel?.close?.();
     },
     onRiverSide: () => {
+      exitFloodRainfallModes();
       map2dData?.resume();
       onCamera("aerial");
       nav.syncActive();
     },
     on3D: (opts = {}) => {
+      exitFloodRainfallModes();
       map2dData?.leave();
       let mid = 8000;
       const ch = dataset?.chainage;
@@ -1164,22 +1184,31 @@ export function mountUI(root, {
       nav.syncActive();
     },
     onSiltToggle: () => {
+      exitFloodRainfallModes();
       if (siltAnalysis?.isOpen?.()) {
         siltAnalysis.close();
       } else {
         siltAnalysis?.open?.();
       }
     },
-    onLayersToggle: () => toggleLayers(),
+    onLayersToggle: () => {
+      exitFloodRainfallModes();
+      toggleLayers();
+    },
     onDrainageToggle: () => toggleDrainage(),
-    onSettingsToggle: () => toggleSettings(),
+    onSettingsToggle: () => {
+      exitFloodRainfallModes();
+      toggleSettings();
+    },
     onFloodToggle: () => toggleFloodBar(),
+    onRainfallToggle: () => toggleRainfallBar(),
   });
   window.__MM_NAV__ = { enter3D: (opts) => nav.enter3D(opts), view3DPose: VIEW_3D_POSE };
   nav.setLayersPressed(state.showLayers);
   nav.setDrainagePressed?.(state.showDrainage);
   nav.setSettingsPressed?.(state.showSettings);
   nav.setFloodPressed?.(state.showFloodBar);
+  nav.setRainfallPressed?.(state.showRainfallBar);
 
   const chainRuler = mountChainageRuler(root, dataset);
   const map2dData = mountMap2dDataPanel(leftStack, riverData);
@@ -1296,8 +1325,16 @@ export function mountUI(root, {
     nav.setDrainagePressed?.(on);
   }
 
+  /** Leave Flood / Rainfall so River Data + hydrology H/D/W chrome return. */
+  function exitFloodRainfallModes() {
+    if (state.showFloodBar) toggleFloodBar(false);
+    if (state.showRainfallBar) toggleRainfallBar(false);
+  }
+
   function toggleFloodBar(force) {
     const open = force ?? !state.showFloodBar;
+    // Opening Flood closes Rainfall panel UI (sim session can keep running in state).
+    if (open && state.showRainfallBar) toggleRainfallBar(false);
     state.showFloodBar = open;
     nav.setFloodPressed?.(open);
     root.classList.toggle("flood-sim-open", !!open);
@@ -1321,6 +1358,22 @@ export function mountUI(root, {
 
     if (!open && state.floodMode !== "api") {
       root.classList.remove("api-flood-mode");
+    }
+    rainfallPanel.placeRelativeToFlood?.();
+  }
+
+  function toggleRainfallBar(force) {
+    const open = force ?? !state.showRainfallBar;
+    // Opening Rainfall closes Flood UI (Flood APIs stay independent).
+    if (open && state.showFloodBar) toggleFloodBar(false);
+    state.showRainfallBar = open;
+    nav.setRainfallPressed?.(open);
+    root.classList.toggle("rainfall-sim-open", !!open);
+    if (open) {
+      rainfallPanel.show();
+      rainfallPanel.placeRelativeToFlood?.();
+    } else {
+      rainfallPanel.hide();
     }
   }
 

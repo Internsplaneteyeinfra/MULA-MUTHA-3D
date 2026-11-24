@@ -1,0 +1,14 @@
+{
+  "id": "2022-12",
+  "year": 2022,
+  "month": 12,
+  "name": "Silt Classification — December 2022",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "source": "class-dec.kml",
+  "kind": "classification"
+}

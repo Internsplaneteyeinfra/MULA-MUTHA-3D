@@ -8,7 +8,7 @@ import { SURFACE_Y } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
 
 /**
- * Main Stem layer from `src/data/main stream.kml` (Mula–Mutha centerline).
+ * Main Stem layer from `src/assets/hydrology/main-stream.kml` (Mula–Mutha centerline).
  * Lon/lat → EPSG:32643 local frame via shared geoReference (same as river).
  */
 export function createMainStemLayer(dataset, kmlText) {
@@ -18,7 +18,7 @@ export function createMainStemLayer(dataset, kmlText) {
 
   const stations = dataset.corridor?.stations || [];
   const features = parseDrainageKml(kmlText || "");
-  const paths = [];
+  const segments = [];
 
   for (const f of features) {
     const coords = f.coordinates || [];
@@ -41,13 +41,19 @@ export function createMainStemLayer(dataset, kmlText) {
       }
     }
     if (local.length >= 2) {
-      paths.push({
+      segments.push({
         name: f.name || "Mula-Mutha",
         waterway: f.waterway || "river",
-        pts: densify(local, 18),
+        pts: local,
       });
     }
   }
+
+  // Stitch multi-LineString KMLs into one continuous stem (west → east).
+  const merged = stitchSegments(segments);
+  const paths = merged.length
+    ? [{ name: merged[0].name || "Mula-Mutha", waterway: "river", pts: densify(merged, 18) }]
+    : [];
 
   const resolution = new THREE.Vector2(
     Math.max(1, window.innerWidth),
@@ -87,7 +93,7 @@ export function createMainStemLayer(dataset, kmlText) {
     // Soft tube for volume at overview
     try {
       const curve = new THREE.CatmullRomCurve3(curvePts, false, "catmullrom", 0.12);
-      const tubular = Math.max(24, Math.min(320, Math.floor(curve.getLength() / 8)));
+      const tubular = Math.max(24, Math.min(480, Math.floor(curve.getLength() / 8)));
       const tube = new THREE.Mesh(
         new THREE.TubeGeometry(curve, tubular, 4.2, 8, false),
         new THREE.MeshBasicMaterial({
@@ -108,9 +114,11 @@ export function createMainStemLayer(dataset, kmlText) {
 
   group.userData.stats = {
     features: features.length,
+    segments: segments.length,
     paths: paths.length,
     vertices: vertexCount,
     name: paths[0]?.name || "Main Stem",
+    source: "assets/hydrology/main-stream.kml",
   };
   group.userData.resolution = resolution;
   group.userData.setResolution = (w, h) => {
@@ -136,6 +144,63 @@ export function createMainStemLayer(dataset, kmlText) {
 
   console.info("[main_stem] ready", group.userData.stats);
   return group;
+}
+
+/** Join nearby LineString segments end-to-end into one polyline. */
+function stitchSegments(segments) {
+  if (!segments.length) return [];
+  const remaining = segments.map((s) => s.pts.slice());
+  // Start with westernmost segment endpoint average
+  remaining.sort((a, b) => {
+    const ax = (a[0].x + a[a.length - 1].x) / 2;
+    const bx = (b[0].x + b[b.length - 1].x) / 2;
+    return ax - bx;
+  });
+  let chain = remaining.shift();
+  // Orient first segment west→east
+  if (chain[0].x > chain[chain.length - 1].x) chain = chain.reverse();
+
+  const JOIN_M = 80;
+  while (remaining.length) {
+    const tip = chain[chain.length - 1];
+    let bestIdx = -1;
+    let bestDist = Infinity;
+    let bestReverse = false;
+
+    for (let i = 0; i < remaining.length; i++) {
+      const seg = remaining[i];
+      const dStart = Math.hypot(seg[0].x - tip.x, seg[0].z - tip.z);
+      const dEnd = Math.hypot(seg[seg.length - 1].x - tip.x, seg[seg.length - 1].z - tip.z);
+      if (dStart < bestDist) {
+        bestDist = dStart;
+        bestIdx = i;
+        bestReverse = false;
+      }
+      if (dEnd < bestDist) {
+        bestDist = dEnd;
+        bestIdx = i;
+        bestReverse = true;
+      }
+    }
+
+    if (bestIdx < 0 || bestDist > JOIN_M) {
+      // Gap too large — append nearest anyway so the stem stays one path
+      if (bestIdx < 0) break;
+    }
+
+    let next = remaining.splice(bestIdx, 1)[0];
+    if (bestReverse) next = next.reverse();
+    // Drop duplicate join vertex
+    if (
+      next.length &&
+      Math.hypot(next[0].x - tip.x, next[0].z - tip.z) < 2
+    ) {
+      next = next.slice(1);
+    }
+    chain = chain.concat(next);
+  }
+
+  return chain;
 }
 
 function densify(pts, stepM) {

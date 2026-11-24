@@ -135,13 +135,13 @@ export const BANK_EROSION_CLASSES = [
   { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%" },
 ];
 
-/** Depth ramp of mula_mutha_depth_blueshade_smoothed.kmz (shallow → deep). */
+/** Depth ramp of RIverDepth_mulamutha.kml (shallow → deep · 0.25–2.6 m). */
 export const BATHYMETRY_CLASSES = [
-  { id: "1.53-1.62", label: "1.53–1.62 m", color: "#ABD5F8" },
-  { id: "1.62-1.72", label: "1.62–1.72 m", color: "#86A9D4" },
-  { id: "1.72-1.81", label: "1.72–1.81 m", color: "#5A74AA" },
-  { id: "1.81-1.91", label: "1.81–1.91 m", color: "#2F4282" },
-  { id: "1.91-2.00", label: "1.91–2.00 m", color: "#06115B" },
+  { id: "0.25-0.72", label: "0.25–0.72 m", color: "#48C0F3" },
+  { id: "0.72-1.19", label: "0.72–1.19 m", color: "#0083D4" },
+  { id: "1.19-1.66", label: "1.19–1.66 m", color: "#006CB4" },
+  { id: "1.66-2.13", label: "1.66–2.13 m", color: "#005085" },
+  { id: "2.13-2.60", label: "2.13–2.60 m", color: "#001F3E" },
 ];
 
 /**
@@ -257,9 +257,9 @@ export function mountGeologyWorkspace(root) {
         <aside class="bathymetry-legend geo-field-note geo-field-note--bathy" aria-label="Bathymetry depth classes">
           <header class="geo-field-note__head">
             <strong>Bathymetry</strong>
-            <small>Water depth · smoothed survey</small>
+            <small>River depth · Sentinel-2 · 2026-11-11</small>
           </header>
-          <div class="bathy-sounding" role="img" aria-label="Depth scale from 1.53 to 2.00 metres">
+          <div class="bathy-sounding" role="img" aria-label="Depth scale from 0.25 to 2.60 metres">
             <div class="bathy-sounding__bar" aria-hidden="true"></div>
             <div class="bathy-sounding__ticks">
               ${BATHYMETRY_CLASSES.map((c) => `<span>${c.label.replace(" m", "")}</span>`).join("")}

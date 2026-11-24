@@ -60,6 +60,12 @@ export const state = {
   floodMode: "illustrative",
   /** Top Flood Simulation toolbar visibility (toggled from Flood map control). */
   showFloodBar: false,
+  /**
+   * Rainfall Simulation (separate from Flood).
+   * Panel visibility + persistent session so close ≠ reset.
+   */
+  showRainfallBar: false,
+  rainfallSim: null,
   /** JalNetra API flood simulation state (MODE A). */
   apiFlood: {
     status: "idle", // idle|loading|running|ready|complete|empty|error
@@ -108,7 +114,7 @@ export const state = {
   showNallaFlow: false,
   /** Internal speed — default looks correct; optional slider only. */
   nallaFlowSpeed: 0.65,
-  /** Jul 2026 depth-class polygons (1.5–2.0 m) — Layers → Depth zones (glassy). */
+  /** River depth overlay (RIverDepth_mulamutha.kml · 0.25–2.6 m) — Geology → Bathymetry. */
   showDepthZones: false,
   /** Raw Excel/CSV survey points — removed from Layers UI; kept off. */
   showRawSurveyPoints: false,

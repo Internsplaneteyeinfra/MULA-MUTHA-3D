@@ -1,0 +1,32 @@
+{
+  "id": "pollution_eutrophication",
+  "name": "Eutrophication",
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/eutrophication_trophic_class.kml",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "overlay": "/data/hydrology/pollution/eutrophication/overlay.png",
+  "legendClasses": [
+    {
+      "color": "#2c7bb6",
+      "label": "Oligotrophic (< 2.6 ug/L (TSI < 40))"
+    },
+    {
+      "color": "#abd9e9",
+      "label": "Mesotrophic (2.6 - 7.3 ug/L (TSI 40-50))"
+    },
+    {
+      "color": "#fdae61",
+      "label": "Eutrophic (7.3 - 56 ug/L (TSI 50-70))"
+    },
+    {
+      "color": "#d7191c",
+      "label": "Hypereutrophic (> 56 ug/L (TSI > 70))"
+    }
+  ],
+  "updated": "2026-11-11"
+}

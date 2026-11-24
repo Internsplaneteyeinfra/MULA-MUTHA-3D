@@ -1,10 +1,11 @@
-import { MapPinned, Layers, CloudRain, Settings, Ruler } from "lucide";
+import { MapPinned, Layers, CloudRain, CloudDrizzle, Settings, Ruler } from "lucide";
 import { state } from "../../state.js";
 import { lucideHtml } from "../icons.js";
 
 /**
- * Right-side view modes: Overview · 2D/3D · Silt Measure · Layers · Settings · Flood.
+ * Right-side view modes: Overview · 2D/3D · Silt · Layers · Settings · Flood · Rainfall.
  * Drainage toggle lives in Layers / Geology — not on this toolbar.
+ * Rainfall Simulation is independent from Flood (CloudRain).
  */
 export function mountNavigationControls(root, {
   onOverview,
@@ -14,6 +15,7 @@ export function mountNavigationControls(root, {
   onLayersToggle,
   onSettingsToggle,
   onFloodToggle,
+  onRainfallToggle,
 }) {
   let stack = root.querySelector(".gis-tools-stack");
   if (!stack) {
@@ -49,9 +51,13 @@ export function mountNavigationControls(root, {
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Settings, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Settings</span>
     </button>
-    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button flood-toggle-button" id="flood-btn" aria-label="Flood" aria-pressed="false">
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button flood-toggle-button" id="flood-btn" aria-label="Flood" aria-pressed="false" title="Flood">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(CloudRain, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Flood</span>
+    </button>
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button rainfall-toggle-button" id="rainfall-btn" aria-label="Rainfall Simulation" aria-pressed="false" title="Rainfall Simulation" data-tip="Rainfall Simulation">
+      <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(CloudDrizzle, { size: 20, className: "map-ctrl-svg" })}</span>
+      <span class="map-ctrl-label">Rain</span>
     </button>
   `;
   stack.appendChild(modes);
@@ -63,6 +69,7 @@ export function mountNavigationControls(root, {
   const layersBtn = modes.querySelector("#layers-btn");
   const settingsBtn = modes.querySelector("#settings-btn");
   const floodBtn = modes.querySelector("#flood-btn");
+  const rainfallBtn = modes.querySelector("#rainfall-btn");
 
   const clearRiverMeasure = () => {
     document.dispatchEvent(new CustomEvent("river-measure-clear"));
@@ -118,6 +125,12 @@ export function mountNavigationControls(root, {
       onFloodToggle?.();
     });
   });
+  rainfallBtn.addEventListener("click", () => {
+    runNav(() => {
+      clearRiverMeasure();
+      onRainfallToggle?.();
+    });
+  });
 
   document.addEventListener("silt-analysis-ui-open", () => {
     siltBtn.classList.add("active");
@@ -157,6 +170,20 @@ export function mountNavigationControls(root, {
     floodBtn.classList.toggle("active", !!open);
   }
 
+  function setRainfallPressed(open) {
+    rainfallBtn.setAttribute("aria-pressed", open ? "true" : "false");
+    rainfallBtn.classList.toggle("active", !!open);
+  }
+
   syncActive();
-  return { wrap: modes, syncActive, enter3D, setLayersPressed, setSettingsPressed, setDrainagePressed, setFloodPressed };
+  return {
+    wrap: modes,
+    syncActive,
+    enter3D,
+    setLayersPressed,
+    setSettingsPressed,
+    setDrainagePressed,
+    setFloodPressed,
+    setRainfallPressed,
+  };
 }

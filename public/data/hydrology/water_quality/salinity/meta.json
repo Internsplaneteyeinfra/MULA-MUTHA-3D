@@ -2,16 +2,35 @@
   "id": "salinity",
   "name": "Salinity",
   "type": "groundOverlay",
-  "source": "src/data/salinity.kmz",
+  "source": "src/jalnetra kml/relative_salinity.kml",
   "bounds": {
-    "north": 18.5621806682,
-    "south": 18.509269898,
-    "east": 73.9940952056,
-    "west": 73.8527902114
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
   },
   "overlay": "/data/hydrology/water_quality/salinity/overlay.png",
-  "legend": "/data/hydrology/water_quality/salinity/legend.png",
-  "overlayWidth": 6292,
-  "overlayHeight": 2356,
-  "smoothed": false
+  "legendClasses": [
+    {
+      "color": "#0000FF",
+      "label": "0.00-0.20  Very Low"
+    },
+    {
+      "color": "#00BFFF",
+      "label": "0.20-0.40  Low"
+    },
+    {
+      "color": "#00FF00",
+      "label": "0.40-0.60  Moderate"
+    },
+    {
+      "color": "#FFFF00",
+      "label": "0.60-0.80  High"
+    },
+    {
+      "color": "#FF0000",
+      "label": "0.80-1.00  Very High"
+    }
+  ],
+  "updated": "2026-11-11"
 }

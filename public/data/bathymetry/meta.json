@@ -1,0 +1,13 @@
+{
+  "name": "Water Depth - 2026-11-11",
+  "description": "Sentinel-2 relative depth. Image date: 2026-11-11. Analysis date: 2026-11-20. Water area: 161.39951372755024 ha. Depth range: 0.25-2.6 m. Depth is a relative band-ratio estimate and is not survey-grade bathymetry.",
+  "source": "RIverDepth_mulamutha.kml",
+  "overlay": "mula_mutha_depth_overlay.png",
+  "north": 18.54727939,
+  "south": 18.5207626,
+  "east": 73.99343968,
+  "west": 73.85496516,
+  "minDepth": 0.25,
+  "maxDepth": 2.6,
+  "imageDate": "2026-11-11"
+}

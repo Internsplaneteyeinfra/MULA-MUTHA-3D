@@ -28,12 +28,12 @@ export function kmlBoundsCenter(bbox) {
   };
 }
 
-/** KMZ GroundOverlay LatLonBox (mula_mutha_depth_blueshade_smoothed.kmz). */
+/** GroundOverlay LatLonBox from RIverDepth_mulamutha.kml (2026-11-11). */
 export const DEPTH_OVERLAY_BOX = {
-  north: 18.54735962,
-  south: 18.52083962,
-  east: 73.99281512,
-  west: 73.85517512,
+  north: 18.54727939,
+  south: 18.5207626,
+  east: 73.99343968,
+  west: 73.85496516,
   url: "/data/bathymetry/mula_mutha_depth_overlay.png",
 };
 

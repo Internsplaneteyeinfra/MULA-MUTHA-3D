@@ -1,5 +1,5 @@
-  {
-    "version": 25,
+{
+  "version": 28,
   "crs": "EPSG:4326",
   "projectionNote": "Use MULA-MUTHA-3D lonLatToLocal + terrainHeightAt. Do not use Leaflet coords as Three.js.",
   "layers": [
@@ -10,19 +10,23 @@
       "type": "groundOverlay",
       "crs": "EPSG:4326",
       "bounds": {
-        "north": 18.5623585024,
-        "south": 18.509121677,
-        "east": 73.9963757521,
-        "west": 73.8497860332
+        "north": 18.54772933,
+        "south": 18.52031458,
+        "east": 73.9939142,
+        "west": 73.85449071
       },
-      "overlay": "/data/hydrology/geology/overlay.png?v=16",
+      "overlay": "/data/hydrology/geology/overlay.png",
       "legend": "/data/hydrology/geology/legend.png?v=16",
       "meta": "/data/hydrology/geology/meta.json",
-      "source": "Smoth kmls/Lithology.kmz",
+      "source": "src/jalnetra kml/lithology.kml",
       "opacity": 0.78,
       "gridSegments": 96,
       "liftM": 0.35,
-      "renderType": "terrainDrapedTexture"
+      "renderType": "terrainDrapedTexture",
+      "flipU": false,
+      "flipV": true,
+      "legendTitle": "Lithology",
+      "legendSubtitle": "Spectral interpretation · 2026-11-11"
     },
     {
       "id": "bank_erosion",
@@ -31,28 +35,55 @@
       "type": "groundOverlay",
       "crs": "EPSG:4326",
       "bounds": {
-        "north": 18.5474258397,
-        "south": 18.5207458757,
-        "east": 73.9935113007,
-        "west": 73.8547215893
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "overlay": "/data/hydrology/bank_erosion/overlay.png?v=16",
+      "overlay": "/data/hydrology/bank_erosion/overlay.png",
       "legend": "/data/hydrology/bank_erosion/legend.png?v=16",
       "meta": "/data/hydrology/bank_erosion/meta.json",
-      "source": "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
+      "source": "src/jalnetra kml/bank_erosion_hotspots_2016_2026.kml",
       "opacity": 1,
       "gridSegments": 144,
       "liftM": 1.6,
       "renderType": "terrainDrapedTexture",
       "legendTitle": "Bank erosion hotspots",
-      "legendSubtitle": "2016–2026 smoothed continuous overlay.",
+      "legendSubtitle": "2016–2026 · 2026-11-11",
       "legendClasses": [
-        { "id": "none", "label": "No erosion", "color": "#90EE90", "pct": "83.1%" },
-        { "id": "low", "label": "Low erosion", "color": "#FFFF00", "pct": "15.5%" },
-        { "id": "moderate", "label": "Moderate erosion", "color": "#FFA500", "pct": "1.4%" },
-        { "id": "high", "label": "High erosion", "color": "#FF0000", "pct": "0%" },
-        { "id": "very_high", "label": "Very high erosion", "color": "#8B0000", "pct": "0%" }
-      ]
+        {
+          "id": "none",
+          "label": "No erosion",
+          "color": "#90EE90",
+          "pct": "83.1%"
+        },
+        {
+          "id": "low",
+          "label": "Low erosion",
+          "color": "#FFFF00",
+          "pct": "15.5%"
+        },
+        {
+          "id": "moderate",
+          "label": "Moderate erosion",
+          "color": "#FFA500",
+          "pct": "1.4%"
+        },
+        {
+          "id": "high",
+          "label": "High erosion",
+          "color": "#FF0000",
+          "pct": "0%"
+        },
+        {
+          "id": "very_high",
+          "label": "Very high erosion",
+          "color": "#8B0000",
+          "pct": "0%"
+        }
+      ],
+      "flipU": false,
+      "flipV": true
     },
     {
       "id": "water_quality",
@@ -68,27 +99,59 @@
       "type": "groundOverlay",
       "crs": "EPSG:4326",
       "bounds": {
-        "north": 18.548421173,
-        "south": 18.5193301309,
-        "east": 73.9941221551,
-        "west": 73.853726256
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
       "overlay": "/data/hydrology/water_quality/tss/overlay.png",
       "legend": "/data/hydrology/water_quality/tss/legend.png",
       "meta": "/data/hydrology/water_quality/tss/meta.json",
-      "source": "src/data/TSS.kmz",
+      "source": "src/jalnetra kml/tss.kml",
       "opacity": 1,
       "liftM": 0.55,
       "gridSegments": 128,
       "legendTitle": "TSS",
-      "legendSubtitle": "3 classes · mg/L · src/data/TSS.kmz",
+      "legendSubtitle": "3 classes · spectral proxy · 2026-11-11",
       "unit": "mg/L",
       "classes": [
-        { "id": "low", "kmlClass": "Class 1", "label": "Low", "color": "#2ECC71", "range": "0–10 mg/L", "unit": "mg/L", "min": 0, "max": 10, "inclusiveMax": true },
-        { "id": "moderate", "kmlClass": "Class 2", "label": "Moderate", "color": "#F39C12", "range": "10–50 mg/L", "unit": "mg/L", "min": 10, "max": 50, "inclusiveMax": true },
-        { "id": "high", "kmlClass": "Class 3", "label": "High", "color": "#E74C3C", "range": ">50 mg/L", "unit": "mg/L", "min": 50, "max": null, "inclusiveMax": false }
+        {
+          "id": "low",
+          "kmlClass": "Class 1",
+          "label": "Low",
+          "color": "#2ECC71",
+          "range": "0–10 mg/L",
+          "unit": "mg/L",
+          "min": 0,
+          "max": 10,
+          "inclusiveMax": true
+        },
+        {
+          "id": "moderate",
+          "kmlClass": "Class 2",
+          "label": "Moderate",
+          "color": "#F39C12",
+          "range": "10–50 mg/L",
+          "unit": "mg/L",
+          "min": 10,
+          "max": 50,
+          "inclusiveMax": true
+        },
+        {
+          "id": "high",
+          "kmlClass": "Class 3",
+          "label": "High",
+          "color": "#E74C3C",
+          "range": ">50 mg/L",
+          "unit": "mg/L",
+          "min": 50,
+          "max": null,
+          "inclusiveMax": false
+        }
       ],
-      "renderType": "terrainDrapedTexture"
+      "renderType": "terrainDrapedTexture",
+      "flipU": false,
+      "flipV": true
     },
     {
       "id": "water_quality_ndwi",
@@ -103,8 +166,20 @@
       "legendTitle": "NDWI — Water Detection",
       "legendSubtitle": "July 2026 classified overlay",
       "classes": [
-        { "id": "class_1", "kmlClass": "Class 1", "label": "Non-water", "color": "#8B5A2B", "range": "≤0" },
-        { "id": "class_2", "kmlClass": "Class 2", "label": "Water", "color": "#0D47A1", "range": ">0" }
+        {
+          "id": "class_1",
+          "kmlClass": "Class 1",
+          "label": "Non-water",
+          "color": "#8B5A2B",
+          "range": "≤0"
+        },
+        {
+          "id": "class_2",
+          "kmlClass": "Class 2",
+          "label": "Water",
+          "color": "#0D47A1",
+          "range": ">0"
+        }
       ],
       "renderType": "terrainDrapedPolygonsMergedByClass"
     },
@@ -112,20 +187,51 @@
       "id": "water_quality_ndci",
       "name": "Chlorophyll-a",
       "available": true,
-      "type": "kmlPolygons",
+      "type": "groundOverlay",
       "crs": "EPSG:4326",
       "data": "/data/hydrology/water_quality/NDCI.kml",
-      "source": "src/data/NDCI.kml",
-      "opacity": 0.88,
-      "liftM": 0.65,
+      "source": "src/jalnetra kml/chlorophyl.kml",
+      "opacity": 1,
+      "liftM": 0.55,
       "legendTitle": "Chlorophyll-a",
-      "legendSubtitle": "2 classes · µg/L · src/data/NDCI.kml",
+      "legendSubtitle": "2 classes · NDCI · 2026-11-11",
       "unit": "µg/L",
       "classes": [
-        { "id": "low", "kmlClass": "Class 1", "label": "Low", "color": "#A5D6A7", "range": "0–2 µg/L", "unit": "µg/L", "min": 0, "max": 2, "inclusiveMax": true },
-        { "id": "high", "kmlClass": "Class 2", "label": "High", "color": "#1B5E20", "range": ">2 µg/L", "unit": "µg/L", "min": 2, "max": null, "inclusiveMax": false }
+        {
+          "id": "low",
+          "kmlClass": "Class 1",
+          "label": "Low",
+          "color": "#A5D6A7",
+          "range": "0–2 µg/L",
+          "unit": "µg/L",
+          "min": 0,
+          "max": 2,
+          "inclusiveMax": true
+        },
+        {
+          "id": "high",
+          "kmlClass": "Class 2",
+          "label": "High",
+          "color": "#1B5E20",
+          "range": ">2 µg/L",
+          "unit": "µg/L",
+          "min": 2,
+          "max": null,
+          "inclusiveMax": false
+        }
       ],
-      "renderType": "terrainDrapedPolygonsMergedByClass"
+      "renderType": "terrainDrapedTexture",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "overlay": "/data/hydrology/water_quality/ndci/overlay.png",
+      "meta": "/data/hydrology/water_quality/ndci/meta.json",
+      "gridSegments": 128,
+      "flipU": false,
+      "flipV": true
     },
     {
       "id": "water_quality_wst",
@@ -140,11 +246,41 @@
       "legendTitle": "WST — Temperature",
       "legendSubtitle": "Salinity thermal proxy",
       "classes": [
-        { "id": "class_1", "kmlClass": "Class 1", "label": "Very low", "color": "#0D47A1", "range": "<27°C" },
-        { "id": "class_2", "kmlClass": "Class 2", "label": "Low", "color": "#64B5F6", "range": "27–30°C" },
-        { "id": "class_3", "kmlClass": "Class 3", "label": "Moderate", "color": "#FDD835", "range": "30–33°C" },
-        { "id": "class_4", "kmlClass": "Class 4", "label": "High", "color": "#E53935", "range": "33–36°C" },
-        { "id": "class_5", "kmlClass": "Class 5", "label": "Very high", "color": "#8B0000", "range": "≥36°C" }
+        {
+          "id": "class_1",
+          "kmlClass": "Class 1",
+          "label": "Very low",
+          "color": "#0D47A1",
+          "range": "<27°C"
+        },
+        {
+          "id": "class_2",
+          "kmlClass": "Class 2",
+          "label": "Low",
+          "color": "#64B5F6",
+          "range": "27–30°C"
+        },
+        {
+          "id": "class_3",
+          "kmlClass": "Class 3",
+          "label": "Moderate",
+          "color": "#FDD835",
+          "range": "30–33°C"
+        },
+        {
+          "id": "class_4",
+          "kmlClass": "Class 4",
+          "label": "High",
+          "color": "#E53935",
+          "range": "33–36°C"
+        },
+        {
+          "id": "class_5",
+          "kmlClass": "Class 5",
+          "label": "Very high",
+          "color": "#8B0000",
+          "range": "≥36°C"
+        }
       ],
       "renderType": "terrainDrapedPolygonsMergedByClass"
     },
@@ -155,29 +291,81 @@
       "type": "groundOverlay",
       "crs": "EPSG:4326",
       "bounds": {
-        "north": 18.5621806682,
-        "south": 18.509269898,
-        "east": 73.9940952056,
-        "west": 73.8527902114
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
       "overlay": "/data/hydrology/water_quality/salinity/overlay.png",
       "legend": "/data/hydrology/water_quality/salinity/legend.png",
       "meta": "/data/hydrology/water_quality/salinity/meta.json",
-      "source": "src/data/salinity.kmz",
+      "source": "src/jalnetra kml/relative_salinity.kml",
       "opacity": 1,
       "liftM": 0.55,
       "gridSegments": 128,
       "legendTitle": "Salinity",
-      "legendSubtitle": "5 classes · ppt",
+      "legendSubtitle": "5 classes · relative 0–1 · 2026-11-11",
       "unit": "ppt",
       "classes": [
-        { "id": "very_low", "kmlClass": "Very Low Salinity", "label": "Very Low", "color": "#0000FF", "range": "0–0.5 ppt", "unit": "ppt", "min": 0, "max": 0.5, "inclusiveMax": false },
-        { "id": "low", "kmlClass": "Low Salinity", "label": "Low", "color": "#00BFFF", "range": "0.5–5 ppt", "unit": "ppt", "min": 0.5, "max": 5, "inclusiveMax": false },
-        { "id": "moderate", "kmlClass": "Moderate Salinity", "label": "Moderate", "color": "#00FF00", "range": "5–18 ppt", "unit": "ppt", "min": 5, "max": 18, "inclusiveMax": false },
-        { "id": "high", "kmlClass": "High Salinity", "label": "High", "color": "#FFFF00", "range": "18–30 ppt", "unit": "ppt", "min": 18, "max": 30, "inclusiveMax": false },
-        { "id": "very_high", "kmlClass": "Very High Salinity", "label": "Very High", "color": "#FF0000", "range": ">30 ppt", "unit": "ppt", "min": 30, "max": null, "inclusiveMax": false }
+        {
+          "id": "very_low",
+          "kmlClass": "Very Low Salinity",
+          "label": "Very Low",
+          "color": "#0000FF",
+          "range": "0–0.5 ppt",
+          "unit": "ppt",
+          "min": 0,
+          "max": 0.5,
+          "inclusiveMax": false
+        },
+        {
+          "id": "low",
+          "kmlClass": "Low Salinity",
+          "label": "Low",
+          "color": "#00BFFF",
+          "range": "0.5–5 ppt",
+          "unit": "ppt",
+          "min": 0.5,
+          "max": 5,
+          "inclusiveMax": false
+        },
+        {
+          "id": "moderate",
+          "kmlClass": "Moderate Salinity",
+          "label": "Moderate",
+          "color": "#00FF00",
+          "range": "5–18 ppt",
+          "unit": "ppt",
+          "min": 5,
+          "max": 18,
+          "inclusiveMax": false
+        },
+        {
+          "id": "high",
+          "kmlClass": "High Salinity",
+          "label": "High",
+          "color": "#FFFF00",
+          "range": "18–30 ppt",
+          "unit": "ppt",
+          "min": 18,
+          "max": 30,
+          "inclusiveMax": false
+        },
+        {
+          "id": "very_high",
+          "kmlClass": "Very High Salinity",
+          "label": "Very High",
+          "color": "#FF0000",
+          "range": ">30 ppt",
+          "unit": "ppt",
+          "min": 30,
+          "max": null,
+          "inclusiveMax": false
+        }
       ],
-      "renderType": "terrainDrapedTexture"
+      "renderType": "terrainDrapedTexture",
+      "flipU": false,
+      "flipV": true
     },
     {
       "id": "pollution",
@@ -190,7 +378,11 @@
       "legendTitle": "Pollution",
       "legendSubtitle": "Detected garbage locations",
       "classes": [
-        { "id": "garbage", "label": "Detected garbage", "color": "#E89A1C" }
+        {
+          "id": "garbage",
+          "label": "Detected garbage",
+          "color": "#E89A1C"
+        }
       ],
       "renderType": "animatedGarbagePins"
     },
@@ -215,18 +407,58 @@
       "legendSubtitle": "Mula–Mutha land cover · LULC UPTO2025",
       "source": "src/data/LULC UPTO2025",
       "legendClasses": [
-        { "label": "Forest", "color": "#006400" },
-        { "label": "Crop Land", "color": "#E6A23C" },
-        { "label": "Barren Land", "color": "#A9A9A9" },
-        { "label": "Water Bodies", "color": "#2196F3" },
-        { "label": "Settlements", "color": "#C62828" }
+        {
+          "label": "Forest",
+          "color": "#006400"
+        },
+        {
+          "label": "Crop Land",
+          "color": "#E6A23C"
+        },
+        {
+          "label": "Barren Land",
+          "color": "#A9A9A9"
+        },
+        {
+          "label": "Water Bodies",
+          "color": "#2196F3"
+        },
+        {
+          "label": "Settlements",
+          "color": "#C62828"
+        }
       ],
       "classes": [
-        { "id": "class_0", "kmlClass": "Class 0", "label": "Forest", "color": "#006400" },
-        { "id": "class_1", "kmlClass": "Class 1", "label": "Crop Land", "color": "#E6A23C" },
-        { "id": "class_2", "kmlClass": "Class 2", "label": "Barren Land", "color": "#A9A9A9" },
-        { "id": "class_3", "kmlClass": "Class 3", "label": "Water Bodies", "color": "#2196F3" },
-        { "id": "class_4", "kmlClass": "Class 4", "label": "Settlements", "color": "#C62828" }
+        {
+          "id": "class_0",
+          "kmlClass": "Class 0",
+          "label": "Forest",
+          "color": "#006400"
+        },
+        {
+          "id": "class_1",
+          "kmlClass": "Class 1",
+          "label": "Crop Land",
+          "color": "#E6A23C"
+        },
+        {
+          "id": "class_2",
+          "kmlClass": "Class 2",
+          "label": "Barren Land",
+          "color": "#A9A9A9"
+        },
+        {
+          "id": "class_3",
+          "kmlClass": "Class 3",
+          "label": "Water Bodies",
+          "color": "#2196F3"
+        },
+        {
+          "id": "class_4",
+          "kmlClass": "Class 4",
+          "label": "Settlements",
+          "color": "#C62828"
+        }
       ],
       "years": [
         {
@@ -234,42 +466,72 @@
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2021/overlay.png",
           "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2021.kmz",
-          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+          "bounds": {
+            "north": 18.56235850242967,
+            "south": 18.509203857291638,
+            "east": 73.9963853971848,
+            "west": 73.84988078051396
+          }
         },
         {
           "year": 2022,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2022/overlay.png",
           "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2022.kmz",
-          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+          "bounds": {
+            "north": 18.56235850242967,
+            "south": 18.509203857291638,
+            "east": 73.9963853971848,
+            "west": 73.84988078051396
+          }
         },
         {
           "year": 2023,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2023/overlay.png",
           "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2023.kmz",
-          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+          "bounds": {
+            "north": 18.56235850242967,
+            "south": 18.509203857291638,
+            "east": 73.9963853971848,
+            "west": 73.84988078051396
+          }
         },
         {
           "year": 2024,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2024/overlay.png",
           "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2024.kmz",
-          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+          "bounds": {
+            "north": 18.56235850242967,
+            "south": 18.509203857291638,
+            "east": 73.9963853971848,
+            "west": 73.84988078051396
+          }
         },
         {
           "year": 2025,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2025/overlay.png",
           "source": "src/data/LULC UPTO2025/MulaMutha_LULC_2025.kmz",
-          "bounds": { "north": 18.56235850242967, "south": 18.509203857291638, "east": 73.9963853971848, "west": 73.84988078051396 }
+          "bounds": {
+            "north": 18.56235850242967,
+            "south": 18.509203857291638,
+            "east": 73.9963853971848,
+            "west": 73.84988078051396
+          }
         },
         {
           "year": 2026,
           "type": "groundOverlay",
           "overlay": "/data/hydrology/lulc/2026/overlay.png",
           "source": "src/data/LULC UPTO2025/lulc_2026.kmz",
-          "bounds": { "north": 18.5616160663, "south": 18.5098917794, "east": 73.9961284727, "west": 73.8501433362 }
+          "bounds": {
+            "north": 18.5616160663,
+            "south": 18.5098917794,
+            "east": 73.9961284727,
+            "west": 73.8501433362
+          }
         }
       ],
       "renderType": "lulcYearOverlays"
@@ -280,13 +542,13 @@
       "available": true,
       "type": "siltClassificationPeriods",
       "crs": "EPSG:4326",
-      "defaultPeriod": "2026-07",
+      "defaultPeriod": "2026-11",
       "opacity": 1,
       "liftM": 1.4,
       "gridSegments": 128,
       "legendTitle": "Silt Classification",
-      "legendSubtitle": "Discrete silt classes · Jan–Jul 2026 KMZ",
-      "source": "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
+      "legendSubtitle": "Discrete silt classes · 2021–2026 monthly",
+      "source": "River-I-slit Classification KMLs",
       "bounds": {
         "north": 18.547336008158936,
         "south": 18.520745875748997,
@@ -294,19 +556,540 @@
         "west": 73.85490125235805
       },
       "classes": [
-        { "id": "low", "label": "Low", "color": "#2ECC71" },
-        { "id": "moderate", "label": "Moderate", "color": "#A8E010" },
-        { "id": "high", "label": "High", "color": "#F39C12" },
-        { "id": "very_high", "label": "Very High", "color": "#E74C3C" }
+        {
+          "id": "low",
+          "label": "Low",
+          "color": "#2ECC71"
+        },
+        {
+          "id": "moderate",
+          "label": "Moderate",
+          "color": "#A8E010"
+        },
+        {
+          "id": "high",
+          "label": "High",
+          "color": "#F39C12"
+        },
+        {
+          "id": "very_high",
+          "label": "Very High",
+          "color": "#E74C3C"
+        }
       ],
       "periods": [
-        { "id": "2026-01", "label": "Jan", "year": 2026, "month": 1, "overlay": "/data/hydrology/silt/classification/2026-01/overlay.png", "legend": "/data/hydrology/silt/classification/2026-01/legend.png" },
-        { "id": "2026-02", "label": "Feb", "year": 2026, "month": 2, "overlay": "/data/hydrology/silt/classification/2026-02/overlay.png", "legend": "/data/hydrology/silt/classification/2026-02/legend.png" },
-        { "id": "2026-03", "label": "Mar", "year": 2026, "month": 3, "overlay": "/data/hydrology/silt/classification/2026-03/overlay.png", "legend": "/data/hydrology/silt/classification/2026-03/legend.png" },
-        { "id": "2026-04", "label": "Apr", "year": 2026, "month": 4, "overlay": "/data/hydrology/silt/classification/2026-04/overlay.png", "legend": "/data/hydrology/silt/classification/2026-04/legend.png" },
-        { "id": "2026-05", "label": "May", "year": 2026, "month": 5, "overlay": "/data/hydrology/silt/classification/2026-05/overlay.png", "legend": "/data/hydrology/silt/classification/2026-05/legend.png" },
-        { "id": "2026-06", "label": "Jun", "year": 2026, "month": 6, "overlay": "/data/hydrology/silt/classification/2026-06/overlay.png", "legend": "/data/hydrology/silt/classification/2026-06/legend.png" },
-        { "id": "2026-07", "label": "Jul", "year": 2026, "month": 7, "overlay": "/data/hydrology/silt/classification/2026-07/overlay.png", "legend": "/data/hydrology/silt/classification/2026-07/legend.png" }
+        {
+          "id": "2021-01",
+          "label": "Jan",
+          "year": 2021,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/classification/2021-01/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-01/legend.png"
+        },
+        {
+          "id": "2021-02",
+          "label": "Feb",
+          "year": 2021,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/classification/2021-02/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-02/legend.png"
+        },
+        {
+          "id": "2021-03",
+          "label": "Mar",
+          "year": 2021,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/classification/2021-03/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-03/legend.png"
+        },
+        {
+          "id": "2021-04",
+          "label": "Apr",
+          "year": 2021,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/classification/2021-04/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-04/legend.png"
+        },
+        {
+          "id": "2021-05",
+          "label": "May",
+          "year": 2021,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/classification/2021-05/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-05/legend.png"
+        },
+        {
+          "id": "2021-06",
+          "label": "Jun",
+          "year": 2021,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/classification/2021-06/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-06/legend.png"
+        },
+        {
+          "id": "2021-07",
+          "label": "Jul",
+          "year": 2021,
+          "month": 7,
+          "overlay": "/data/hydrology/silt/classification/2021-07/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-07/legend.png"
+        },
+        {
+          "id": "2021-09",
+          "label": "Sep",
+          "year": 2021,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/classification/2021-09/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-09/legend.png"
+        },
+        {
+          "id": "2021-10",
+          "label": "Oct",
+          "year": 2021,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/classification/2021-10/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-10/legend.png"
+        },
+        {
+          "id": "2021-11",
+          "label": "Nov",
+          "year": 2021,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/classification/2021-11/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-11/legend.png"
+        },
+        {
+          "id": "2021-12",
+          "label": "Dec",
+          "year": 2021,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/classification/2021-12/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2021-12/legend.png"
+        },
+        {
+          "id": "2022-01",
+          "label": "Jan",
+          "year": 2022,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/classification/2022-01/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-01/legend.png"
+        },
+        {
+          "id": "2022-02",
+          "label": "Feb",
+          "year": 2022,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/classification/2022-02/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-02/legend.png"
+        },
+        {
+          "id": "2022-03",
+          "label": "Mar",
+          "year": 2022,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/classification/2022-03/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-03/legend.png"
+        },
+        {
+          "id": "2022-04",
+          "label": "Apr",
+          "year": 2022,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/classification/2022-04/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-04/legend.png"
+        },
+        {
+          "id": "2022-05",
+          "label": "May",
+          "year": 2022,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/classification/2022-05/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-05/legend.png"
+        },
+        {
+          "id": "2022-06",
+          "label": "Jun",
+          "year": 2022,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/classification/2022-06/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-06/legend.png"
+        },
+        {
+          "id": "2022-09",
+          "label": "Sep",
+          "year": 2022,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/classification/2022-09/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-09/legend.png"
+        },
+        {
+          "id": "2022-10",
+          "label": "Oct",
+          "year": 2022,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/classification/2022-10/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-10/legend.png"
+        },
+        {
+          "id": "2022-11",
+          "label": "Nov",
+          "year": 2022,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/classification/2022-11/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-11/legend.png"
+        },
+        {
+          "id": "2022-12",
+          "label": "Dec",
+          "year": 2022,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/classification/2022-12/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2022-12/legend.png"
+        },
+        {
+          "id": "2023-01",
+          "label": "Jan",
+          "year": 2023,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/classification/2023-01/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-01/legend.png"
+        },
+        {
+          "id": "2023-02",
+          "label": "Feb",
+          "year": 2023,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/classification/2023-02/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-02/legend.png"
+        },
+        {
+          "id": "2023-03",
+          "label": "Mar",
+          "year": 2023,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/classification/2023-03/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-03/legend.png"
+        },
+        {
+          "id": "2023-04",
+          "label": "Apr",
+          "year": 2023,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/classification/2023-04/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-04/legend.png"
+        },
+        {
+          "id": "2023-05",
+          "label": "May",
+          "year": 2023,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/classification/2023-05/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-05/legend.png"
+        },
+        {
+          "id": "2023-06",
+          "label": "Jun",
+          "year": 2023,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/classification/2023-06/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-06/legend.png"
+        },
+        {
+          "id": "2023-09",
+          "label": "Sep",
+          "year": 2023,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/classification/2023-09/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-09/legend.png"
+        },
+        {
+          "id": "2023-10",
+          "label": "Oct",
+          "year": 2023,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/classification/2023-10/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-10/legend.png"
+        },
+        {
+          "id": "2023-11",
+          "label": "Nov",
+          "year": 2023,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/classification/2023-11/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-11/legend.png"
+        },
+        {
+          "id": "2023-12",
+          "label": "Dec",
+          "year": 2023,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/classification/2023-12/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2023-12/legend.png"
+        },
+        {
+          "id": "2024-01",
+          "label": "Jan",
+          "year": 2024,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/classification/2024-01/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-01/legend.png"
+        },
+        {
+          "id": "2024-02",
+          "label": "Feb",
+          "year": 2024,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/classification/2024-02/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-02/legend.png"
+        },
+        {
+          "id": "2024-03",
+          "label": "Mar",
+          "year": 2024,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/classification/2024-03/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-03/legend.png"
+        },
+        {
+          "id": "2024-04",
+          "label": "Apr",
+          "year": 2024,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/classification/2024-04/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-04/legend.png"
+        },
+        {
+          "id": "2024-05",
+          "label": "May",
+          "year": 2024,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/classification/2024-05/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-05/legend.png"
+        },
+        {
+          "id": "2024-06",
+          "label": "Jun",
+          "year": 2024,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/classification/2024-06/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-06/legend.png"
+        },
+        {
+          "id": "2024-08",
+          "label": "Aug",
+          "year": 2024,
+          "month": 8,
+          "overlay": "/data/hydrology/silt/classification/2024-08/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-08/legend.png"
+        },
+        {
+          "id": "2024-09",
+          "label": "Sep",
+          "year": 2024,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/classification/2024-09/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-09/legend.png"
+        },
+        {
+          "id": "2024-10",
+          "label": "Oct",
+          "year": 2024,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/classification/2024-10/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-10/legend.png"
+        },
+        {
+          "id": "2024-11",
+          "label": "Nov",
+          "year": 2024,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/classification/2024-11/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-11/legend.png"
+        },
+        {
+          "id": "2024-12",
+          "label": "Dec",
+          "year": 2024,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/classification/2024-12/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2024-12/legend.png"
+        },
+        {
+          "id": "2025-01",
+          "label": "Jan",
+          "year": 2025,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/classification/2025-01/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-01/legend.png"
+        },
+        {
+          "id": "2025-02",
+          "label": "Feb",
+          "year": 2025,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/classification/2025-02/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-02/legend.png"
+        },
+        {
+          "id": "2025-03",
+          "label": "Mar",
+          "year": 2025,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/classification/2025-03/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-03/legend.png"
+        },
+        {
+          "id": "2025-04",
+          "label": "Apr",
+          "year": 2025,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/classification/2025-04/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-04/legend.png"
+        },
+        {
+          "id": "2025-05",
+          "label": "May",
+          "year": 2025,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/classification/2025-05/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-05/legend.png"
+        },
+        {
+          "id": "2025-06",
+          "label": "Jun",
+          "year": 2025,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/classification/2025-06/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-06/legend.png"
+        },
+        {
+          "id": "2025-08",
+          "label": "Aug",
+          "year": 2025,
+          "month": 8,
+          "overlay": "/data/hydrology/silt/classification/2025-08/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-08/legend.png"
+        },
+        {
+          "id": "2025-09",
+          "label": "Sep",
+          "year": 2025,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/classification/2025-09/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-09/legend.png"
+        },
+        {
+          "id": "2025-10",
+          "label": "Oct",
+          "year": 2025,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/classification/2025-10/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-10/legend.png"
+        },
+        {
+          "id": "2025-11",
+          "label": "Nov",
+          "year": 2025,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/classification/2025-11/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-11/legend.png"
+        },
+        {
+          "id": "2025-12",
+          "label": "Dec",
+          "year": 2025,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/classification/2025-12/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2025-12/legend.png"
+        },
+        {
+          "id": "2026-01",
+          "label": "Jan",
+          "year": 2026,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/classification/2026-01/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-01/legend.png"
+        },
+        {
+          "id": "2026-02",
+          "label": "Feb",
+          "year": 2026,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/classification/2026-02/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-02/legend.png"
+        },
+        {
+          "id": "2026-03",
+          "label": "Mar",
+          "year": 2026,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/classification/2026-03/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-03/legend.png"
+        },
+        {
+          "id": "2026-04",
+          "label": "Apr",
+          "year": 2026,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/classification/2026-04/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-04/legend.png"
+        },
+        {
+          "id": "2026-05",
+          "label": "May",
+          "year": 2026,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/classification/2026-05/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-05/legend.png"
+        },
+        {
+          "id": "2026-06",
+          "label": "Jun",
+          "year": 2026,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/classification/2026-06/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-06/legend.png"
+        },
+        {
+          "id": "2026-07",
+          "label": "Jul",
+          "year": 2026,
+          "month": 7,
+          "overlay": "/data/hydrology/silt/classification/2026-07/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-07/legend.png"
+        },
+        {
+          "id": "2026-08",
+          "label": "Aug",
+          "year": 2026,
+          "month": 8,
+          "overlay": "/data/hydrology/silt/classification/2026-08/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-08/legend.png"
+        },
+        {
+          "id": "2026-09",
+          "label": "Sep",
+          "year": 2026,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/classification/2026-09/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-09/legend.png"
+        },
+        {
+          "id": "2026-10",
+          "label": "Oct",
+          "year": 2026,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/classification/2026-10/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-10/legend.png"
+        },
+        {
+          "id": "2026-11",
+          "label": "Nov",
+          "year": 2026,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/classification/2026-11/overlay.png",
+          "legend": "/data/hydrology/silt/classification/2026-11/legend.png"
+        }
       ],
       "renderType": "terrainDrapedSiltClassification"
     },
@@ -316,13 +1099,13 @@
       "available": true,
       "type": "siltVolumePeriods",
       "crs": "EPSG:4326",
-      "defaultPeriod": "2026-07",
+      "defaultPeriod": "2026-11",
       "opacity": 1,
       "liftM": 1.5,
       "gridSegments": 128,
       "legendTitle": "Silt Volume Surface (m³)",
-      "legendSubtitle": "Volume surface · fixed 0–94.31 m³ · Jan–Jul 2026 KMZ",
-      "source": "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
+      "legendSubtitle": "Volume surface · fixed 0–94.31 · 2021–2026 monthly",
+      "source": "River-I-slit Volume KMLs",
       "bounds": {
         "north": 18.547336008158936,
         "south": 18.520745875748997,
@@ -330,20 +1113,547 @@
         "west": 73.85490125235805
       },
       "classes": [
-        { "id": "v0", "label": "0 m³", "color": "#FFFFD4", "range": "low" },
-        { "id": "v25", "label": "~24 m³", "color": "#FED98E" },
-        { "id": "v50", "label": "~47 m³", "color": "#FE9929" },
-        { "id": "v75", "label": "~71 m³", "color": "#D95F0E" },
-        { "id": "v100", "label": "94.3 m³", "color": "#993404", "range": "high" }
+        {
+          "id": "v0",
+          "label": "0 m³",
+          "color": "#FFFFD4",
+          "range": "low"
+        },
+        {
+          "id": "v25",
+          "label": "~24 m³",
+          "color": "#FED98E"
+        },
+        {
+          "id": "v50",
+          "label": "~47 m³",
+          "color": "#FE9929"
+        },
+        {
+          "id": "v75",
+          "label": "~71 m³",
+          "color": "#D95F0E"
+        },
+        {
+          "id": "v100",
+          "label": "94.3 m³",
+          "color": "#993404",
+          "range": "high"
+        }
       ],
       "periods": [
-        { "id": "2026-01", "label": "Jan", "year": 2026, "month": 1, "overlay": "/data/hydrology/silt/volume/2026-01/overlay.png", "legend": "/data/hydrology/silt/volume/2026-01/legend.png" },
-        { "id": "2026-02", "label": "Feb", "year": 2026, "month": 2, "overlay": "/data/hydrology/silt/volume/2026-02/overlay.png", "legend": "/data/hydrology/silt/volume/2026-02/legend.png" },
-        { "id": "2026-03", "label": "Mar", "year": 2026, "month": 3, "overlay": "/data/hydrology/silt/volume/2026-03/overlay.png", "legend": "/data/hydrology/silt/volume/2026-03/legend.png" },
-        { "id": "2026-04", "label": "Apr", "year": 2026, "month": 4, "overlay": "/data/hydrology/silt/volume/2026-04/overlay.png", "legend": "/data/hydrology/silt/volume/2026-04/legend.png" },
-        { "id": "2026-05", "label": "May", "year": 2026, "month": 5, "overlay": "/data/hydrology/silt/volume/2026-05/overlay.png", "legend": "/data/hydrology/silt/volume/2026-05/legend.png" },
-        { "id": "2026-06", "label": "Jun", "year": 2026, "month": 6, "overlay": "/data/hydrology/silt/volume/2026-06/overlay.png", "legend": "/data/hydrology/silt/volume/2026-06/legend.png" },
-        { "id": "2026-07", "label": "Jul", "year": 2026, "month": 7, "overlay": "/data/hydrology/silt/volume/2026-07/overlay.png", "legend": "/data/hydrology/silt/volume/2026-07/legend.png" }
+        {
+          "id": "2021-01",
+          "label": "Jan",
+          "year": 2021,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/volume/2021-01/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-01/legend.png"
+        },
+        {
+          "id": "2021-02",
+          "label": "Feb",
+          "year": 2021,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/volume/2021-02/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-02/legend.png"
+        },
+        {
+          "id": "2021-03",
+          "label": "Mar",
+          "year": 2021,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/volume/2021-03/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-03/legend.png"
+        },
+        {
+          "id": "2021-04",
+          "label": "Apr",
+          "year": 2021,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/volume/2021-04/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-04/legend.png"
+        },
+        {
+          "id": "2021-05",
+          "label": "May",
+          "year": 2021,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/volume/2021-05/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-05/legend.png"
+        },
+        {
+          "id": "2021-06",
+          "label": "Jun",
+          "year": 2021,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/volume/2021-06/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-06/legend.png"
+        },
+        {
+          "id": "2021-07",
+          "label": "Jul",
+          "year": 2021,
+          "month": 7,
+          "overlay": "/data/hydrology/silt/volume/2021-07/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-07/legend.png"
+        },
+        {
+          "id": "2021-09",
+          "label": "Sep",
+          "year": 2021,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/volume/2021-09/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-09/legend.png"
+        },
+        {
+          "id": "2021-10",
+          "label": "Oct",
+          "year": 2021,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/volume/2021-10/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-10/legend.png"
+        },
+        {
+          "id": "2021-11",
+          "label": "Nov",
+          "year": 2021,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/volume/2021-11/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-11/legend.png"
+        },
+        {
+          "id": "2021-12",
+          "label": "Dec",
+          "year": 2021,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/volume/2021-12/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2021-12/legend.png"
+        },
+        {
+          "id": "2022-01",
+          "label": "Jan",
+          "year": 2022,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/volume/2022-01/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-01/legend.png"
+        },
+        {
+          "id": "2022-02",
+          "label": "Feb",
+          "year": 2022,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/volume/2022-02/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-02/legend.png"
+        },
+        {
+          "id": "2022-03",
+          "label": "Mar",
+          "year": 2022,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/volume/2022-03/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-03/legend.png"
+        },
+        {
+          "id": "2022-04",
+          "label": "Apr",
+          "year": 2022,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/volume/2022-04/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-04/legend.png"
+        },
+        {
+          "id": "2022-05",
+          "label": "May",
+          "year": 2022,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/volume/2022-05/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-05/legend.png"
+        },
+        {
+          "id": "2022-06",
+          "label": "Jun",
+          "year": 2022,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/volume/2022-06/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-06/legend.png"
+        },
+        {
+          "id": "2022-09",
+          "label": "Sep",
+          "year": 2022,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/volume/2022-09/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-09/legend.png"
+        },
+        {
+          "id": "2022-10",
+          "label": "Oct",
+          "year": 2022,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/volume/2022-10/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-10/legend.png"
+        },
+        {
+          "id": "2022-11",
+          "label": "Nov",
+          "year": 2022,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/volume/2022-11/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-11/legend.png"
+        },
+        {
+          "id": "2022-12",
+          "label": "Dec",
+          "year": 2022,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/volume/2022-12/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2022-12/legend.png"
+        },
+        {
+          "id": "2023-01",
+          "label": "Jan",
+          "year": 2023,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/volume/2023-01/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-01/legend.png"
+        },
+        {
+          "id": "2023-02",
+          "label": "Feb",
+          "year": 2023,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/volume/2023-02/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-02/legend.png"
+        },
+        {
+          "id": "2023-03",
+          "label": "Mar",
+          "year": 2023,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/volume/2023-03/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-03/legend.png"
+        },
+        {
+          "id": "2023-04",
+          "label": "Apr",
+          "year": 2023,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/volume/2023-04/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-04/legend.png"
+        },
+        {
+          "id": "2023-05",
+          "label": "May",
+          "year": 2023,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/volume/2023-05/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-05/legend.png"
+        },
+        {
+          "id": "2023-06",
+          "label": "Jun",
+          "year": 2023,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/volume/2023-06/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-06/legend.png"
+        },
+        {
+          "id": "2023-09",
+          "label": "Sep",
+          "year": 2023,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/volume/2023-09/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-09/legend.png"
+        },
+        {
+          "id": "2023-10",
+          "label": "Oct",
+          "year": 2023,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/volume/2023-10/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-10/legend.png"
+        },
+        {
+          "id": "2023-11",
+          "label": "Nov",
+          "year": 2023,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/volume/2023-11/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-11/legend.png"
+        },
+        {
+          "id": "2023-12",
+          "label": "Dec",
+          "year": 2023,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/volume/2023-12/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2023-12/legend.png"
+        },
+        {
+          "id": "2024-01",
+          "label": "Jan",
+          "year": 2024,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/volume/2024-01/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-01/legend.png"
+        },
+        {
+          "id": "2024-02",
+          "label": "Feb",
+          "year": 2024,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/volume/2024-02/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-02/legend.png"
+        },
+        {
+          "id": "2024-03",
+          "label": "Mar",
+          "year": 2024,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/volume/2024-03/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-03/legend.png"
+        },
+        {
+          "id": "2024-04",
+          "label": "Apr",
+          "year": 2024,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/volume/2024-04/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-04/legend.png"
+        },
+        {
+          "id": "2024-05",
+          "label": "May",
+          "year": 2024,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/volume/2024-05/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-05/legend.png"
+        },
+        {
+          "id": "2024-06",
+          "label": "Jun",
+          "year": 2024,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/volume/2024-06/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-06/legend.png"
+        },
+        {
+          "id": "2024-08",
+          "label": "Aug",
+          "year": 2024,
+          "month": 8,
+          "overlay": "/data/hydrology/silt/volume/2024-08/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-08/legend.png"
+        },
+        {
+          "id": "2024-09",
+          "label": "Sep",
+          "year": 2024,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/volume/2024-09/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-09/legend.png"
+        },
+        {
+          "id": "2024-10",
+          "label": "Oct",
+          "year": 2024,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/volume/2024-10/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-10/legend.png"
+        },
+        {
+          "id": "2024-11",
+          "label": "Nov",
+          "year": 2024,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/volume/2024-11/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-11/legend.png"
+        },
+        {
+          "id": "2024-12",
+          "label": "Dec",
+          "year": 2024,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/volume/2024-12/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2024-12/legend.png"
+        },
+        {
+          "id": "2025-01",
+          "label": "Jan",
+          "year": 2025,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/volume/2025-01/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-01/legend.png"
+        },
+        {
+          "id": "2025-02",
+          "label": "Feb",
+          "year": 2025,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/volume/2025-02/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-02/legend.png"
+        },
+        {
+          "id": "2025-03",
+          "label": "Mar",
+          "year": 2025,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/volume/2025-03/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-03/legend.png"
+        },
+        {
+          "id": "2025-04",
+          "label": "Apr",
+          "year": 2025,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/volume/2025-04/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-04/legend.png"
+        },
+        {
+          "id": "2025-05",
+          "label": "May",
+          "year": 2025,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/volume/2025-05/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-05/legend.png"
+        },
+        {
+          "id": "2025-06",
+          "label": "Jun",
+          "year": 2025,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/volume/2025-06/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-06/legend.png"
+        },
+        {
+          "id": "2025-08",
+          "label": "Aug",
+          "year": 2025,
+          "month": 8,
+          "overlay": "/data/hydrology/silt/volume/2025-08/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-08/legend.png"
+        },
+        {
+          "id": "2025-09",
+          "label": "Sep",
+          "year": 2025,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/volume/2025-09/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-09/legend.png"
+        },
+        {
+          "id": "2025-10",
+          "label": "Oct",
+          "year": 2025,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/volume/2025-10/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-10/legend.png"
+        },
+        {
+          "id": "2025-11",
+          "label": "Nov",
+          "year": 2025,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/volume/2025-11/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-11/legend.png"
+        },
+        {
+          "id": "2025-12",
+          "label": "Dec",
+          "year": 2025,
+          "month": 12,
+          "overlay": "/data/hydrology/silt/volume/2025-12/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2025-12/legend.png"
+        },
+        {
+          "id": "2026-01",
+          "label": "Jan",
+          "year": 2026,
+          "month": 1,
+          "overlay": "/data/hydrology/silt/volume/2026-01/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-01/legend.png"
+        },
+        {
+          "id": "2026-02",
+          "label": "Feb",
+          "year": 2026,
+          "month": 2,
+          "overlay": "/data/hydrology/silt/volume/2026-02/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-02/legend.png"
+        },
+        {
+          "id": "2026-03",
+          "label": "Mar",
+          "year": 2026,
+          "month": 3,
+          "overlay": "/data/hydrology/silt/volume/2026-03/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-03/legend.png"
+        },
+        {
+          "id": "2026-04",
+          "label": "Apr",
+          "year": 2026,
+          "month": 4,
+          "overlay": "/data/hydrology/silt/volume/2026-04/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-04/legend.png"
+        },
+        {
+          "id": "2026-05",
+          "label": "May",
+          "year": 2026,
+          "month": 5,
+          "overlay": "/data/hydrology/silt/volume/2026-05/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-05/legend.png"
+        },
+        {
+          "id": "2026-06",
+          "label": "Jun",
+          "year": 2026,
+          "month": 6,
+          "overlay": "/data/hydrology/silt/volume/2026-06/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-06/legend.png"
+        },
+        {
+          "id": "2026-07",
+          "label": "Jul",
+          "year": 2026,
+          "month": 7,
+          "overlay": "/data/hydrology/silt/volume/2026-07/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-07/legend.png"
+        },
+        {
+          "id": "2026-08",
+          "label": "Aug",
+          "year": 2026,
+          "month": 8,
+          "overlay": "/data/hydrology/silt/volume/2026-08/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-08/legend.png"
+        },
+        {
+          "id": "2026-09",
+          "label": "Sep",
+          "year": 2026,
+          "month": 9,
+          "overlay": "/data/hydrology/silt/volume/2026-09/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-09/legend.png"
+        },
+        {
+          "id": "2026-10",
+          "label": "Oct",
+          "year": 2026,
+          "month": 10,
+          "overlay": "/data/hydrology/silt/volume/2026-10/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-10/legend.png"
+        },
+        {
+          "id": "2026-11",
+          "label": "Nov",
+          "year": 2026,
+          "month": 11,
+          "overlay": "/data/hydrology/silt/volume/2026-11/overlay.png",
+          "legend": "/data/hydrology/silt/volume/2026-11/legend.png"
+        }
       ],
       "renderType": "terrainDrapedSiltVolume"
     },
@@ -370,11 +1680,31 @@
       "legendTitle": "Vegetation Type",
       "legendSubtitle": "src/data/vegetation_type.kml",
       "legendClasses": [
-        { "id": "non_vegetation", "label": "Non-Vegetation", "color": "#A9A9A9" },
-        { "id": "trees", "label": "Trees", "color": "#228B22" },
-        { "id": "shrub", "label": "Shrub / Scrub", "color": "#9ACD32" },
-        { "id": "grass", "label": "Grass / Herbaceous", "color": "#90EE90" },
-        { "id": "mixed", "label": "Mixed / Diverse", "color": "#8A2BE2" }
+        {
+          "id": "non_vegetation",
+          "label": "Non-Vegetation",
+          "color": "#A9A9A9"
+        },
+        {
+          "id": "trees",
+          "label": "Trees",
+          "color": "#228B22"
+        },
+        {
+          "id": "shrub",
+          "label": "Shrub / Scrub",
+          "color": "#9ACD32"
+        },
+        {
+          "id": "grass",
+          "label": "Grass / Herbaceous",
+          "color": "#90EE90"
+        },
+        {
+          "id": "mixed",
+          "label": "Mixed / Diverse",
+          "color": "#8A2BE2"
+        }
       ],
       "renderType": "terrainDrapedTexture"
     },
@@ -401,10 +1731,26 @@
       "legendTitle": "Vegetation Health",
       "legendSubtitle": "src/data/vegetation_health.kml",
       "legendClasses": [
-        { "id": "poor", "label": "Stressed / Poor", "color": "#C62828" },
-        { "id": "moderate", "label": "Moderate", "color": "#F9A825" },
-        { "id": "good", "label": "Healthy", "color": "#2E7D32" },
-        { "id": "dense", "label": "Dense canopy", "color": "#1B5E20" }
+        {
+          "id": "poor",
+          "label": "Stressed / Poor",
+          "color": "#C62828"
+        },
+        {
+          "id": "moderate",
+          "label": "Moderate",
+          "color": "#F9A825"
+        },
+        {
+          "id": "good",
+          "label": "Healthy",
+          "color": "#2E7D32"
+        },
+        {
+          "id": "dense",
+          "label": "Dense canopy",
+          "color": "#1B5E20"
+        }
       ],
       "renderType": "terrainDrapedTexture"
     },
@@ -414,6 +1760,78 @@
       "available": false,
       "reason": "No AQI dataset is connected to the RiverEye Hydrology layer.",
       "unavailableLabel": "DATA UNAVAILABLE"
+    },
+    {
+      "id": "water_quality_coliform",
+      "name": "Coliform",
+      "available": true,
+      "type": "groundOverlay",
+      "crs": "EPSG:4326",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "overlay": "/data/hydrology/water_quality/coliform/overlay.png",
+      "meta": "/data/hydrology/water_quality/coliform/meta.json",
+      "source": "src/jalnetra kml/coliform_ecoli_class.kml",
+      "opacity": 1,
+      "liftM": 0.55,
+      "gridSegments": 128,
+      "flipU": false,
+      "flipV": true,
+      "legendTitle": "Coliform",
+      "legendSubtitle": "E. coli class · relative · 2026-11-11",
+      "renderType": "terrainDrapedTexture"
+    },
+    {
+      "id": "pollution_eutrophication",
+      "name": "EUTROPHICATION",
+      "available": true,
+      "type": "groundOverlay",
+      "crs": "EPSG:4326",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "overlay": "/data/hydrology/pollution/eutrophication/overlay.png",
+      "meta": "/data/hydrology/pollution/eutrophication/meta.json",
+      "source": "src/jalnetra kml/eutrophication_trophic_class.kml",
+      "opacity": 1,
+      "liftM": 0.55,
+      "gridSegments": 128,
+      "flipU": false,
+      "flipV": true,
+      "legendTitle": "Eutrophication",
+      "legendSubtitle": "Trophic class · 2026-11-11",
+      "renderType": "terrainDrapedTexture"
+    },
+    {
+      "id": "pollution_nitrogen",
+      "name": "NITROGEN",
+      "available": true,
+      "type": "groundOverlay",
+      "crs": "EPSG:4326",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "overlay": "/data/hydrology/pollution/nitrogen/overlay.png",
+      "meta": "/data/hydrology/pollution/nitrogen/meta.json",
+      "source": "src/jalnetra kml/Nitrogen mulamutha.kml",
+      "opacity": 1,
+      "liftM": 0.55,
+      "gridSegments": 128,
+      "flipU": false,
+      "flipV": true,
+      "legendTitle": "Nitrogen",
+      "legendSubtitle": "High-nitrogen risk class · 2026-11-11",
+      "renderType": "terrainDrapedTexture"
     }
   ]
 }

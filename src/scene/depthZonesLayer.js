@@ -9,23 +9,24 @@ import { applyDrapeDepth } from "./drapeDepth.js";
 export const GLASSY_WATER_LIFT_M = 0.55;
 
 /**
- * Bathymetry GroundOverlay from src/data/mula_mutha_depth_blueshade_smoothed.kmz
- * (extracted to public/data/bathymetry/). LatLonBox copied from its doc.kml.
+ * Bathymetry GroundOverlay from RIverDepth_mulamutha.kml
+ * (JalNetra Sentinel-2 relative depth · 2026-11-11).
+ * Extracted PNG + LatLonBox under public/data/bathymetry/.
  */
 export const BATHYMETRY_OVERLAY = {
   url: "/data/bathymetry/mula_mutha_depth_overlay.png",
   legendUrl: "/data/bathymetry/depth_legend.png",
-  north: 18.54735962,
-  south: 18.52083962,
-  east: 73.99281512,
-  west: 73.85517512,
-  minDepth: 1.53,
-  maxDepth: 2.0,
+  north: 18.54727939,
+  south: 18.5207626,
+  east: 73.99343968,
+  west: 73.85496516,
+  minDepth: 0.25,
+  maxDepth: 2.6,
 };
 
-/** Legend ramp sampled from the KMZ depth_legend.png, shallow → deep. */
+/** Legend ramp sampled from RIverDepth_mulamutha.kml overlay, shallow → deep. */
 export const BATHYMETRY_RAMP = [
-  "#abd5f8", "#95bbe3", "#7d9fcc", "#6582b6", "#4e669f", "#364a89", "#1e2d72", "#06115b",
+  "#48c0f3", "#0083d4", "#0077c6", "#006cb4", "#005d9b", "#005085", "#004776", "#001f3e",
 ];
 
 const PICK_MIN_ALPHA = 40;
@@ -45,7 +46,7 @@ export function createDepthZonesLayer(dataset) {
   const box = BATHYMETRY_OVERLAY;
 
   const geometry = buildDrapedGrid(box, stations);
-  const texture = new THREE.TextureLoader().load(`${box.url}?v=blueshade`, (tex) => {
+  const texture = new THREE.TextureLoader().load(`${box.url}?v=riverdepth-20261111`, (tex) => {
     pixels = readPixels(tex.image);
   });
   texture.colorSpace = THREE.SRGBColorSpace;
@@ -119,7 +120,7 @@ export function createDepthZonesLayer(dataset) {
   let revealT = 1;
 
   group.userData.stats = {
-    source: "mula_mutha_depth_blueshade_smoothed.kmz",
+    source: "RIverDepth_mulamutha.kml",
     raster: true,
     polygons: 0,
     built: 1,
@@ -174,7 +175,7 @@ export function createDepthZonesLayer(dataset) {
     }
   };
 
-  console.info("Bathymetry raster layer (KMZ)", group.userData.stats);
+  console.info("Bathymetry raster layer (River Depth KML)", group.userData.stats);
   return group;
 }
 
@@ -190,7 +191,7 @@ export function pickDepthZoneAt(group, x, z) {
   const hi = lo + step;
   return {
     id: `bathy-${Math.round(x)}-${Math.round(z)}`,
-    name: "Bathymetry (KMZ raster)",
+    name: "Bathymetry (River Depth)",
     depthClass: `${lo.toFixed(2)}–${hi.toFixed(2)}`,
     depthMin: lo,
     depthMax: hi,

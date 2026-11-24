@@ -1,0 +1,14 @@
+{
+  "id": "2021-12",
+  "year": 2021,
+  "month": 12,
+  "name": "Silt Volume Surface — December 2021",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "source": "vol-dec.kml",
+  "kind": "volume"
+}

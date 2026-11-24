@@ -1,16 +1,52 @@
 {
   "id": "geology",
-  "source": "Smoth kmls/Lithology.kmz",
-  "sourceKmz": "Lithology.kmz",
+  "name": "Lithology",
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/lithology.kml",
   "bounds": {
-    "north": 18.5623585024,
-    "south": 18.509121677,
-    "east": 73.9963757521,
-    "west": 73.8497860332
+    "north": 18.54772933,
+    "south": 18.52031458,
+    "east": 73.9939142,
+    "west": 73.85449071
   },
-  "overlayWidth": 8192,
-  "overlayHeight": 2975,
-  "overlayUrl": "/data/hydrology/geology/overlay.png",
-  "legendUrl": "/data/hydrology/geology/legend.png",
-  "smoothed": true
+  "overlay": "/data/hydrology/geology/overlay.png",
+  "legendClasses": [
+    {
+      "color": "#5D4037",
+      "label": "0 = Silt"
+    },
+    {
+      "color": "#8B0000",
+      "label": "1 = Basaltic / Fresh Basalt Spectral Zone"
+    },
+    {
+      "color": "#FFD700",
+      "label": "2 = Weathered Basalt"
+    },
+    {
+      "color": "#FF0000",
+      "label": "3 = Lateritic / Ferruginous Zone"
+    },
+    {
+      "color": "#9370DB",
+      "label": "4 = Clay-Rich / Altered Zone"
+    },
+    {
+      "color": "#F4A460",
+      "label": "5 = Alluvial / Sandy-Clayey Sediment"
+    },
+    {
+      "color": "#00A6A6",
+      "label": "6 = Estuarine / Tidal Sediment"
+    },
+    {
+      "color": "#808080",
+      "label": "7 = Mixed Weathered Geological Material"
+    },
+    {
+      "color": "#FFFFFF",
+      "label": "8 = Exposed / Bright Mineral Surface"
+    }
+  ],
+  "updated": "2026-11-11"
 }

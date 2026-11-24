@@ -1,116 +1,1028 @@
 {
   "periods": [
     {
+      "id": "2021-01",
+      "label": "Jan",
+      "year": 2021,
+      "month": 1,
+      "name": "Silt Classification — January 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-Jan.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-01/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-01/legend.png"
+    },
+    {
+      "id": "2021-02",
+      "label": "Feb",
+      "year": 2021,
+      "month": 2,
+      "name": "Silt Classification — February 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-Feb.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-02/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-02/legend.png"
+    },
+    {
+      "id": "2021-03",
+      "label": "Mar",
+      "year": 2021,
+      "month": 3,
+      "name": "Silt Classification — March 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-mar.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-03/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-03/legend.png"
+    },
+    {
+      "id": "2021-04",
+      "label": "Apr",
+      "year": 2021,
+      "month": 4,
+      "name": "Silt Classification — April 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-April.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-04/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-04/legend.png"
+    },
+    {
+      "id": "2021-05",
+      "label": "May",
+      "year": 2021,
+      "month": 5,
+      "name": "Silt Classification — May 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-may.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-05/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-05/legend.png"
+    },
+    {
+      "id": "2021-06",
+      "label": "Jun",
+      "year": 2021,
+      "month": 6,
+      "name": "Silt Classification — June 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "june.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-06/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-06/legend.png"
+    },
+    {
+      "id": "2021-07",
+      "label": "Jul",
+      "year": 2021,
+      "month": 7,
+      "name": "Silt Classification — July 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "jully.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-07/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-07/legend.png"
+    },
+    {
+      "id": "2021-09",
+      "label": "Sep",
+      "year": 2021,
+      "month": 9,
+      "name": "Silt Classification — September 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "sep.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-09/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-09/legend.png"
+    },
+    {
+      "id": "2021-10",
+      "label": "Oct",
+      "year": 2021,
+      "month": 10,
+      "name": "Silt Classification — October 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-oct.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-10/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-10/legend.png"
+    },
+    {
+      "id": "2021-11",
+      "label": "Nov",
+      "year": 2021,
+      "month": 11,
+      "name": "Silt Classification — November 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-nov.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-11/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-11/legend.png"
+    },
+    {
+      "id": "2021-12",
+      "label": "Dec",
+      "year": 2021,
+      "month": 12,
+      "name": "Silt Classification — December 2021",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-dec.kml",
+      "overlay": "/data/hydrology/silt/classification/2021-12/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2021-12/legend.png"
+    },
+    {
+      "id": "2022-01",
+      "label": "Jan",
+      "year": 2022,
+      "month": 1,
+      "name": "Silt Classification — January 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "Class-jan.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-01/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-01/legend.png"
+    },
+    {
+      "id": "2022-02",
+      "label": "Feb",
+      "year": 2022,
+      "month": 2,
+      "name": "Silt Classification — February 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-feb.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-02/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-02/legend.png"
+    },
+    {
+      "id": "2022-03",
+      "label": "Mar",
+      "year": 2022,
+      "month": 3,
+      "name": "Silt Classification — March 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-mar.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-03/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-03/legend.png"
+    },
+    {
+      "id": "2022-04",
+      "label": "Apr",
+      "year": 2022,
+      "month": 4,
+      "name": "Silt Classification — April 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-april.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-04/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-04/legend.png"
+    },
+    {
+      "id": "2022-05",
+      "label": "May",
+      "year": 2022,
+      "month": 5,
+      "name": "Silt Classification — May 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-may.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-05/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-05/legend.png"
+    },
+    {
+      "id": "2022-06",
+      "label": "Jun",
+      "year": 2022,
+      "month": 6,
+      "name": "Silt Classification — June 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-june.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-06/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-06/legend.png"
+    },
+    {
+      "id": "2022-09",
+      "label": "Sep",
+      "year": 2022,
+      "month": 9,
+      "name": "Silt Classification — September 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-sep.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-09/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-09/legend.png"
+    },
+    {
+      "id": "2022-10",
+      "label": "Oct",
+      "year": 2022,
+      "month": 10,
+      "name": "Silt Classification — October 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-oct.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-10/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-10/legend.png"
+    },
+    {
+      "id": "2022-11",
+      "label": "Nov",
+      "year": 2022,
+      "month": 11,
+      "name": "Silt Classification — November 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-nov.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-11/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-11/legend.png"
+    },
+    {
+      "id": "2022-12",
+      "label": "Dec",
+      "year": 2022,
+      "month": 12,
+      "name": "Silt Classification — December 2022",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-dec.kml",
+      "overlay": "/data/hydrology/silt/classification/2022-12/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2022-12/legend.png"
+    },
+    {
+      "id": "2023-01",
+      "label": "Jan",
+      "year": 2023,
+      "month": 1,
+      "name": "Silt Classification — January 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "CLass-jan.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-01/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-01/legend.png"
+    },
+    {
+      "id": "2023-02",
+      "label": "Feb",
+      "year": 2023,
+      "month": 2,
+      "name": "Silt Classification — February 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "CLass-Feb.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-02/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-02/legend.png"
+    },
+    {
+      "id": "2023-03",
+      "label": "Mar",
+      "year": 2023,
+      "month": 3,
+      "name": "Silt Classification — March 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "CLass-mar.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-03/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-03/legend.png"
+    },
+    {
+      "id": "2023-04",
+      "label": "Apr",
+      "year": 2023,
+      "month": 4,
+      "name": "Silt Classification — April 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "CLass-april.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-04/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-04/legend.png"
+    },
+    {
+      "id": "2023-05",
+      "label": "May",
+      "year": 2023,
+      "month": 5,
+      "name": "Silt Classification — May 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-may.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-05/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-05/legend.png"
+    },
+    {
+      "id": "2023-06",
+      "label": "Jun",
+      "year": 2023,
+      "month": 6,
+      "name": "Silt Classification — June 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-june.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-06/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-06/legend.png"
+    },
+    {
+      "id": "2023-09",
+      "label": "Sep",
+      "year": 2023,
+      "month": 9,
+      "name": "Silt Classification — September 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-sep.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-09/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-09/legend.png"
+    },
+    {
+      "id": "2023-10",
+      "label": "Oct",
+      "year": 2023,
+      "month": 10,
+      "name": "Silt Classification — October 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-oct.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-10/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-10/legend.png"
+    },
+    {
+      "id": "2023-11",
+      "label": "Nov",
+      "year": 2023,
+      "month": 11,
+      "name": "Silt Classification — November 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-nov.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-11/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-11/legend.png"
+    },
+    {
+      "id": "2023-12",
+      "label": "Dec",
+      "year": 2023,
+      "month": 12,
+      "name": "Silt Classification — December 2023",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-dec.kml",
+      "overlay": "/data/hydrology/silt/classification/2023-12/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2023-12/legend.png"
+    },
+    {
+      "id": "2024-01",
+      "label": "Jan",
+      "year": 2024,
+      "month": 1,
+      "name": "Silt Classification — January 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-jan.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-01/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-01/legend.png"
+    },
+    {
+      "id": "2024-02",
+      "label": "Feb",
+      "year": 2024,
+      "month": 2,
+      "name": "Silt Classification — February 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-feb.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-02/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-02/legend.png"
+    },
+    {
+      "id": "2024-03",
+      "label": "Mar",
+      "year": 2024,
+      "month": 3,
+      "name": "Silt Classification — March 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-mar.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-03/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-03/legend.png"
+    },
+    {
+      "id": "2024-04",
+      "label": "Apr",
+      "year": 2024,
+      "month": 4,
+      "name": "Silt Classification — April 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-april.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-04/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-04/legend.png"
+    },
+    {
+      "id": "2024-05",
+      "label": "May",
+      "year": 2024,
+      "month": 5,
+      "name": "Silt Classification — May 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-may.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-05/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-05/legend.png"
+    },
+    {
+      "id": "2024-06",
+      "label": "Jun",
+      "year": 2024,
+      "month": 6,
+      "name": "Silt Classification — June 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-june.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-06/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-06/legend.png"
+    },
+    {
+      "id": "2024-08",
+      "label": "Aug",
+      "year": 2024,
+      "month": 8,
+      "name": "Silt Classification — August 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-aug.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-08/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-08/legend.png"
+    },
+    {
+      "id": "2024-09",
+      "label": "Sep",
+      "year": 2024,
+      "month": 9,
+      "name": "Silt Classification — September 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-sep.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-09/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-09/legend.png"
+    },
+    {
+      "id": "2024-10",
+      "label": "Oct",
+      "year": 2024,
+      "month": 10,
+      "name": "Silt Classification — October 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-oct.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-10/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-10/legend.png"
+    },
+    {
+      "id": "2024-11",
+      "label": "Nov",
+      "year": 2024,
+      "month": 11,
+      "name": "Silt Classification — November 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-nov.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-11/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-11/legend.png"
+    },
+    {
+      "id": "2024-12",
+      "label": "Dec",
+      "year": 2024,
+      "month": 12,
+      "name": "Silt Classification — December 2024",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-dec.kml",
+      "overlay": "/data/hydrology/silt/classification/2024-12/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2024-12/legend.png"
+    },
+    {
+      "id": "2025-01",
+      "label": "Jan",
+      "year": 2025,
+      "month": 1,
+      "name": "Silt Classification — January 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-jan.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-01/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-01/legend.png"
+    },
+    {
+      "id": "2025-02",
+      "label": "Feb",
+      "year": 2025,
+      "month": 2,
+      "name": "Silt Classification — February 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "clas-feb.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-02/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-02/legend.png"
+    },
+    {
+      "id": "2025-03",
+      "label": "Mar",
+      "year": 2025,
+      "month": 3,
+      "name": "Silt Classification — March 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-mar.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-03/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-03/legend.png"
+    },
+    {
+      "id": "2025-04",
+      "label": "Apr",
+      "year": 2025,
+      "month": 4,
+      "name": "Silt Classification — April 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-april.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-04/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-04/legend.png"
+    },
+    {
+      "id": "2025-05",
+      "label": "May",
+      "year": 2025,
+      "month": 5,
+      "name": "Silt Classification — May 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "classs-may.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-05/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-05/legend.png"
+    },
+    {
+      "id": "2025-06",
+      "label": "Jun",
+      "year": 2025,
+      "month": 6,
+      "name": "Silt Classification — June 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-june.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-06/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-06/legend.png"
+    },
+    {
+      "id": "2025-08",
+      "label": "Aug",
+      "year": 2025,
+      "month": 8,
+      "name": "Silt Classification — August 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-aug.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-08/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-08/legend.png"
+    },
+    {
+      "id": "2025-09",
+      "label": "Sep",
+      "year": 2025,
+      "month": 9,
+      "name": "Silt Classification — September 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-sep.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-09/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-09/legend.png"
+    },
+    {
+      "id": "2025-10",
+      "label": "Oct",
+      "year": 2025,
+      "month": 10,
+      "name": "Silt Classification — October 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-oct.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-10/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-10/legend.png"
+    },
+    {
+      "id": "2025-11",
+      "label": "Nov",
+      "year": 2025,
+      "month": 11,
+      "name": "Silt Classification — November 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "classs-nov.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-11/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-11/legend.png"
+    },
+    {
+      "id": "2025-12",
+      "label": "Dec",
+      "year": 2025,
+      "month": 12,
+      "name": "Silt Classification — December 2025",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-dec.kml",
+      "overlay": "/data/hydrology/silt/classification/2025-12/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2025-12/legend.png"
+    },
+    {
       "id": "2026-01",
-      "label": "Jan 2026",
+      "label": "Jan",
       "year": 2026,
       "month": 1,
-      "name": "Silt Classification - January 2026",
+      "name": "Silt Classification — January 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "Jan_2026_Silt_Classification.kmz"
+      "source": "class-jan.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-01/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-01/legend.png"
     },
     {
       "id": "2026-02",
-      "label": "Feb 2026",
+      "label": "Feb",
       "year": 2026,
       "month": 2,
-      "name": "Silt Classification - February 2026",
+      "name": "Silt Classification — February 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "Feb_2026_Silt_Classification.kmz"
+      "source": "class-feb.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-02/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-02/legend.png"
     },
     {
       "id": "2026-03",
-      "label": "Mar 2026",
+      "label": "Mar",
       "year": 2026,
       "month": 3,
-      "name": "Silt Classification - March 2026",
+      "name": "Silt Classification — March 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "Mar_2026_Silt_Classification.kmz"
+      "source": "class-mar.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-03/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-03/legend.png"
     },
     {
       "id": "2026-04",
-      "label": "Apr 2026",
+      "label": "Apr",
       "year": 2026,
       "month": 4,
-      "name": "Silt Classification - April 2026",
+      "name": "Silt Classification — April 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "Apr_2026_Silt_Classification.kmz"
+      "source": "class-april.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-04/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-04/legend.png"
     },
     {
       "id": "2026-05",
-      "label": "May 2026",
+      "label": "May",
       "year": 2026,
       "month": 5,
-      "name": "Silt Classification - May 2026",
+      "name": "Silt Classification — May 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "May_2026_Silt_Classification.kmz"
+      "source": "class-may.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-05/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-05/legend.png"
     },
     {
       "id": "2026-06",
-      "label": "Jun 2026",
+      "label": "Jun",
       "year": 2026,
       "month": 6,
-      "name": "Silt Classification - June 2026",
+      "name": "Silt Classification — June 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "Jun_2026_Silt_Classification.kmz"
+      "source": "class-june.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-06/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-06/legend.png"
     },
     {
       "id": "2026-07",
-      "label": "Jul 2026",
+      "label": "Jul",
       "year": 2026,
       "month": 7,
-      "name": "Silt Classification - July 2026",
+      "name": "Silt Classification — July 2026",
       "bounds": {
-        "north": 18.547336008158936,
-        "south": 18.520745875748997,
-        "east": 73.99351130069769,
-        "west": 73.85490125235805
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
       },
-      "hasGround": true,
-      "placemarks": 0,
-      "source": "Jul_2026_Silt_Classification__1.kmz"
+      "source": "class-jully.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-07/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-07/legend.png"
+    },
+    {
+      "id": "2026-08",
+      "label": "Aug",
+      "year": 2026,
+      "month": 8,
+      "name": "Silt Classification — August 2026",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-aug.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-08/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-08/legend.png"
+    },
+    {
+      "id": "2026-09",
+      "label": "Sep",
+      "year": 2026,
+      "month": 9,
+      "name": "Silt Classification — September 2026",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-sep.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-09/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-09/legend.png"
+    },
+    {
+      "id": "2026-10",
+      "label": "Oct",
+      "year": 2026,
+      "month": 10,
+      "name": "Silt Classification — October 2026",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-oct.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-10/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-10/legend.png"
+    },
+    {
+      "id": "2026-11",
+      "label": "Nov",
+      "year": 2026,
+      "month": 11,
+      "name": "Silt Classification — November 2026",
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      },
+      "source": "class-nov.kml",
+      "overlay": "/data/hydrology/silt/classification/2026-11/overlay.png",
+      "legend": "/data/hydrology/silt/classification/2026-11/legend.png"
     }
   ]
 }

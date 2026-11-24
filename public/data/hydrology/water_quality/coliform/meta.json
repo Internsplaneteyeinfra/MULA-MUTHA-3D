@@ -1,0 +1,32 @@
+{
+  "id": "water_quality_coliform",
+  "name": "Coliform",
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/coliform_ecoli_class.kml",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "overlay": "/data/hydrology/water_quality/coliform/overlay.png",
+  "legendClasses": [
+    {
+      "color": "#2c7bb6",
+      "label": "Good (<= 250 CFU/100 ml (relative))"
+    },
+    {
+      "color": "#91cf60",
+      "label": "Moderate (260 - 500 (relative))"
+    },
+    {
+      "color": "#fdae61",
+      "label": "High (500 - 2000 (relative))"
+    },
+    {
+      "color": "#d7191c",
+      "label": "Highly risk (> 2000 (relative))"
+    }
+  ],
+  "updated": "2026-11-11"
+}

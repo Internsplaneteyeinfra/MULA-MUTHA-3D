@@ -1,0 +1,14 @@
+{
+  "id": "2025-04",
+  "year": 2025,
+  "month": 4,
+  "name": "Silt Classification — April 2025",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "source": "class-april.kml",
+  "kind": "classification"
+}

@@ -15,15 +15,9 @@ import { SURFACE_Y } from "./river.js";
 import { applyDrapeDepth } from "./drapeDepth.js";
 import { createPollutionGarbageLayer } from "./pollutionGarbageLayer.js";
 /** Bundled asset — Vite always serves this (public/data new files can 404 as HTML). */
-import bankErosionOverlayUrl from "../assets/hydrology/bank_erosion_overlay.png";
 import bankErosionLegendUrl from "../assets/hydrology/bank_erosion_legend.png";
-/** Chlorophyll-a polygons — exact copy of src/data/NDCI.kml */
-import ndciKmlUrl from "../assets/hydrology/NDCI.kml?url";
-/** Salinity ground overlay — exact extract of src/data/salinity.kmz */
-import salinityOverlayUrl from "../assets/hydrology/salinity_overlay.png";
+/** Salinity / TSS legend PNGs (class chips use legendClasses; these remain optional). */
 import salinityLegendUrl from "../assets/hydrology/salinity_legend.png";
-/** TSS ground overlay — exact extract of src/data/TSS.kmz */
-import tssOverlayUrl from "../assets/hydrology/tss_overlay.png";
 import tssLegendUrl from "../assets/hydrology/tss_legend.png";
 import { LITHOLOGY_CLASSES } from "../ui/components/geologyWorkspace.js";
 import {
@@ -37,15 +31,31 @@ import {
   CHLOROPHYLL_CLASSES,
   SALINITY_CLASSES,
   TSS_CLASSES,
+  COLIFORM_CLASSES,
+  EUTROPHICATION_CLASSES,
+  NITROGEN_RISK_CLASSES,
 } from "../geo/waterQualityClasses.js";
+import {
+  SILT_CLASS_PERIODS as GENERATED_SILT_CLASS_PERIODS,
+  SILT_VOLUME_PERIODS as GENERATED_SILT_VOLUME_PERIODS,
+  SILT_CLASS_DEFAULT_PERIOD,
+  SILT_VOLUME_DEFAULT_PERIOD,
+} from "../data/siltPeriods.generated.js";
 
 const CONFIG_URL = "/data/hydrology/hydrologyConfig.json";
-const CONFIG_VERSION = 25;
+const CONFIG_VERSION = 28;
+
+/** Shared LatLonBox from JalNetra WQ / pollution GroundOverlays (2026-11-11). */
+const JALNETRA_WQ_BOUNDS = {
+  north: 18.54727939,
+  south: 18.5207626,
+  east: 73.99343968,
+  west: 73.85496516,
+};
 
 const POLYGON_LAYER_IDS = new Set([
   "water_quality_ndwi",
   "water_quality_wst",
-  "water_quality_ndci",
   "landuse_lulc",
 ]);
 
@@ -56,6 +66,23 @@ const DRAPED_CLASS_LAYER_IDS = new Set([
   "vegetation_health",
   "salinity",
   "water_quality_tss",
+  "water_quality_ndci",
+  "water_quality_coliform",
+  "pollution_eutrophication",
+  "pollution_nitrogen",
+]);
+
+/** Draped overlays that use createLandUseSampler for pointer hover class tips. */
+const LANDUSE_HOVER_SAMPLE_IDS = new Set([
+  "landuse_lulc",
+  "silt_classification",
+  "silt_volume_surface",
+  "salinity",
+  "water_quality_tss",
+  "vegetation_extent",
+  "vegetation_health",
+  "pollution_eutrophication",
+  "pollution_nitrogen",
 ]);
 
 const VEGETATION_EXTENT_CLASSES = [
@@ -179,15 +206,7 @@ export const SILT_CLASS_CLASSES = [
   { id: "very_high", label: "Very High", color: "#991B1B" },
 ];
 
-export const SILT_CLASS_PERIODS = [
-  { id: "2026-01", label: "Jan", year: 2026, month: 1, overlay: "/data/hydrology/silt/classification/2026-01/overlay.png", legend: "/data/hydrology/silt/classification/2026-01/legend.png" },
-  { id: "2026-02", label: "Feb", year: 2026, month: 2, overlay: "/data/hydrology/silt/classification/2026-02/overlay.png", legend: "/data/hydrology/silt/classification/2026-02/legend.png" },
-  { id: "2026-03", label: "Mar", year: 2026, month: 3, overlay: "/data/hydrology/silt/classification/2026-03/overlay.png", legend: "/data/hydrology/silt/classification/2026-03/legend.png" },
-  { id: "2026-04", label: "Apr", year: 2026, month: 4, overlay: "/data/hydrology/silt/classification/2026-04/overlay.png", legend: "/data/hydrology/silt/classification/2026-04/legend.png" },
-  { id: "2026-05", label: "May", year: 2026, month: 5, overlay: "/data/hydrology/silt/classification/2026-05/overlay.png", legend: "/data/hydrology/silt/classification/2026-05/legend.png" },
-  { id: "2026-06", label: "Jun", year: 2026, month: 6, overlay: "/data/hydrology/silt/classification/2026-06/overlay.png", legend: "/data/hydrology/silt/classification/2026-06/legend.png" },
-  { id: "2026-07", label: "Jul", year: 2026, month: 7, overlay: "/data/hydrology/silt/classification/2026-07/overlay.png", legend: "/data/hydrology/silt/classification/2026-07/legend.png" },
-];
+export const SILT_CLASS_PERIODS = GENERATED_SILT_CLASS_PERIODS;
 
 /** Continuous silt volume surface (YlOrBr, fixed 0–94.31 scale). Same LatLonBox as classification. */
 const SILT_VOLUME_BOUNDS = { ...SILT_CLASS_BOUNDS };
@@ -202,15 +221,7 @@ const SILT_VOLUME_CLASSES = [
   { id: "v100", label: "94.3 m³", color: "#993404", value: SILT_VOLUME_MAX, range: "high" },
 ];
 
-export const SILT_VOLUME_PERIODS = [
-  { id: "2026-01", label: "Jan", year: 2026, month: 1, overlay: "/data/hydrology/silt/volume/2026-01/overlay.png", legend: "/data/hydrology/silt/volume/2026-01/legend.png" },
-  { id: "2026-02", label: "Feb", year: 2026, month: 2, overlay: "/data/hydrology/silt/volume/2026-02/overlay.png", legend: "/data/hydrology/silt/volume/2026-02/legend.png" },
-  { id: "2026-03", label: "Mar", year: 2026, month: 3, overlay: "/data/hydrology/silt/volume/2026-03/overlay.png", legend: "/data/hydrology/silt/volume/2026-03/legend.png" },
-  { id: "2026-04", label: "Apr", year: 2026, month: 4, overlay: "/data/hydrology/silt/volume/2026-04/overlay.png", legend: "/data/hydrology/silt/volume/2026-04/legend.png" },
-  { id: "2026-05", label: "May", year: 2026, month: 5, overlay: "/data/hydrology/silt/volume/2026-05/overlay.png", legend: "/data/hydrology/silt/volume/2026-05/legend.png" },
-  { id: "2026-06", label: "Jun", year: 2026, month: 6, overlay: "/data/hydrology/silt/volume/2026-06/overlay.png", legend: "/data/hydrology/silt/volume/2026-06/legend.png" },
-  { id: "2026-07", label: "Jul", year: 2026, month: 7, overlay: "/data/hydrology/silt/volume/2026-07/overlay.png", legend: "/data/hydrology/silt/volume/2026-07/legend.png" },
-];
+export const SILT_VOLUME_PERIODS = GENERATED_SILT_VOLUME_PERIODS;
 
 /** Hardcoded fallbacks so Bank Erosion / Silt / Chlorophyll work even if an old config is cached. */
 const BUILTIN_LAYER_DEFS = {
@@ -218,17 +229,45 @@ const BUILTIN_LAYER_DEFS = {
     id: "water_quality_ndci",
     name: "Chlorophyll-a",
     available: true,
-    type: "kmlPolygons",
+    type: "groundOverlay",
     crs: "EPSG:4326",
-    data: ndciKmlUrl,
-    source: "src/data/NDCI.kml",
-    opacity: 0.88,
-    liftM: 0.65,
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/water_quality/ndci/overlay.png",
+    meta: "/data/hydrology/water_quality/ndci/meta.json",
+    source: "src/jalnetra kml/chlorophyl.kml",
+    opacity: 1,
+    gridSegments: 128,
+    liftM: 0.55,
+    flipU: false,
+    flipV: true,
     legendTitle: "Chlorophyll-a",
-    legendSubtitle: "2 classes · µg/L · src/data/NDCI.kml",
-    unit: "µg/L",
+    legendSubtitle: "2 classes · NDCI proxy · 2026-11-11",
+    unit: "",
     classes: CHLOROPHYLL_CLASSES,
-    renderType: "terrainDrapedPolygonsMergedByClass",
+    legendClasses: CHLOROPHYLL_CLASSES,
+    renderType: "terrainDrapedTexture",
+  },
+  water_quality_coliform: {
+    id: "water_quality_coliform",
+    name: "Coliform",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/water_quality/coliform/overlay.png",
+    meta: "/data/hydrology/water_quality/coliform/meta.json",
+    source: "src/jalnetra kml/coliform_ecoli_class.kml",
+    opacity: 1,
+    gridSegments: 128,
+    liftM: 0.55,
+    flipU: false,
+    flipV: true,
+    legendTitle: "Coliform",
+    legendSubtitle: "E. coli class · relative · 2026-11-11",
+    unit: "CFU/100 ml",
+    classes: COLIFORM_CLASSES,
+    legendClasses: COLIFORM_CLASSES,
+    renderType: "terrainDrapedTexture",
   },
   salinity: {
     id: "salinity",
@@ -236,24 +275,19 @@ const BUILTIN_LAYER_DEFS = {
     available: true,
     type: "groundOverlay",
     crs: "EPSG:4326",
-    bounds: {
-      north: 18.5621806682,
-      south: 18.509269898,
-      east: 73.9940952056,
-      west: 73.8527902114,
-    },
-    overlay: salinityOverlayUrl,
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/water_quality/salinity/overlay.png",
     legend: salinityLegendUrl,
     meta: "/data/hydrology/water_quality/salinity/meta.json",
-    source: "src/data/salinity.kmz",
+    source: "src/jalnetra kml/relative_salinity.kml",
     opacity: 1,
     gridSegments: 128,
     liftM: 0.55,
     flipU: false,
     flipV: true,
     legendTitle: "Salinity",
-    legendSubtitle: "5 classes · ppt",
-    unit: "ppt",
+    legendSubtitle: "5 classes · relative 0–1 · 2026-11-11",
+    unit: "",
     classes: SALINITY_CLASSES,
     legendClasses: SALINITY_CLASSES,
     renderType: "terrainDrapedTexture",
@@ -264,26 +298,65 @@ const BUILTIN_LAYER_DEFS = {
     available: true,
     type: "groundOverlay",
     crs: "EPSG:4326",
-    bounds: {
-      north: 18.548421173,
-      south: 18.5193301309,
-      east: 73.9941221551,
-      west: 73.853726256,
-    },
-    overlay: tssOverlayUrl,
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/water_quality/tss/overlay.png",
     legend: tssLegendUrl,
     meta: "/data/hydrology/water_quality/tss/meta.json",
-    source: "src/data/TSS.kmz",
+    source: "src/jalnetra kml/tss.kml",
     opacity: 1,
     gridSegments: 128,
     liftM: 0.55,
     flipU: false,
     flipV: true,
     legendTitle: "TSS",
-    legendSubtitle: "3 classes · mg/L · src/data/TSS.kmz",
-    unit: "mg/L",
+    legendSubtitle: "3 classes · spectral proxy · 2026-11-11",
+    unit: "",
     classes: TSS_CLASSES,
     legendClasses: TSS_CLASSES,
+    renderType: "terrainDrapedTexture",
+  },
+  pollution_eutrophication: {
+    id: "pollution_eutrophication",
+    name: "EUTROPHICATION",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/pollution/eutrophication/overlay.png",
+    meta: "/data/hydrology/pollution/eutrophication/meta.json",
+    source: "src/jalnetra kml/eutrophication_trophic_class.kml",
+    opacity: 1,
+    gridSegments: 128,
+    liftM: 0.55,
+    flipU: false,
+    flipV: true,
+    legendTitle: "Eutrophication",
+    legendSubtitle: "Trophic class · 2026-11-11",
+    unit: "µg/L",
+    classes: EUTROPHICATION_CLASSES,
+    legendClasses: EUTROPHICATION_CLASSES,
+    renderType: "terrainDrapedTexture",
+  },
+  pollution_nitrogen: {
+    id: "pollution_nitrogen",
+    name: "NITROGEN",
+    available: true,
+    type: "groundOverlay",
+    crs: "EPSG:4326",
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/pollution/nitrogen/overlay.png",
+    meta: "/data/hydrology/pollution/nitrogen/meta.json",
+    source: "src/jalnetra kml/Nitrogen mulamutha.kml",
+    opacity: 1,
+    gridSegments: 128,
+    liftM: 0.55,
+    flipU: false,
+    flipV: true,
+    legendTitle: "Nitrogen",
+    legendSubtitle: "High-nitrogen risk class · 2026-11-11",
+    unit: "",
+    classes: NITROGEN_RISK_CLASSES,
+    legendClasses: NITROGEN_RISK_CLASSES,
     renderType: "terrainDrapedTexture",
   },
   bank_erosion: {
@@ -292,16 +365,11 @@ const BUILTIN_LAYER_DEFS = {
     available: true,
     type: "groundOverlay",
     crs: "EPSG:4326",
-    bounds: {
-      north: 18.54742583968735,
-      south: 18.520745875749,
-      east: 73.9935113006977,
-      west: 73.85472158930123,
-    },
-    overlay: bankErosionOverlayUrl,
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/bank_erosion/overlay.png",
     legend: bankErosionLegendUrl,
     meta: "/data/hydrology/bank_erosion/meta.json",
-    source: "Smoth kmls/bank_erosion_hotspot_smoothed.kmz",
+    source: "src/jalnetra kml/bank_erosion_hotspots_2016_2026.kml",
     opacity: 1,
     gridSegments: 144,
     liftM: 1.6,
@@ -309,13 +377,13 @@ const BUILTIN_LAYER_DEFS = {
     flipV: true,
     renderType: "terrainDrapedTexture",
     legendTitle: "Bank erosion hotspots",
-    legendSubtitle: "2016–2026 smoothed continuous overlay.",
+    legendSubtitle: "2016–2026 · JalNetra 2026-11-11",
     legendClasses: [
-      { id: "none", label: "No erosion", color: "#90EE90", pct: "83.1%" },
-      { id: "low", label: "Low erosion", color: "#FFFF00", pct: "15.5%" },
-      { id: "moderate", label: "Moderate erosion", color: "#FFA500", pct: "1.4%" },
-      { id: "high", label: "High erosion", color: "#FF0000", pct: "0%" },
-      { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%" },
+      { id: "none", label: "No / Very Low Erosion", color: "#90EE90", range: "0" },
+      { id: "low", label: "Low Erosion", color: "#FFFF00", range: "1–2" },
+      { id: "moderate", label: "Moderate Erosion", color: "#FFA500", range: "3–4" },
+      { id: "high", label: "High Erosion", color: "#FF0000", range: "5–7" },
+      { id: "very_high", label: "Very High Erosion", color: "#800000", range: "8+" },
     ],
   },
   silt_classification: {
@@ -324,13 +392,13 @@ const BUILTIN_LAYER_DEFS = {
     available: true,
     type: "siltClassificationPeriods",
     crs: "EPSG:4326",
-    defaultPeriod: "2026-07",
+    defaultPeriod: SILT_CLASS_DEFAULT_PERIOD,
     opacity: 1,
     liftM: 1.4,
     gridSegments: 128,
     legendTitle: "Silt Classification",
-    legendSubtitle: "Discrete silt classes · Jan–Jul 2026 KMZ",
-    source: "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
+    legendSubtitle: "Discrete silt classes · 2021–2026 monthly",
+    source: "River-I-slit Classification KMLs",
     bounds: SILT_CLASS_BOUNDS,
     classes: SILT_CLASS_CLASSES,
     periods: SILT_CLASS_PERIODS,
@@ -342,13 +410,13 @@ const BUILTIN_LAYER_DEFS = {
     available: true,
     type: "siltVolumePeriods",
     crs: "EPSG:4326",
-    defaultPeriod: "2026-07",
+    defaultPeriod: SILT_VOLUME_DEFAULT_PERIOD,
     opacity: 1,
     liftM: 1.5,
     gridSegments: 128,
     legendTitle: "Silt Volume Surface",
-    legendSubtitle: "Volume surface · fixed 0–94.31 · Jan–Jul 2026 KMZ",
-    source: "src/data/Jan_2026_to_Jun_2026_Silt_Classification",
+    legendSubtitle: "Volume surface · fixed 0–94.31 · 2021–2026 monthly",
+    source: "River-I-slit Volume KMLs",
     bounds: SILT_VOLUME_BOUNDS,
     classes: SILT_VOLUME_CLASSES,
     periods: SILT_VOLUME_PERIODS,
@@ -451,6 +519,10 @@ export function createHydrologyLayer(dataset) {
     silt_volume_surface: { mesh: null, loaded: false, loading: null, sampler: null },
     salinity: { mesh: null, loaded: false, loading: null, sampler: null },
     water_quality_tss: { mesh: null, loaded: false, loading: null, sampler: null },
+    water_quality_ndci: { mesh: null, loaded: false, loading: null, sampler: null },
+    water_quality_coliform: { mesh: null, loaded: false, loading: null, sampler: null },
+    pollution_eutrophication: { mesh: null, loaded: false, loading: null, sampler: null },
+    pollution_nitrogen: { mesh: null, loaded: false, loading: null, sampler: null },
     vegetation_extent: { mesh: null, loaded: false, loading: null, sampler: null },
     vegetation_health: { mesh: null, loaded: false, loading: null, sampler: null },
   };
@@ -459,8 +531,8 @@ export function createHydrologyLayer(dataset) {
   /** Active LULC year (2021–2026). */
   let lulcYear = 2026;
   /** Active silt classification period id (YYYY-MM). Default = most recent. */
-  let siltClassPeriod = SILT_CLASS_PERIODS[SILT_CLASS_PERIODS.length - 1].id;
-  let siltVolumePeriod = SILT_VOLUME_PERIODS[SILT_VOLUME_PERIODS.length - 1].id;
+  let siltClassPeriod = SILT_CLASS_DEFAULT_PERIOD || SILT_CLASS_PERIODS[SILT_CLASS_PERIODS.length - 1]?.id;
+  let siltVolumePeriod = SILT_VOLUME_DEFAULT_PERIOD || SILT_VOLUME_PERIODS[SILT_VOLUME_PERIODS.length - 1]?.id;
   /** Detected garbage pins (pollution layer). */
   const pollutionGarbage = createPollutionGarbageLayer({ stations });
   group.add(pollutionGarbage);
@@ -590,18 +662,14 @@ export function createHydrologyLayer(dataset) {
         slot.sampler = await createGeologySampler(def).catch(() => null);
       }
       if (
-        (id === "landuse_lulc" ||
-          id === "silt_classification" ||
-          id === "silt_volume_surface" ||
-          id === "salinity" ||
-          id === "water_quality_tss" ||
-          id === "vegetation_extent" ||
-          id === "vegetation_health") &&
+        LANDUSE_HOVER_SAMPLE_IDS.has(id) &&
         (!slot.sampler ||
           ((id === "landuse_lulc" ||
             id === "silt_classification" ||
             id === "vegetation_extent" ||
-            id === "vegetation_health") &&
+            id === "vegetation_health" ||
+            id === "pollution_eutrophication" ||
+            id === "pollution_nitrogen") &&
             !slot.sampler.coverageByLabel))
       ) {
         slot.sampler = await createLandUseSampler(def, id).catch((err) => {
@@ -656,14 +724,20 @@ export function createHydrologyLayer(dataset) {
         version: GEO_UV_VERSION,
         // Classification: nearest keeps only legend class colors.
         // Volume / continuous salinity/TSS ramp: linear softens.
-        nearest: id === "landuse_lulc" || id === "silt_classification",
+        nearest:
+          id === "landuse_lulc" ||
+          id === "silt_classification" ||
+          id === "pollution_eutrophication" ||
+          id === "pollution_nitrogen",
         highContrast:
           id === "bank_erosion" ||
           id === "landuse_lulc" ||
           id === "silt_classification" ||
           id === "silt_volume_surface" ||
           id === "salinity" ||
-          id === "water_quality_tss",
+          id === "water_quality_tss" ||
+          id === "pollution_eutrophication" ||
+          id === "pollution_nitrogen",
         animateBankErosion: id === "bank_erosion",
       });
 
@@ -686,15 +760,7 @@ export function createHydrologyLayer(dataset) {
           slot.sampler = null;
         }
       }
-      if (
-        id === "landuse_lulc" ||
-        id === "silt_classification" ||
-        id === "silt_volume_surface" ||
-        id === "salinity" ||
-        id === "water_quality_tss" ||
-        id === "vegetation_extent" ||
-        id === "vegetation_health"
-      ) {
+      if (LANDUSE_HOVER_SAMPLE_IDS.has(id)) {
         try {
           slot.sampler = await createLandUseSampler(def, id);
         } catch (err) {
@@ -1100,6 +1166,9 @@ export function createHydrologyLayer(dataset) {
       };
     });
     const periods = getSiltPeriods(def);
+    const years = [...new Set(periods.map((p) => Number(p.year)).filter(Number.isFinite))].sort(
+      (a, b) => a - b,
+    );
     return {
       type: "classes",
       title: def.legendTitle || def.name || "Silt Classification",
@@ -1111,7 +1180,10 @@ export function createHydrologyLayer(dataset) {
         year: p.year,
         month: p.month,
       })),
+      years,
+      activeYear: Number(period.year) || null,
       activePeriod: period.id,
+      pickerMode: "yearMonth",
       layerId: "silt_classification",
       interactiveClasses: false,
     };
@@ -1129,7 +1201,7 @@ export function createHydrologyLayer(dataset) {
     }
     // Always open on most recent period unless switching
     if (!opts.keepSelection) {
-      siltClassPeriod = periods[periods.length - 1].id;
+      siltClassPeriod = def.defaultPeriod || periods[periods.length - 1].id;
     }
     const period = resolveSiltPeriodEntry(def, siltClassPeriod) || periods[periods.length - 1];
     siltClassPeriod = period.id;
@@ -1222,6 +1294,9 @@ export function createHydrologyLayer(dataset) {
       range: c.range,
     }));
     const periods = getSiltVolumePeriods(def);
+    const years = [...new Set(periods.map((p) => Number(p.year)).filter(Number.isFinite))].sort(
+      (a, b) => a - b,
+    );
     return {
       type: "classes",
       title: def.legendTitle || def.name || "Silt Volume Surface",
@@ -1233,7 +1308,10 @@ export function createHydrologyLayer(dataset) {
         year: p.year,
         month: p.month,
       })),
+      years,
+      activeYear: Number(period.year) || null,
       activePeriod: period.id,
+      pickerMode: "yearMonth",
       layerId: "silt_volume_surface",
       imageUrl: period.legend || null,
     };
@@ -1250,7 +1328,7 @@ export function createHydrologyLayer(dataset) {
       };
     }
     if (!opts.keepSelection) {
-      siltVolumePeriod = periods[periods.length - 1].id;
+      siltVolumePeriod = def.defaultPeriod || periods[periods.length - 1].id;
     }
     const period = resolveSiltVolumePeriodEntry(def, siltVolumePeriod) || periods[periods.length - 1];
     siltVolumePeriod = period.id;
@@ -1554,13 +1632,9 @@ export function createHydrologyLayer(dataset) {
       return sampleGeologyAt(x, z);
     }
     if (
-      activeId === "landuse_lulc" ||
-      activeId === "silt_classification" ||
-      activeId === "silt_volume_surface" ||
-      activeId === "salinity" ||
-      activeId === "water_quality_tss" ||
-      activeId === "vegetation_extent" ||
-      activeId === "vegetation_health"
+      LANDUSE_HOVER_SAMPLE_IDS.has(activeId) ||
+      activeId === "water_quality_ndci" ||
+      activeId === "water_quality_coliform"
     ) {
       return sampleLandUseAt(x, z);
     }
@@ -1624,18 +1698,10 @@ export function createHydrologyLayer(dataset) {
     };
   }
 
-  /** Sample LULC / silt / vegetation class under the pointer for hover tooltips. */
+  /** Sample LULC / silt / vegetation / pollution class under the pointer for hover tooltips. */
   function sampleLandUseAt(x, z) {
     const id = activeId;
-    if (
-      id !== "landuse_lulc" &&
-      id !== "silt_classification" &&
-      id !== "silt_volume_surface" &&
-      id !== "salinity" &&
-      id !== "water_quality_tss" &&
-      id !== "vegetation_extent" &&
-      id !== "vegetation_health"
-    ) {
+    if (!LANDUSE_HOVER_SAMPLE_IDS.has(id)) {
       return null;
     }
     const slot = drapedOverlays[id];
@@ -1676,7 +1742,11 @@ export function createHydrologyLayer(dataset) {
               ? "SALINITY"
               : id === "water_quality_tss"
                 ? "TSS"
-                : "SILT CLASS",
+                : id === "pollution_eutrophication"
+                  ? "Eutrophication"
+                  : id === "pollution_nitrogen"
+                    ? "Nitrogen"
+                    : "SILT CLASS",
     };
   }
 

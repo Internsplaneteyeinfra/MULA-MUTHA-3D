@@ -1,0 +1,15 @@
+{
+  "id": "pollution_foam",
+  "name": "River foam",
+  "type": "groundOverlay",
+  "source": "src/jalnetra kml/river_foam.kml",
+  "bounds": {
+    "north": 18.54727939,
+    "south": 18.5207626,
+    "east": 73.99343968,
+    "west": 73.85496516
+  },
+  "overlay": "/data/hydrology/pollution/foam/overlay.png",
+  "legendClasses": [],
+  "updated": "2026-11-11"
+}
