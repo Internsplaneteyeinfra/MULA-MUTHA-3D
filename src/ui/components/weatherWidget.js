@@ -1,14 +1,15 @@
 import { CloudSun } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { fetchWeatherAt } from "../../services/weatherService.js";
-import { loadBodCodPixels, lookupBodCodAt } from "../../services/bodCodPixelService.js";
+import { lookupBodCodAt } from "../../services/bodCodPixelService.js";
+import { fetchBodCodViewerData, sampleTodayAtMeters } from "../../services/bodCodService.js";
 import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
 import { mountWeatherOverview } from "../../weather/WeatherOverview.js";
 import { state } from "../../state.js";
 
 /**
  * Top-right LIVE WEATHER + always-on BOD/COD + chainage-local modelled discharge.
- * BOD/COD come from main-stream pixel samples (no map layer) at the selected chainage.
+ * BOD/COD prefer the daily API reach sample, with saved API/pixel values as fallbacks.
  * Weather icon opens Open-Meteo past/future detail graphs.
  */
 export function mountWeatherWidget(root) {
@@ -19,7 +20,7 @@ export function mountWeatherWidget(root) {
     <button type="button" class="weather-icon" id="weather-icon-btn" title="Open live weather details" aria-label="Open live weather details">
       ${lucideHtml(CloudSun, { size: 18 })}
     </button>
-    <div class="weather-wq" aria-label="Modelled discharge, BOD and COD at selected chainage">
+    <div class="weather-wq" aria-label="Discharge, BOD and COD at selected chainage">
       <div class="weather-wq-head">RIVER REACH</div>
       <div class="weather-wq-row is-q">
         <i data-short="DISCHARGE">Discharge</i>
@@ -103,33 +104,49 @@ export function mountWeatherWidget(root) {
   const timer = window.setInterval(update, 1000);
 
   async function renderBodCod() {
-    const lat = lastPoint?.lat;
-    const lon = lastPoint?.lon;
+    const meters =
+      lastMeters ??
+      (Number.isFinite(state.selectedChainageMeters) ? state.selectedChainageMeters : 0);
     const serial = ++bodLookupSerial;
-    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
-      bodEl.textContent = "—";
-      codEl.textContent = "—";
-      bodEl.title = codEl.title = "";
-      return;
+
+    async function showPixelFallback(reason) {
+      const hit = await lookupBodCodAt(lastPoint?.lat, lastPoint?.lon);
+      if (serial !== bodLookupSerial) return true;
+      if (!hit) return false;
+      bodEl.textContent = formatMetricNumber(hit.bod, 2);
+      codEl.textContent = formatMetricNumber(hit.cod, 2);
+      bodEl.title = codEl.title =
+        `${reason} · bundled last-known pixel · ${hit.lat.toFixed(5)}, ${hit.lon.toFixed(5)}`;
+      return true;
     }
+
     try {
-      const hit = await lookupBodCodAt(lat, lon);
+      const data = await fetchBodCodViewerData();
       if (serial !== bodLookupSerial) return;
+      const hit = sampleTodayAtMeters(data, meters, window.__MM_SCENE__?.dataset);
       if (!hit) {
-        bodEl.textContent = "—";
-        codEl.textContent = "—";
-        bodEl.title = codEl.title = "No BOD/COD pixel near this chainage";
+        const shown = await showPixelFallback("No API value for this reach");
+        if (!shown && serial === bodLookupSerial) {
+          bodEl.title = codEl.title = "No new value; retaining the last available BOD/COD reading";
+        }
         return;
       }
       bodEl.textContent = formatMetricNumber(hit.bod, 2);
       codEl.textContent = formatMetricNumber(hit.cod, 2);
-      bodEl.title = codEl.title = `Main-stream pixel · ${hit.lat.toFixed(5)}, ${hit.lon.toFixed(5)}`;
+      const source =
+        data._source === "stale-cache"
+          ? "last saved API data"
+          : data._source === "cache"
+            ? "daily API cache"
+            : "live API";
+      bodEl.title = codEl.title = `JalNetra ${source} · ${hit.reachId} · ${hit.date}`;
     } catch (err) {
       if (serial !== bodLookupSerial) return;
       console.warn("[weather-wq]", err?.message || err);
-      bodEl.textContent = "—";
-      codEl.textContent = "—";
-      bodEl.title = codEl.title = "BOD/COD unavailable";
+      const shown = await showPixelFallback("API unavailable");
+      if (!shown && serial === bodLookupSerial) {
+        bodEl.title = codEl.title = "API unavailable; retaining the last available BOD/COD reading";
+      }
     }
   }
 
@@ -148,13 +165,51 @@ export function mountWeatherWidget(root) {
           : 0;
     const serial = ++dischargeSerial;
     try {
-      const q = await getLiveDischargeAtChainage(meters);
+      let q = null;
+      let title = `Discharge at chainage ${Math.round(meters)} m`;
+      try {
+        const { getCanonicalHydrology, setCanonicalSelectedMeters } = await import(
+          "../../services/hydrology/hydrologyCanonicalState.js"
+        );
+        await setCanonicalSelectedMeters(meters);
+        const c = getCanonicalHydrology();
+        const sel = c?.live?.selected_discharge;
+        if (sel && Number.isFinite(sel.value)) {
+          q = sel.value;
+          const age = sel.freshness?.label || "";
+          const qual = sel.quality || "LIVE";
+          title = `${qual} · NadiTwin · ${Math.round(meters)} m · ${age} · dam releases NOT modelled`;
+        }
+      } catch {
+        /* fall through to adapter */
+      }
+      if (!Number.isFinite(q)) {
+        try {
+          const { getNadiTwinDischargeAtChainage, getNadiTwinLiveBundle, refreshNadiTwinHydrology } =
+            await import("../../services/hydrology/naditwinHydrologyAdapter.js");
+          if (!getNadiTwinLiveBundle()) await refreshNadiTwinHydrology().catch(() => {});
+          const hit = getNadiTwinDischargeAtChainage(meters);
+          if (hit && Number.isFinite(hit.q_m3s)) {
+            q = hit.q_m3s;
+            const age = hit.freshness?.label || "";
+            title = `LIVE · NadiTwin · ${Math.round(meters)} m · ${age} · dam releases NOT modelled`;
+          }
+        } catch {
+          /* fall through */
+        }
+      }
+      if (!Number.isFinite(q)) {
+        q = await getLiveDischargeAtChainage(meters);
+        title = `FORECAST fallback (synthetic) at ${Math.round(meters)} m — not LIVE`;
+      }
       if (serial !== dischargeSerial) return;
       dischargeEl.textContent = formatMetricNumber(q, 1);
       if (dischargeUnitEl) dischargeUnitEl.hidden = !Number.isFinite(q);
-      dischargeEl.title = `Modelled discharge at chainage ${Math.round(meters)} m — not a gauge reading`;
+      dischargeEl.title = title;
       document.dispatchEvent(
-        new CustomEvent("chainage-discharge", { detail: { meters, q } }),
+        new CustomEvent("chainage-discharge", {
+          detail: { meters, q, source: /NadiTwin/.test(title) ? "NADITWIN_LIVE" : "FORECAST_FALLBACK" },
+        }),
       );
     } catch (err) {
       if (serial !== dischargeSerial) return;
@@ -220,8 +275,8 @@ export function mountWeatherWidget(root) {
   el.querySelector("#weather-icon-btn")?.addEventListener("click", openDetail);
   el.querySelector("#weather-open-detail")?.addEventListener("click", openDetail);
 
-  // Prefetch pixel samples + live Q so numbers appear on first chainage select
-  void loadBodCodPixels().catch(() => {});
+  // Load today's live reach data on startup; later chainage changes reuse the cached payload.
+  void renderBodCod();
   void renderDischarge();
 
   return {

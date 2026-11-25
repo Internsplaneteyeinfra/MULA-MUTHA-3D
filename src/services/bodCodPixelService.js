@@ -7,8 +7,8 @@
 
 const DATA_URL = "/data/main_bod_cod_pixels.json";
 
-/** Max search distance (~90 m) so centerline clicks still hit mid-channel pixels. */
-const MAX_DIST_DEG = 0.0008;
+/** Within one grid cell (~33 m) the 3×3 neighbourhood is guaranteed to hold the true nearest. */
+const NEAR_DIST_DEG = 0.0003;
 
 /** @type {{ lon:number, lat:number, bod:number, cod:number }[] | null} */
 let pixels = null;
@@ -84,10 +84,12 @@ export function loadBodCodPixels() {
 }
 
 /**
- * Nearest pixel BOD/COD at lon/lat. Returns null if none within ~35 m.
+ * Nearest pixel BOD/COD at lon/lat. Always returns the closest KML pixel that has a
+ * value (no distance cap), so gaps in the KML show the nearest captured reading.
+ * Returns null only when the pixel file itself can't be loaded.
  * @param {number} lat
  * @param {number} lon
- * @returns {Promise<{ bod:number, cod:number, lat:number, lon:number, distDeg:number } | null>}
+ * @returns {Promise<{ bod:number, cod:number, lat:number, lon:number, distDeg:number, distM:number } | null>}
  */
 export async function lookupBodCodAt(lat, lon) {
   const la = Number(lat);
@@ -104,31 +106,37 @@ export async function lookupBodCodAt(lat, lon) {
   const cx = Math.floor(lo / CELL);
   const cy = Math.floor(la / CELL);
   let best = null;
-  let bestD2 = MAX_DIST_DEG * MAX_DIST_DEG;
+  let bestD2 = Infinity;
+  const consider = (p) => {
+    const dlon = p.lon - lo;
+    const dlat = p.lat - la;
+    const d2 = dlon * dlon + dlat * dlat;
+    if (d2 < bestD2) {
+      bestD2 = d2;
+      best = p;
+    }
+  };
 
+  // Fast path: neighbouring grid cells (~90 m).
   for (let dx = -1; dx <= 1; dx++) {
     for (let dy = -1; dy <= 1; dy++) {
       const bucket = grid.get(`${cx + dx},${cy + dy}`);
-      if (!bucket) continue;
-      for (const i of bucket) {
-        const p = pixels[i];
-        const dlon = p.lon - lo;
-        const dlat = p.lat - la;
-        const d2 = dlon * dlon + dlat * dlat;
-        if (d2 < bestD2) {
-          bestD2 = d2;
-          best = p;
-        }
-      }
+      if (bucket) for (const i of bucket) consider(pixels[i]);
     }
+  }
+  // Gap in the KML (or far from it): scan everything for the true nearest pixel.
+  if (!best || bestD2 > NEAR_DIST_DEG * NEAR_DIST_DEG) {
+    for (const p of pixels) consider(p);
   }
 
   if (!best) return null;
+  const distDeg = Math.sqrt(bestD2);
   return {
     bod: best.bod,
     cod: best.cod,
     lat: best.lat,
     lon: best.lon,
-    distDeg: Math.sqrt(bestD2),
+    distDeg,
+    distM: Math.round(distDeg * 111_000),
   };
 }

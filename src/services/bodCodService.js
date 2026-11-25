@@ -21,14 +21,23 @@ const REQUEST_TIMEOUT_MS = 240_000;
 
 /** In-memory full payload (history is too large for localStorage). */
 let memoryCache = null;
-/** Shared in-flight requests: every caller awaits the same (slow) server round trip. */
-let inflightFetch = null;
+let memoryCacheSavedAt = 0;
+/** Share one server round trip for each viewer across all consumers. */
+const inflightFetches = new Map();
 let inflightRefresh = null;
 
-/** Viewer ids expire server-side within hours, so the payload itself is cached (IndexedDB, same day). */
+/** Viewer ids expire server-side within hours, so cache the payload until the next calendar day. */
 const IDB_NAME = "mm-bod-cod";
 const IDB_STORE = "payload";
-const CACHE_TTL_MS = 6 * 3600_000;
+const CACHE_TTL_MS = 24 * 3600_000;
+
+function isCacheFresh(savedAt) {
+  return (
+    Number.isFinite(savedAt) &&
+    Date.now() - savedAt <= CACHE_TTL_MS &&
+    new Date(savedAt).toDateString() === new Date().toDateString()
+  );
+}
 
 function idbOpen() {
   return new Promise((resolve, reject) => {
@@ -40,7 +49,7 @@ function idbOpen() {
   });
 }
 
-async function readCachedPayload() {
+async function readCachedPayload(allowStale = false) {
   try {
     const db = await idbOpen();
     const rec = await new Promise((resolve, reject) => {
@@ -50,21 +59,19 @@ async function readCachedPayload() {
     });
     db.close();
     if (!rec?.data?.reaches?.length) return null;
-    if (Date.now() - rec.savedAt > CACHE_TTL_MS) return null;
-    // "today" snapshot is per calendar day — never show yesterday's as today.
-    if (new Date(rec.savedAt).toDateString() !== new Date().toDateString()) return null;
-    return rec.data;
+    if (!allowStale && !isCacheFresh(rec.savedAt)) return null;
+    return rec;
   } catch {
     return null;
   }
 }
 
-async function writeCachedPayload(data) {
+async function writeCachedPayload(data, savedAt) {
   try {
     const db = await idbOpen();
     await new Promise((resolve, reject) => {
       const tx = db.transaction(IDB_STORE, "readwrite");
-      tx.objectStore(IDB_STORE).put({ savedAt: Date.now(), data }, "latest");
+      tx.objectStore(IDB_STORE).put({ savedAt, data }, "latest");
       tx.oncomplete = resolve;
       tx.onerror = () => reject(tx.error);
     });
@@ -79,40 +86,58 @@ async function writeCachedPayload(data) {
  * @returns {Promise<object>}
  */
 export function fetchBodCodViewerData(viewerId) {
-  if (viewerId) return loadBodCod(viewerId);
-  if (!inflightFetch) {
-    inflightFetch = loadBodCod().finally(() => {
-      inflightFetch = null;
+  const preferred = String(viewerId || readStoredViewerId() || DEFAULT_BOD_COD_VIEWER_ID).trim();
+  if (!inflightFetches.has(preferred)) {
+    const request = loadBodCod(preferred).finally(() => {
+      inflightFetches.delete(preferred);
     });
+    inflightFetches.set(preferred, request);
   }
-  return inflightFetch;
+  return inflightFetches.get(preferred);
 }
 
 async function loadBodCod(viewerId) {
-  const preferred =
-    String(viewerId || readStoredViewerId() || DEFAULT_BOD_COD_VIEWER_ID).trim();
+  const preferred = String(viewerId).trim();
 
-  if (memoryCache?.reaches?.length && (viewerId ? memoryCache._viewerId === preferred : true)) {
+  if (
+    memoryCache?.reaches?.length &&
+    isCacheFresh(memoryCacheSavedAt) &&
+    memoryCache._viewerId === preferred
+  ) {
     return memoryCache;
   }
 
-  if (!viewerId) {
-    const cached = await readCachedPayload();
-    if (cached) {
-      memoryCache = { ...cached, _viewerId: cached._viewerId || preferred, _source: "cache" };
-      return memoryCache;
-    }
+  const cached = await readCachedPayload();
+  if (cached && String(cached.data._viewerId || preferred) === preferred) {
+    memoryCache = { ...cached.data, _viewerId: preferred, _source: "cache" };
+    memoryCacheSavedAt = cached.savedAt;
+    return memoryCache;
   }
 
   try {
     const data = await fetchViewerData(preferred);
     return remember(data, preferred);
   } catch (err) {
+    let latestError = err;
     const msg = String(err?.message || err);
     const expired = /404|expired|not found|HTTP 404/i.test(msg);
-    if (!expired) throw err;
-    console.warn("[bod-cod] viewer expired — refreshing via KML POST", preferred);
-    return refreshBodCodFromKml();
+    if (expired) {
+      console.warn("[bod-cod] viewer expired — refreshing via KML POST", preferred);
+      try {
+        return await refreshBodCodFromKml();
+      } catch (refreshError) {
+        latestError = refreshError;
+      }
+    }
+
+    const stale = await readCachedPayload(true);
+    if (stale?.data?.reaches?.length) {
+      console.warn("[bod-cod] using last saved payload after live request failed:", latestError?.message || latestError);
+      memoryCache = { ...stale.data, _viewerId: preferred, _source: "stale-cache" };
+      memoryCacheSavedAt = Date.now();
+      return memoryCache;
+    }
+    throw latestError;
   }
 }
 
@@ -177,8 +202,9 @@ async function fetchViewerData(id) {
 
 function remember(data, viewerId) {
   memoryCache = { ...data, _viewerId: viewerId, _source: "live" };
+  memoryCacheSavedAt = Date.now();
   writeStoredViewerId(viewerId);
-  void writeCachedPayload(memoryCache);
+  void writeCachedPayload(memoryCache, memoryCacheSavedAt);
   return memoryCache;
 }
 
@@ -356,6 +382,25 @@ export function reachIndexAtMeters(data, meters, corridorLenM) {
     }
   }
   return best;
+}
+
+/** Current API "today" sample at a scene chainage. */
+export function sampleTodayAtMeters(data, meters, dataset) {
+  if (!data?.reaches?.length) return null;
+  const timeline = buildBodCodTimeline(data);
+  if (timeline.todayIndex < 0) return null;
+
+  const index = reachIndexAtMeters(data, meters, corridorLengthM(dataset));
+  if (index < 0) return null;
+  const reach = data.reaches[index];
+  const sample = sampleReachAt(reach, timeline.todayIndex, data, timeline);
+  if (!Number.isFinite(sample.p50) || !Number.isFinite(sample.cod_p50)) return null;
+  return {
+    bod: sample.p50,
+    cod: sample.cod_p50,
+    date: sample.date,
+    reachId: reach.id,
+  };
 }
 
 /** Snapshot all reaches at one time index (for ribbon + strip). */
