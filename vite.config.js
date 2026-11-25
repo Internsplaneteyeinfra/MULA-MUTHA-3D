@@ -3,6 +3,7 @@ import react from "@vitejs/plugin-react";
 import { createReadStream, existsSync, rmSync, statSync } from "node:fs";
 import { normalize, resolve, sep } from "node:path";
 import { rainfallApiPlugin } from "./scripts/rainfallApiMiddleware.mjs";
+import { naditwinApiPlugin } from "./scripts/naditwinApiMiddleware.mjs";
 
 /** The 35 MB film master is the recording source only; visitors stream the 1080p / 720p copies. */
 const dropFilmMaster = {
@@ -58,7 +59,13 @@ const base = process.env.VITE_BASE || "/";
 
 export default defineConfig({
   base,
-  plugins: [react(), dropFilmMaster, rainfallApiPlugin(), serveHydrologyOverlaysFromDisk()],
+  plugins: [
+    react(),
+    dropFilmMaster,
+    rainfallApiPlugin(),
+    naditwinApiPlugin(),
+    serveHydrologyOverlaysFromDisk(),
+  ],
   assetsInclude: ["**/*.kml"],
   server: {
     host: true,

@@ -1,0 +1,41 @@
+{
+  "title": "Margin Board — By Location",
+  "views": {
+    "locations": {
+      "endpoint": "/api/margins_locations?river=Mula-Mutha",
+      "historic": "/api/margins_locations?river=Mula-Mutha&at=<ISO>",
+      "expected_cards": 7
+    },
+    "chainage_1km": {
+      "endpoint": "/api/margins_chainage?river=Mula-Mutha&step_km=1",
+      "historic": "/api/margins_chainage?river=Mula-Mutha&step_km=1&at=<ISO>",
+      "expected_cards": 17
+    }
+  },
+  "location_cards": [
+    "Sangam → Bund Garden",
+    "Bund Garden → Dhanori",
+    "Dhanori → Wadgaon Sheri",
+    "Wadgaon Sheri → Hadapsar",
+    "Hadapsar → Mundhwa",
+    "Mundhwa → Kharadi",
+    "Kharadi → Manjari"
+  ],
+  "fields": [
+    "name", "from_km", "to_km", "label", "chainage_m",
+    "status", "margin_now_m", "q_now", "wse_now", "depth_now_m",
+    "levels.danger", "bank_height_m", "q_danger",
+    "peak_q_72h", "peak_stage_72h", "peak_in_h", "p_exceed_72h",
+    "rain_now_mmh", "rain_past_24h_mm", "rain_next_24h_mm", "basis"
+  ],
+  "provenance": {
+    "classification": "MODELLED / PROVISIONAL",
+    "phase8_safety_boards": "LOCKED",
+    "do_not": [
+      "Present SAFE as verified engineering safety",
+      "Unlock Phase 8 boards",
+      "Trigger emergency alerts from unverified margins",
+      "Show LIVE margins under a historical timestamp"
+    ]
+  }
+}

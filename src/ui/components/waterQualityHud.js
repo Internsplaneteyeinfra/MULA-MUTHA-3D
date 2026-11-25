@@ -7,53 +7,59 @@ import {
 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
+import { unitFor } from "../../geo/layerUnits.js";
 
 /**
  * Water Quality floating HUD — same icon-only chrome as Land Use.
- * Labels appear only on hover (CSS tooltips).
+ * Labels appear only on hover (CSS tooltips). Units = Mandovi RiverEye.
  *
  * Order: Salinity → TSS → Chlorophyll-a → Coliform → BOD–COD
  */
 export const WATER_QUALITY_OPTIONS = [
   {
     id: "salinity",
-    tip: "Salinity",
+    tip: `Salinity (${unitFor("salinity") || "ppt"})`,
     icon: Waves,
     tone: "wq-tone-salinity",
     layerId: "salinity",
     fallbackLayerId: null,
+    unit: unitFor("salinity") || "ppt",
   },
   {
     id: "tss",
-    tip: "TSS",
+    tip: `TSS / Turbidity (${unitFor("water_quality_tss") || "mg/L"})`,
     icon: FlaskConical,
     tone: "wq-tone-tss",
     layerId: "water_quality_tss",
     fallbackLayerId: null,
+    unit: unitFor("water_quality_tss") || "mg/L",
   },
   {
     id: "ndci",
-    tip: "Chlorophyll-a",
+    tip: `Chlorophyll-a / NDCI (${unitFor("water_quality_ndci") || "index"})`,
     icon: LeafyGreen,
     tone: "wq-tone-ndci",
     layerId: "water_quality_ndci",
     fallbackLayerId: null,
+    unit: unitFor("water_quality_ndci") || "index",
   },
   {
     id: "coliform",
-    tip: "Coliform",
+    tip: `Coliform / E. coli (${unitFor("water_quality_coliform") || "CFU/100 ml"})`,
     icon: Bug,
     tone: "wq-tone-coliform",
     layerId: "water_quality_coliform",
     fallbackLayerId: null,
+    unit: unitFor("water_quality_coliform") || "CFU/100 ml",
   },
   {
     id: "bod_cod",
-    tip: "BOD–COD / Organic Pollution",
+    tip: `BOD–COD (${unitFor("bod") || "mg/L"} · class A–E)`,
     icon: Hexagon,
     tone: "wq-tone-bod",
     layerId: "water_quality_bod_cod",
     fallbackLayerId: "water_quality",
+    unit: unitFor("bod") || "mg/L",
   },
 ];
 

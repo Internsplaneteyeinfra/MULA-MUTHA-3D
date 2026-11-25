@@ -1,0 +1,506 @@
+{
+  "startedAt": "2026-11-25T12:20:10.969Z",
+  "base": "http://localhost:5185",
+  "colourSpec": {
+    "danger": {
+      "bg": "#B3262D",
+      "border": "#FF6268"
+    },
+    "warning": {
+      "bg": "#D96B16",
+      "border": "#FFAA45"
+    },
+    "watch": {
+      "bg": "#C99A16",
+      "border": "#F5CD48"
+    },
+    "safe": {
+      "bg": "#238044",
+      "border": "#56C77A"
+    },
+    "unverified": {
+      "bg": "#3a4550",
+      "border": "#8a969f"
+    }
+  },
+  "checks": {
+    "liveSafe": {
+      "n": 7,
+      "statuses": [
+        "safe",
+        "safe",
+        "safe",
+        "safe",
+        "safe",
+        "safe",
+        "safe"
+      ],
+      "disclaimer": "MODELLED / PROVISIONAL · Phase 8 safety boards remain LOCKED",
+      "cards": [
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Sangam → Bund Garden",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        },
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Bund Garden → Dhanori",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        },
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Dhanori → Wadgaon Sheri",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        },
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Wadgaon Sheri → Hadapsar",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        },
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Hadapsar → Mundhwa",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        },
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Mundhwa → Kharadi",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        },
+        {
+          "status": "safe",
+          "badge": "SAFE",
+          "name": "Kharadi → Manjari",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "color": "rgb(255, 255, 255)",
+          "nameColor": "rgb(255, 255, 255)",
+          "labelColor": "rgba(255, 255, 255, 0.82)",
+          "valueColor": "rgb(255, 255, 255)",
+          "badgeBg": "rgb(200, 240, 214)",
+          "badgeColor": "rgb(15, 77, 40)",
+          "fieldCount": 16,
+          "labels": [
+            "Margin below danger",
+            "Discharge Q",
+            "River stage",
+            "Water depth",
+            "Danger level",
+            "Bank height",
+            "Q at danger",
+            "72 h peak Q",
+            "Forecast peak stage",
+            "Peak timing",
+            "Exceedance P72",
+            "Rain now",
+            "Rain past 24 h",
+            "Rain next 24 h",
+            "Most vulnerable CH",
+            "Basis"
+          ],
+          "h": 306
+        }
+      ]
+    },
+    "sevenCardsLive": true,
+    "liveAllSafe": true,
+    "liveFullGreen": true,
+    "liveBorderGreen": true,
+    "fieldsIntact": true,
+    "disclaimerPresent": true,
+    "whiteValues": true,
+    "closed": true,
+    "reopened": true,
+    "histDanger": {
+      "n": 7,
+      "statuses": [
+        "danger",
+        "danger",
+        "danger",
+        "danger",
+        "danger",
+        "danger",
+        "danger"
+      ],
+      "cards": [
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        },
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        },
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        },
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        },
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        },
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        },
+        {
+          "status": "danger",
+          "bg": "linear-gradient(165deg, rgb(197, 48, 54) 0%, rgb(179, 38, 45) 55%, rgb(158, 31, 37) 100%)",
+          "border": "rgb(255, 98, 104)",
+          "badge": "DANGER"
+        }
+      ]
+    },
+    "histAllDanger": true,
+    "histFullRed": true,
+    "histBorderRed": true,
+    "histWatchMix": {
+      "statuses": [
+        "safe",
+        "watch",
+        "watch",
+        "watch",
+        "safe",
+        "safe",
+        "watch"
+      ],
+      "cards": [
+        {
+          "status": "safe",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "badge": "SAFE"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "safe",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "badge": "SAFE"
+        },
+        {
+          "status": "safe",
+          "bg": "linear-gradient(165deg, rgb(42, 148, 82) 0%, rgb(35, 128, 68) 55%, rgb(28, 107, 56) 100%)",
+          "border": "rgb(86, 199, 122)",
+          "badge": "SAFE"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        }
+      ]
+    },
+    "hasWatch": true,
+    "watchFullYellow": true,
+    "watchBorderYellow": true,
+    "histWarningMix": {
+      "statuses": [
+        "watch",
+        "watch",
+        "watch",
+        "watch",
+        "watch",
+        "watch",
+        "warning"
+      ],
+      "cards": [
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "watch",
+          "bg": "linear-gradient(165deg, rgb(212, 169, 30) 0%, rgb(201, 154, 22) 55%, rgb(179, 137, 18) 100%)",
+          "border": "rgb(245, 205, 72)",
+          "badge": "WATCH"
+        },
+        {
+          "status": "warning",
+          "bg": "linear-gradient(165deg, rgb(232, 120, 32) 0%, rgb(217, 107, 22) 55%, rgb(194, 94, 18) 100%)",
+          "border": "rgb(255, 170, 69)",
+          "badge": "WARNING"
+        }
+      ]
+    },
+    "hasWarning": true,
+    "warningFullOrange": true,
+    "warningBorderOrange": true,
+    "unverified": {
+      "bg": "linear-gradient(165deg, rgb(90, 101, 112) 0%, rgb(58, 69, 80) 55%, rgb(47, 56, 64) 100%)",
+      "border": "rgb(138, 150, 159)",
+      "badge": "UNVERIFIED"
+    },
+    "unverifiedGrey": true,
+    "responsive1600": {
+      "cols": 4
+    },
+    "responsive780": {
+      "cols": 1
+    },
+    "liveGraphsIntact": {
+      "liveActive": true,
+      "order": [
+        "hip-g-discharge",
+        "hip-g-stage",
+        "hip-g-hydro"
+      ],
+      "hydroSvg": true
+    }
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "finishedAt": "2026-11-25T12:21:50.795Z",
+  "passSummary": {
+    "sevenCardsLive": true,
+    "liveAllSafe": true,
+    "liveFullGreen": true,
+    "liveBorderGreen": true,
+    "fieldsIntact": true,
+    "disclaimerPresent": true,
+    "whiteValues": true,
+    "closed": true,
+    "reopened": true,
+    "histAllDanger": true,
+    "histFullRed": true,
+    "histBorderRed": true,
+    "hasWatch": true,
+    "watchFullYellow": true,
+    "watchBorderYellow": true,
+    "hasWarning": true,
+    "warningFullOrange": true,
+    "warningBorderOrange": true,
+    "unverifiedGrey": true,
+    "liveGraphsIntact": true
+  },
+  "pass": true
+}

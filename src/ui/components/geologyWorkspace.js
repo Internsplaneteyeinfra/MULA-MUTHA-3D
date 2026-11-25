@@ -9,8 +9,14 @@ import {
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
 import { mountFocusThemeHud } from "../mapFocus.js";
-import { fetchStreamsBodCod, streamForDrainage } from "../../services/streamsBodCodService.js";
+import {
+  fetchStreamsBodCod,
+  peekStreamsBodCod,
+  streamBodCodForRecord,
+  streamForDrainage,
+} from "../../services/streamsBodCodService.js";
 import { formatMgL } from "../../services/bodCodService.js";
+import { unitFor } from "../../geo/layerUnits.js";
 
 /** Reference lithology classes — exact percentages; colors match geology overlay raster. */
 export const LITHOLOGY_CLASSES = [
@@ -18,6 +24,7 @@ export const LITHOLOGY_CLASSES = [
     id: "water",
     label: "Water",
     pct: "1.9%",
+    unit: unitFor("spectral_lithology") || "class · %",
     color: "#00F0F0",
     samples: [
       [0, 248, 248],
@@ -106,11 +113,40 @@ export const LITHOLOGY_CLASSES = [
 
 export const GEOLOGY_MODULES = [
   { id: "vehicle", label: "Vehicle", icon: Mountain, color: "#F97316", available: false },
-  { id: "spectral_lithology", label: "Spectral Lithology", icon: Activity, color: "#38BDF8", available: true },
-  { id: "bank_erosion", label: "Erosion", icon: LandPlot, color: "#F08070", available: true },
+  {
+    id: "spectral_lithology",
+    label: "Spectral Lithology",
+    icon: Activity,
+    color: "#38BDF8",
+    available: true,
+    unit: unitFor("spectral_lithology") || "class · %",
+  },
+  {
+    id: "bank_erosion",
+    label: "Erosion",
+    icon: LandPlot,
+    color: "#F08070",
+    available: true,
+    unit: unitFor("bank_erosion") || "class · %",
+  },
   { id: "joining_streams", label: "Joining Streams", icon: GitBranch, color: "#4ADE80", available: true },
-  { id: "main_stem", label: "Main Stem", icon: Sun, color: "#FACC15", available: true },
-  { id: "bathymetry", label: "Bathymetry", icon: Waves, color: "#7DD3FC", available: true, dashboard: true },
+  {
+    id: "main_stem",
+    label: "Main Stem",
+    icon: Sun,
+    color: "#FACC15",
+    available: true,
+    unit: unitFor("channel_width") || "m",
+  },
+  {
+    id: "bathymetry",
+    label: "Bathymetry",
+    icon: Waves,
+    color: "#7DD3FC",
+    available: true,
+    dashboard: true,
+    unit: unitFor("bathymetry") || "m",
+  },
 ];
 
 /**
@@ -119,29 +155,49 @@ export const GEOLOGY_MODULES = [
  * moduleId = existing activateModule() target.
  */
 const GEOLOGY_TOOLBAR = [
-  { moduleId: "spectral_lithology", tip: "Spectral Lithology", icon: Activity, color: "#38BDF8" },
-  { moduleId: "bank_erosion", tip: "Erosion", icon: LandPlot, color: "#F08070" },
+  {
+    moduleId: "spectral_lithology",
+    tip: `Spectral Lithology (${unitFor("spectral_lithology") || "class · %"})`,
+    icon: Activity,
+    color: "#38BDF8",
+  },
+  {
+    moduleId: "bank_erosion",
+    tip: `Erosion (${unitFor("bank_erosion") || "class · %"})`,
+    icon: LandPlot,
+    color: "#F08070",
+  },
   { moduleId: "joining_streams", tip: "Joining Streams", icon: GitBranch, color: "#4ADE80" },
-  { moduleId: "main_stem", tip: "Main Stem", icon: Sun, color: "#FACC15" },
-  { moduleId: "bathymetry", tip: "Bathymetry", icon: Waves, color: "#7DD3FC" },
+  {
+    moduleId: "main_stem",
+    tip: `Main Stem (width ${unitFor("channel_width") || "m"} · chainage ${unitFor("chainage") || "m"})`,
+    icon: Sun,
+    color: "#FACC15",
+  },
+  {
+    moduleId: "bathymetry",
+    tip: `Bathymetry (${unitFor("bathymetry") || "m"})`,
+    icon: Waves,
+    color: "#7DD3FC",
+  },
 ];
 
-/** Exact class scale from bank erosion hotspot product (2016–2026, smoothed). */
+/** Exact class scale from bank erosion hotspot product (2016–2026, smoothed). Coverage %. */
 export const BANK_EROSION_CLASSES = [
-  { id: "none", label: "No erosion", color: "#90EE90", pct: "83.1%" },
-  { id: "low", label: "Low erosion", color: "#FFFF00", pct: "15.5%" },
-  { id: "moderate", label: "Moderate erosion", color: "#FFA500", pct: "1.4%" },
-  { id: "high", label: "High erosion", color: "#FF0000", pct: "0%" },
-  { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%" },
+  { id: "none", label: "No erosion", color: "#90EE90", pct: "83.1%", unit: "class · %" },
+  { id: "low", label: "Low erosion", color: "#FFFF00", pct: "15.5%", unit: "class · %" },
+  { id: "moderate", label: "Moderate erosion", color: "#FFA500", pct: "1.4%", unit: "class · %" },
+  { id: "high", label: "High erosion", color: "#FF0000", pct: "0%", unit: "class · %" },
+  { id: "very_high", label: "Very high erosion", color: "#8B0000", pct: "0%", unit: "class · %" },
 ];
 
 /** Depth ramp of RIverDepth_mulamutha.kml (shallow → deep · 0.25–2.6 m). */
 export const BATHYMETRY_CLASSES = [
-  { id: "0.25-0.72", label: "0.25–0.72 m", color: "#48C0F3" },
-  { id: "0.72-1.19", label: "0.72–1.19 m", color: "#0083D4" },
-  { id: "1.19-1.66", label: "1.19–1.66 m", color: "#006CB4" },
-  { id: "1.66-2.13", label: "1.66–2.13 m", color: "#005085" },
-  { id: "2.13-2.60", label: "2.13–2.60 m", color: "#001F3E" },
+  { id: "0.25-0.72", label: "0.25–0.72 m", color: "#48C0F3", unit: "m" },
+  { id: "0.72-1.19", label: "0.72–1.19 m", color: "#0083D4", unit: "m" },
+  { id: "1.19-1.66", label: "1.19–1.66 m", color: "#006CB4", unit: "m" },
+  { id: "1.66-2.13", label: "1.66–2.13 m", color: "#005085", unit: "m" },
+  { id: "2.13-2.60", label: "2.13–2.60 m", color: "#001F3E", unit: "m" },
 ];
 
 /**
@@ -193,6 +249,7 @@ export function mountGeologyWorkspace(root) {
         <aside class="spectral-lithology-legend geo-field-note" aria-label="Spectral lithology scale">
           <header class="geo-field-note__head">
             <strong>Spectral lithology</strong>
+            <small>class · %</small>
             <span class="spectral-lithology-legend__dot" aria-hidden="true"></span>
           </header>
           <ul class="spectral-lithology-legend__list">
@@ -212,7 +269,7 @@ export function mountGeologyWorkspace(root) {
         <aside class="bank-erosion-legend geo-field-note" aria-label="Erosion hotspots legend">
           <header class="geo-field-note__head">
             <strong>Erosion</strong>
-            <small>2016–2026</small>
+            <small>class · % · 2016–2026</small>
           </header>
           <ul class="bank-erosion-legend__list">
             ${BANK_EROSION_CLASSES.map(
@@ -257,7 +314,7 @@ export function mountGeologyWorkspace(root) {
         <aside class="bathymetry-legend geo-field-note geo-field-note--bathy" aria-label="Bathymetry depth classes">
           <header class="geo-field-note__head">
             <strong>Bathymetry</strong>
-            <small>River depth · Sentinel-2 · 2026-11-11</small>
+            <small>m · depth classes · Mandovi RiverEye units</small>
           </header>
           <div class="bathy-sounding" role="img" aria-label="Depth scale from 0.25 to 2.60 metres">
             <div class="bathy-sounding__bar" aria-hidden="true"></div>
@@ -385,35 +442,52 @@ export function mountGeologyWorkspace(root) {
     if (joiningPanelCount) joiningPanelCount.textContent = total ? `${idx} / ${total}` : "0 / 0";
   }
 
-  /** JalNetra /api/streams-bod-cod `today` values for this channel, shown exactly as published. */
+  /** JalNetra /api/streams-bod-cod values for this channel (live, else bundled fallback). */
   let joiningBodToken = 0;
   async function renderJoiningBod(rec) {
     const token = ++joiningBodToken;
-    let body;
-    try {
-      const data = await fetchStreamsBodCod();
+    const rowsFor = (data) => {
       const s = streamForDrainage(rec, data);
-      const t = s?.today;
-      body = t
-        ? [
-            ["BOD", formatMgL(t.bod_p50)],
-            ["COD", formatMgL(t.cod_p50)],
-            ["Class", String(t.class_band || "—")],
-            ["As of", `${t.date || data.generated || "—"} · ${s.stream_id}`],
-          ]
-        : [["BOD / COD", "No series for this channel"]];
+      const v = streamBodCodForRecord(rec, data);
+      if (!v) return null;
+      const src = [
+        v.nearestFill ? "nearest pixel" : "",
+        data._source && data._source !== "live" ? data._source : "",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      return [
+        ["BOD", formatMgL(v.bod)],
+        ["COD", formatMgL(v.cod)],
+        ["Class", String(v.cls || "—")],
+        [
+          "As of",
+          `${v.date || data.generated || "—"} · ${v.streamId || s?.stream_id || "—"}${src ? ` · ${src}` : ""}`,
+        ],
+      ];
+    };
+    const paint = (body) => {
+      const host = joiningKv?.querySelector("#js-bod-rows");
+      if (token !== joiningBodToken || !host || !body) return;
+      host.innerHTML = body
+        .map(
+          ([k, v]) =>
+            `<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${escapeText(v)}</span></div>`,
+        )
+        .join("");
+    };
+
+    // Numbers already in memory (bundled/cached) show at once; live replaces them when it lands.
+    const pending = fetchStreamsBodCod(); // also seeds the bundled payload synchronously
+    const shown = peekStreamsBodCod();
+    if (shown) paint(rowsFor(shown));
+    try {
+      const data = await pending;
+      paint(rowsFor(data) || (shown ? null : [["BOD / COD", "No series for this channel"]]));
     } catch (err) {
       console.warn("[streams-bod-cod]", err);
-      body = [["BOD / COD", "Data unavailable"]];
+      if (!shown) paint([["BOD / COD", "Data unavailable"]]);
     }
-    const host = joiningKv?.querySelector("#js-bod-rows");
-    if (token !== joiningBodToken || !host) return;
-    host.innerHTML = body
-      .map(
-        ([k, v]) =>
-          `<div class="js-kv"><span class="js-k">${k}</span><span class="js-v">${escapeText(v)}</span></div>`,
-      )
-      .join("");
   }
 
   function escapeText(v) {

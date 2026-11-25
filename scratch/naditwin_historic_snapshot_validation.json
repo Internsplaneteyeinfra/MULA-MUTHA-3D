@@ -1,0 +1,82 @@
+{
+  "startedAt": "2026-11-25T11:48:51.283Z",
+  "base": "http://localhost:5185",
+  "checks": {
+    "liveVisible": {
+      "liveActive": true,
+      "histCtrlsHidden": true,
+      "order": [
+        "hip-g-discharge",
+        "hip-g-stage",
+        "hip-g-hydro"
+      ],
+      "hasMarginBtn": true
+    },
+    "liveOk": true,
+    "histUi": {
+      "histActive": true,
+      "ctrlsVisible": true,
+      "date": "2026-11-25",
+      "time": "10:00",
+      "clock": "25/11/2026 10:00 IST",
+      "dischargeTitle": "Discharge at every chainage (10 m)\n        All locations (Sangam → Manjari) · CH 8+790 · 25/11/2026 10:00 IST"
+    },
+    "histControls": true,
+    "histSnapshot": {
+      "clock": "15/07/2024 06:00 IST",
+      "dischargeHasSvg": true,
+      "dischargeErr": "",
+      "stageHasSvg": true,
+      "stageErr": "",
+      "hydroHasSvg": true,
+      "selectedMarker": true,
+      "liveQText": false,
+      "histProv": true
+    },
+    "histGraphs": true,
+    "stepWorks": true,
+    "marginLive": {
+      "open": true,
+      "cards": 7,
+      "provisional": true,
+      "names": [
+        "Sangam → Bund Garden",
+        "Bund Garden → Dhanori",
+        "Dhanori → Wadgaon Sheri",
+        "Wadgaon Sheri → Hadapsar",
+        "Hadapsar → Mundhwa",
+        "Mundhwa → Kharadi",
+        "Kharadi → Manjari"
+      ]
+    },
+    "sevenCards": true,
+    "margin1km": 17,
+    "oneKmWorks": true,
+    "marginClosed": true,
+    "graphsStillThere": true,
+    "marginHist": {
+      "open": true,
+      "cards": 7,
+      "text": "By location · 15/07/2024 06:00 IST · 7 cards · MODELLED / PROVISIONAL — NadiTwin assumed bank heights & relative datum. Not verified engineering safety. Phase 8 boards remain LOCKED.",
+      "unavailable": false
+    },
+    "marginHistOk": true
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "finishedAt": "2026-11-25T11:50:31.062Z",
+  "passSummary": {
+    "liveOk": true,
+    "histControls": true,
+    "histGraphs": true,
+    "stepWorks": true,
+    "sevenCards": true,
+    "oneKmWorks": true,
+    "marginClosed": true,
+    "graphsStillThere": true,
+    "marginHistOk": true,
+    "provisionalLabel": true
+  },
+  "pass": true
+}

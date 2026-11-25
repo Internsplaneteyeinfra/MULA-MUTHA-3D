@@ -1,0 +1,199 @@
+{
+  "title": "NadiTwin complete chart inventory — Mula–Mutha",
+  "inspectedAt": "2026-11-25T08:45:00Z",
+  "catalogueUrl": "https://naditwin-production.up.railway.app/api/endpoints",
+  "proxy": "/naditwin-api",
+  "chartRelevantEndpoints": [
+    {
+      "endpoint": "/api/state",
+      "graph": "Live Q / WSE / depth profile",
+      "params": "river",
+      "structure": "q_station[], wse[], depth[], at",
+      "units": "m³/s · m",
+      "resolution": "10 m cells · LIVE snapshot",
+      "chainage": true,
+      "class": "LIVE · MODELLED",
+      "functional": true,
+      "chartType": "profile line"
+    },
+    {
+      "endpoint": "/api/live",
+      "graph": "Weather / rain totals / segment table",
+      "params": "river",
+      "structure": "weather, status, segments",
+      "units": "mm/h · °C · m³/s",
+      "resolution": "LIVE",
+      "chainage": "segment",
+      "class": "LIVE · MODELLED",
+      "functional": true,
+      "chartType": "cards + segment bars"
+    },
+    {
+      "endpoint": "/api/discharge_profile",
+      "graph": "1 km discharge now + forecast leads",
+      "params": "river",
+      "structure": "[{from_km,to_km,q_now,forecast,rain_*}]",
+      "units": "m³/s · mm",
+      "resolution": "1 km",
+      "chainage": "segment",
+      "class": "LIVE + FORECAST · MODELLED",
+      "functional": true,
+      "chartType": "profile / multi-lead"
+    },
+    {
+      "endpoint": "/api/forecast/profile",
+      "graph": "Forecast WSE / Q along reach",
+      "params": "lead",
+      "structure": "median,p10,p90,q_median_station",
+      "units": "m · m³/s",
+      "resolution": "10 m · lead hours",
+      "chainage": true,
+      "class": "FORECAST · MODELLED",
+      "functional": true,
+      "chartType": "profile + band"
+    },
+    {
+      "endpoint": "/api/hydrograph",
+      "graph": "Stage + Q + rain hydrograph",
+      "params": "cell,hours | cell,year",
+      "structure": "times,observed,observed_q,observed_rain,forecast{median,p10,p90,q_*,rain},levels",
+      "units": "m · m³/s · mm/h",
+      "resolution": "hourly (hours) or year steps",
+      "chainage": true,
+      "class": "HISTORICAL/FORECAST · MODELLED",
+      "functional": true,
+      "chartType": "line + band + rain bars"
+    },
+    {
+      "endpoint": "/api/today",
+      "graph": "Today diurnal Q/WSE",
+      "params": "cell,tz",
+      "structure": "hours,q_observed,q_forecast_*,wse_*",
+      "units": "m³/s · m",
+      "resolution": "1 h local day",
+      "chainage": true,
+      "class": "LIVE/FORECAST · MODELLED",
+      "functional": true,
+      "chartType": "line + band"
+    },
+    {
+      "endpoint": "/api/rating",
+      "graph": "Stage–discharge rating",
+      "params": "cell",
+      "structure": "q[],stage[],depth[],now,peak72,levels",
+      "units": "m³/s vs m",
+      "resolution": "curve points",
+      "chainage": true,
+      "class": "DERIVED · MODELLED",
+      "functional": true,
+      "chartType": "XY / line"
+    },
+    {
+      "endpoint": "/api/margins_chainage",
+      "graph": "Margins / crest / danger along reach",
+      "params": "step_km",
+      "structure": "[{chainage_m,wse_now,levels,margin_now_m,status}]",
+      "units": "m",
+      "resolution": "1 km default",
+      "chainage": true,
+      "class": "LIVE · MODELLED · DISPLAY ONLY",
+      "functional": true,
+      "chartType": "profile",
+      "note": "Safety boards remain LOCKED in River.EYE"
+    },
+    {
+      "endpoint": "/api/margins",
+      "graph": "Landmark margin board",
+      "params": "river",
+      "structure": "rows",
+      "units": "m",
+      "chainage": "landmarks",
+      "class": "LIVE · MODELLED · DISPLAY ONLY",
+      "functional": true,
+      "chartType": "table"
+    },
+    {
+      "endpoint": "/api/alerts_chainage",
+      "graph": "Chainage alerts",
+      "params": "step_km",
+      "structure": "array (may be empty)",
+      "units": "—",
+      "chainage": true,
+      "class": "LIVE",
+      "functional": true,
+      "chartType": "table",
+      "probeNote": "Empty array at probe time (no active alerts)"
+    },
+    {
+      "endpoint": "/api/alerts",
+      "graph": "Landmark alerts",
+      "params": "river",
+      "structure": "array",
+      "units": "—",
+      "chainage": "landmarks",
+      "class": "LIVE",
+      "functional": true,
+      "chartType": "table"
+    },
+    {
+      "endpoint": "/api/stations",
+      "graph": "Densified stretch Q/depth/stage/velocity",
+      "params": "loc",
+      "structure": "per-10 m fields",
+      "units": "m³/s · m · m/s",
+      "chainage": true,
+      "class": "LIVE · MODELLED",
+      "functional": true,
+      "chartType": "profile"
+    },
+    {
+      "endpoint": "/api/scorecard",
+      "graph": "Hindcast metrics",
+      "params": "river",
+      "structure": "{note,rows[{metric,value}]}",
+      "units": "mixed",
+      "chainage": false,
+      "class": "HINDCAST · MODELLED",
+      "functional": true,
+      "chartType": "table"
+    },
+    {
+      "endpoint": "/api/timerange",
+      "graph": "Epoch / today metadata",
+      "params": "none",
+      "structure": "epoch_date,today_date,now_iso",
+      "units": "—",
+      "chainage": false,
+      "class": "META",
+      "functional": true,
+      "chartType": "meta"
+    },
+    {
+      "endpoint": "/api/locations",
+      "graph": "Named stretches",
+      "params": "river",
+      "structure": "[{from_m,to_m,name}]",
+      "units": "m",
+      "chainage": "stretch",
+      "class": "META",
+      "functional": true,
+      "chartType": "selector support"
+    }
+  ],
+  "nonChartEndpoints": [
+    "/api/rivers",
+    "/api/sources",
+    "/api/meta",
+    "/api/stations.csv",
+    "/api/stations.xlsx",
+    "/api/refresh_live",
+    "POST /api/rebuild_river",
+    "POST /api/upload_localities"
+  ],
+  "notInvented": [
+    "Gauge OBSERVED discharge/stage time series (not exposed as OBSERVED)",
+    "MSL-absolute stage",
+    "Unlocked safety boards",
+    "Cross-section geometry API (not in catalogue)"
+  ]
+}

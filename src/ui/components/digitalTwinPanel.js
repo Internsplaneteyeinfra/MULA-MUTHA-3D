@@ -160,7 +160,7 @@ export function mountDigitalTwinPanel(root) {
     liveQ = q;
     if (Number.isFinite(m)) liveQMeters = m;
     schedule();
-    syncProfileQ(q);
+    syncProfileQ(q, { source: e.detail?.source });
   });
   document.addEventListener("twin-state-change", (e) => {
     twin = e.detail || twin;
@@ -179,27 +179,43 @@ export function mountDigitalTwinPanel(root) {
   function pullLiveQ(meters) {
     const m = Number.isFinite(meters) ? meters : selectedMeters();
     if (!Number.isFinite(m)) return;
-    getLiveDischargeAtChainage(m)
-      .then((q) => {
+    import("../../services/hydrology/naditwinHydrologyAdapter.js")
+      .then(async ({ getNadiTwinDischargeAtChainage, refreshNadiTwinHydrology, getNadiTwinLiveBundle }) => {
+        if (!getNadiTwinLiveBundle()) await refreshNadiTwinHydrology().catch(() => {});
+        const hit = getNadiTwinDischargeAtChainage(m);
+        if (hit && Number.isFinite(hit.q_m3s)) {
+          liveQ = hit.q_m3s;
+          liveQMeters = m;
+          schedule();
+          syncProfileQ(hit.q_m3s, { source: "NADITWIN_LIVE" });
+          return;
+        }
+        const q = await getLiveDischargeAtChainage(m);
         if (!Number.isFinite(q)) return;
         liveQ = q;
         liveQMeters = m;
         schedule();
-        syncProfileQ(q);
+        // Synthetic fallback — display only, do not overwrite LIVE store
       })
       .catch(() => {});
   }
 
-  function syncProfileQ(q) {
+  function syncProfileQ(q, meta = {}) {
     if (!Number.isFinite(q) || q <= 0) return;
+    // Never let synthetic ForecastEngine Q overwrite NadiTwin / GloFAS LIVE profile.
+    if (meta.source !== "NADITWIN_LIVE" && meta.source !== "NADITWIN_API") {
+      return;
+    }
     const current = num(hydrologyStore.getSummary()?.discharge_m3s);
-    if (current != null && Math.abs(current - q) < 15) return;
+    if (current != null && Math.abs(current - q) < 1.0) return;
     window.clearTimeout(profileSyncTimer);
     profileSyncTimer = window.setTimeout(() => {
       refreshHydrologyProfile({
         discharge_m3s: q,
-        source: "MODELLED_REACH — synthetic forecast engine (no gauge connected)",
+        source: "NADITWIN_API",
         provenance: PROVENANCE_STATUS.MODELLED,
+        dataClass: "LIVE",
+        allowSynthetic: false,
       }).catch(() => {});
     }, 280);
   }

@@ -1,0 +1,102 @@
+{
+  "river": "Mula-Mutha",
+  "source": "https://naditwin-production.up.railway.app/api/locations?river=Mula-Mutha",
+  "all_locations": {
+    "id": "ALL",
+    "label": "All locations (Sangam → Manjari)",
+    "from_m": 0,
+    "to_m": 16796.2
+  },
+  "stretches": [
+    {
+      "id": "L1",
+      "name": "Sangam → Bund Garden",
+      "from_name": "Sangam",
+      "to_name": "Bund Garden",
+      "from_m": 0,
+      "to_m": 3450,
+      "from_label": "0+000",
+      "to_label": "3+450",
+      "cell": 173
+    },
+    {
+      "id": "L2",
+      "name": "Bund Garden → Dhanori",
+      "from_name": "Bund Garden",
+      "to_name": "Dhanori",
+      "from_m": 3460,
+      "to_m": 5950,
+      "from_label": "3+460",
+      "to_label": "5+950",
+      "cell": 471
+    },
+    {
+      "id": "L3",
+      "name": "Dhanori → Wadgaon Sheri",
+      "from_name": "Dhanori",
+      "to_name": "Wadgaon Sheri",
+      "from_m": 5960,
+      "to_m": 7540,
+      "from_label": "5+960",
+      "to_label": "7+540",
+      "cell": 675
+    },
+    {
+      "id": "L4",
+      "name": "Wadgaon Sheri → Hadapsar",
+      "from_name": "Wadgaon Sheri",
+      "to_name": "Hadapsar",
+      "from_m": 7550,
+      "to_m": 8900,
+      "from_label": "7+550",
+      "to_label": "8+900",
+      "cell": 823
+    },
+    {
+      "id": "L5",
+      "name": "Hadapsar → Mundhwa",
+      "from_name": "Hadapsar",
+      "to_name": "Mundhwa",
+      "from_m": 8910,
+      "to_m": 9540,
+      "from_label": "8+910",
+      "to_label": "9+540",
+      "cell": 923
+    },
+    {
+      "id": "L6",
+      "name": "Mundhwa → Kharadi",
+      "from_name": "Mundhwa",
+      "to_name": "Kharadi",
+      "from_m": 9550,
+      "to_m": 10710,
+      "from_label": "9+550",
+      "to_label": "10+710",
+      "cell": 1013
+    },
+    {
+      "id": "L7",
+      "name": "Kharadi → Manjari",
+      "from_name": "Kharadi",
+      "to_name": "Manjari",
+      "from_m": 10720,
+      "to_m": 16796.2,
+      "from_label": "10+720",
+      "to_label": "16+796",
+      "cell": 1376
+    }
+  ],
+  "stations_landmarks_file": "/data/naditwin/landmarks.json",
+  "stations": [
+    "Sangam",
+    "Bund Garden",
+    "Dhanori",
+    "Wadgaon Sheri",
+    "Hadapsar",
+    "Mundhwa",
+    "Kharadi",
+    "Manjari"
+  ],
+  "chainage_secondary": true,
+  "verified_at": "2026-11-25T10:26:00.183Z"
+}

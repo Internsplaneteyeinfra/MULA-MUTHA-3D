@@ -43,6 +43,7 @@ import { createClimateImpactLayer } from "./climateImpactLayer.js";
 import { createHydrologyLayer } from "./hydrologyLayer.js";
 import { createBodCodLayer } from "./bodCodLayer.js";
 import { createAqiRiverLayer } from "./aqiRiverLayer.js";
+import { createHydrologyVizLayer } from "./hydrologyVizLayer.js";
 import { createMainStemLayer } from "./mainStemLayer.js";
 import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
@@ -346,6 +347,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   const hydrologyLayer = createHydrologyLayer(dataset);
   const bodCodLayer = createBodCodLayer(dataset);
   const aqiRiverLayer = createAqiRiverLayer(dataset);
+  const hydrologyVizLayer = createHydrologyVizLayer(dataset);
   /** @deprecated alias — prefer apiFloodLayer */
   const floodSimLayer = apiFloodLayer;
   fillPierUniforms(river.material, dataset);
@@ -396,6 +398,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(hydrologyLayer);
   scene.add(bodCodLayer);
   scene.add(aqiRiverLayer);
+  scene.add(hydrologyVizLayer);
 
   // ── Digital Twin Asset Markers ───────────────────────────────────────────
   const assetMarkers = createAssetMarkers(scene, {
@@ -1510,6 +1513,8 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologyLayer.userData?.hideAll?.();
       bodCodLayer.userData?.setVisible?.(false);
       bodCodLayer.visible = false;
+      hydrologyVizLayer.userData?.setVisible?.(false);
+      hydrologyVizLayer.visible = false;
       climateImpactLayer.userData?.clear?.();
       climateImpactLayer.visible = false;
       state.hydrologyHidesWater = false;
@@ -1536,6 +1541,42 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       aqiRiverLayer.userData?.clear?.();
       aqiRiverLayer.userData?.setVisible?.(false);
       aqiRiverLayer.visible = false;
+    },
+    showHydrologyViz(opts = {}) {
+      aqiRiverLayer.userData?.setVisible?.(false);
+      aqiRiverLayer.visible = false;
+      bodCodLayer.userData?.setVisible?.(false);
+      bodCodLayer.visible = false;
+      const info = hydrologyVizLayer.userData?.prepare?.(opts) || { n: 0 };
+      hydrologyVizLayer.userData?.setVisible?.(true);
+      hydrologyVizLayer.visible = true;
+      state.hydrologyVizActive = true;
+      return { ok: info.n > 0, info };
+    },
+    setHydrologyVizSeries(series, meta = {}) {
+      if (meta.palette) hydrologyVizLayer.userData?.setPalette?.(meta.palette);
+      hydrologyVizLayer.userData?.setDimmed?.(!!meta.dim);
+      hydrologyVizLayer.userData?.setSeries?.(series, meta);
+    },
+    clearHydrologyVizSeries() {
+      hydrologyVizLayer.userData?.setSeries?.([], {});
+      hydrologyVizLayer.userData?.setStageStem?.({});
+    },
+    setHydrologyVizFocus(meters) {
+      hydrologyVizLayer.userData?.setFocusMeters?.(meters);
+    },
+    setHydrologyVizStageStem(info) {
+      hydrologyVizLayer.userData?.setStageStem?.(info);
+    },
+    getHydrologyVizRange() {
+      return hydrologyVizLayer.userData?.getRange?.() || null;
+    },
+    hideHydrologyViz() {
+      hydrologyVizLayer.userData?.clear?.();
+      hydrologyVizLayer.userData?.setStageStem?.({});
+      hydrologyVizLayer.userData?.setVisible?.(false);
+      hydrologyVizLayer.visible = false;
+      state.hydrologyVizActive = false;
     },
     focusBodCodReach(reachId, opts = {}) {
       const hit = bodCodLayer.userData?.focusReach?.(reachId, opts);
@@ -2324,6 +2365,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
       if (aqiRiverLayer.visible) {
         aqiRiverLayer.userData?.update?.(dt);
+      }
+      if (hydrologyVizLayer.visible) {
+        hydrologyVizLayer.userData?.update?.(dt);
       }
       terrain.mesh.visible = true;
       channelBanks.visible = true;

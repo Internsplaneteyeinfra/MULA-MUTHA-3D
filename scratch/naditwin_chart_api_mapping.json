@@ -1,0 +1,36 @@
+{
+  "title": "NadiTwin chart → River.EYE UI mapping",
+  "uiEntry": "Digital Twin button → showAnalyticalCharts() → hydroIntelPanel",
+  "modules": {
+    "api": "src/services/hydrology/naditwinApi.js",
+    "series": "src/services/hydrology/naditwinChartSeries.js",
+    "extraRenderers": "src/ui/components/hydroIntelExtraCharts.js",
+    "panel": "src/ui/components/hydroIntelPanel.js"
+  },
+  "tabs": [
+    { "tab": "overview", "graphs": ["catalogue", "station summary"], "endpoints": ["/api/state", "/api/live"] },
+    { "tab": "qprofile", "graphs": ["Live Q profile", "1 km segment context"], "endpoints": ["/api/state", "/api/discharge_profile", "/api/forecast/profile"], "refreshSec": 60 },
+    { "tab": "depth", "graphs": ["Live depth / WSE / bed"], "endpoints": ["/api/state", "/api/meta"], "refreshSec": 60 },
+    { "tab": "discharge", "graphs": ["Station discharge hydrograph"], "endpoints": ["/api/hydrograph"], "refreshSec": 60 },
+    { "tab": "stage", "graphs": ["Longitudinal stage + crest/danger/watch"], "endpoints": ["/api/state", "/api/forecast/profile", "/api/meta"], "refreshSec": 60 },
+    { "tab": "hydro", "graphs": ["Stage hydrograph + P10/P90"], "endpoints": ["/api/hydrograph"], "refreshSec": 60 },
+    { "tab": "rainfall", "graphs": ["Rain bars past/forecast"], "endpoints": ["/api/hydrograph"], "refreshSec": 60 },
+    { "tab": "today", "graphs": ["Today Q with forecast band"], "endpoints": ["/api/today"], "refreshSec": 60 },
+    { "tab": "annual", "graphs": ["Annual Q year window"], "endpoints": ["/api/hydrograph?year="], "refreshSec": null },
+    { "tab": "rating", "graphs": ["Q–stage rating + now marker"], "endpoints": ["/api/rating"], "refreshSec": 60 },
+    { "tab": "threshold", "graphs": ["Station threshold / margin"], "endpoints": ["/api/hydrograph levels"], "refreshSec": 60 },
+    { "tab": "forecast", "graphs": ["Ensemble / P10 P50 P90"], "endpoints": ["/api/hydrograph", "/api/forecast/profile"], "refreshSec": 60 },
+    { "tab": "alerts", "graphs": ["Active alerts"], "endpoints": ["/api/alerts", "/api/alerts_chainage"], "refreshSec": 60 },
+    { "tab": "margin", "graphs": ["Margins profile display-only"], "endpoints": ["/api/margins_chainage"], "refreshSec": 60, "safetyLocked": true },
+    { "tab": "scorecard", "graphs": ["Hindcast scorecard"], "endpoints": ["/api/scorecard"], "refreshSec": null }
+  ],
+  "chainageSync": {
+    "sourceEvents": ["river-station-selected", "chainage-select", "station dropdown"],
+    "mapsToCell": "round(chainage_m / chainage_step_m)",
+    "notes": [
+      "Selected-chainage Q ≠ outlet Q",
+      "Profiles use full-reach arrays with selected cell forced into downsample",
+      "Relative WSE never labelled MSL"
+    ]
+  }
+}

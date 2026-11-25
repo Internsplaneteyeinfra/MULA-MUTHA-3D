@@ -1,0 +1,107 @@
+{
+  "river": "Mula-Mutha",
+  "investigatedAt": "2026-11-25",
+  "datasets": [
+    {
+      "id": "naditwin_hydrograph",
+      "source": "NadiTwin GET /api/hydrograph",
+      "period": "Rolling ~72–168 h observed + 72 h forecast",
+      "temporalResolution": "1 h",
+      "spatialResolution": "Single cell (10 m chainage step); not full-reach",
+      "units": "discharge m³/s, stage m relative, rain mm",
+      "datum": "m, relative (0 = upstream water surface)",
+      "quality": "MODELLED historical (GloFAS-routed), not gauge OBSERVED",
+      "availability": {
+        "outletLevel": "via cell near outlet",
+        "individualStations": true,
+        "fullRiverReach": false,
+        "chainage10m": "per-request cell only"
+      }
+    },
+    {
+      "id": "naditwin_state_live",
+      "source": "NadiTwin GET /api/state + /api/live",
+      "period": "Current timestep only",
+      "temporalResolution": "live poll (~minutes)",
+      "spatialResolution": "1681 cells × 10 m",
+      "units": "m³/s, m relative",
+      "datum": "relative",
+      "quality": "LIVE modelled feed",
+      "availability": {
+        "outletLevel": true,
+        "individualStations": true,
+        "fullRiverReach": true,
+        "chainage10m": true
+      }
+    },
+    {
+      "id": "naditwin_forecast_profile",
+      "source": "NadiTwin GET /api/forecast/profile?lead=",
+      "period": "Lead 1–72 h from issue time",
+      "temporalResolution": "lead hour",
+      "spatialResolution": "1681 cells (q_median_station)",
+      "units": "m³/s (q_median_station); stage median is separate",
+      "datum": "relative for stage arrays",
+      "quality": "FORECAST",
+      "availability": {
+        "outletLevel": true,
+        "individualStations": true,
+        "fullRiverReach": true,
+        "chainage10m": true
+      }
+    },
+    {
+      "id": "glofas_open_meteo",
+      "source": "Open-Meteo GloFAS via liveHydrologyService",
+      "period": "Daily archive (API-dependent)",
+      "temporalResolution": "1 day",
+      "spatialResolution": "Grid cell (~0.05°), not 10 m chainage",
+      "units": "m³/s",
+      "datum": "N/A (discharge)",
+      "quality": "MODELLED / remote sensing derived",
+      "availability": {
+        "outletLevel": "proxy for reach",
+        "individualStations": false,
+        "fullRiverReach": false,
+        "chainage10m": false
+      }
+    },
+    {
+      "id": "river_eye_verified_events",
+      "source": "historicalHydrologyService VERIFIED_HISTORICAL_EVENTS",
+      "period": "3 discrete events (2023–2024)",
+      "temporalResolution": "event snapshot",
+      "spatialResolution": "reach-level estimate, not 10 m",
+      "units": "m³/s, stage_m_msl (bulletin estimate)",
+      "datum": "reported MSL estimates — not NadiTwin relative",
+      "quality": "MEDIUM/LOW confidence bulletin estimates — keep separate from NadiTwin",
+      "availability": {
+        "outletLevel": "estimated",
+        "individualStations": false,
+        "fullRiverReach": false,
+        "chainage10m": false
+      }
+    },
+    {
+      "id": "survey_bathymetry",
+      "source": "River.EYE depth KML / profile survey_depth_m",
+      "period": "Survey epoch (static)",
+      "temporalResolution": "static",
+      "spatialResolution": "~10 m chainage profile",
+      "units": "m",
+      "datum": "survey relative / local",
+      "quality": "OBSERVED / SURVEYED",
+      "availability": {
+        "outletLevel": true,
+        "individualStations": true,
+        "fullRiverReach": true,
+        "chainage10m": true
+      }
+    }
+  ],
+  "conclusion": {
+    "fullReachHistoricalSpatial": "UNAVAILABLE from NadiTwin — do not invent",
+    "stationHistorical": "AVAILABLE via /api/hydrograph (modelled)",
+    "observedGaugeArchive": "NOT CONNECTED"
+  }
+}

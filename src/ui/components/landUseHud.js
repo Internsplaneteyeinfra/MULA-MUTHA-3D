@@ -1,53 +1,59 @@
 import { Activity, Building2, Layers, Mountain, Sprout } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
+import { unitFor } from "../../geo/layerUnits.js";
 
 /**
  * Land Use floating HUD — icon-only, no panel/card/title/labels.
- * Labels appear only on hover (CSS tooltips).
+ * Labels appear only on hover (CSS tooltips). Units = Mandovi RiverEye.
  *
  * Order: LULC → Silt Classification → Silt Volume → Vegetation Health → Vegetation Type
  */
 export const LAND_USE_OPTIONS = [
   {
     id: "lulc",
-    tip: "LULC",
+    tip: `LULC (${unitFor("landuse_lulc") || "class"} · coverage %)`,
     icon: Building2,
     tone: "lu-tone-lulc",
     layerId: "landuse_lulc",
     fallbackLayerId: null,
+    unit: unitFor("landuse_lulc") || "class",
   },
   {
     id: "silt_classification",
-    tip: "Silt Classification",
+    tip: `Silt Classification (${unitFor("silt_classification") || "class"})`,
     icon: Layers,
     tone: "lu-tone-silt",
     layerId: "silt_classification",
     fallbackLayerId: null,
+    unit: unitFor("silt_classification") || "class",
   },
   {
     id: "silt_volume_surface",
-    tip: "Silt Volume Surface",
+    tip: `Silt Volume Surface (${unitFor("silt_volume_surface") || "m³"})`,
     icon: Mountain,
     tone: "lu-tone-volume",
     layerId: "silt_volume_surface",
     fallbackLayerId: null,
+    unit: unitFor("silt_volume_surface") || "m³",
   },
   {
     id: "vegetation_health",
-    tip: "Vegetation Health",
+    tip: `Vegetation Health (${unitFor("vegetation_health") || "class"})`,
     icon: Activity,
     tone: "lu-tone-veg-health",
     layerId: "vegetation_health",
     fallbackLayerId: null,
+    unit: unitFor("vegetation_health") || "class",
   },
   {
     id: "vegetation_extent",
-    tip: "Vegetation Type",
+    tip: `Vegetation Type (${unitFor("vegetation_extent") || "class"})`,
     icon: Sprout,
     tone: "lu-tone-veg",
     layerId: "vegetation_extent",
     fallbackLayerId: null,
+    unit: unitFor("vegetation_extent") || "class",
   },
 ];
 

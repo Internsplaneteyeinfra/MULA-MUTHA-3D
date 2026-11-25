@@ -1,0 +1,19 @@
+{
+  "title": "NadiTwin chart validation",
+  "validatedAt": "2026-11-25T08:50:00Z",
+  "proxy": "http://localhost:5185/naditwin-api",
+  "allProbedOk": true,
+  "highlights": {
+    "rating_cell_882": { "q_len": 70, "now_q": 10.23 },
+    "today": { "hours": 24, "date": "2026-11-25" },
+    "hydrograph_rain_forecast": true,
+    "discharge_profile_segments": 17,
+    "state_cells": 1681,
+    "alerts_chainage_active": 0,
+    "scorecard_rows": 6
+  },
+  "tabsIntegrated": 15,
+  "syntheticData": false,
+  "safetyUnlocked": false,
+  "screenshots": "SKIPPED_ENOSPC"
+}

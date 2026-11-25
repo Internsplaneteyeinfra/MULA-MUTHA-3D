@@ -1,32 +1,36 @@
 import { Atom, Fish, Trash2 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
+import { unitFor } from "../../geo/layerUnits.js";
 
 /**
  * Pollution floating HUD — icon-only; name on hover only (same chrome as Land Use).
- * Order: Garbage location → Eutrophication → Nitrogen
+ * Units = Mandovi RiverEye. Order: Garbage → Eutrophication → Nitrogen
  */
 export const POLLUTION_OPTIONS = [
   {
     id: "garbage",
-    tip: "Garbage location",
+    tip: `Garbage / pollution severity (${unitFor("pollution_severity") || "class"})`,
     icon: Trash2,
     tone: "poll-tone-garbage",
     layerId: "pollution",
+    unit: unitFor("pollution_severity") || "class",
   },
   {
     id: "eutrophication",
-    tip: "Eutrophication",
+    tip: `Eutrophication (${unitFor("pollution_eutrophication") || "TSI"})`,
     icon: Fish,
     tone: "poll-tone-eutro",
     layerId: "pollution_eutrophication",
+    unit: unitFor("pollution_eutrophication") || "TSI",
   },
   {
     id: "nitrogen",
-    tip: "Nitrogen",
+    tip: `Nitrogen (${unitFor("pollution_nitrogen") || "class"} · not mg N/L)`,
     icon: Atom,
     tone: "poll-tone-nitrogen",
     layerId: "pollution_nitrogen",
+    unit: unitFor("pollution_nitrogen") || "class",
   },
 ];
 

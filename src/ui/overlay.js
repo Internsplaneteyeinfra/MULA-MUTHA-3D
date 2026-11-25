@@ -31,6 +31,7 @@ import { mountCrossSectionModal } from "./components/crossSectionModal.js";
 import { mountThresholdGraph } from "./components/thresholdGraph.js";
 import { isDigitalTwinActive } from "./dtMode.js";
 import { mountHydroIntelPanel } from "./components/hydroIntelPanel.js";
+import { mountHydrologyVizHud } from "./components/hydrologyVizHud.js";
 import { mountHydrologySimulationControls } from "./components/hydrologySimulationControls.js";
 import { mountRainfallSimulationPanel } from "./components/rainfallSimulationPanel.js";
 import { bindLayerIndicator } from "./components/layerToggle.js";
@@ -66,7 +67,7 @@ function tipRows(rows) {
     .join("");
 }
 
-/** BOD / COD / class lines for a hovered joining stream (JalNetra streams-bod-cod `today`). */
+/** BOD / COD / class lines for a hovered joining stream (nearest JalNetra pixel along the stream). */
 function joiningBodCodTipHtml(info) {
   const v = info.bodCod;
   if (!v) {
@@ -77,12 +78,17 @@ function joiningBodCodTipHtml(info) {
   const mg = (n) => (Number.isFinite(n) ? `${n.toFixed(2)} mg/L` : "—");
   const line = (k, val) =>
     `<div style="display:flex;justify-content:space-between;gap:10px;font-size:10px;line-height:1.35;"><span style="color:#8ba3b0;">${k}</span><span style="color:#fff;font-weight:600;font-family:var(--font-mono, monospace);">${tipEsc(val)}</span></div>`;
+  const distNote =
+    Number.isFinite(v.distM) && v.distM > 1
+      ? `Nearest sample · ${Math.round(v.distM)} m`
+      : "Along stream";
+  const src = v.source === "fallback" || v.source === "cache" ? " · offline" : "";
   return `
     <div style="margin-top:4px;padding-top:4px;border-top:1px solid rgba(154,212,224,0.18);">
       ${line("BOD", mg(v.bod))}
       ${line("COD", mg(v.cod))}
-      ${line("Class", v.cls)}
-      <div style="font-size:8.5px;color:#6f8794;margin-top:2px;">At river entry · ${tipEsc(v.date)} · ${tipEsc(v.streamId)}</div>
+      ${line("Class", v.cls || "—")}
+      <div style="font-size:8.5px;color:#6f8794;margin-top:2px;">${tipEsc(distNote)} · ${tipEsc(v.date || "—")} · ${tipEsc(v.streamId || "")}${src}</div>
     </div>`;
 }
 
@@ -502,32 +508,42 @@ export function createTooltip(root) {
         });
         el.querySelector("#tip-tg-btn")?.addEventListener("click", (ev) => {
           ev.stopPropagation();
-          // Re-dispatch river-station-selected so the threshold graph opens
-          // at this exact station even if clicked from the tooltip.
+          // Primary: 3D hydrology viz. Threshold chart is optional secondary.
+          const m = info.stationRecord?.chainage_m;
+          document.body.classList.add("dt-mode-active");
+          document.getElementById("ui-root")?.classList.add("dt-mode-active");
           document.dispatchEvent(
             new CustomEvent("river-station-selected", {
               detail: {
-                chainage_m:    info.stationRecord?.chainage_m,
-                stationLabel:  info.chainageLabel ?? info.stationRecord?.station_label,
+                chainage_m: m,
+                stationLabel: info.chainageLabel ?? info.stationRecord?.station_label,
                 stationRecord: info.stationRecord,
                 worldPosition: null,
               },
-            })
+            }),
           );
+          window.__MM_HYDRO_INTEL__?.showAnalyticalCharts?.() ||
+            window.__MM_HYDRO_INTEL__?.show?.();
+          if (Number.isFinite(m)) window.__MM_SCENE__?.setHydrologyVizFocus?.(m);
         });
         el.querySelector("#tip-hi-btn")?.addEventListener("click", (ev) => {
           ev.stopPropagation();
+          const m = info.stationRecord?.chainage_m;
+          document.body.classList.add("dt-mode-active");
+          document.getElementById("ui-root")?.classList.add("dt-mode-active");
           document.dispatchEvent(
             new CustomEvent("river-station-selected", {
               detail: {
-                chainage_m:    info.stationRecord?.chainage_m,
-                stationLabel:  info.chainageLabel ?? info.stationRecord?.station_label,
+                chainage_m: m,
+                stationLabel: info.chainageLabel ?? info.stationRecord?.station_label,
                 stationRecord: info.stationRecord,
                 worldPosition: null,
               },
-            })
+            }),
           );
-          window.__MM_HYDRO_INTEL__?.show?.();
+          window.__MM_HYDRO_INTEL__?.showAnalyticalCharts?.() ||
+            window.__MM_HYDRO_INTEL__?.show?.();
+          if (Number.isFinite(m)) window.__MM_SCENE__?.setHydrologyVizFocus?.(m);
         });
         return;
       }
@@ -677,6 +693,7 @@ export function mountUI(root, {
   const csModal = mountCrossSectionModal(root);
   mountThresholdGraph(root);
   mountHydroIntelPanel(root);
+  mountHydrologyVizHud(root);
   mountHydrologySimulationControls(root);
   // Start hidden — toggled from analytics nav [data-analytics=digital_twin]
   dtDock.el.hidden = true;

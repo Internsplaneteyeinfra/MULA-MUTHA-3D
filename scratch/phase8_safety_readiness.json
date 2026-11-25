@@ -1,0 +1,73 @@
+{
+  "title": "Safety board readiness matrix — Phase 8",
+  "assessedAt": "2026-11-25",
+  "boardsStatus": "LOCKED",
+  "unlockAllowed": false,
+  "matrix": [
+    {
+      "requirement": "Chainage alignment",
+      "status": "VERIFIED",
+      "evidence": "Phase 4/6 validateChainageAlignment vs River.EYE 10 m geometry; regression inspectAt chainages",
+      "source": "naditwinHydrologyAdapter / hydrologyNormalizer",
+      "remainingWork": "Re-check after any geometry export change",
+      "reason": "Alignment tests passed in prior phases and Phase 8 regression"
+    },
+    {
+      "requirement": "Discharge",
+      "status": "VERIFIED",
+      "evidence": "NadiTwin LIVE Q with units m³/s; outlet ≠ selected-chainage; provenance LIVE/STALE/MODELLED",
+      "source": "NadiTwin /api/live + /api/state via proxy",
+      "remainingWork": "Optional gauge OBSERVED overlay when telemetry available",
+      "reason": "Source and units correct for modelled LIVE authority — not gauge OBSERVED"
+    },
+    {
+      "requirement": "Gauge observations",
+      "status": "MISSING",
+      "evidence": "hydrologyTelemetryService all stations UNAVAILABLE; no CWC/MWRD feed configured",
+      "source": "phase8_gauge_observation_inventory.json",
+      "remainingWork": "Connect authoritative CWC/MWRD time series + rating curves",
+      "reason": "No OBSERVED Q/stage archive in River.EYE"
+    },
+    {
+      "requirement": "Vertical datum",
+      "status": "UNVERIFIED",
+      "evidence": "NadiTwin relative WSE; no benchmark transform residuals",
+      "source": "phase8_vertical_datum_assessment.json",
+      "remainingWork": "Survey control points + documented relative→MSL transform",
+      "reason": "Cannot certify freeboard without orthometric consistency"
+    },
+    {
+      "requirement": "Bank crest",
+      "status": "MISSING",
+      "evidence": "No left/right surveyed crest layers",
+      "source": "phase8_bank_crest_readiness.json",
+      "remainingWork": "Field survey crest elevations along reach",
+      "reason": "Assumed crests forbidden for warning thresholds"
+    },
+    {
+      "requirement": "Cross-sections",
+      "status": "REQUIRES SURVEY",
+      "evidence": "Depth profile only; full XS not in datastore",
+      "source": "depth_profile.json + external literature",
+      "remainingWork": "Ingest certified XS or new survey",
+      "reason": "Hydraulic geometry incomplete for operational thresholds"
+    },
+    {
+      "requirement": "Forecast validation",
+      "status": "INSUFFICIENT DATA",
+      "evidence": "0 gauge OBSERVED pairs; archive may exist but no gauge truth",
+      "source": "forecastValidationEngine / phase8_forecast_validation.json",
+      "remainingWork": "≥8 matched gauge pairs per station/lead bucket before skill claims",
+      "reason": "INSUFFICIENT OBSERVATION DATA"
+    },
+    {
+      "requirement": "Thresholds",
+      "status": "UNVERIFIED",
+      "evidence": "CLASS_DEFAULT 2.0 m relative — not surveyed engineering basis",
+      "source": "digitalTwinApi / thresholdGraph",
+      "remainingWork": "Engineering-derived freeboard on verified MSL crest/WSE",
+      "reason": "Class defaults must not drive operational unlock"
+    }
+  ],
+  "recommendation": "Keep safety boards LOCKED. Software completeness ≠ engineering readiness."
+}

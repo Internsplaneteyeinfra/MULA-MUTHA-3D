@@ -1,0 +1,159 @@
+{
+  "generatedAt": "2026-11-25T06:33:45.808Z",
+  "pass": true,
+  "results": {
+    "canvas": true,
+    "hudOpen": true,
+    "intelHiddenOnHud": true,
+    "liveQ": {
+      "0+000": {
+        "q": 9.187,
+        "outlet": 11.1,
+        "quality": "STALE",
+        "depth": 1.695,
+        "safety": true,
+        "fc": 9.089,
+        "p10": 8.88,
+        "p90": 9.33
+      },
+      "8+790": {
+        "q": 10.402,
+        "outlet": 11.1,
+        "quality": "STALE",
+        "depth": 1.838,
+        "safety": true,
+        "fc": 10.318,
+        "p10": 10.06,
+        "p90": 10.7
+      },
+      "16+790": {
+        "q": 11.147,
+        "outlet": 11.1,
+        "quality": "STALE",
+        "depth": 1.705,
+        "safety": true,
+        "fc": 10.985,
+        "p10": 10.65,
+        "p90": 11.46
+      }
+    },
+    "outletDistinct": true,
+    "noZeroFill": true,
+    "safetyLocked": true,
+    "historical": true,
+    "forecastMode": true,
+    "stationNoAutoCharts": true,
+    "chartsOpen": true,
+    "tabs": {
+      "hydro": true,
+      "discharge": true,
+      "stage": true,
+      "forecast": true
+    },
+    "tabsOk": true,
+    "provenance": true,
+    "chartsClosed": true,
+    "safetyUiLocked": true,
+    "floodRainUi": true,
+    "pOrderOk": true,
+    "network404": [
+      "https://jalnetra-software-production.up.railway.app/api/bod-cod/viewer/d23537a4de064125871e5b852d6aa34f/data"
+    ],
+    "consoleErrors": [
+      "Failed to load resource: the server responded with a status of 404 ()"
+    ]
+  },
+  "log": [
+    {
+      "m": "quality",
+      "quality": "LIVE",
+      "stale": false
+    },
+    {
+      "m": "interval_bad",
+      "ok": false,
+      "reason": "P10 > P90 — invalid interval"
+    },
+    {
+      "m": "interval_ok",
+      "ok": true
+    },
+    {
+      "m": "forecast_validation",
+      "status": "INSUFFICIENT OBSERVATION DATA",
+      "gaugePairs": 0,
+      "modelledProxy": 0,
+      "archive": 1,
+      "overallMsg": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+    },
+    {
+      "m": "api",
+      "live": {
+        "ok": true,
+        "status": 200
+      },
+      "state": {
+        "ok": true,
+        "status": 200
+      },
+      "meta": {
+        "ok": true,
+        "status": 200
+      },
+      "hydrograph": {
+        "ok": true,
+        "status": 200
+      },
+      "forecast24": {
+        "ok": true,
+        "status": 200
+      },
+      "bad_path": {
+        "ok": false,
+        "status": 403
+      }
+    },
+    {
+      "m": "liveQ",
+      "0+000": {
+        "q": 9.187,
+        "outlet": 11.1,
+        "quality": "STALE",
+        "depth": 1.695,
+        "safety": true,
+        "fc": 9.089,
+        "p10": 8.88,
+        "p90": 9.33
+      },
+      "8+790": {
+        "q": 10.402,
+        "outlet": 11.1,
+        "quality": "STALE",
+        "depth": 1.838,
+        "safety": true,
+        "fc": 10.318,
+        "p10": 10.06,
+        "p90": 10.7
+      },
+      "16+790": {
+        "q": 11.147,
+        "outlet": 11.1,
+        "quality": "STALE",
+        "depth": 1.705,
+        "safety": true,
+        "fc": 10.985,
+        "p10": 10.65,
+        "p90": 11.46
+      }
+    }
+  ],
+  "forecastValidationStatus": "INSUFFICIENT OBSERVATION DATA",
+  "apiOk": true,
+  "network404": [
+    "https://jalnetra-software-production.up.railway.app/api/bod-cod/viewer/d23537a4de064125871e5b852d6aa34f/data"
+  ],
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "screenshots": "C:\\Users\\Sahil.Rajankar\\Desktop\\Shweta\\RIVEREYE\\MULA-MUTHA-3D\\scratch\\screenshots\\phase8"
+}

@@ -226,8 +226,8 @@ class ForecastEngine {
       p10: this.wseProfile(q10).map(round3),
       p90: this.wseProfile(q90).map(round3),
       chainage_m: this.chainageM.slice(),
-      modelled: false,
-      source: "LIVE FORECAST · ensemble hydraulic geometry (live gauge connected)",
+      modelled: true,
+      source: "MODELLED FORECAST · ForecastEngine ensemble (not NadiTwin LIVE / not gauge OBSERVED)",
     };
   }
 
@@ -306,11 +306,23 @@ export async function getCurrentHydraulicSnapshot(meters) {
 }
 
 /**
- * Live discharge at a chainage (m³/s). Updates with selected station.
+ * Discharge at a chainage (m³/s).
+ * Prefers NadiTwin LIVE via adapter; synthetic ForecastEngine is FORECAST-only fallback.
  * @param {number} meters
  * @returns {Promise<number>}
  */
 export async function getLiveDischargeAtChainage(meters) {
+  try {
+    const { getNadiTwinDischargeAtChainage, refreshNadiTwinHydrology, getNadiTwinLiveBundle } =
+      await import("./hydrology/naditwinHydrologyAdapter.js");
+    if (!getNadiTwinLiveBundle()) {
+      await refreshNadiTwinHydrology().catch(() => {});
+    }
+    const hit = getNadiTwinDischargeAtChainage(meters);
+    if (hit && Number.isFinite(hit.q_m3s)) return hit.q_m3s;
+  } catch {
+    /* fall through to synthetic forecast engine */
+  }
   const eng = await getForecastEngine();
   return eng.dischargeAtChainage(meters);
 }

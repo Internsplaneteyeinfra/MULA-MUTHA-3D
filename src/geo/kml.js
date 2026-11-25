@@ -178,6 +178,14 @@ export function parseDrainageKml(text) {
       const val = m[2].trim();
       if (val) props[key] = val;
     }
+    // MERIT / JalNetra joining_streams.kml uses ExtendedData <Data><value>
+    for (const m of content.matchAll(
+      /<Data\s+name="([^"]+)"\s*>\s*<value>\s*([^<]*)\s*<\/value>\s*<\/Data>/gi,
+    )) {
+      const key = m[1].trim();
+      const val = m[2].trim();
+      if (val && props[key] == null) props[key] = val;
+    }
     const waterway = (props.waterway || "stream").toLowerCase();
     const coordBlocks = [...content.matchAll(/<coordinates>([\s\S]*?)<\/coordinates>/gi)];
     for (const c of coordBlocks) {

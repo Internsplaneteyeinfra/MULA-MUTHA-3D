@@ -1,0 +1,203 @@
+{
+  "startedAt": "2026-11-25T11:28:52.554Z",
+  "base": "http://localhost:5185",
+  "checks": {
+    "orderDischargeStageHydro": true,
+    "noRatingDom": true,
+    "noRatingText": true,
+    "threeExpandBtns": true,
+    "histBesideHydro": true,
+    "fullWidth": true,
+    "titles": {
+      "discharge": true,
+      "stage": true,
+      "hydro": true
+    },
+    "titlesOk": true,
+    "dischargeExpanded": true,
+    "stageExpanded": true,
+    "hydroExpanded": true,
+    "histKeepsStation": true,
+    "exitFullscreen": true,
+    "stretchStillThree": true,
+    "stretchSync": true
+  },
+  "order": [
+    "hip-g-discharge",
+    "hip-g-stage",
+    "hip-g-hydro"
+  ],
+  "heights": {
+    "normal": {
+      "sections": [
+        {
+          "id": "hip-g-discharge",
+          "title": "Discharge at every chainage (10 m)",
+          "height": 265,
+          "width": 1840,
+          "display": "flex"
+        },
+        {
+          "id": "hip-g-stage",
+          "title": "River stage (water level)",
+          "height": 265,
+          "width": 1840,
+          "display": "flex"
+        },
+        {
+          "id": "hip-g-hydro",
+          "title": "Hydrograph (discharge + river stage + rainfall)",
+          "height": 320,
+          "width": 1840,
+          "display": "flex"
+        }
+      ],
+      "hasRating": false,
+      "ratingText": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "expand": "",
+      "expandBarHidden": true,
+      "station": "CH 8+790",
+      "fullWidth": true
+    },
+    "dischargeExpanded": {
+      "sections": [
+        {
+          "id": "hip-g-discharge",
+          "title": "Discharge at every chainage (10 m)",
+          "height": 644,
+          "width": 1840,
+          "display": "flex"
+        },
+        {
+          "id": "hip-g-stage",
+          "title": "River stage (water level)",
+          "height": 0,
+          "width": 0,
+          "display": "none"
+        },
+        {
+          "id": "hip-g-hydro",
+          "title": "Hydrograph (discharge + river stage + rainfall)",
+          "height": 0,
+          "width": 0,
+          "display": "none"
+        }
+      ],
+      "hasRating": false,
+      "ratingText": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "expand": "discharge",
+      "expandBarHidden": false,
+      "station": "CH 8+790",
+      "fullWidth": true
+    },
+    "stageExpanded": {
+      "sections": [
+        {
+          "id": "hip-g-discharge",
+          "title": "Discharge at every chainage (10 m)",
+          "height": 0,
+          "width": 0,
+          "display": "none"
+        },
+        {
+          "id": "hip-g-stage",
+          "title": "River stage (water level)",
+          "height": 679,
+          "width": 1840,
+          "display": "flex"
+        },
+        {
+          "id": "hip-g-hydro",
+          "title": "Hydrograph (discharge + river stage + rainfall)",
+          "height": 0,
+          "width": 0,
+          "display": "none"
+        }
+      ],
+      "hasRating": false,
+      "ratingText": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "expand": "stage",
+      "expandBarHidden": false,
+      "station": "CH 8+790",
+      "fullWidth": true
+    },
+    "hydroExpandedHist": {
+      "sections": [
+        {
+          "id": "hip-g-discharge",
+          "title": "Discharge at every chainage (10 m)",
+          "height": 0,
+          "width": 0,
+          "display": "none"
+        },
+        {
+          "id": "hip-g-stage",
+          "title": "River stage (water level)",
+          "height": 0,
+          "width": 0,
+          "display": "none"
+        },
+        {
+          "id": "hip-g-hydro",
+          "title": "Hydrograph (discharge + river stage + rainfall)",
+          "height": 644,
+          "width": 1840,
+          "display": "flex"
+        }
+      ],
+      "hasRating": false,
+      "ratingText": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "expand": "hydro",
+      "expandBarHidden": false,
+      "station": "CH 8+790",
+      "fullWidth": true
+    },
+    "stretchL1": {
+      "sections": [
+        {
+          "id": "hip-g-discharge",
+          "title": "Discharge at every chainage (10 m)",
+          "height": 265,
+          "width": 1840,
+          "display": "flex"
+        },
+        {
+          "id": "hip-g-stage",
+          "title": "River stage (water level)",
+          "height": 265,
+          "width": 1840,
+          "display": "flex"
+        },
+        {
+          "id": "hip-g-hydro",
+          "title": "Hydrograph (discharge + river stage + rainfall)",
+          "height": 320,
+          "width": 1840,
+          "display": "flex"
+        }
+      ],
+      "hasRating": false,
+      "ratingText": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "expand": "",
+      "expandBarHidden": true,
+      "station": "CH 1+730",
+      "fullWidth": true
+    }
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "finishedAt": "2026-11-25T11:30:57.537Z",
+  "pass": true
+}

@@ -1,0 +1,60 @@
+{
+  "title": "Riverbank crest and cross-section readiness",
+  "assessedAt": "2026-11-25",
+  "safetyImplication": "Safety boards remain LOCKED — surveyed left/right crest + verified datum required",
+  "inventory": [
+    {
+      "asset": "Left-bank crest elevations",
+      "status": "MISSING",
+      "source": null,
+      "quality": "N/A",
+      "chainageCoverage": "none",
+      "notes": "No surveyed LB crest layer wired"
+    },
+    {
+      "asset": "Right-bank crest elevations",
+      "status": "MISSING",
+      "source": null,
+      "quality": "N/A",
+      "chainageCoverage": "none",
+      "notes": "No surveyed RB crest layer wired"
+    },
+    {
+      "asset": "Channel bed / survey depth",
+      "status": "REQUIRES SURVEY",
+      "source": "public/data/naditwin/depth_profile.json",
+      "quality": "SURVEYED depth_m with nearest_survey_m flags — partial",
+      "chainageCoverage": "~1698 points along reach (~10 m)",
+      "notes": "Useful for depth viz; not bank crest; epoch/survey certificate not attached"
+    },
+    {
+      "asset": "River cross-sections (full XS)",
+      "status": "REQUIRES SURVEY",
+      "source": "Literature (CWPRS Mutha XS every ~30 m cited externally) — not ingested",
+      "quality": "External study — not in River.EYE datastore",
+      "chainageCoverage": "Not available in-app",
+      "notes": "Do not invent XS from depth-only profile"
+    },
+    {
+      "asset": "Bank slopes",
+      "status": "MISSING",
+      "source": null,
+      "quality": "N/A",
+      "chainageCoverage": "none",
+      "notes": "3D channel banks are visual geometry, not surveyed crest"
+    },
+    {
+      "asset": "Bridge / obstruction elevations",
+      "status": "UNVERIFIED",
+      "source": "Scene landmarks / twin assets",
+      "quality": "Model/placement — not certified survey elevations for freeboard",
+      "chainageCoverage": "Selected landmarks only",
+      "notes": "Insufficient for operational freeboard thresholds"
+    }
+  ],
+  "missingSurveyLocations": "Full left/right crest along 0+000–16+796; certified XS at warning-critical assets; bridge soffit elevations on MSL",
+  "prohibitions": [
+    "Do not estimate missing crest and label SURVEYED",
+    "Do not activate flood warning thresholds from assumed elevations"
+  ]
+}

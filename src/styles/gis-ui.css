@@ -1,6 +1,6 @@
 @import url('./app-overlays.css');
 
-/* GIS dashboard UI — Zoom Earth–style type hierarchy */
+/* GIS dashboard UI â Zoom Earthâstyle type hierarchy */
 :root {
   --gis-bg: #101A21;
   --gis-panel: rgba(20, 30, 38, 0.94);
@@ -53,7 +53,7 @@
   color: var(--text-primary, #ffffff);
 }
 
-/* —— Project identity (map-first: no dark card) —— */
+/* ââ Project identity (map-first: no dark card) ââ */
 .gis-brand {
   top: 16px;
   left: 16px;
@@ -82,7 +82,7 @@
   text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
 }
 
-/* —— Map-chrome: kill dark HUD shells —— */
+/* ââ Map-chrome: kill dark HUD shells ââ */
 .gis-ui .map-chrome.hud,
 .gis-ui .depth-legend.map-chrome,
 .gis-ui .chainage-ruler.map-chrome,
@@ -94,7 +94,7 @@
   -webkit-backdrop-filter: none !important;
 }
 
-/* —— Floating icon buttons (tooltips for icon-only chrome) —— */
+/* ââ Floating icon buttons (tooltips for icon-only chrome) ââ */
 .icon-button {
   appearance: none;
   position: relative;
@@ -147,7 +147,7 @@
   transform: translateX(-50%) translateY(0);
 }
 
-/* —— Right-side map control stack —— */
+/* ââ Right-side map control stack ââ */
 .gis-tools-stack {
   position: absolute;
   top: 16px;
@@ -266,7 +266,7 @@
   margin-top: 10px;
 }
 
-/* legacy top nav removed — keep inert if leftover markup appears */
+/* legacy top nav removed â keep inert if leftover markup appears */
 .gis-nav-wrap {
   display: none !important;
 }
@@ -321,7 +321,7 @@
   background: transparent;
 }
 
-/* —— Layers panel —— */
+/* ââ Layers panel ââ */
 .layers-panel.hud,
 .layers-panel {
   position: absolute;
@@ -692,7 +692,7 @@
   font-style: normal;
 }
 
-/* —— Water flow CTA —— */
+/* ââ Water flow CTA ââ */
 .gis-flow-cta {
   left: 50%;
   bottom: 20px;
@@ -720,7 +720,7 @@
   cursor: default;
 }
 
-/* Drainage flow — larger, above river cinematic CTA */
+/* Drainage flow â larger, above river cinematic CTA */
 .gis-drainage-cta {
   bottom: 68px;
   padding: 14px 22px;
@@ -749,7 +749,7 @@
   background: rgba(30, 90, 80, 0.55) !important;
 }
 
-/* —— Depth legend — flush to bottom-right map corner —— */
+/* ââ Depth legend â flush to bottom-right map corner ââ */
 .gis-ui .depth-legend,
 .gis-view-modes .depth-legend,
 .depth-legend--stack,
@@ -805,7 +805,7 @@
   }
 }
 
-/* —— Timeline (follow mode, hidden by default) —— */
+/* ââ Timeline (follow mode, hidden by default) ââ */
 .gis-timeline {
   left: 50%;
   bottom: 68px;
@@ -831,7 +831,7 @@
   text-align: center;
 }
 
-/* —— Chainage detail + annotations panel (compact premium GIS) —— */
+/* ââ Chainage detail + annotations panel (compact premium GIS) ââ */
 .chainage-panel {
   top: clamp(118px, 18vh, 168px);
   left: calc(max(14px, env(safe-area-inset-left)) + 240px);
@@ -1084,7 +1084,7 @@
   padding: 2px 4px;
 }
 
-/* —— Bottom chainage ruler (map-first) —— */
+/* ââ Bottom chainage ruler (map-first) ââ */
 .chainage-ruler {
   left: 50%;
   bottom: 10px;
@@ -1113,10 +1113,10 @@
   flex-wrap: wrap;
 }
 
-/* Top-center ±chainage step control (arrows only) */
+/* Top-center Â±chainage step control (arrows only) */
 .chainage-step-hud {
   position: fixed;
-  /* Clear top analytics icons (≈14 + 44) + breathing room */
+  /* Clear top analytics icons (â14 + 44) + breathing room */
   top: calc(max(14px, env(safe-area-inset-top)) + 86px);
   left: 50%;
   transform: translateX(-50%);
@@ -1363,7 +1363,7 @@
 }
 .chainage-ruler-tick.is-active .chainage-ruler-label,
 .chainage-ruler-tick.is-active .chainage-ruler-meters {
-  /* Cursor badge owns this station — hide duplicate tick text */
+  /* Cursor badge owns this station â hide duplicate tick text */
   opacity: 0;
   pointer-events: none;
 }
@@ -1420,7 +1420,7 @@
   box-shadow: 0 4px 14px rgba(0, 0, 0, 0.45);
 }
 
-/* —— Flood Simulation bar + info —— */
+/* ââ Flood Simulation bar + info ââ */
 .flood-sim-bar {
   position: absolute;
   top: 12px;
@@ -1521,7 +1521,7 @@
   align-items: center;
   gap: 5px;
 }
-/* Author CSS must not override [hidden] — toggle via .is-loading only */
+/* Author CSS must not override [hidden] â toggle via .is-loading only */
 .flood-sim-run-label {
   display: inline-flex;
 }
@@ -1744,7 +1744,7 @@
   margin-top: 6px;
 }
 
-/* Flood left dock — Result → Playback → Compare; river center stays clear */
+/* Flood left dock â Result â Playback â Compare; river center stays clear */
 .flood-left-dock {
   position: absolute;
   left: max(12px, env(safe-area-inset-left));
@@ -1788,7 +1788,7 @@
   font-size: 11px;
 }
 
-/* Flood sim open — stop HUD stacking (fishing / river-data / flood card) */
+/* Flood sim open â stop HUD stacking (fishing / river-data / flood card) */
 #ui-root.gis-ui.flood-sim-open .fishing-panel,
 #ui-root.gis-ui.flood-sim-open .hud.fishing-panel,
 #ui-root.gis-ui.api-flood-mode .fishing-panel,
@@ -1920,7 +1920,7 @@
   overflow: auto;
 }
 
-/* Flood Playback — stacked in left dock */
+/* Flood Playback â stacked in left dock */
 .flood-playback {
   position: relative;
   left: auto;
@@ -2088,7 +2088,7 @@
   color: #75dcd0;
 }
 
-/* Flood Playback — historical availability timeline */
+/* Flood Playback â historical availability timeline */
 .integrated-flood-panel {
   width: 100%;
   box-sizing: border-box;
@@ -2357,7 +2357,7 @@
   transition: width 0.1s linear;
 }
 
-/* —— Responsive —— */
+/* ââ Responsive ââ */
 @media (max-width: 900px) {
   :root { --layers-panel-w: 280px; }
   .gis-tools-stack {
@@ -2539,7 +2539,7 @@
 .analytics-controls .nav-button.tone-waves { color: #8fd6f2; }
 .analytics-controls .nav-button.tone-brightness { color: #e8ebe8; }
 
-/* Hover — translucent highlight only on that button */
+/* Hover â translucent highlight only on that button */
 .analytics-controls .nav-button:hover,
 .analytics-controls > button:hover {
   background: rgba(255, 255, 255, 0.14);
@@ -2622,7 +2622,7 @@
   }
 }
 
-/* Compact River Data + measure + profile — light river teal glass */
+/* Compact River Data + measure + profile â light river teal glass */
 .gis-ui .river-data-panel.hud,
 .river-data-panel {
   position: relative;
@@ -3036,7 +3036,7 @@
   text-align: center;
 }
 
-/* ─── Measure toast + Profile Analysis (A→B transect) ─── */
+/* âââ Measure toast + Profile Analysis (AâB transect) âââ */
 .measure-mode-toast {
   position: fixed;
   top: calc(max(14px, env(safe-area-inset-top)) + 92px);
@@ -4064,7 +4064,7 @@
 #ui-root.gis-ui .layers-panel .lp-flood-data__title { font-size: 11px; }
 #ui-root.gis-ui .layers-panel .lp-action { font-size: 12px; }
 
-/* Depth / Width values — compact GIS row */
+/* Depth / Width values â compact GIS row */
 #ui-root.gis-ui .river-data-panel .river-data-row .river-data-row-value,
 #ui-root.gis-ui #river-data-depth,
 #ui-root.gis-ui #river-data-width {
@@ -4130,7 +4130,7 @@
   right: max(14px, env(safe-area-inset-right));
   z-index: 19;
   display: grid;
-  /* LIVE REACH | LIVE WEATHER | date/time — none of the text columns shrink */
+  /* LIVE REACH | LIVE WEATHER | date/time â none of the text columns shrink */
   grid-template-columns: max-content max-content max-content;
   align-items: center;
   column-gap: 14px;
@@ -4661,7 +4661,7 @@
 @media (max-width: 640px) {
   .gis-brand { left: 10px; top: 10px; max-width: calc(100vw - 92px); padding: 8px 9px; }
   .gis-brand p, .gis-brand small { display: none; }
-  /* LIVE REACH stays visible — weather detail opens from the icon */
+  /* LIVE REACH stays visible â weather detail opens from the icon */
   .weather-widget {
     top: max(10px, env(safe-area-inset-top));
     right: max(10px, env(safe-area-inset-right));
@@ -4738,7 +4738,7 @@
   font-size: 16px;
 }
 
-/* Map focus — map-first: hide chrome, keep theme chips + chainage + river data */
+/* Map focus â map-first: hide chrome, keep theme chips + chainage + river data */
 #ui-root.gis-ui.map-focus .gis-brand,
 #ui-root.gis-ui.map-focus .weather-widget,
 #ui-root.gis-ui.map-focus .analytics-controls,
@@ -4749,7 +4749,7 @@
 #ui-root.gis-ui.map-focus .flood-sim-toolbar {
   display: none !important;
 }
-/* BOD–COD focus: keep weather (with BOD/COD numbers) visible top-right */
+/* BODâCOD focus: keep weather (with BOD/COD numbers) visible top-right */
 #ui-root.gis-ui.map-focus.bod-cod-focus .weather-widget {
   display: grid !important;
   z-index: 31;
@@ -4770,7 +4770,7 @@
 #ui-root.gis-ui.map-focus.geology-focus .geology-content {
   display: none !important;
 }
-/* Class chips replace left legend cards (same as Land Use) — keep joining nav card */
+/* Class chips replace left legend cards (same as Land Use) â keep joining nav card */
 #ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--lithology,
 #ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--erosion,
 #ui-root.gis-ui.map-focus.geology-focus .left-ui-stack > .geology-panel--bathymetry,
@@ -4822,7 +4822,7 @@
   visibility: hidden !important;
 }
 
-/* Pollution focus — icons → class chips → side tour (no chainage duplicate) */
+/* Pollution focus â icons â class chips â side tour (no chainage duplicate) */
 #ui-root.gis-ui.map-focus.pollution-focus .poll-hud,
 #ui-root.gis-ui.map-focus.pollution-focus .poll-hud.poll-hud--top {
   top: calc(max(14px, env(safe-area-inset-top)) + 12px) !important;
@@ -4838,7 +4838,7 @@
   top: calc(max(14px, env(safe-area-inset-top)) + 14px) !important;
   z-index: 30;
 }
-/* Chainage step is merged into the side tour bar — hide the duplicate */
+/* Chainage step is merged into the side tour bar â hide the duplicate */
 #ui-root.gis-ui.map-focus.pollution-focus .chainage-step-hud,
 #ui-root.gis-ui.map-focus.pollution-focus.lu-theme-classes-open .chainage-step-hud {
   display: none !important;
@@ -4849,7 +4849,7 @@
   z-index: 27;
 }
 
-/* Land Use: icons → classes → chainage */
+/* Land Use: icons â classes â chainage */
 #ui-root.gis-ui.map-focus.land-use-focus .lu-theme-classes,
 #ui-root.gis-ui.map-focus.water-quality-focus .lu-theme-classes,
 #ui-root.gis-ui.map-focus.water-quality-focus .focus-theme-classes,
@@ -4933,10 +4933,10 @@
   color: #fff;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   BOD–COD twin — class chips + reach tour + metric card
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   BODâCOD twin â class chips + reach tour + metric card
    Inspired by JalNetra BOD/COD viewer ribbon aesthetic.
-   ═══════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui.map-focus.bod-cod-focus .wq-hud,
 #ui-root.gis-ui.map-focus.bod-cod-focus .geology-workspace {
   display: none !important;
@@ -4966,9 +4966,9 @@
   display: block;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Climate Impact — Land Use chrome (chips + period sheet + graph)
-   ═══════════════════════════════════════════════════════════ */
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Climate Impact â Land Use chrome (chips + period sheet + graph)
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui.map-focus.climate-focus .aqi-classes,
 #ui-root.gis-ui.map-focus.climate-focus .aqi-legend,
 #ui-root.gis-ui.map-focus.climate-focus .aqi-card,
@@ -5200,9 +5200,9 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   AQI — Climate-style chrome (chips + glass panel + date sheet)
-   ═══════════════════════════════════════════════════════════ */
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   AQI â Climate-style chrome (chips + glass panel + date sheet)
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui.map-focus.aqi-focus .wq-hud,
 #ui-root.gis-ui.map-focus.aqi-focus .geology-workspace,
 #ui-root.gis-ui.map-focus.aqi-focus .lu-hud,
@@ -5253,7 +5253,7 @@
   text-shadow: 0 1px 4px rgba(0, 0, 0, 0.75);
 }
 
-/* Panel right — compact so all content fits (no scroll) */
+/* Panel right â compact so all content fits (no scroll) */
 .aqi-panel {
   position: fixed;
   left: auto;
@@ -5503,7 +5503,7 @@
   height: 48px;
 }
 
-/* Date sheet — centered compact chip (no stretch / no clipped side labels) */
+/* Date sheet â centered compact chip (no stretch / no clipped side labels) */
 .aqi-year {
   left: 50% !important;
   right: auto !important;
@@ -5563,7 +5563,7 @@
 }
 .aqi-back { z-index: 30; }
 
-/* ── AQI bottom panel: header · 7 metric cards · live trend chart ─────── */
+/* ââ AQI bottom panel: header Â· 7 metric cards Â· live trend chart âââââââ */
 #ui-root.gis-ui .aqi-panel {
   left: 50%;
   right: auto;
@@ -5986,7 +5986,7 @@
   .aqi-trend-svg { height: 40px; }
 }
 
-/* Live time scrubber + alerts + accuracy (must have glass chrome — not bare text) */
+/* Live time scrubber + alerts + accuracy (must have glass chrome â not bare text) */
 .bod-cod-alerts {
   position: fixed;
   left: max(14px, env(safe-area-inset-left));
@@ -6685,11 +6685,11 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Land Use — floating icon-only HUD (NO panel / card / glass)
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Land Use â floating icon-only HUD (NO panel / card / glass)
    Four icons only; labels via hover tooltip. No title.
    Positioned under the Land Use (sprout) top-nav icon.
-   ═══════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .lu-theme-classes {
   position: fixed;
   left: 50%;
@@ -6771,7 +6771,7 @@
   white-space: normal;
 }
 
-/* LULC / silt: scale chips only — all classes always visible, no click filter */
+/* LULC / silt: scale chips only â all classes always visible, no click filter */
 .lu-theme-classes.is-legend-only .lu-theme-class,
 .lu-theme-class.is-legend-chip {
   cursor: default;
@@ -7220,7 +7220,7 @@
   filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
 }
 
-/* Hover tooltip — compact GIS HUD chip (labels NEVER permanent) */
+/* Hover tooltip â compact GIS HUD chip (labels NEVER permanent) */
 .lu-hud__item::after {
   content: attr(data-tip);
   position: absolute;
@@ -7344,10 +7344,10 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Water Quality — floating icon-only HUD (same chrome as Land Use)
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Water Quality â floating icon-only HUD (same chrome as Land Use)
    Labels via hover tooltip. Positioned under Water Quality icon.
-   ═══════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .wq-hud {
   position: fixed;
   left: 50%;
@@ -7424,7 +7424,7 @@
   filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
 }
 
-/* Hover tooltip — compact GIS HUD chip (labels NEVER permanent) */
+/* Hover tooltip â compact GIS HUD chip (labels NEVER permanent) */
 .wq-hud__item::after {
   content: attr(data-tip);
   position: absolute;
@@ -7526,10 +7526,10 @@
   font-size: 11px;
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Pollution — floating icon-only HUD (same chrome as Land Use)
-   Garbage · Eutrophication · Nitrogen
-   ═══════════════════════════════════════════════════════════ */
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Pollution â floating icon-only HUD (same chrome as Land Use)
+   Garbage Â· Eutrophication Â· Nitrogen
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .poll-hud {
   position: fixed;
   left: 50%;
@@ -7699,7 +7699,7 @@
   .poll-hud__svg { width: 24px; height: 24px; }
 }
 
-/* Active Water Quality (droplet) — cyan glass + downward caret */
+/* Active Water Quality (droplet) â cyan glass + downward caret */
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet.active,
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button.tone-droplet[aria-pressed="true"],
 #ui-root.gis-ui.water-quality-open .analytics-controls .nav-button[data-analytics="Water Quality"],
@@ -7763,7 +7763,7 @@
   visibility: hidden !important;
 }
 
-/* Pollution pickaxe — hide tip while submenu icons are open; never stack WQ tip over it */
+/* Pollution pickaxe â hide tip while submenu icons are open; never stack WQ tip over it */
 #ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button[data-analytics="Pollution"]::after,
 #ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill::after,
 #ui-root.gis-ui.pollution-hud-open .analytics-controls .nav-button.tone-drill:hover::after,
@@ -7899,10 +7899,10 @@
 }
 .hydro-legend-clear:hover { background: rgba(34, 137, 164, 0.5); }
 
-/* ═══════════════════════════════════════════════════════════
-   Geology workspace — floating icon-only HUD (same chrome as Land Use)
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Geology workspace â floating icon-only HUD (same chrome as Land Use)
    Labels via hover tooltip. Positioned under Geology mountain icon.
-   ═══════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 .geology-workspace {
   position: fixed;
   left: 50%;
@@ -8071,7 +8071,7 @@
   filter: drop-shadow(0 0 8px rgba(140, 220, 160, 0.55));
 }
 
-/* Hover tooltip — same chip style as Land Use / Water Quality */
+/* Hover tooltip â same chip style as Land Use / Water Quality */
 .geology-module-btn::after {
   content: attr(data-tip);
   position: absolute;
@@ -8201,7 +8201,7 @@
   border: 1px solid rgba(125, 211, 252, 0.45);
 }
 
-/* Bank erosion hotspots legend — dock under River Data (left HUD) */
+/* Bank erosion hotspots legend â dock under River Data (left HUD) */
 .bank-erosion-legend {
   width: 100%;
   margin: 0;
@@ -8280,7 +8280,7 @@
   text-align: right;
 }
 
-/* Shared left HUD stack: River Data → gap → Bank Erosion (flex, never overlap) */
+/* Shared left HUD stack: River Data â gap â Bank Erosion (flex, never overlap) */
 .left-ui-stack {
   position: fixed;
   left: clamp(10px, 1.2vw, 22px);
@@ -8356,7 +8356,7 @@
   display: none !important;
 }
 
-/* Bank Erosion / Lithology / Joining / Main Stem / Bathymetry live in .left-ui-stack — relative flow */
+/* Bank Erosion / Lithology / Joining / Main Stem / Bathymetry live in .left-ui-stack â relative flow */
 .geology-content:has(.geology-panel--erosion.is-visible),
 .geology-content:has(.geology-panel--lithology.is-visible),
 .geology-content:has(.geology-panel--joining.is-visible),
@@ -8366,7 +8366,7 @@
   height: 0;
   overflow: visible;
 }
-/* Off by default — only the active module panel may show */
+/* Off by default â only the active module panel may show */
 .left-ui-stack > .geology-panel:not(.is-visible):not(.is-leaving) {
   display: none !important;
   opacity: 0 !important;
@@ -8509,7 +8509,7 @@
   word-break: break-word;
 }
 
-/* Drainage navigator — sits above chainage ruler */
+/* Drainage navigator â sits above chainage ruler */
 .joining-streams-nav {
   position: fixed;
   left: 50%;
@@ -8591,7 +8591,7 @@
   cursor: pointer;
 }
 
-/* ── Geology field notes (survey vernacular, shared shell) ── */
+/* ââ Geology field notes (survey vernacular, shared shell) ââ */
 .geo-field-note {
   --geo-note-ink: rgba(232, 240, 244, 0.94);
   --geo-note-mute: rgba(143, 163, 176, 0.92);
@@ -8640,7 +8640,7 @@
   max-width: 36ch;
 }
 
-/* Bathymetry sounding scale — the one memorable element */
+/* Bathymetry sounding scale â the one memorable element */
 .bathy-sounding {
   margin-top: 4px;
 }
@@ -8696,7 +8696,7 @@
   display: none;
 }
 
-/* Drainage labels — world-anchored (selected always visible) */
+/* Drainage labels â world-anchored (selected always visible) */
 .joining-stream-labels {
   position: fixed;
   inset: 0;
@@ -8767,7 +8767,7 @@
   display: none !important;
 }
 
-/* Spectral Lithology left legend — premium glass (reference stack) */
+/* Spectral Lithology left legend â premium glass (reference stack) */
 .spectral-lithology-legend {
   width: 100%;
   margin: 0;
@@ -8852,13 +8852,13 @@
   font-variant-numeric: tabular-nums;
 }
 
-/* Old horizontal percentage card row — never show */
+/* Old horizontal percentage card row â never show */
 .geology-lithology-row,
 .geology-panel--lithology .geology-lithology-row {
   display: none !important;
 }
 
-/* Spectral Lithology click tooltip — frosted glass card + leader */
+/* Spectral Lithology click tooltip â frosted glass card + leader */
 .hud.tooltip.tooltip--lithology {
   padding: 0;
   background: transparent;
@@ -8928,7 +8928,7 @@
   display: none !important;
 }
 
-/* Transparent icon toolbar — no filled strip / glass panel */
+/* Transparent icon toolbar â no filled strip / glass panel */
 .analytics-controls,
 .top-navigation,
 .analytics-controls.analytics-controls--glass,
@@ -9005,10 +9005,10 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════
-   Global responsive polish — live top HUD + map chrome
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Global responsive polish â live top HUD + map chrome
    Keeps LIVE REACH readable on laptop / tablet / phone.
-   ═══════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui {
   width: 100%;
   height: 100%;
@@ -9294,11 +9294,11 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
-   Right control column — one size for every control (weather, Overview,
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Right control column â one size for every control (weather, Overview,
    VIEW, Layers, Settings, Flood, zoom). Scales with viewport height so the
    column always fits; depth legend sits beside the column, never under it.
-   ═══════════════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui {
   --ctrl-size: clamp(40px, 6.2vh, 58px);
   --ctrl-gap: clamp(5px, 0.9vh, 9px);
@@ -9380,10 +9380,10 @@
   #ui-root.gis-ui { --ctrl-size: 38px; --ctrl-gap: 4px; }
   #ui-root.gis-ui .gis-tools-stack .map-ctrl-label { display: none; }
 }
-/* ═══════════════════════════════════════════════════════════════════
-   Climate period stepper — compact centred glass pill
-   [← prev label]  PERIOD 3/8 · 3–15 Jul · dates  [next label →]
-   ═══════════════════════════════════════════════════════════════════ */
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
+   Climate period stepper â compact centred glass pill
+   [â prev label]  PERIOD 3/8 Â· 3â15 Jul Â· dates  [next label â]
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui .climate-impact-year {
   position: fixed;
   left: 50% !important;
@@ -9489,7 +9489,7 @@
   #ui-root.gis-ui .climate-impact-year .lu-theme-year-center { min-width: 0; padding: 5px 12px; }
   #ui-root.gis-ui .climate-impact-year .lu-theme-year-current { font-size: 16px; }
 }
-/* ── Chainage ruler class bands (BOD-COD reaches painted on the track) ── */
+/* ââ Chainage ruler class bands (BOD-COD reaches painted on the track) ââ */
 .chainage-ruler-bands {
   position: absolute;
   left: 0;
@@ -9570,9 +9570,9 @@
 @media (max-width: 720px) {
   .chainage-ruler-bands-head .chainage-ruler-band-key { display: none; }
 }
-/* ═══════════════════════════════════════════════════════════════════
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
    Current Hydrology dashboard (#dt-panel.hyd-panel)
-   ═══════════════════════════════════════════════════════════════════ */
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui.dt-mode-active .left-ui-stack {
   width: clamp(300px, 27vw, 440px);
   max-width: calc(100vw - 20px);
@@ -9685,7 +9685,7 @@
   min-width: 0;
 }
 
-/* Metric cards: 2 × 3 */
+/* Metric cards: 2 Ã 3 */
 #ui-root.gis-ui .hyd-metrics {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
@@ -9937,11 +9937,11 @@
   }
 }
 
-/* ═══════════════════════════════════════════════════════════════════
+/* âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ
    Premium bottom chainage navigator (#chainage-ruler.cr-premium)
-   [‹ CHAINAGE 0+370 · 370 m ›] ━━━━━●━━━━━━━━━━━━━━━  (ticks below)
-   Footprint ≈ old ruler (~90 px) so panels stacked above keep clear.
-   ═══════════════════════════════════════════════════════════════════ */
+   [â¹ CHAINAGE 0+370 Â· 370 m âº] âââââââââââââââââââââ  (ticks below)
+   Footprint â old ruler (~90 px) so panels stacked above keep clear.
+   âââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââââ */
 #ui-root.gis-ui {
   --cr-bottom: max(10px, env(safe-area-inset-bottom));
   --cr-height: 80px;
@@ -9974,7 +9974,7 @@
   font-family: var(--font-ui, Inter, system-ui, sans-serif);
 }
 
-/* —— Readout: ‹  CHAINAGE / 0+370 / 370 m  › —— */
+/* ââ Readout: â¹  CHAINAGE / 0+370 / 370 m  âº ââ */
 #ui-root.gis-ui .cr-premium .cr-readout {
   flex: 0 0 auto;
   display: flex;
@@ -10036,7 +10036,7 @@
   outline: none;
 }
 
-/* —— Track —— */
+/* ââ Track ââ */
 #ui-root.gis-ui .cr-premium .chainage-ruler-track {
   position: relative;
   flex: 1 1 auto;
@@ -10087,7 +10087,7 @@
 #ui-root.gis-ui .cr-premium .chainage-ruler-input::-webkit-slider-thumb { appearance: none; width: 28px; height: 28px; }
 #ui-root.gis-ui .cr-premium .chainage-ruler-input::-moz-range-thumb { width: 28px; height: 28px; border: 0; }
 
-/* —— Ticks (below the rail) —— */
+/* ââ Ticks (below the rail) ââ */
 #ui-root.gis-ui .cr-premium .chainage-ruler-tick,
 #ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-edge-start,
 #ui-root.gis-ui .cr-premium .chainage-ruler-tick.is-edge-end {
@@ -10137,7 +10137,7 @@
   visibility: hidden;
 }
 
-/* —— Ticks (below the rail) —— */
+/* ââ Ticks (below the rail) ââ */
 #ui-root.gis-ui .cr-premium .chainage-destination-marker {
   position: absolute;
   top: 34px;
@@ -10258,7 +10258,7 @@
   #ui-root.gis-ui .cr-premium .chainage-ruler-meters { display: none; }
   #ui-root.gis-ui .cr-premium .chainage-ruler-cursor-label { font-size: 11px; padding: 1px 6px; }
 }
-/* ── 2D DATA thematic chooser (left stack, 2D map mode only) ── */
+/* ââ 2D DATA thematic chooser (left stack, 2D map mode only) ââ */
 #ui-root.gis-ui .map2d-data-panel {
   padding: 10px 12px;
   border: 1px solid rgba(140, 210, 228, 0.38);
@@ -10370,7 +10370,7 @@
 }
 #ui-root.gis-ui .m2d-lbl { color: #eaf8fb; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 #ui-root.gis-ui .m2d-val { color: rgba(200, 232, 242, 0.8); font-variant-numeric: tabular-nums; white-space: nowrap; }
-/* ─── Silt Area Analysis (2D → River Data) ─── */
+/* âââ Silt Area Analysis (2D â River Data) âââ */
 #ui-root.gis-ui #silt-analysis-btn[hidden] { display: none !important; }
 #ui-root.gis-ui .silt-panel {
   position: fixed;
@@ -10491,8 +10491,8 @@
 #ui-root.gis-ui .silt-btn:hover { background: rgba(255, 79, 216, 0.3); }
 #ui-root.gis-ui .silt-btn--ghost { border-color: rgba(255, 255, 255, 0.22); background: rgba(6, 26, 40, 0.3); }
 
-/* ─── Climate & AQI merged button: view switch ─── */
-/* Docked beside the theme BACK pill (same top / height) — keeps top-centre chainage HUD clear. */
+/* âââ Climate & AQI merged button: view switch âââ */
+/* Docked beside the theme BACK pill (same top / height) â keeps top-centre chainage HUD clear. */
 .climate-aqi-switch {
   position: fixed;
   left: calc(max(16px, env(safe-area-inset-left)) + 104px);
@@ -10527,7 +10527,7 @@
 .climate-aqi-switch button:hover { color: #fff; background: rgba(255, 255, 255, 0.1); }
 .climate-aqi-switch button.is-active { color: #1a1206; background: #f0b48a; }
 
-/* ─── 2D analysis panel: rendered only while an analysis is active ─── */
+/* âââ 2D analysis panel: rendered only while an analysis is active âââ */
 #ui-root.gis-ui .map2d-data-panel.is-analysis .m2d-view {
   margin-top: 0;
   padding-top: 0;
@@ -10581,7 +10581,7 @@
 /* One Hydrology UI at a time: the detailed modal (state.hydrologyViewState = "detailed") replaces Current Hydrology. */
 body.hydro-intel-open #dt-panel { display: none !important; }
 
-/* ── Premium Historical Flood Timeline ── */
+/* ââ Premium Historical Flood Timeline ââ */
 .flood-timeline-panel {
   position: absolute;
   top: 15px;
@@ -10758,9 +10758,9 @@ body.hydro-intel-open #dt-panel { display: none !important; }
   border-top: 1px solid rgba(255,255,255,0.1);
 }
 
-/* ═══ Compact flood layout (brand · Flood Result · Flood Playback · right tools) ═══
+/* âââ Compact flood layout (brand Â· Flood Result Â· Flood Playback Â· right tools) âââ
    Final overrides: keep the river visible and every flood control on-screen at
-   1366×768 → 1920×1080 without scrolling. */
+   1366Ã768 â 1920Ã1080 without scrolling. */
 
 /* Brand header + Water Telemetry Bar (placed horizontally on the side of the logo) */
 #ui-root.gis-ui .brand-telemetry-bar,
@@ -11229,7 +11229,7 @@ body.hydro-intel-open #dt-panel { display: none !important; }
   display: none !important;
 }
 
-/* —— Always-visible chainage water level under the PLANET EYE · RIVER.EYE brand ——
+/* ââ Always-visible chainage water level under the PLANET EYE Â· RIVER.EYE brand ââ
    Same type system as the Q (model) discharge readout: cyan caps labels, white mono figures, no panel. */
 #ui-root.gis-ui .brand-wl {
   margin: 8px 0 0 39px;
@@ -11292,4 +11292,200 @@ body.hydro-intel-open #dt-panel { display: none !important; }
   font: 600 9px/1 var(--font-ui);
   letter-spacing: 0.12em;
   color: rgba(178, 211, 220, 0.7);
+}
+
+/* -- Hydrology 3D visualization HUD (retired — DT opens Charts) ----------- */
+#ui-root.gis-ui .hydro-viz-hud,
+#ui-root.gis-ui .hydro-viz-hud[hidden] {
+  display: none !important;
+  pointer-events: none !important;
+  visibility: hidden !important;
+}
+#ui-root.gis-ui .hv-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-radius: 12px;
+  background: rgba(16, 26, 33, 0.88);
+  border: 1px solid rgba(75, 179, 211, 0.28);
+  backdrop-filter: blur(10px);
+}
+#ui-root.gis-ui .hv-brand {
+  font: 700 11px/1 var(--font-ui);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--gis-water, #4BB3D3);
+  white-space: nowrap;
+}
+#ui-root.gis-ui .hv-modes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  flex: 1;
+}
+#ui-root.gis-ui .hv-mode,
+#ui-root.gis-ui .hv-btn {
+  border: 1px solid rgba(75, 179, 211, 0.22);
+  background: rgba(20, 34, 42, 0.75);
+  color: #d7e8ef;
+  border-radius: 8px;
+  padding: 5px 9px;
+  font: 600 11px/1.1 var(--font-ui);
+  cursor: pointer;
+}
+#ui-root.gis-ui .hv-mode.active {
+  background: rgba(75, 179, 211, 0.28);
+  border-color: rgba(75, 179, 211, 0.7);
+  color: #fff;
+}
+#ui-root.gis-ui .hv-close { min-width: 28px; }
+#ui-root.gis-ui .hv-meta,
+#ui-root.gis-ui .hv-legend,
+#ui-root.gis-ui .hv-timeline,
+#ui-root.gis-ui .hv-inspect,
+#ui-root.gis-ui .hv-rating {
+  padding: 8px 12px;
+  border-radius: 10px;
+  background: rgba(16, 26, 33, 0.82);
+  border: 1px solid rgba(75, 179, 211, 0.18);
+  color: #c9dbe4;
+  font: 500 12px/1.35 var(--font-ui);
+}
+#ui-root.gis-ui .hv-badge {
+  display: inline-block;
+  margin-right: 8px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  font: 700 10px/1.2 var(--font-ui);
+  letter-spacing: 0.06em;
+  background: rgba(14, 165, 233, 0.25);
+  color: #7dd3fc;
+}
+#ui-root.gis-ui .hv-badge[data-class="FORECAST"] {
+  background: rgba(143, 120, 216, 0.3);
+  color: #d4c4ff;
+}
+#ui-root.gis-ui .hv-badge[data-class="UNAVAILABLE"],
+#ui-root.gis-ui .hv-badge[data-class="LOCKED"] {
+  background: rgba(239, 68, 68, 0.22);
+  color: #fca5a5;
+}
+#ui-root.gis-ui .hv-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+#ui-root.gis-ui .hv-leg-bar {
+  flex: 1;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, #0ea5e9, #2563eb, #f59e0b, #ef4444);
+}
+#ui-root.gis-ui .hv-tl { width: 100%; }
+#ui-root.gis-ui .hv-tl-ends {
+  display: flex;
+  justify-content: space-between;
+  font-size: 10px;
+  color: #8aa0ad;
+  margin-top: 4px;
+}
+#ui-root.gis-ui .hv-inspect {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px 14px;
+  max-width: 520px;
+  margin-left: auto;
+  margin-right: auto;
+}
+#ui-root.gis-ui .hv-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  grid-column: span 1;
+}
+#ui-root.gis-ui .hv-row span { color: #8aa0ad; }
+#ui-root.gis-ui .hv-row b { color: #edf6fa; font-weight: 700; }
+#ui-root.gis-ui .hv-row.hv-fc b { color: #d4c4ff; }
+#ui-root.gis-ui .hv-row.hv-muted { opacity: 0.85; font-size: 11px; }
+#ui-root.gis-ui .hv-warn {
+  grid-column: 1 / -1;
+  color: #fbbf24;
+  font-size: 11px;
+}
+#ui-root.gis-ui .hv-float {
+  position: absolute;
+  right: 12px;
+  top: -4px;
+  transform: translateY(-100%);
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(16, 26, 33, 0.9);
+  border: 1px solid rgba(75, 179, 211, 0.35);
+  color: #e8f4f8;
+  font: 600 12px/1.4 var(--font-mono, ui-monospace, monospace);
+  pointer-events: none;
+}
+#ui-root.gis-ui .hv-rating-svg { width: 100%; max-width: 320px; height: auto; display: block; margin: 6px auto; }
+#ui-root.gis-ui .hv-leg-inline { text-align: center; font-size: 11px; color: #8aa0ad; }
+#ui-root.gis-ui .hv-dot {
+  display: inline-block;
+  width: 8px; height: 8px; border-radius: 50%;
+  margin: 0 4px 0 10px; vertical-align: middle;
+}
+#ui-root.gis-ui .hv-dot.live { background: #4bb3d3; }
+#ui-root.gis-ui .hv-dot.fc { background: #8f78d8; }
+@media (max-width: 720px) {
+  #ui-root.gis-ui .hydro-viz-hud { bottom: 96px; width: calc(100vw - 16px); }
+  #ui-root.gis-ui .hv-inspect { grid-template-columns: 1fr; }
+  #ui-root.gis-ui .hv-float { position: static; transform: none; margin-top: 4px; }
+}
+
+/* Hydrology 3D HUD  Phase 6 timeline + cards */
+#ui-root.gis-ui .hv-tl-controls {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+#ui-root.gis-ui .hv-tl-stamp {
+  margin-left: auto;
+  font: 700 11px/1 var(--font-ui);
+  letter-spacing: 0.04em;
+  color: #9ec9d8;
+}
+#ui-root.gis-ui .hv-now-mark {
+  color: #7dd3fc;
+  font-weight: 700;
+}
+#ui-root.gis-ui .hv-speed { display: inline-flex; gap: 2px; }
+#ui-root.gis-ui .hv-spd.active {
+  background: rgba(75, 179, 211, 0.28);
+  border-color: rgba(75, 179, 211, 0.65);
+}
+/* Metric card grid removed — Charts panel owns tabular hydro metrics */
+#ui-root.gis-ui .hv-cards,
+#ui-root.gis-ui .hv-card {
+  display: none !important;
+}
+#ui-root.gis-ui .hv-leg-bar[data-palette="depth"] {
+  background: linear-gradient(90deg, #7a9e8e, #3d6b8a, #1a3350);
+}
+#ui-root.gis-ui .hv-leg-bar[data-palette="stage"] {
+  background: linear-gradient(90deg, #5b7c8a, #6b8f9e, #c4a35a);
+}
+#ui-root.gis-ui .hv-leg-bar[data-palette="forecast"] {
+  background: linear-gradient(90deg, #6b7a9e, #7a6b9e, #9e6b7a);
+}
+#ui-root.gis-ui .hv-leg-bar[data-palette="historical"] {
+  background: linear-gradient(90deg, #6a7a82, #8a9aa2);
+}
+#ui-root.gis-ui .hv-badge[data-class="HISTORICAL"] {
+  background: rgba(138, 154, 162, 0.28);
+  color: #c5d0d6;
+}
+#ui-root.gis-ui .hv-badge[data-class="FORECAST"] {
+  background: rgba(122, 107, 158, 0.32);
+  color: #d4c4ff;
 }

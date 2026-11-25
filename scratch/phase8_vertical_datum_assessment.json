@@ -1,0 +1,62 @@
+{
+  "title": "Vertical datum assessment — Mula–Mutha River.EYE",
+  "assessedAt": "2026-11-25",
+  "overallStatus": "UNVERIFIED",
+  "displayLabel": "VERTICAL DATUM: UNVERIFIED",
+  "datasets": [
+    {
+      "id": "naditwin_wse",
+      "datum": "Relative (0 ≈ upstream water surface reference in NadiTwin)",
+      "absoluteOrRelative": "relative",
+      "verifiedTransformToMsl": false,
+      "status": "UNVERIFIED",
+      "evidence": "NadiTwin meta/normalizer note: relative WSE; datumVerifiedMsl=false"
+    },
+    {
+      "id": "rivereye_terrain",
+      "datum": "Local/scene elevation (FABDEM or project DEM — MSL intended but not cross-validated to NadiTwin)",
+      "absoluteOrRelative": "intended absolute (MSL) — UNVERIFIED vs NadiTwin",
+      "verifiedTransformToMsl": false,
+      "status": "UNVERIFIED",
+      "evidence": "No benchmark residual report in repo; Phase 7/8 audits"
+    },
+    {
+      "id": "survey_depth_profile",
+      "datum": "Local survey depth (depth_m) with nearest_survey_m — not orthometric crest/WSE",
+      "absoluteOrRelative": "relative depth / survey local",
+      "verifiedTransformToMsl": false,
+      "status": "UNVERIFIED",
+      "evidence": "public/data/naditwin/depth_profile.json — depth_m only"
+    },
+    {
+      "id": "profile_wse_hud",
+      "datum": "HUD Profile WSE values appear MSL-like (~528 m) from hydraulic geometry — source/datum not independently certified",
+      "absoluteOrRelative": "ambiguous without benchmark audit",
+      "verifiedTransformToMsl": false,
+      "status": "UNVERIFIED",
+      "evidence": "UI Profile WSE display; not used to move water mesh from NadiTwin relative stage"
+    },
+    {
+      "id": "benchmarks_control_points",
+      "datum": "None catalogued in River.EYE",
+      "absoluteOrRelative": "N/A",
+      "verifiedTransformToMsl": false,
+      "status": "MISSING",
+      "evidence": "No GCP / BM table with orthometric heights in project"
+    }
+  ],
+  "transformation": {
+    "possible": false,
+    "method": null,
+    "controlPoints": [],
+    "verticalOffset": null,
+    "residuals": null,
+    "accuracyLimitations": "Insufficient common control points between NadiTwin relative WSE and MSL terrain/benchmarks",
+    "validationResults": null
+  },
+  "rulesRetained": [
+    "Do not auto-transform relative WSE → MSL with an arbitrary constant",
+    "Do not move 3D water surface from relative NadiTwin WSE",
+    "UI retains VERTICAL DATUM: UNVERIFIED / Relative WSE — not MSL"
+  ]
+}

@@ -26,7 +26,8 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Lithology",
-      "legendSubtitle": "Spectral interpretation · 2026-11-11"
+      "legendSubtitle": "Spectral interpretation · 2026-11-11 · class · %",
+      "unit": "class · %"
     },
     {
       "id": "bank_erosion",
@@ -49,41 +50,47 @@
       "liftM": 1.6,
       "renderType": "terrainDrapedTexture",
       "legendTitle": "Bank erosion hotspots",
-      "legendSubtitle": "2016–2026 · 2026-11-11",
+      "legendSubtitle": "2016–2026 · 2026-11-11 · class · %",
       "legendClasses": [
         {
           "id": "none",
           "label": "No erosion",
           "color": "#90EE90",
-          "pct": "83.1%"
+          "pct": "83.1%",
+          "unit": "class · %"
         },
         {
           "id": "low",
           "label": "Low erosion",
           "color": "#FFFF00",
-          "pct": "15.5%"
+          "pct": "15.5%",
+          "unit": "class · %"
         },
         {
           "id": "moderate",
           "label": "Moderate erosion",
           "color": "#FFA500",
-          "pct": "1.4%"
+          "pct": "1.4%",
+          "unit": "class · %"
         },
         {
           "id": "high",
           "label": "High erosion",
           "color": "#FF0000",
-          "pct": "0%"
+          "pct": "0%",
+          "unit": "class · %"
         },
         {
           "id": "very_high",
           "label": "Very high erosion",
           "color": "#8B0000",
-          "pct": "0%"
+          "pct": "0%",
+          "unit": "class · %"
         }
       ],
       "flipU": false,
-      "flipV": true
+      "flipV": true,
+      "unit": "class · %"
     },
     {
       "id": "water_quality",
@@ -111,8 +118,8 @@
       "opacity": 1,
       "liftM": 0.55,
       "gridSegments": 128,
-      "legendTitle": "TSS",
-      "legendSubtitle": "3 classes · spectral proxy · 2026-11-11",
+      "legendTitle": "TSS / Turbidity",
+      "legendSubtitle": "3 classes · spectral proxy · 2026-11-11 · mg/L",
       "unit": "mg/L",
       "classes": [
         {
@@ -163,25 +170,28 @@
       "source": "NDWI.kml",
       "opacity": 0.72,
       "liftM": 0.4,
-      "legendTitle": "NDWI — Water Detection",
-      "legendSubtitle": "July 2026 classified overlay",
+      "legendTitle": "NDWI",
+      "legendSubtitle": "2 classes · NDWI index · Mandovi RiverEye units",
       "classes": [
         {
           "id": "class_1",
           "kmlClass": "Class 1",
           "label": "Non-water",
           "color": "#8B5A2B",
-          "range": "≤0"
+          "range": "NDWI ≤ 0 (index)",
+          "unit": "index"
         },
         {
           "id": "class_2",
           "kmlClass": "Class 2",
           "label": "Water",
           "color": "#0D47A1",
-          "range": ">0"
+          "range": "NDWI > 0 (index)",
+          "unit": "index"
         }
       ],
-      "renderType": "terrainDrapedPolygonsMergedByClass"
+      "renderType": "terrainDrapedPolygonsMergedByClass",
+      "unit": "index"
     },
     {
       "id": "water_quality_ndci",
@@ -193,9 +203,9 @@
       "source": "src/jalnetra kml/chlorophyl.kml",
       "opacity": 1,
       "liftM": 0.55,
-      "legendTitle": "Chlorophyll-a",
-      "legendSubtitle": "2 classes · NDCI · 2026-11-11",
-      "unit": "µg/L",
+      "legendTitle": "Chlorophyll-a / NDCI",
+      "legendSubtitle": "2 classes · NDCI index · Mandovi RiverEye units",
+      "unit": "index",
       "classes": [
         {
           "id": "low",
@@ -203,7 +213,7 @@
           "label": "Low",
           "color": "#A5D6A7",
           "range": "0–2 µg/L",
-          "unit": "µg/L",
+          "unit": "index",
           "min": 0,
           "max": 2,
           "inclusiveMax": true
@@ -214,7 +224,7 @@
           "label": "High",
           "color": "#1B5E20",
           "range": ">2 µg/L",
-          "unit": "µg/L",
+          "unit": "index",
           "min": 2,
           "max": null,
           "inclusiveMax": false
@@ -244,45 +254,51 @@
       "opacity": 0.72,
       "liftM": 0.4,
       "legendTitle": "WST — Temperature",
-      "legendSubtitle": "Salinity thermal proxy",
+      "legendSubtitle": "5 classes · °C · Mandovi RiverEye units",
       "classes": [
         {
           "id": "class_1",
           "kmlClass": "Class 1",
           "label": "Very low",
           "color": "#0D47A1",
-          "range": "<27°C"
+          "range": "<27°C",
+          "unit": "°C"
         },
         {
           "id": "class_2",
           "kmlClass": "Class 2",
           "label": "Low",
           "color": "#64B5F6",
-          "range": "27–30°C"
+          "range": "27–30°C",
+          "unit": "°C"
         },
         {
           "id": "class_3",
           "kmlClass": "Class 3",
           "label": "Moderate",
           "color": "#FDD835",
-          "range": "30–33°C"
+          "range": "30–33°C",
+          "unit": "°C"
         },
         {
           "id": "class_4",
           "kmlClass": "Class 4",
           "label": "High",
           "color": "#E53935",
-          "range": "33–36°C"
+          "range": "33–36°C",
+          "unit": "°C"
         },
         {
           "id": "class_5",
           "kmlClass": "Class 5",
           "label": "Very high",
           "color": "#8B0000",
-          "range": "≥36°C"
+          "range": "≥36°C",
+          "unit": "°C"
         }
       ],
-      "renderType": "terrainDrapedPolygonsMergedByClass"
+      "renderType": "terrainDrapedPolygonsMergedByClass",
+      "unit": "°C"
     },
     {
       "id": "salinity",
@@ -304,7 +320,7 @@
       "liftM": 0.55,
       "gridSegments": 128,
       "legendTitle": "Salinity",
-      "legendSubtitle": "5 classes · relative 0–1 · 2026-11-11",
+      "legendSubtitle": "5 classes · relative 0–1 · 2026-11-11 · ppt",
       "unit": "ppt",
       "classes": [
         {
@@ -404,28 +420,33 @@
       "liftM": 0.45,
       "gridSegments": 112,
       "legendTitle": "LULC",
-      "legendSubtitle": "Mula–Mutha land cover · LULC UPTO2025",
+      "legendSubtitle": "LULC class · coverage % · Mandovi RiverEye units",
       "source": "src/data/LULC UPTO2025",
       "legendClasses": [
         {
           "label": "Forest",
-          "color": "#006400"
+          "color": "#006400",
+          "unit": "class"
         },
         {
           "label": "Crop Land",
-          "color": "#E6A23C"
+          "color": "#E6A23C",
+          "unit": "class"
         },
         {
           "label": "Barren Land",
-          "color": "#A9A9A9"
+          "color": "#A9A9A9",
+          "unit": "class"
         },
         {
           "label": "Water Bodies",
-          "color": "#2196F3"
+          "color": "#2196F3",
+          "unit": "class"
         },
         {
           "label": "Settlements",
-          "color": "#C62828"
+          "color": "#C62828",
+          "unit": "class"
         }
       ],
       "classes": [
@@ -433,31 +454,36 @@
           "id": "class_0",
           "kmlClass": "Class 0",
           "label": "Forest",
-          "color": "#006400"
+          "color": "#006400",
+          "unit": "class"
         },
         {
           "id": "class_1",
           "kmlClass": "Class 1",
           "label": "Crop Land",
-          "color": "#E6A23C"
+          "color": "#E6A23C",
+          "unit": "class"
         },
         {
           "id": "class_2",
           "kmlClass": "Class 2",
           "label": "Barren Land",
-          "color": "#A9A9A9"
+          "color": "#A9A9A9",
+          "unit": "class"
         },
         {
           "id": "class_3",
           "kmlClass": "Class 3",
           "label": "Water Bodies",
-          "color": "#2196F3"
+          "color": "#2196F3",
+          "unit": "class"
         },
         {
           "id": "class_4",
           "kmlClass": "Class 4",
           "label": "Settlements",
-          "color": "#C62828"
+          "color": "#C62828",
+          "unit": "class"
         }
       ],
       "years": [
@@ -534,7 +560,8 @@
           }
         }
       ],
-      "renderType": "lulcYearOverlays"
+      "renderType": "lulcYearOverlays",
+      "unit": "class"
     },
     {
       "id": "silt_classification",
@@ -547,7 +574,7 @@
       "liftM": 1.4,
       "gridSegments": 128,
       "legendTitle": "Silt Classification",
-      "legendSubtitle": "Discrete silt classes · 2021–2026 monthly",
+      "legendSubtitle": "Discrete silt classes · class · Mandovi RiverEye units",
       "source": "River-I-slit Classification KMLs",
       "bounds": {
         "north": 18.547336008158936,
@@ -559,22 +586,26 @@
         {
           "id": "low",
           "label": "Low",
-          "color": "#2ECC71"
+          "color": "#2ECC71",
+          "unit": "class"
         },
         {
           "id": "moderate",
           "label": "Moderate",
-          "color": "#A8E010"
+          "color": "#A8E010",
+          "unit": "class"
         },
         {
           "id": "high",
           "label": "High",
-          "color": "#F39C12"
+          "color": "#F39C12",
+          "unit": "class"
         },
         {
           "id": "very_high",
           "label": "Very High",
-          "color": "#E74C3C"
+          "color": "#E74C3C",
+          "unit": "class"
         }
       ],
       "periods": [
@@ -1091,7 +1122,8 @@
           "legend": "/data/hydrology/silt/classification/2026-11/legend.png"
         }
       ],
-      "renderType": "terrainDrapedSiltClassification"
+      "renderType": "terrainDrapedSiltClassification",
+      "unit": "class"
     },
     {
       "id": "silt_volume_surface",
@@ -1104,7 +1136,7 @@
       "liftM": 1.5,
       "gridSegments": 128,
       "legendTitle": "Silt Volume Surface (m³)",
-      "legendSubtitle": "Volume surface · fixed 0–94.31 · 2021–2026 monthly",
+      "legendSubtitle": "m³ relative index · assumed 1 m layer · also Mcft in UI",
       "source": "River-I-slit Volume KMLs",
       "bounds": {
         "north": 18.547336008158936,
@@ -1117,28 +1149,33 @@
           "id": "v0",
           "label": "0 m³",
           "color": "#FFFFD4",
-          "range": "low"
+          "range": "low",
+          "unit": "m³"
         },
         {
           "id": "v25",
           "label": "~24 m³",
-          "color": "#FED98E"
+          "color": "#FED98E",
+          "unit": "m³"
         },
         {
           "id": "v50",
           "label": "~47 m³",
-          "color": "#FE9929"
+          "color": "#FE9929",
+          "unit": "m³"
         },
         {
           "id": "v75",
           "label": "~71 m³",
-          "color": "#D95F0E"
+          "color": "#D95F0E",
+          "unit": "m³"
         },
         {
           "id": "v100",
           "label": "94.3 m³",
           "color": "#993404",
-          "range": "high"
+          "range": "high",
+          "unit": "m³"
         }
       ],
       "periods": [
@@ -1655,7 +1692,8 @@
           "legend": "/data/hydrology/silt/volume/2026-11/legend.png"
         }
       ],
-      "renderType": "terrainDrapedSiltVolume"
+      "renderType": "terrainDrapedSiltVolume",
+      "unit": "m³"
     },
     {
       "id": "vegetation_extent",
@@ -1678,35 +1716,41 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Vegetation Type",
-      "legendSubtitle": "src/data/vegetation_type.kml",
+      "legendSubtitle": "Vegetation type · class · Mandovi RiverEye units",
       "legendClasses": [
         {
           "id": "non_vegetation",
           "label": "Non-Vegetation",
-          "color": "#A9A9A9"
+          "color": "#A9A9A9",
+          "unit": "class"
         },
         {
           "id": "trees",
           "label": "Trees",
-          "color": "#228B22"
+          "color": "#228B22",
+          "unit": "class"
         },
         {
           "id": "shrub",
           "label": "Shrub / Scrub",
-          "color": "#9ACD32"
+          "color": "#9ACD32",
+          "unit": "class"
         },
         {
           "id": "grass",
           "label": "Grass / Herbaceous",
-          "color": "#90EE90"
+          "color": "#90EE90",
+          "unit": "class"
         },
         {
           "id": "mixed",
           "label": "Mixed / Diverse",
-          "color": "#8A2BE2"
+          "color": "#8A2BE2",
+          "unit": "class"
         }
       ],
-      "renderType": "terrainDrapedTexture"
+      "renderType": "terrainDrapedTexture",
+      "unit": "class"
     },
     {
       "id": "vegetation_health",
@@ -1729,30 +1773,35 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Vegetation Health",
-      "legendSubtitle": "src/data/vegetation_health.kml",
+      "legendSubtitle": "Vegetation health · class · Mandovi RiverEye units",
       "legendClasses": [
         {
           "id": "poor",
           "label": "Stressed / Poor",
-          "color": "#C62828"
+          "color": "#C62828",
+          "unit": "class"
         },
         {
           "id": "moderate",
           "label": "Moderate",
-          "color": "#F9A825"
+          "color": "#F9A825",
+          "unit": "class"
         },
         {
           "id": "good",
           "label": "Healthy",
-          "color": "#2E7D32"
+          "color": "#2E7D32",
+          "unit": "class"
         },
         {
           "id": "dense",
           "label": "Dense canopy",
-          "color": "#1B5E20"
+          "color": "#1B5E20",
+          "unit": "class"
         }
       ],
-      "renderType": "terrainDrapedTexture"
+      "renderType": "terrainDrapedTexture",
+      "unit": "class"
     },
     {
       "id": "aqi",
@@ -1781,9 +1830,10 @@
       "gridSegments": 128,
       "flipU": false,
       "flipV": true,
-      "legendTitle": "Coliform",
-      "legendSubtitle": "E. coli class · relative · 2026-11-11",
-      "renderType": "terrainDrapedTexture"
+      "legendTitle": "Coliform / E. coli",
+      "legendSubtitle": "CFU/100 ml · relative bathing class · Mandovi RiverEye units",
+      "renderType": "terrainDrapedTexture",
+      "unit": "CFU/100 ml"
     },
     {
       "id": "pollution_eutrophication",
@@ -1806,8 +1856,9 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Eutrophication",
-      "legendSubtitle": "Trophic class · 2026-11-11",
-      "renderType": "terrainDrapedTexture"
+      "legendSubtitle": "Carlson TSI · hotspot also µg/L Chl-a · Mandovi RiverEye units",
+      "renderType": "terrainDrapedTexture",
+      "unit": "TSI"
     },
     {
       "id": "pollution_nitrogen",
@@ -1830,8 +1881,9 @@
       "flipU": false,
       "flipV": true,
       "legendTitle": "Nitrogen",
-      "legendSubtitle": "High-nitrogen risk class · 2026-11-11",
-      "renderType": "terrainDrapedTexture"
+      "legendSubtitle": "Risk class · not mg N/L · Mandovi RiverEye units",
+      "renderType": "terrainDrapedTexture",
+      "unit": "class"
     }
   ]
 }

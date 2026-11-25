@@ -28,6 +28,31 @@ export function getActualRiverChainageMeters(rec) {
  * Forward/Backward navigate RIVER-ORDERED drainages (confluence along Mula–Mutha)
  * and fly the camera to actual nalla geometry — never main-river chainage roam.
  */
+/** One key per source stream: KML placemark(s), else the shared meta object / id. */
+const metaKeys = new WeakMap();
+let metaKeySeq = 0;
+function streamKey(rec) {
+  const idx = rec?.meta?.placemarkIndices;
+  if (Array.isArray(idx) && idx.length) return `pm:${[...idx].sort((a, b) => a - b).join(",")}`;
+  if (rec?.meta && typeof rec.meta === "object") {
+    if (!metaKeys.has(rec.meta)) metaKeys.set(rec.meta, `meta:${++metaKeySeq}`);
+    return metaKeys.get(rec.meta);
+  }
+  return `rec:${rec?.drainageId ?? rec?.id ?? rec?.index}`;
+}
+
+/** Which bank-clipped piece represents the stream: the one touching the river. */
+function betterOutletPiece(a, b) {
+  const gap = (r) => {
+    const g = Number(r.distanceToRiverM ?? r.connection?.distanceToBank);
+    return Number.isFinite(g) ? g : Infinity;
+  };
+  const ga = gap(a);
+  const gb = gap(b);
+  if (Math.abs(ga - gb) > 0.5) return ga < gb;
+  return (a.curveLength || 0) > (b.curveLength || 0);
+}
+
 export function createJoiningStreamsController({ dataset, nallaFlow, cam, system } = {}) {
   // Accept either `nallaFlow` (world.js) or `system` (alias)
   const flow = nallaFlow || system;
@@ -75,8 +100,21 @@ export function createJoiningStreamsController({ dataset, nallaFlow, cam, system
    */
   function refreshRecords() {
     const raw = flow.userData?.records || [];
-    records = [...raw]
-      .filter(isValidDrainage)
+    // A KML stream clipped at the river bank becomes several drawn pieces that share one
+    // source placemark. Navigate (and count) each stream once: keep the piece that meets
+    // the river (smallest bank gap; longest on a tie).
+    const byStream = new Map();
+    for (const r of raw) {
+      if (!isValidDrainage(r)) continue;
+      const key = streamKey(r);
+      const prev = byStream.get(key);
+      if (!prev || betterOutletPiece(r, prev)) byStream.set(key, r);
+    }
+    for (const r of raw) {
+      // Pieces left out of navigation must not keep stale "i / N" numbers.
+      r.navigationIndex = r.navigationNumber = r.navIndex = undefined;
+    }
+    records = [...byStream.values()]
       .sort((a, b) => {
         const d = getActualRiverChainageMeters(a) - getActualRiverChainageMeters(b);
         if (d !== 0) return d;
@@ -158,14 +196,17 @@ export function createJoiningStreamsController({ dataset, nallaFlow, cam, system
   function findIndex(rec) {
     if (!rec) return -1;
     const list = getRecords();
-    return list.findIndex(
-      (r) =>
-        r === rec ||
-        (r.drainageId && rec.drainageId && r.drainageId === rec.drainageId) ||
-        r.id === rec.id ||
-        (r.meta && rec.meta && r.meta === rec.meta) ||
-        (r.meta?.osmId && r.meta.osmId === rec.meta?.osmId),
-    );
+    // Exact record first — sibling pieces of one stream share meta, so fuzzy matching
+    // alone would always resolve to the first piece and stall Forward/Back.
+    const exact = list.indexOf(rec);
+    if (exact >= 0) return exact;
+    if (rec.drainageId) {
+      const byId = list.findIndex((r) => r.drainageId === rec.drainageId);
+      if (byId >= 0) return byId;
+    }
+    // A non-navigated piece (e.g. hovered/clicked) → its stream's navigation entry.
+    const key = streamKey(rec);
+    return list.findIndex((r) => streamKey(r) === key);
   }
 
   function nearestIndexToChainage(meters) {
@@ -432,22 +473,16 @@ export function createJoiningStreamsController({ dataset, nallaFlow, cam, system
     const list = refreshRecords();
     if (!list.length) return null;
 
-    let idx = findIndex(getSelected());
-    if (idx < 0) idx = selectedIndex;
-    if (idx < 0 || idx >= list.length) idx = 0;
+    const cur = selectedIndex >= 0 && selectedIndex < records.length ? records[selectedIndex] : null;
+    let idx = findIndex(cur);
+    if (idx < 0) idx = Number(delta) > 0 ? -1 : 0;
 
-    // Clamp — do not wrap; do not use D-ID order
-    const next =
-      Number(delta) > 0
-        ? Math.min(idx + 1, list.length - 1)
-        : Math.max(idx - 1, 0);
+    // River order (first → last), wrapping at both ends so the arrows cycle every stream.
+    const n = list.length;
+    const next = (((idx + (Number(delta) > 0 ? 1 : -1)) % n) + n) % n;
 
-    if (next === idx && list.length > 1) {
-      /* at end of sequence — no wrap */
-    }
-
-    const record =
-      flow.userData.selectNavigationIndex?.(next) || list[next];
+    // Index into THIS list — the flow system's own list still holds every bank-clipped piece.
+    const record = list[next];
     if (!record) return null;
 
     navigationMode = "drainage-focus";

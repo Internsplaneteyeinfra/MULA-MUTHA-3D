@@ -1,0 +1,215 @@
+{
+  "startedAt": "2026-11-25T11:17:54.021Z",
+  "base": "http://localhost:5185",
+  "checks": {
+    "stageExpanded": true,
+    "backToAll": true,
+    "hydroExpanded": true,
+    "histInExpanded": true,
+    "ratingExpanded": true,
+    "exitFullscreen": true,
+    "threeVisibleNormal": true,
+    "adequateHeights1920": true,
+    "noDuplicateExpandBtns": true
+  },
+  "heights": {
+    "1920x1080_normal": {
+      "stage": {
+        "height": 265,
+        "width": 1840
+      },
+      "hydro": {
+        "height": 320,
+        "width": 1840
+      },
+      "rating": {
+        "height": 265,
+        "width": 1840
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": true,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "",
+      "station": "CH 8+790"
+    },
+    "1920x1080_stage_expanded": {
+      "stage": {
+        "height": 679,
+        "width": 1840
+      },
+      "hydro": {
+        "height": 0,
+        "width": 0
+      },
+      "rating": {
+        "height": 0,
+        "width": 0
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "stage",
+      "station": "CH 8+790"
+    },
+    "1920x1080_back_all": {
+      "stage": {
+        "height": 265,
+        "width": 1840
+      },
+      "hydro": {
+        "height": 320,
+        "width": 1840
+      },
+      "rating": {
+        "height": 265,
+        "width": 1840
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": true,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "",
+      "station": "CH 8+790"
+    },
+    "1920x1080_hydro_expanded": {
+      "stage": {
+        "height": 0,
+        "width": 0
+      },
+      "hydro": {
+        "height": 644,
+        "width": 1840
+      },
+      "rating": {
+        "height": 0,
+        "width": 0
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "hydro",
+      "station": "CH 8+790"
+    },
+    "1920x1080_hydro_hist_7d": {
+      "stage": {
+        "height": 0,
+        "width": 0
+      },
+      "hydro": {
+        "height": 644,
+        "width": 1840
+      },
+      "rating": {
+        "height": 0,
+        "width": 0
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "hydro",
+      "station": "CH 8+790"
+    },
+    "1920x1080_rating_expanded": {
+      "stage": {
+        "height": 0,
+        "width": 0
+      },
+      "hydro": {
+        "height": 0,
+        "width": 0
+      },
+      "rating": {
+        "height": 679,
+        "width": 1840
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": false,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "rating",
+      "station": "CH 8+790"
+    },
+    "1600x900": {
+      "stage": {
+        "height": 245,
+        "width": 1524
+      },
+      "hydro": {
+        "height": 295,
+        "width": 1524
+      },
+      "rating": {
+        "height": 245,
+        "width": 1524
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": true,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "",
+      "station": "CH 8+790"
+    },
+    "1366x768": {
+      "stage": {
+        "height": 230,
+        "width": 1302
+      },
+      "hydro": {
+        "height": 270,
+        "width": 1302
+      },
+      "rating": {
+        "height": 230,
+        "width": 1302
+      },
+      "visible": {
+        "stage": true,
+        "hydro": true,
+        "rating": true
+      },
+      "expandBarHidden": true,
+      "expandBtns": 3,
+      "histBesideHydro": true,
+      "datasetExpand": "",
+      "station": "CH 8+790"
+    }
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()",
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "finishedAt": "2026-11-25T11:19:46.847Z",
+  "pass": true
+}

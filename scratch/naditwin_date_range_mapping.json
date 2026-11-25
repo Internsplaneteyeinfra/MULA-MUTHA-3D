@@ -1,0 +1,79 @@
+{
+  "source": "https://naditwin-production.up.railway.app/api/timerange",
+  "timerange": {
+    "epoch_date": "2021-01-01",
+    "today_date": "2026-11-25",
+    "today_hour": 10,
+    "now_iso": "2026-11-25T10:30:23Z"
+  },
+  "live_fetched_at": "2026-11-25T10:02:23Z",
+  "live_at": "2026-11-25T10:30:23Z",
+  "presets": [
+    {
+      "id": "72h",
+      "label": "Past 72 hours + 72 h forecast",
+      "hours": 72
+    },
+    {
+      "id": "7d",
+      "label": "Past 7 days + 72 h forecast",
+      "hours": 168
+    },
+    {
+      "id": "30d",
+      "label": "Past 30 days + 72 h forecast",
+      "hours": 720
+    },
+    {
+      "id": "90d",
+      "label": "Past 90 days + 72 h forecast",
+      "hours": 2160
+    },
+    {
+      "id": "1y",
+      "label": "Past 1 year + 72 h forecast",
+      "hours": 8760
+    },
+    {
+      "id": "all",
+      "label": "All available history",
+      "hours": "coverageMax"
+    }
+  ],
+  "calendar_years": [
+    2021,
+    2022,
+    2023,
+    2024,
+    2025,
+    2026
+  ],
+  "hydro_sample_cell_840": {
+    "hours": 72,
+    "step_h": 1,
+    "first_obs": "2026-11-22T11:00Z",
+    "last_obs": "2026-11-25T10:00Z",
+    "first_fc": "2026-11-25T11:00Z",
+    "last_fc": "2026-11-28T10:00Z",
+    "n_obs": 72,
+    "n_fc": 72,
+    "last_obs_stage": -7.574,
+    "last_obs_q": 10.08
+  },
+  "rating_sample_cell_840": {
+    "n_points": 70,
+    "levels": {
+      "watch": -5.56,
+      "warning": -4.56,
+      "danger": -3.86,
+      "crest": -3.06,
+      "bed": -9.18,
+      "survey_wse": -7.56
+    },
+    "now": {
+      "q": 10.06,
+      "stage": -7.574
+    }
+  },
+  "verified_at": "2026-11-25T10:26:00.184Z"
+}

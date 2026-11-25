@@ -1,0 +1,58 @@
+{
+  "river": "Mula-Mutha",
+  "cell": 879,
+  "chainage_m": 8790,
+  "graphs": {
+    "river_stage_profile": {
+      "endpoints": [
+        "/api/state",
+        "/api/live",
+        "/api/meta",
+        "/api/forecast/profile?lead=24"
+      ],
+      "series": [
+        "wse",
+        "bed",
+        "crest",
+        "danger",
+        "warning",
+        "watch"
+      ]
+    },
+    "hydrograph": {
+      "endpoints": [
+        "/api/hydrograph?cell=&hours=|year="
+      ],
+      "series": [
+        "observed",
+        "observed_q",
+        "observed_rain",
+        "forecast.median",
+        "forecast.p10",
+        "forecast.p90",
+        "forecast.q_median",
+        "forecast.rain",
+        "levels"
+      ]
+    },
+    "rating_curve": {
+      "endpoints": [
+        "/api/rating?cell="
+      ],
+      "series": [
+        "q",
+        "stage",
+        "levels",
+        "now",
+        "peak72"
+      ],
+      "xScale": "log"
+    }
+  },
+  "timerange": {
+    "epoch_date": "2021-01-01",
+    "today_date": "2026-11-25",
+    "today_hour": 9,
+    "now_iso": "2026-11-25T09:59:33Z"
+  }
+}

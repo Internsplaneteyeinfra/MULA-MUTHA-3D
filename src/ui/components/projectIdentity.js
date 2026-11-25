@@ -5,10 +5,44 @@ import { formatStation } from "../../geo/chainage.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
 import { wseSpatialService } from "../../services/hydrology/wseSpatialService.js";
 import { waterLevelAt } from "./digitalTwinPanel.js";
-import { fetchStreamsBodCod, streamBodCodToday } from "../../services/streamsBodCodService.js";
+import {
+  fetchStreamsBodCod,
+  peekStreamsBodCod,
+  streamBodCodForRecord,
+} from "../../services/streamsBodCodService.js";
+import {
+  getNadiTwinLiveBundle,
+  getNadiTwinDischargeAtChainage,
+  refreshNadiTwinHydrology,
+} from "../../services/hydrology/naditwinHydrologyAdapter.js";
+import { mapLocalChainageToCell } from "../../services/hydrology/hydrologyNormalizer.js";
+import { dtmElevationAtLonLat } from "../../scene/terrain.js";
+
 function num(v) {
   const n = Number(v);
   return v == null || !Number.isFinite(n) ? null : n;
+}
+
+/** NadiTwin LIVE hydraulics at selected chainage (area-specific). */
+function nadiTwinAtChainage(meters) {
+  const live = getNadiTwinLiveBundle();
+  if (!live?.wse?.length && !live?.q_station?.length) return null;
+  const step = live.chainage_step_m || 10;
+  const n = live.n_cells || live.wse?.length || live.q_station?.length || 0;
+  const cell = mapLocalChainageToCell(meters, n, step);
+  if (cell == null || cell < 0) return null;
+  const hit = getNadiTwinDischargeAtChainage(meters);
+  const q = Number.isFinite(hit?.q_m3s) ? hit.q_m3s : num(live.q_station?.[cell]);
+  const wseRel = num(live.wse?.[cell]);
+  const depth = num(live.depth?.[cell]);
+  return {
+    cell,
+    q,
+    wseRel,
+    depth,
+    timestamp: live.timestamp || null,
+    datum: live.datumShort || live.datum || "relative",
+  };
 }
 
 function interpolateValue(a, b, t) {
@@ -133,31 +167,43 @@ export function mountProjectIdentity(root, dataset = null) {
       return;
     }
     setLabels(STREAM_LABELS, "");
-    stageEl.textContent = "…";
-    velocityEl.textContent = "…";
-    areaEl.textContent = "…";
+    const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "—");
+    const paint = (v, failed) => {
+      stageEl.textContent = fmt(v?.bod);
+      velocityEl.textContent = fmt(v?.cod);
+      areaEl.textContent = v?.cls || "—";
+      setLabels(
+        STREAM_LABELS,
+        v
+          ? `JalNetra streams BOD/COD · ${v.streamId} · ${v.date}${
+              v.nearestFill ? " · nearest pixel" : ""
+            }${v.source && v.source !== "live" ? ` · ${v.source}` : ""}`
+          : failed
+            ? "Streams BOD/COD unavailable"
+            : "No BOD/COD series for this stream",
+      );
+    };
+    // Show bundled/cached numbers immediately; upgrade when the live payload resolves.
+    const pending = fetchStreamsBodCod();
+    const early = streamBodCodForRecord(rec, peekStreamsBodCod());
+    if (early) paint(early, false);
+    else {
+      stageEl.textContent = "…";
+      velocityEl.textContent = "…";
+      areaEl.textContent = "…";
+    }
     let v = null;
     let failed = false;
     try {
-      v = streamBodCodToday(rec, await fetchStreamsBodCod());
+      v = streamBodCodForRecord(rec, await pending);
     } catch {
       failed = true;
     }
     if (token !== streamToken) return;
     // Let the next hover/select retry once the backoff allows it
     if (failed) shownStream = undefined;
-    const fmt = (n) => (Number.isFinite(n) ? n.toFixed(2) : "—");
-    stageEl.textContent = fmt(v?.bod);
-    velocityEl.textContent = fmt(v?.cod);
-    areaEl.textContent = v?.cls || "—";
-    setLabels(
-      STREAM_LABELS,
-      v
-        ? `JalNetra streams BOD/COD · ${v.streamId} · today ${v.date} · at river entry`
-        : failed
-          ? "Streams BOD/COD unavailable"
-          : "No BOD/COD series for this stream",
-    );
+    if (!v && early) return; // keep the numbers already shown
+    paint(v, failed);
   }
 
   document.addEventListener("joining-stream-bod", (e) => {
@@ -166,6 +212,8 @@ export function mountProjectIdentity(root, dataset = null) {
     if ("hover" in d) hoverStream = d.hover || null;
     void renderStream();
   });
+
+  const stageUnitEl = el.querySelector("#brand-water-stage-unit");
 
   function update(meters, force = false) {
     if (!Number.isFinite(meters)) return;
@@ -177,14 +225,67 @@ export function mountProjectIdentity(root, dataset = null) {
     const rec = profileRecordAt(meters);
     const hydraulic = wseSpatialService.getWSEAtChainage(meters);
     const summary = hydrologyStore.getSummary();
+    const nt = nadiTwinAtChainage(meters);
 
-    const wse = waterLevelAt(rec) ?? num(rec?.wse_msl?.value) ?? num(hydraulic?.wse);
+    // Prefer NadiTwin LIVE at this chainage for WSE / depth / Q
+    let wse = null;
+    let wseUnit = "m";
+    let wseTitle = "";
+    if (nt) {
+      const ground = rec?.lon != null ? dtmElevationAtLonLat(rec.lon, rec.lat) : null;
+      const survey = num(rec?.survey_depth_m?.value);
+      // Absolute WSE from terrain + NadiTwin flow depth when DTM is available
+      if (ground != null && nt.depth != null) {
+        wse = ground - (survey ?? 0) + nt.depth;
+        wseUnit = "m";
+        wseTitle = `NADITWIN LIVE · CH ${formatStation(meters)} · depth ${nt.depth.toFixed(2)} m on DTM bed`;
+      } else if (nt.wseRel != null) {
+        wse = nt.wseRel;
+        wseUnit = "m rel";
+        wseTitle = `NADITWIN LIVE relative WSE · CH ${formatStation(meters)} · ${nt.datum || "relative"}`;
+      }
+    }
+    if (wse == null) {
+      wse = waterLevelAt(rec) ?? num(rec?.wse_msl?.value) ?? num(hydraulic?.wse);
+      wseTitle = "Profile / fallback (NadiTwin unavailable)";
+    }
+
     if (stageEl) stageEl.textContent = wse != null ? wse.toFixed(2) : "—";
+    if (stageUnitEl) {
+      stageUnitEl.textContent = wseUnit;
+      stageUnitEl.title = wseTitle || "Water surface at selected river chainage";
+    }
 
-    const velocity = num(rec?.velocity_ms?.value) ?? num(summary?.meanVelocity_ms) ?? num(hydraulic?.velocity);
-    const area = num(rec?.cross_section_area_m2?.value) ?? num(hydraulic?.wettedArea);
+    // Wetted area & velocity from NadiTwin depth × local width, v = Q/A
+    const width =
+      num(rec?.width_m) ??
+      num(hydraulic?.wettedWidth) ??
+      (nt?.depth != null ? 25 : null); // last-resort channel width assumption only if twin depth exists
+    let area = null;
+    let velocity = null;
+    if (nt?.depth != null && width != null && width > 0) {
+      area = width * nt.depth;
+      if (nt.q != null && area > 0.05) velocity = nt.q / area;
+    }
+    if (area == null) {
+      area = num(rec?.cross_section_area_m2?.value) ?? num(hydraulic?.wettedArea);
+    }
+    if (velocity == null) {
+      const qFallback = nt?.q ?? num(rec?.discharge_m3s?.value);
+      if (qFallback != null && area != null && area > 0.05) velocity = qFallback / area;
+      else velocity = num(rec?.velocity_ms?.value) ?? num(summary?.meanVelocity_ms) ?? num(hydraulic?.velocity);
+    }
+
     if (velocityEl) velocityEl.textContent = velocity != null ? velocity.toFixed(2) : "—";
     if (areaEl) areaEl.textContent = area != null ? area.toFixed(1) : "—";
+
+    const chLabel = formatStation(meters);
+    el.querySelector(".water-telemetry-wq")?.setAttribute(
+      "title",
+      nt
+        ? `NADITWIN LIVE @ ${chLabel} · Q ${nt.q != null ? nt.q.toFixed(2) : "—"} m³/s · depth ${nt.depth != null ? nt.depth.toFixed(2) : "—"} m`
+        : `Hydraulics @ ${chLabel} (NadiTwin unavailable)`,
+    );
   }
 
   // Subscribe to hydrology store updates (e.g. solve completion, live Q sync, profile recalculations)
@@ -198,20 +299,34 @@ export function mountProjectIdentity(root, dataset = null) {
   document.addEventListener("chainage-select", (e) => {
     const m = Number(e.detail?.meters);
     if (Number.isFinite(m)) {
-      update(m);
+      update(m, true);
     }
+  });
+
+  document.addEventListener("river-station-selected", (e) => {
+    const m = Number(e.detail?.chainage_m);
+    if (Number.isFinite(m)) update(m, true);
+  });
+
+  document.addEventListener("naditwin-hydrology-change", () => {
+    if (lastMeters != null) update(lastMeters, true);
   });
 
   // Journey progress listener
   document.addEventListener("river-journey-progress", (e) => {
     const j = e.detail;
     if (j?.currentChainage != null) {
-      update(j.currentChainage);
+      update(j.currentChainage, true);
     }
   });
 
-  // Initial load
+  // Initial load — refresh NadiTwin then paint selected chainage
   const initialM = state.selectedChainageMeters ?? 1620;
-  update(initialM);
+  void (async () => {
+    if (!getNadiTwinLiveBundle()) {
+      await refreshNadiTwinHydrology().catch(() => {});
+    }
+    update(initialM, true);
+  })();
   return { el, update };
 }

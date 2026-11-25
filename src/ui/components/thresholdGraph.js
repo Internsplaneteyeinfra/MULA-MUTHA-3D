@@ -137,18 +137,24 @@ export function mountThresholdGraph(root) {
   });
 
   // ── river-station-selected listener ──────────────────────────────────────
-  // This is the ONLY event that opens the graph.
+  // Primary hydrology experience is the 3D viz HUD — do NOT open this opaque
+  // ForecastEngine chart modal on river click. Keep as optional secondary only.
   document.addEventListener("river-station-selected", (e) => {
-    const { chainage_m, stationLabel, stationRecord, worldPosition } = e.detail ?? {};
+    const { chainage_m, stationLabel, stationRecord } = e.detail ?? {};
     if (chainage_m == null || !isDigitalTwinActive()) return;
 
-    console.log("[RiverSelection] ACTIVE STATION", {
-      chainage_m,
-      stationLabel,
-    });
-
     _currentStation = { chainage_m, stationLabel, stationRecord };
-    _openOrUpdate();
+
+    // If already explicitly opened (analytical), refresh; otherwise stay closed.
+    if (_isOpen) {
+      _openOrUpdate();
+      return;
+    }
+
+    // Digital Twin → Charts (Hydrology 3D HUD retired)
+    window.__MM_HYDRO_INTEL__?.showAnalyticalCharts?.() ||
+      window.__MM_HYDRO_INTEL__?.show?.();
+    window.__MM_SCENE__?.setHydrologyVizFocus?.(chainage_m);
   });
 
   // ── Open / Update ─────────────────────────────────────────────────────────
@@ -254,8 +260,8 @@ export function mountThresholdGraph(root) {
         allChainage,
         allWse,
         allWse72,
-        wseSource:    hydraulic.dischargeLabel ?? "Modelled",
-        wseProvenance: "LIVE",
+        wseSource:    hydraulic.dischargeLabel ?? "ForecastEngine MODELLED",
+        wseProvenance: "MODELLED · NOT LIVE",
       };
     } catch (err) {
       console.error("[ThresholdGraph] Failed to load engine data:", err);
@@ -341,10 +347,10 @@ export function mountThresholdGraph(root) {
     }
     _setText("#tg-risk-score", String(riskScore));
 
-    // Provenance
-    _setText("#tg-val-wseprov",   wseProvenance ?? "LIVE");
-    _setText("#tg-val-thrprov",   "CLASS_DEFAULT · 2.0 m VERIFIED");
-    _setText("#tg-val-fcastprov", "LIVE FORECAST · ENSEMBLE HYDRAULIC");
+    // Provenance — secondary analytical only; not NadiTwin LIVE authority
+    _setText("#tg-val-wseprov",   wseProvenance ?? "MODELLED · NOT LIVE");
+    _setText("#tg-val-thrprov",   "CLASS_DEFAULT · 2.0 m (unverified)");
+    _setText("#tg-val-fcastprov", "MODELLED FORECAST · ForecastEngine ensemble");
   }
 
   // ── SVG graph rendering ───────────────────────────────────────────────────
@@ -780,9 +786,22 @@ export function mountThresholdGraph(root) {
 
   // ── Expose ────────────────────────────────────────────────────────────────
   onDigitalTwinExit(() => { if (_isOpen) hide(); });
-  window.__MM_THRESHOLD_GRAPH__ = { hide, isOpen: () => _isOpen };
+  /** Explicit open only — not used as primary hydrology UI. */
+  async function show(station) {
+    if (station?.chainage_m != null) {
+      _currentStation = {
+        chainage_m: station.chainage_m,
+        stationLabel: station.stationLabel,
+        stationRecord: station.stationRecord,
+      };
+    }
+    if (!_currentStation) return;
+    await _openOrUpdate();
+  }
 
-  return { hide, isOpen: () => _isOpen };
+  window.__MM_THRESHOLD_GRAPH__ = { show, hide, isOpen: () => _isOpen };
+
+  return { show, hide, isOpen: () => _isOpen };
 }
 
 function round2(v) {

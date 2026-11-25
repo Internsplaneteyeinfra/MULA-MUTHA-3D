@@ -12,6 +12,7 @@ import zlib from "node:zlib";
 import { fileURLToPath } from "node:url";
 import { pipeline } from "node:stream";
 import { handleRainfallApi } from "./scripts/rainfallApiMiddleware.mjs";
+import { handleNadiTwinApi } from "./scripts/naditwinApiMiddleware.mjs";
 
 const ROOT = path.join(path.dirname(fileURLToPath(import.meta.url)), "dist");
 const PORT = Number(process.env.PORT) || 4176;
@@ -130,6 +131,9 @@ http
       void proxy(req, res, url);
       return;
     }
+    // NadiTwin hydrology proxy (CORS + timeouts; allowlisted GET)
+    if (handleNadiTwinApi(req, res, url.pathname, url.search)) return;
+
     // Rainfall Simulation API (river response — not flood inundation)
     void handleRainfallApi(req, res, url.pathname).then((handled) => {
       if (handled) return;
@@ -141,5 +145,7 @@ http
     });
   })
   .listen(PORT, "0.0.0.0", () =>
-    console.log(`[server] dist on :${PORT}, ${PROXY_PREFIX} → ${RIVEREYE_API}, /api/rainfall-simulation`),
+    console.log(
+      `[server] dist on :${PORT}, ${PROXY_PREFIX} → ${RIVEREYE_API}, /naditwin-api, /api/rainfall-simulation`,
+    ),
   );

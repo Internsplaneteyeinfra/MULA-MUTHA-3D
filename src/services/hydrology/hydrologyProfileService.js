@@ -2,17 +2,28 @@
  * Hydrology Profile Service
  *
  * Orchestrates the complete pipeline:
- * 1. Loads authoritative 1,698 chainage stations & sounding depths
- * 2. Checks telemetry service for active gauge observations
- * 3. Solves 1D hydraulic profile using HydraulicProfileEngine
- * 4. Pushes results to HydrologyStore
+ * 1. Loads authoritative chainage stations & sounding depths
+ * 2. Prefers NadiTwin live Q (via proxy) as LIVE discharge authority
+ * 3. Falls back to GloFAS / telemetry / seasonal baseline (never synthetic as LIVE)
+ * 4. Solves 1D hydraulic profile using HydraulicProfileEngine
+ * 5. Overlays NadiTwin per-station Q onto profile records
  */
 
 import { HydraulicProfileEngine } from "./hydraulicProfileEngine.js";
-import { telemetryService, GAUGE_STATIONS } from "./hydrologyTelemetryService.js";
+import { telemetryService } from "./hydrologyTelemetryService.js";
 import { hydrologyStore } from "./hydrologyStore.js";
 import { PROVENANCE_STATUS } from "./hydrologyContract.js";
 import { startLiveHydrologyPolling, subscribeLiveHydrology } from "./liveHydrologyService.js";
+import {
+  applyNadiTwinQToProfileRecords,
+  getNadiTwinDischargeAtChainage,
+  getNadiTwinLiveBundle,
+  refreshNadiTwinHydrology,
+  setLocalChainageStations,
+  startNadiTwinHydrologyPolling,
+  subscribeNadiTwinHydrology,
+} from "./naditwinHydrologyAdapter.js";
+import { DATA_CLASS } from "./hydrologyProvenance.js";
 
 let _engineInstance = null;
 let _initPromise = null;
@@ -28,7 +39,6 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
       let stations = chainageData;
       let soundings = soundingData;
 
-      // Ensure stations have required hydraulic properties (chainage_m, width_m)
       if (!stations || !stations.length || stations[0]?.width_m == null) {
         stations = await fetchJson("/data/naditwin/chainage_profile.json").catch(() => []);
       }
@@ -42,29 +52,41 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
       }
 
       _engineInstance = new HydraulicProfileEngine(stations, soundings);
+      setLocalChainageStations(stations);
 
-      // Start live GloFAS + Open-Meteo polling (every 15 min, free, no API key)
+      // NadiTwin LIVE authority (proxied)
+      startNadiTwinHydrologyPolling(60_000);
+      subscribeNadiTwinHydrology((snap) => {
+        const q = snap?.live?.discharge_m3s;
+        if (!Number.isFinite(q) || q <= 0) return;
+        refreshHydrologyProfile({
+          discharge_m3s: q,
+          source: snap.live.source || "NADITWIN_API",
+          provenance: snap.live.provenance || PROVENANCE_STATUS.MODELLED,
+          dataClass: DATA_CLASS.LIVE,
+          allowSynthetic: false,
+        });
+      });
+
+      // GloFAS fallback only when NadiTwin unavailable
       startLiveHydrologyPolling();
-
-      // Re-solve hydraulic profile whenever live discharge arrives
       subscribeLiveHydrology((liveData) => {
+        if (getNadiTwinLiveBundle()?.discharge_m3s != null) return;
         if (!liveData?.available || !Number.isFinite(liveData.Q_total) || liveData.Q_total <= 0) return;
         const fromGlofas = Number.isFinite(liveData.Q_glofas);
         refreshHydrologyProfile({
           discharge_m3s: liveData.Q_total,
           source: fromGlofas
-            ? `GLOFAS_LIVE — Q=${liveData.Q_glofas} m³/s (${liveData.Q_glofas_date})`
-            : `LIVE_RAINFALL_RUNOFF — ${liveData.weatherDescription ?? ""} — ${liveData.currentRain_mm_hr ?? 0} mm/hr`,
+            ? `GLOFAS_OPEN_METEO_FALLBACK — Q=${liveData.Q_glofas} m³/s (${liveData.Q_glofas_date})`
+            : `LIVE_RAINFALL_RUNOFF_FALLBACK — ${liveData.weatherDescription ?? ""}`,
           provenance: PROVENANCE_STATUS.MODELLED,
+          dataClass: DATA_CLASS.MODELLED,
+          allowSynthetic: false,
         });
-        console.info(
-          `[LiveHydrology] Profile updated: Q=${liveData.Q_total.toFixed(2)} m³/s`,
-          fromGlofas ? `(GloFAS ${liveData.Q_glofas_date})` : `(rain fallback)`,
-        );
       });
 
-      // Attempt initial solve with verified telemetry or initial baseline
-      await refreshHydrologyProfile();
+      await refreshNadiTwinHydrology().catch(() => {});
+      await refreshHydrologyProfile({ allowSynthetic: false });
 
       return _engineInstance;
     })();
@@ -78,6 +100,8 @@ export async function initHydrologyProfileService(chainageData = null, soundingD
  * @param {number} [customParams.discharge_m3s]
  * @param {string} [customParams.source]
  * @param {string} [customParams.provenance]
+ * @param {string} [customParams.dataClass]
+ * @param {boolean} [customParams.allowSynthetic=false] — synthetic ForecastEngine must not set LIVE
  */
 export async function refreshHydrologyProfile(customParams = {}) {
   if (!_engineInstance) {
@@ -85,10 +109,23 @@ export async function refreshHydrologyProfile(customParams = {}) {
   }
   if (!_engineInstance) return null;
 
-  // 1. Check Bund Garden / Khadakwasla telemetry
+  const allowSynthetic = customParams.allowSynthetic === true;
   let Q = customParams.discharge_m3s ?? null;
   let source = customParams.source ?? "INITIAL_RATING_BASELINE";
   let provenance = customParams.provenance ?? PROVENANCE_STATUS.VERIFIED;
+  let dataClass = customParams.dataClass || null;
+
+  if (Q == null) {
+    // 1. NadiTwin LIVE
+    const nt = getNadiTwinDischargeAtChainage(0) || getNadiTwinLiveBundle();
+    const ntQ = nt?.q_m3s ?? nt?.discharge_m3s;
+    if (Number.isFinite(ntQ) && ntQ > 0) {
+      Q = ntQ;
+      source = nt.source || "NADITWIN_API";
+      provenance = nt.provenance || PROVENANCE_STATUS.MODELLED;
+      dataClass = DATA_CLASS.LIVE;
+    }
+  }
 
   if (Q == null) {
     const bundObs = telemetryService.getObservation("cwc_bund_garden");
@@ -96,35 +133,55 @@ export async function refreshHydrologyProfile(customParams = {}) {
       Q = bundObs.discharge.value;
       source = "CWC_BUND_GARDEN_TELEMETRY";
       provenance = bundObs.discharge.status;
-    } else {
-      const { getCachedLiveHydrology } = await import("./liveHydrologyService.js");
-      const live = getCachedLiveHydrology();
-      // Prefer live GloFAS (or rainfall fallback) when the feed is available.
-      if (live?.available && Number.isFinite(live.Q_total) && live.Q_total > 0) {
-        Q = live.Q_total;
-        source = Number.isFinite(live.Q_glofas)
-          ? `GLOFAS_LIVE — Q=${live.Q_glofas} m³/s (${live.Q_glofas_date})`
-          : `LIVE_RAINFALL_RUNOFF — ${live.weatherDescription ?? ""} — ${live.currentRain_mm_hr ?? 0} mm/hr`;
-        provenance = PROVENANCE_STATUS.MODELLED;
-      } else {
-        try {
-          const { getLiveDischargeAtChainage } = await import("../forecastService.js");
-          const liveQ = await getLiveDischargeAtChainage(0);
-          if (Number.isFinite(liveQ) && liveQ > 0) {
-            Q = liveQ;
-            source = "MODELLED_REACH — synthetic forecast engine (no gauge connected)";
-            provenance = PROVENANCE_STATUS.MODELLED;
-          }
-        } catch {
-          /* fall through */
-        }
-        if (Q == null) {
-          Q = 65.0;
-          source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
-          provenance = PROVENANCE_STATUS.MODELLED;
-        }
-      }
+      dataClass = DATA_CLASS.LIVE;
     }
+  }
+
+  if (Q == null) {
+    const { getCachedLiveHydrology } = await import("./liveHydrologyService.js");
+    const live = getCachedLiveHydrology();
+    if (live?.available && Number.isFinite(live.Q_total) && live.Q_total > 0) {
+      Q = live.Q_total;
+      source = Number.isFinite(live.Q_glofas)
+        ? `GLOFAS_OPEN_METEO_FALLBACK — Q=${live.Q_glofas} m³/s (${live.Q_glofas_date})`
+        : `LIVE_RAINFALL_RUNOFF_FALLBACK`;
+      provenance = PROVENANCE_STATUS.MODELLED;
+      dataClass = DATA_CLASS.MODELLED;
+    }
+  }
+
+  // Synthetic ForecastEngine is NEVER used as LIVE authority.
+  if (Q == null && allowSynthetic) {
+    try {
+      const { getLiveDischargeAtChainage } = await import("../forecastService.js");
+      const liveQ = await getLiveDischargeAtChainage(0);
+      if (Number.isFinite(liveQ) && liveQ > 0) {
+        Q = liveQ;
+        source = "FORECAST_ENGINE_SYNTHETIC — not LIVE";
+        provenance = PROVENANCE_STATUS.MODELLED;
+        dataClass = DATA_CLASS.FORECAST;
+      }
+    } catch {
+      /* fall through */
+    }
+  }
+
+  if (Q == null) {
+    Q = 65.0;
+    source = "PUNE_URBAN_CORRIDOR_SEASONAL_BASEFLOW";
+    provenance = PROVENANCE_STATUS.MODELLED;
+    dataClass = DATA_CLASS.MODELLED;
+  }
+
+  // Reject accidental synthetic overwrite of an existing LIVE NadiTwin profile
+  if (
+    !allowSynthetic &&
+    typeof source === "string" &&
+    /synthetic|forecast engine/i.test(source) &&
+    getNadiTwinLiveBundle()?.discharge_m3s != null
+  ) {
+    console.warn("[HydrologyProfileService] Blocked synthetic Q overwrite of NadiTwin LIVE");
+    return hydrologyStore.getProfile();
   }
 
   const result = _engineInstance.solveProfile({
@@ -132,6 +189,18 @@ export async function refreshHydrologyProfile(customParams = {}) {
     dischargeSource: source,
     dischargeProvenance: provenance,
   });
+
+  if (result?.records?.length) {
+    applyNadiTwinQToProfileRecords(result.records);
+    const first = result.records[0];
+    if (first?.discharge_m3s) {
+      first.discharge_m3s.dataClass = dataClass || first.discharge_m3s.dataClass || DATA_CLASS.MODELLED;
+    }
+  }
+
+  if (result?.summary) {
+    result.summary.dataClass = dataClass;
+  }
 
   hydrologyStore.setHydraulicProfile(result);
   return result;

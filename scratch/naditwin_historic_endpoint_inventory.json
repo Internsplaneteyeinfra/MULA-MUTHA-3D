@@ -1,0 +1,60 @@
+{
+  "inspectedAt": "2026-11-25",
+  "source": "https://naditwin-production.up.railway.app/api/endpoints",
+  "capabilities": {
+    "station_discharge": {
+      "supported": true,
+      "endpoint": "/api/hydrograph?cell=&hours=|/year=",
+      "notes": "Station series (MODELLED historical + forecast)"
+    },
+    "spatial_discharge": {
+      "supported": true,
+      "endpoint": "/api/state?at=<ISO>",
+      "notes": "Full-reach q_station at selected timestamp; live=false when historic"
+    },
+    "station_stage": {
+      "supported": true,
+      "endpoint": "/api/hydrograph",
+      "notes": "observed / forecast stage arrays"
+    },
+    "spatial_stage": {
+      "supported": true,
+      "endpoint": "/api/state?at=<ISO>",
+      "notes": "Full-reach wse + depth; bed/crest from /api/meta geometry"
+    },
+    "rainfall": {
+      "station": true,
+      "spatial_historic": false,
+      "endpoint": "/api/hydrograph observed_rain"
+    },
+    "snapshot_at": {
+      "supported": true,
+      "param": "at",
+      "format": "ISO-8601 with offset, e.g. 2024-07-15T06:00:00+05:30",
+      "resolution_h": 1,
+      "ignored_params": ["date", "day", "hour", "hour_index", "when"]
+    },
+    "margins_locations": {
+      "supported": true,
+      "endpoint": "/api/margins_locations",
+      "historic": true,
+      "historic_param": "at"
+    },
+    "margins_chainage_1km": {
+      "supported": true,
+      "endpoint": "/api/margins_chainage?step_km=1",
+      "historic": true,
+      "historic_param": "at"
+    },
+    "timerange": {
+      "endpoint": "/api/timerange",
+      "fields": ["epoch_date", "today_date", "today_hour", "now_iso"]
+    }
+  },
+  "not_supported": [
+    "Historic spatial Q +24h/+72h medians for arbitrary at (LIVE forecast leads only)",
+    "Historic spatial rain_now along 10 m chainage",
+    "Independent historical simulation engine outside NadiTwin state?at="
+  ],
+  "proxy": "/naditwin-api"
+}

@@ -1,0 +1,74 @@
+{
+  "generatedAt": "2026-11-25T09:55:10.344Z",
+  "cell": 879,
+  "hydrograph": {
+    "hours": 72,
+    "step_h": 1,
+    "obs_n": 72,
+    "fc_n": 72,
+    "first_obs": "2026-11-22T10:00Z",
+    "last_obs": "2026-11-25T09:00Z",
+    "first_fc": "2026-11-25T10:00Z",
+    "last_fc": "2026-11-28T09:00Z",
+    "stage0": -7.921,
+    "q0": 10.29,
+    "levels": {
+      "watch": -5.91,
+      "warning": -4.91,
+      "danger": -4.21,
+      "crest": -3.41,
+      "bed": -9.46,
+      "survey_wse": -7.91
+    },
+    "note": "Digital Twin consumes this payload verbatim via /naditwin-api proxy"
+  },
+  "rating": {
+    "q_n": 70,
+    "stage_n": 70,
+    "q0": 0.5,
+    "qLast": 3000,
+    "now": {
+      "q": 10.13,
+      "stage": -7.923
+    },
+    "peak72": {
+      "q": 10.37,
+      "stage": -7.921
+    },
+    "levels": {
+      "watch": -5.91,
+      "warning": -4.91,
+      "danger": -4.21,
+      "crest": -3.41,
+      "bed": -9.46,
+      "survey_wse": -7.91
+    },
+    "datum": "m, relative"
+  },
+  "state": {
+    "wse_n": 1681,
+    "keys": [
+      "q_now",
+      "q_up_now",
+      "q_out_now",
+      "q_seg",
+      "q_station",
+      "seg_bounds_km",
+      "wse",
+      "depth",
+      "datum",
+      "flow_dir",
+      "at",
+      "hour_index",
+      "live",
+      "mode",
+      "note"
+    ]
+  },
+  "parity": {
+    "synthetic_fill": false,
+    "forecastEngine_substitution": false,
+    "null_as_zero": false,
+    "expected_value_diff": "0 (same API JSON)"
+  }
+}

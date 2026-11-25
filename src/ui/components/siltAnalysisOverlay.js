@@ -311,11 +311,11 @@ export function mountSiltAnalysisOverlay(root, dataset) {
         '<div class="ds-group"><div class="ds-lbl">SELECTED AREA</div>' +
         '<div class="ds-val">' + areaVal + ' <span class="unit">m\u00B2</span></div>' +
         '<div class="ds-sub">' + areaHa + '</div></div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">Silt Coverage</div>' +
+        '<div class="ds-group mt3"><div class="ds-lbl">Silt Coverage (%)</div>' +
         '<div class="ds-val cyan">' + covPct + '</div></div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">Silt Volume</div>' +
+        '<div class="ds-group mt3"><div class="ds-lbl">Silt Volume Index Total</div>' +
         '<div class="ds-val">' + volVal + ' <span class="unit">m\u00B3</span></div>' +
-        '<div class="ds-sub">' + volMcf + '</div></div>' +
+        '<div class="ds-sub">' + volMcf + ' · relative 1 m layer</div></div>' +
         '<div class="ds-row mt3"><span>Valid Observations</span><b>' + obs + '</b></div>' +
         '<div class="ds-row"><span>Hotspots</span><b>' + hotspots + '</b></div>' +
       '</div>' +
@@ -323,7 +323,7 @@ export function mountSiltAnalysisOverlay(root, dataset) {
         '<div class="ds-group"><div class="ds-lbl">RIVER BED DEPTH <span class="dim">(Within Area)</span></div>' +
         '<div class="depth-main"><span class="depth-val">' + bdMean + '</span><span class="depth-unit">m</span><span class="depth-sub">(Mean)</span></div>' +
         '<div class="depth-minmax">Min: ' + bdMin + ' | Max: ' + bdMax + '</div></div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">SILT CLASS DISTRIBUTION</div>' + classesHtml + '</div>' +
+        '<div class="ds-group mt3"><div class="ds-lbl">SILT CLASS DISTRIBUTION <span class="dim">(class)</span></div>' + classesHtml + '</div>' +
         '<div class="ds-group mt3"><div class="ds-lbl">DATA STATUS</div>' +
         '<div class="status-rows">' +
           '<div class="kv"><span>Silt Analysis</span><span class="badge derived">DERIVED</span></div>' +

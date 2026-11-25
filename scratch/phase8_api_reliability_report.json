@@ -1,0 +1,124 @@
+{
+  "generatedAt": "2026-11-25T06:32:37.594Z",
+  "proxy": "/naditwin-api",
+  "timeoutMsConfigured": 18000,
+  "cache": "TTL cache in naditwinApi.js — fromCache flagged",
+  "failureBehaviour": "refreshNadiTwinHydrology keeps previous bundle; adapter quality=STALE; canonical marks STALE not LIVE",
+  "tests": {
+    "live": {
+      "ok": true,
+      "status": 200,
+      "ms": 516,
+      "hasBody": true,
+      "upstream": "200",
+      "keys": [
+        "status",
+        "q_source",
+        "calibration",
+        "terrain",
+        "assumptions",
+        "at",
+        "weather",
+        "outlet_check",
+        "segments"
+      ]
+    },
+    "state": {
+      "ok": true,
+      "status": 200,
+      "ms": 553,
+      "hasBody": true,
+      "upstream": "200",
+      "keys": [
+        "q_now",
+        "q_up_now",
+        "q_out_now",
+        "q_seg",
+        "q_station",
+        "seg_bounds_km",
+        "wse",
+        "depth",
+        "datum",
+        "flow_dir",
+        "at",
+        "hour_index"
+      ]
+    },
+    "meta": {
+      "ok": true,
+      "status": 200,
+      "ms": 439,
+      "hasBody": true,
+      "upstream": "200",
+      "keys": [
+        "product",
+        "river",
+        "disclaimer",
+        "has_real_depth",
+        "survey",
+        "reach_km",
+        "n_cells",
+        "chainage_step_m",
+        "past_window_hours",
+        "forecast_hours",
+        "members",
+        "q_source"
+      ]
+    },
+    "hydrograph": {
+      "ok": true,
+      "status": 200,
+      "ms": 240,
+      "hasBody": true,
+      "upstream": "200",
+      "keys": [
+        "cell",
+        "chainage_km",
+        "segment",
+        "label",
+        "step_h",
+        "hours",
+        "times",
+        "observed",
+        "observed_q",
+        "observed_rain",
+        "forecast",
+        "levels"
+      ]
+    },
+    "forecast24": {
+      "ok": true,
+      "status": 200,
+      "ms": 273,
+      "hasBody": true,
+      "upstream": "200",
+      "keys": [
+        "lead_h",
+        "median",
+        "p10",
+        "p90",
+        "q_median_station",
+        "q_median_seg"
+      ]
+    },
+    "bad_path": {
+      "ok": false,
+      "status": 403,
+      "ms": 13,
+      "hasBody": true,
+      "upstream": null,
+      "keys": [
+        "error"
+      ]
+    }
+  },
+  "upstreamVsLocal": {
+    "note": "HTTP ok via proxy indicates local app + proxy path; upstreamStatus header separates Railway failures when present"
+  },
+  "nonHydrology404": {
+    "url": "https://jalnetra-software-production.up.railway.app/api/bod-cod/viewer/d23537a4de064125871e5b852d6aa34f/data",
+    "classification": "EXTERNAL_UPSTREAM_FAILURE",
+    "impact": "BOD/COD viewer resource — not NadiTwin LIVE hydrology",
+    "action": "Documented; not fabricated; hydrology path unaffected"
+  }
+}

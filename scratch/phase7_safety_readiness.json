@@ -1,0 +1,15 @@
+{
+  "title": "Safety board readiness audit — Mula–Mutha",
+  "status": "LOCKED — do not unlock",
+  "requirements": [
+    { "id": "naditwin_vertical_datum", "result": "UNVERIFIED", "detail": "NadiTwin datum is relative (0 = upstream WSE), not MSL" },
+    { "id": "rivereye_terrain_datum", "result": "UNVERIFIED", "detail": "FABDEM/local terrain MSL not cross-validated against NadiTwin relative WSE" },
+    { "id": "bank_crest_source", "result": "MISSING", "detail": "No independently surveyed bank crest layer wired for operational margins" },
+    { "id": "bank_crest_vertical_datum", "result": "MISSING", "detail": "Crest elevations unavailable / unverified" },
+    { "id": "cross_section_survey", "result": "REQUIRES SURVEY", "detail": "Partial survey depth exists; full crest/XS verification required" },
+    { "id": "chainage_alignment", "result": "VERIFIED", "detail": "Phase 4/6 validateChainageAlignment ok vs River.EYE 10 m geometry" },
+    { "id": "datum_transformation", "result": "MISSING", "detail": "No documented relative→MSL transform" },
+    { "id": "danger_threshold_calc", "result": "UNVERIFIED", "detail": "Legacy threshold defaults (2.0 m) are class assumptions, not surveyed" }
+  ],
+  "recommendation": "Keep safety boards locked until datum, crest, and threshold inputs are independently verified. Do not auto-transform relative WSE to MSL."
+}

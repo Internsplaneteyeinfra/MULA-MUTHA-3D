@@ -330,8 +330,8 @@ export function mountAnalyticsControls(root, dataset) {
     const dtModeBtn = document.querySelector("#dt-mode-toggle");
     if (dtPanel) dtPanel.hidden = true;
     if (dtDock) dtDock.hidden = true;
-    // Also close the Hydrology Intelligence Panel backdrop
     window.__MM_HYDRO_INTEL__?.hide?.();
+    window.__MM_HYDRO_VIZ__?.hide?.();
     uiRoot?.classList.remove("dt-mode-active");
     document.body.classList.remove("dt-mode-active");
     for (const btn of [dtBtn, dtModeBtn]) {
@@ -890,10 +890,11 @@ export function mountAnalyticsControls(root, dataset) {
       const uiRoot = document.getElementById("ui-root");
       const dtPanel = document.querySelector("#dt-panel");
       const dtDock = document.querySelector("#twin-analytics-dock");
-      const isCurrentlyVisible = dtPanel
-        ? !dtPanel.hidden
-        : !!dtDock && !dtDock.hidden;
-      const targetState = !isCurrentlyVisible;
+      const chartsOpen =
+        !!window.__MM_HYDRO_INTEL__?.isAnalyticalOpen?.() ||
+        !!window.__MM_HYDRO_INTEL__?.isOpen?.() ||
+        button.getAttribute("aria-pressed") === "true";
+      const targetState = !chartsOpen;
 
       if (targetState) {
         closeModal();
@@ -905,16 +906,19 @@ export function mountAnalyticsControls(root, dataset) {
         if (aqiHud.isOpen()) aqiHud.hide();
         clearHydroLegend();
         setActive("digital_twin");
-        // Open Hydrology Intelligence Panel
-        window.__MM_HYDRO_INTEL__?.show?.();
+        // Digital Twin → open Charts directly (no Hydrology 3D modes/timeline HUD)
+        window.__MM_HYDRO_VIZ__?.hide?.();
+        window.__MM_HYDRO_INTEL__?.showAnalyticalCharts?.() ||
+          window.__MM_HYDRO_INTEL__?.showCharts?.();
       } else {
         setActive(null);
-        // Close Hydrology Intelligence Panel
         window.__MM_HYDRO_INTEL__?.hide?.();
+        window.__MM_HYDRO_VIZ__?.hide?.();
       }
 
-      if (dtPanel) dtPanel.hidden = !targetState;
-      if (dtDock) dtDock.hidden = !targetState;
+      // Keep legacy left twin panels closed — Charts is the DT surface
+      if (dtPanel) dtPanel.hidden = true;
+      if (dtDock) dtDock.hidden = true;
 
       uiRoot?.classList.toggle("dt-mode-active", targetState);
       document.body.classList.toggle("dt-mode-active", targetState);
@@ -1234,10 +1238,44 @@ export function mountAnalyticsControls(root, dataset) {
     modal.querySelector("#analytics-body").innerHTML =
       `<p class="analytics-status">Loading forecast…</p>`;
     try {
-      const raw = await forecastProfile(forecastLead);
+      let raw = null;
+      let forecastSource = "SYNTHETIC";
+      try {
+        const { getNadiTwinForecastAlongReach } = await import(
+          "../../services/hydrology/naditwinHydrologyAdapter.js"
+        );
+        const nt = await getNadiTwinForecastAlongReach(forecastLead);
+        if (nt?.ok && nt.payload) {
+          const p = nt.payload;
+          // Normalize common NadiTwin shapes into forecastProfile chart schema
+          raw = {
+            lead_h: forecastLead,
+            median: p.median || p.p50 || p.wse_p50 || p.stage_p50 || [],
+            p10: p.p10 || p.wse_p10 || p.stage_p10 || [],
+            p90: p.p90 || p.wse_p90 || p.stage_p90 || [],
+            chainage_m: p.chainage_m || p.chainage || [],
+            source: "NADITWIN_API",
+            dataClass: "FORECAST",
+          };
+          if (!raw.chainage_m.length && Array.isArray(raw.median) && raw.median.length) {
+            raw.chainage_m = raw.median.map((_, i) => i * 10);
+          }
+          if (raw.median.length && raw.p10.length && raw.p90.length) {
+            forecastSource = "NADITWIN";
+          } else {
+            raw = null;
+          }
+        }
+      } catch {
+        raw = null;
+      }
+      if (!raw) {
+        raw = await forecastProfile(forecastLead);
+        forecastSource = "SYNTHETIC";
+      }
       if (reqId !== forecastRequestId || activeType !== "forecast") return;
-      forecastCache = raw;
-      renderForecastBody(raw, selectedMeters, forecastLead);
+      forecastCache = { ...raw, forecastSource };
+      renderForecastBody(forecastCache, selectedMeters, forecastLead);
     } catch (error) {
       if (reqId !== forecastRequestId || activeType !== "forecast") return;
       forecastCache = null;
@@ -1255,9 +1293,10 @@ export function mountAnalyticsControls(root, dataset) {
     const data = downsampleProfile(raw, 160, meters);
     const station = metersToStation(meters);
     const body = modal.querySelector("#analytics-body");
+    const src = raw?.forecastSource === "NADITWIN" ? "NADITWIN FORECAST" : "SYNTHETIC FORECAST (fallback)";
     body.innerHTML = `
       <div class="forecast-panel">
-        <p class="model-badge">LIVE FORECAST · P10–P90 uncertainty</p>
+        <p class="model-badge">FORECAST · ${src} · P10–P90 uncertainty — not LIVE</p>
         <p class="forecast-subtitle">Water Level Forecast · Water Surface Elevation / Stage</p>
         <div class="forecast-horizons" role="group" aria-label="Forecast horizon">
           <span class="forecast-horizons-label">Forecast horizon</span>

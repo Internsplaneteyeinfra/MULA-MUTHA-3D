@@ -80,8 +80,10 @@ export class HydrologyStore {
         meanDepth_m: meanD != null ? Math.round(meanD * 100) / 100 : null,
         meanVelocity_ms: meanV != null ? Math.round(meanV * 100) / 100 : null,
         totalVolume_m3: profileResult.totalVolumeM3?.value ?? null,
-        timestamp: firstRec.timestamp || new Date().toISOString(),
+        timestamp: firstRec.timestamp || firstRec.discharge_m3s?.timestamp || new Date().toISOString(),
         source: firstRec.discharge_m3s?.source || "1D_HYDRAULIC_PROFILE",
+        dataClass: firstRec.discharge_m3s?.dataClass || profileResult.summary?.dataClass || null,
+        note: firstRec.discharge_m3s?.note || null,
       };
     } else {
       this._summary = {

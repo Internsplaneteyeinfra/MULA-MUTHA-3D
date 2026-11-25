@@ -1,0 +1,123 @@
+{
+  "startedAt": "2026-11-25T12:13:53.350Z",
+  "base": "http://localhost:5185",
+  "checks": {
+    "apiHistoricNotLive": true,
+    "live": {
+      "liveActive": true,
+      "histHidden": true,
+      "order": [
+        "hip-g-discharge",
+        "hip-g-stage",
+        "hip-g-hydro"
+      ],
+      "status": "MODELLED",
+      "safeLabel": false,
+      "dischargeSvg": true,
+      "stageSvg": true,
+      "hydroSvg": true
+    },
+    "liveUnchanged": true,
+    "histHeader": {
+      "histActive": true,
+      "clock": "15/07/2024 06:00 IST",
+      "status": "MODELLED · PROVISIONAL",
+      "coverage": "Selected IST: 15/07/2024 06:00 IST\nAPI at: 2024-07-15T06:00:00+05:30\nCoverage: 2021-01-01 → 2026-11-25\nStretch: Sangam → Manjari\nHydro range: Past 72 hours + 72 h forecast\nSource: NadiTwin\nClass: HISTORICAL · MODELLED · PROVISIONAL · UNVERIFIED\n5:44:59 PM",
+      "meta": "Selected (IST): 15/07/2024 06:00 IST\nAPI timestamp: 15/07/2024 06:00 IST · raw 2024-07-15T00:30:00Z\nCoverage: 2021-01-01 → 2026-11-25\nSpatial: Full-reach spatial OK\nSource: NadiTwin /api/state · /api/hydrograph\nClass: HISTORICAL · MODELLED · PROVISIONAL · UNVERIFIED\nHydro window: 2024-01-01T00:00Z → 2024-12-31T18:00Z\nLast historic fetch: 11/25/2026, 5:45:00 PM\nBrowser clock: 11/25/2026, 5:44:59 PM\nHISTORICAL",
+      "selectedMarker": true
+    },
+    "panels": {
+      "disc": {
+        "h": 382,
+        "compact": false,
+        "hasSvg": true,
+        "hasAvail": false,
+        "title": "Discharge at every chainage (10 m)\n        All locations (Sangam → Manjari) · CH",
+        "msg": "",
+        "station": ""
+      },
+      "stage": {
+        "h": 347,
+        "compact": false,
+        "hasSvg": true,
+        "hasAvail": false,
+        "title": "River stage (water level)\n        All locations (Sangam → Manjari) · CH 8+790 · ",
+        "msg": "",
+        "station": ""
+      },
+      "hydro": {
+        "h": 437,
+        "compact": false,
+        "hasSvg": true,
+        "hasAvail": false,
+        "title": "Hydrograph (discharge + river stage + rainfall)\n        CH 8+790 · cell 879 · 15",
+        "msg": "",
+        "station": ""
+      }
+    },
+    "compactWhenUnavailable": true,
+    "hydroPrimaryWhenUnavailable": true,
+    "noEmptyChartShells": true,
+    "noLiveSubstitute": true,
+    "statusHonest": true,
+    "selectedTimeMarker": true,
+    "headerProminent": true,
+    "spatialOrHonestUnavailable": true,
+    "stepUpdates": true,
+    "backToLive": {
+      "liveActive": true,
+      "histHidden": true,
+      "dischargeSvg": true,
+      "stageSvg": true,
+      "hydroSvg": true,
+      "noCompact": true
+    },
+    "liveRestored": true,
+    "responsive1600": {
+      "h": 409,
+      "compact": false,
+      "hasSvg": true,
+      "hasAvail": false,
+      "title": "Hydrograph (discharge + river stage + rainfall)\n        CH 8+790 · cell 879 · 15",
+      "msg": "",
+      "station": ""
+    },
+    "responsive1366": {
+      "h": 384,
+      "compact": false,
+      "hasSvg": true,
+      "hasAvail": false,
+      "title": "Hydrograph (discharge + river stage + rainfall)\n        CH 8+790 · cell 879 · 15",
+      "msg": "",
+      "station": ""
+    }
+  },
+  "consoleErrors": [
+    "Failed to load resource: the server responded with a status of 404 ()"
+  ],
+  "api": {
+    "histLive": false,
+    "histAt": "2024-07-15T00:30:00Z",
+    "histQ": 485.533,
+    "liveLive": true,
+    "liveAt": "2026-11-25T12:18:18Z",
+    "tsMatch": true,
+    "notSameAsLive": true
+  },
+  "finishedAt": "2026-11-25T12:15:37.009Z",
+  "passSummary": {
+    "apiHistoricNotLive": true,
+    "liveUnchanged": true,
+    "compactWhenUnavailable": true,
+    "hydroPrimaryWhenUnavailable": true,
+    "noEmptyChartShells": true,
+    "noLiveSubstitute": true,
+    "statusHonest": true,
+    "selectedTimeMarker": true,
+    "headerProminent": true,
+    "spatialOrHonestUnavailable": true,
+    "stepUpdates": true,
+    "liveRestored": true
+  },
+  "pass": true
+}

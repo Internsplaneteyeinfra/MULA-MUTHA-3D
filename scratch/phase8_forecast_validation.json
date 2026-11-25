@@ -1,0 +1,59 @@
+{
+  "generatedAt": "2026-11-25T06:32:35.558Z",
+  "chainage_m": 8790,
+  "archiveSize": 1,
+  "pairs": 0,
+  "modelledProxyPairs": 0,
+  "overall": {
+    "n": 0,
+    "insufficient": true,
+    "status": "INSUFFICIENT OBSERVATION DATA",
+    "message": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+  },
+  "modelledProxy": {
+    "n": 0,
+    "insufficient": true,
+    "status": "INSUFFICIENT OBSERVATION DATA",
+    "message": "Insufficient matched pairs (need ≥ 8)"
+  },
+  "byBucket": {
+    "0-6h": {
+      "n": 0,
+      "insufficient": true,
+      "status": "INSUFFICIENT OBSERVATION DATA",
+      "message": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+    },
+    "6-24h": {
+      "n": 0,
+      "insufficient": true,
+      "status": "INSUFFICIENT OBSERVATION DATA",
+      "message": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+    },
+    "24-48h": {
+      "n": 0,
+      "insufficient": true,
+      "status": "INSUFFICIENT OBSERVATION DATA",
+      "message": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+    },
+    "48-72h": {
+      "n": 0,
+      "insufficient": true,
+      "status": "INSUFFICIENT OBSERVATION DATA",
+      "message": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+    }
+  },
+  "byStation": {
+    "8790": {
+      "n": 0,
+      "insufficient": true,
+      "status": "INSUFFICIENT OBSERVATION DATA",
+      "message": "INSUFFICIENT OBSERVATION DATA — no gauge OBSERVED pairs (need ≥ 8)"
+    }
+  },
+  "evaluationPeriod": null,
+  "status": "INSUFFICIENT OBSERVATION DATA",
+  "methodology": "Authoritative validation matches archived NadiTwin forecasts to gauge OBSERVED discharge at the same station within ±45 min of valid time. NadiTwin hydrograph series is MODELLED and used only as a non-authoritative proxy. Invalid P10>P90 snapshots rejected. Metrics withheld unless n ≥ 8 gauge pairs.",
+  "disclaimer": "Do not treat forecast availability as forecast verification. No fabricated accuracy. NSE reported only when variance of observations is positive.",
+  "displayWhenInsufficient": "INSUFFICIENT OBSERVATION DATA",
+  "note": "Authoritative metrics require gauge OBSERVED pairs ≥ 8. NadiTwin hydrograph is MODELLED proxy only."
+}

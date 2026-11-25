@@ -12,7 +12,7 @@ import { validateLayerAlignment, computeSceneBounds, computeKmlOverviewBounds, c
 import { loadFabdemDtmWithTimeout } from "./dtm.js";
 import { parseFishingLocationsKml } from "../features/fishing/FishingLocationLoader.js";
 import fishingKmlRaw from "../features/fishing/Fishing_Locations.kml?raw";
-import drainageKmlRaw from "../data/drainage_network.kml?raw";
+import drainageKmlRaw from "../data/joining_streams.kml?raw";
 import { buildFishingZones } from "../features/fishing/FishingZoneSystem.js";
 import { shouldUseLiteAssets } from "../perf/quality.js";
 
@@ -401,7 +401,7 @@ async function loadNadiTwinProfiles() {
   }
 }
 
-/** Parse bundled OSM waterway drainage KML into shared local frame (nullahs only). */
+/** Parse bundled joining-streams KML into shared local frame (nullahs / upstreams only). */
 function loadDrainageNetworkFromRaw(text) {
   try {
     const raw = parseDrainageKml(text);
@@ -413,7 +413,7 @@ function loadDrainageNetworkFromRaw(text) {
       return true;
     });
     const out = filtered.map((f) => ({
-      name: String(f.name || f.nameEn || f.intName || "").trim(),
+      name: String(f.name || f.nameEn || f.intName || f.props?.name || "").trim(),
       waterway: f.waterway,
       placemarkIndex: f.placemarkIndex,
       osmId: f.osmId,
@@ -431,12 +431,17 @@ function loadDrainageNetworkFromRaw(text) {
       intName: f.intName,
       wikidata: f.wikidata,
       layer: f.layer,
+      // Joining-stream ExtendedData (MERIT upstreams)
+      chainageKm: f.props?.chainage_km || "",
+      confluenceLon: f.props?.confluence_lon || "",
+      confluenceLat: f.props?.confluence_lat || "",
+      joins: f.props?.joins || "",
       vertices: f.coordinates.map((c) => {
         const loc = lonLatToLocal(c.lon, c.lat);
         return { lon: c.lon, lat: c.lat, x: loc.x, z: loc.z };
       }),
     }));
-    console.info("Drainage KML loaded (bundled)", {
+    console.info("Joining streams KML loaded (bundled)", {
       total: raw.length,
       nullahs: out.length,
       named: out.filter((d) => d.name).length,
@@ -445,7 +450,7 @@ function loadDrainageNetworkFromRaw(text) {
         ? {
             name: out[0].name,
             waterway: out[0].waterway,
-            osmId: out[0].osmId,
+            placemarkIndex: out[0].placemarkIndex,
             pts: out[0].vertices.length,
             xz: out[0].vertices[0],
           }
@@ -453,7 +458,7 @@ function loadDrainageNetworkFromRaw(text) {
     });
     return out;
   } catch (err) {
-    console.warn("Drainage network unavailable:", err.message);
+    console.warn("Joining streams network unavailable:", err.message);
     return [];
   }
 }

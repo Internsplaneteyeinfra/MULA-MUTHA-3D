@@ -13,7 +13,7 @@ import { aqiCategory } from "../services/aqiService.js";
 import {
   peekStreamsBodCod,
   fetchStreamsBodCod,
-  streamBodCodToday,
+  lookupStreamBodCodAt,
   streamsBodCodError,
 } from "../services/streamsBodCodService.js";
 
@@ -716,7 +716,6 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             document.dispatchEvent(new CustomEvent("joining-stream-bod", { detail: { hover: flowRec } }));
             const streamsData = peekStreamsBodCod();
             if (!streamsData) fetchStreamsBodCod().catch(() => {});
-            const bodCod = streamsData ? streamBodCodToday(flowRec, streamsData) : null;
             let lon = nullah.hit.lon ?? flowRec?.outletLon;
             let lat = nullah.hit.lat ?? flowRec?.outletLat;
             if ((lon == null || lat == null) && dataset.frame?.toLonLat) {
@@ -724,6 +723,10 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
               lon = ll.lon;
               lat = ll.lat;
             }
+            // Prefer nearest JalNetra pixel along the full stream so hover always shows numbers
+            const bodCod = streamsData
+              ? lookupStreamBodCodAt(lat, lon, flowRec, streamsData)
+              : null;
             tooltip.show(e.clientX, e.clientY, {
               nullahHover: true,
               joiningHover: true,

@@ -40,6 +40,8 @@ export const state = {
    * Derived from GloFAS discharge → Manning depth − survey baseline (not absolute MSL).
    */
   liveStageRiseM: 0,
+  /** 3D hydrology visualization mode (ribbon on existing river). */
+  hydrologyVizActive: false,
   /** Live discharge used for the hydraulic profile (m³/s). */
   discharge_m3s: null,
   meanVelocity_ms: null,

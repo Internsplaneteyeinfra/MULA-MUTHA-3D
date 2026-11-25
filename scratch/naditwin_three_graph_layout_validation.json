@@ -1,0 +1,45 @@
+{
+  "verified_at": "2026-11-25T16:15:00+05:30",
+  "pass": true,
+  "viewport_1920x1080": {
+    "contentH": 884,
+    "scrollH": 884,
+    "overflow": 0,
+    "allThreeFullyVisible": true,
+    "stage_h": 216,
+    "hydro_h": 264,
+    "rating_h": 216
+  },
+  "ui": {
+    "sections": 3,
+    "histInHydroHead": true,
+    "hasThreeTitles": true,
+    "hasLiveMeta": true,
+    "stretchCount": 8,
+    "histCount": 12,
+    "chainage": true
+  },
+  "api_parity": {
+    "locCount": 7,
+    "today": "2026-11-25",
+    "hour": 10,
+    "nObs": 72,
+    "nFc": 72,
+    "lastStage": -7.574,
+    "lastQ": 10.08,
+    "match_naditwin": true
+  },
+  "graph_heights_px": { "stage": 185, "hydro": 205, "rating": 185 },
+  "screenshots_dir": "scratch/screenshots/naditwin-layout-parity/",
+  "screenshots": [
+    "01-full-dashboard-1920.jpg",
+    "02-live-datetime.jpg",
+    "03-historic-selector-beside-hydro.jpg",
+    "04-all-locations-menu.jpg",
+    "05-stretch-L1.jpg",
+    "06-station-bund-garden.jpg",
+    "07-naditwin-reference.jpg",
+    "responsive-1600x900.jpg",
+    "responsive-1366x768.jpg"
+  ]
+}
