@@ -57,6 +57,82 @@ body:has(.left-ui-stack > .geology-panel.is-visible) .hydrology-simulation-contr
   cursor: pointer;
   transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
 }
+.hydrology-simulation-button.is-selected {
+  color: rgb(125, 211, 252);
+  border-color: rgba(56, 189, 248, 0.55);
+  background: rgba(56, 189, 248, 0.16);
+}
+.hydrology-control-panel {
+  position: fixed;
+  z-index: 1101;
+  top: 92px;
+  left: auto;
+  right: 78px;
+  width: min(300px, calc(100vw - 190px));
+  max-height: min(84vh, 820px);
+  overflow: auto;
+  padding: 10px 11px 12px;
+  border-radius: 12px;
+  border: 1px solid rgba(90, 190, 210, 0.32);
+  background: rgba(6, 16, 26, 0.9);
+  color: #e7f6fb;
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.35);
+  backdrop-filter: blur(14px);
+  font: 500 11px/1.35 Inter, "Segoe UI", sans-serif;
+}
+.hydrology-control-panel[hidden],
+.hydrology-control-panel [hidden] { display: none !important; }
+.hydrology-control-panel__head { display: flex; align-items: center; gap: 8px; }
+.hydrology-control-panel__head strong { display: block; letter-spacing: 0.08em; font-size: 11px; }
+.hydrology-control-panel__head small { color: #8fd8ea; letter-spacing: 0.04em; }
+.hydrology-control-panel__head small[data-fresh="STALE"] { color: #f0c14a; }
+.hydrology-control-panel__head small[data-fresh="UNAVAILABLE"] { color: #e0a0a0; }
+.hydrology-control-panel__icon { color: #5ee0f5; }
+.hydrology-control-panel__x {
+  margin-left: auto;
+  width: 24px; height: 24px;
+  border: 0; border-radius: 6px;
+  background: transparent; color: #d5eef6; cursor: pointer;
+}
+.hydrology-control-panel__meta { margin: 6px 0 8px; color: rgba(180, 210, 220, 0.8); font-size: 10px; }
+.hydrology-control-panel__sec { margin-top: 8px; padding-top: 8px; border-top: 1px solid rgba(120, 170, 190, 0.18); }
+.hydrology-control-panel__sec > p { margin: 0 0 6px; letter-spacing: 0.08em; text-transform: uppercase; font-size: 9px; color: rgba(160, 200, 214, 0.85); }
+.hydrology-control-panel__sec small { letter-spacing: 0.03em; text-transform: none; color: rgba(180, 210, 220, 0.7); }
+.hydrology-control-panel__grid { display: grid; grid-template-columns: 1fr auto; gap: 3px 8px; }
+.hydrology-control-panel__grid span { color: rgba(186, 214, 224, 0.82); }
+.hydrology-control-panel__grid b { font-weight: 700; color: #fff; }
+.hydrology-control-panel__level { margin: 8px 0 4px; letter-spacing: 0.1em; font-size: 10px; color: #9ee7f6; }
+.hydrology-control-panel__step { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 8px; }
+.hydrology-control-panel__step button {
+  width: 32px; height: 28px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(120, 200, 220, 0.35);
+  background: rgba(20, 60, 74, 0.55); color: #e8fbff;
+}
+.hydrology-control-panel__step em { font-style: normal; font-weight: 750; min-width: 72px; text-align: center; }
+.hydrology-control-panel__reset,
+.hydrology-control-panel__full {
+  width: 100%; margin-top: 8px; padding: 6px 8px; border-radius: 8px; cursor: pointer;
+  border: 1px solid rgba(120, 180, 200, 0.28);
+  background: rgba(16, 40, 52, 0.65); color: #d7f3fb; font: 650 10px/1.2 Inter, sans-serif;
+}
+.hydrology-control-panel__note { margin: 8px 0 0; color: rgba(170, 200, 210, 0.72); font-size: 9px; }
+.hydrology-control-panel__field { display: flex; align-items: center; justify-content: space-between; gap: 8px; margin-top: 6px; color: rgba(186, 214, 224, 0.86); }
+.hydrology-control-panel__field input,
+.hydrology-control-panel__field select {
+  width: 108px; padding: 4px 6px; border-radius: 6px; color: #f4fbff;
+  border: 1px solid rgba(120, 190, 210, 0.35); background: rgba(8, 24, 34, 0.85);
+}
+.hydrology-control-panel input[type="range"] { width: 100%; margin-top: 6px; accent-color: #3ec4e0; }
+.hydrology-control-panel__modes { display: flex; gap: 4px; margin-top: 6px; }
+.hydrology-control-panel__modes button,
+.hydrology-control-panel__play button {
+  flex: 1; padding: 4px 2px; border-radius: 6px; cursor: pointer;
+  border: 1px solid rgba(120, 190, 210, 0.28); background: rgba(16, 40, 52, 0.65); color: #d7f3fb;
+  font: 650 10px/1.2 Inter, sans-serif;
+}
+.hydrology-control-panel__modes button.is-on { border-color: rgba(80, 200, 230, 0.7); background: rgba(30, 110, 140, 0.55); color: #fff; }
+.hydrology-control-panel__play { display: flex; gap: 4px; margin-top: 6px; }
+.hydrology-control-panel__clock { margin: 6px 0; color: #b7ecf8; font-variant-numeric: tabular-nums; }
 .hydrology-simulation-button:hover,
 .hydrology-simulation-button:focus-visible {
   color: rgb(125, 211, 252);

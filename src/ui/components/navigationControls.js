@@ -12,6 +12,7 @@ export function mountNavigationControls(root, {
   onRiverSide,
   on3D,
   onSiltToggle,
+  onPollutionHotspotToggle,
   onLayersToggle,
   onSettingsToggle,
   onFloodToggle,
@@ -43,6 +44,10 @@ export function mountNavigationControls(root, {
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Ruler, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Silt</span>
     </button>
+    <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button pollution-hotspot-btn" id="pollution-hotspot-btn" aria-label="Pollution hotspot" aria-pressed="false" title="Pollution hotspot">
+      <span class="map-ctrl-icon map-ctrl-emoji" aria-hidden="true">☣️</span>
+      <span class="map-ctrl-label">Hotspot</span>
+    </button>
     <button type="button" class="map-ctrl-btn map-ctrl-btn--labeled toolbar-button layers-toggle-button" id="layers-btn" aria-label="Layers" aria-pressed="false">
       <span class="map-ctrl-icon" aria-hidden="true">${lucideHtml(Layers, { size: 20, className: "map-ctrl-svg" })}</span>
       <span class="map-ctrl-label">Layers</span>
@@ -66,6 +71,7 @@ export function mountNavigationControls(root, {
   const view2dBtn = modes.querySelector("#nav-2d");
   const view3dBtn = modes.querySelector("#nav-3d");
   const siltBtn = modes.querySelector("#silt-btn");
+  const pollutionBtn = modes.querySelector("#pollution-hotspot-btn");
   const layersBtn = modes.querySelector("#layers-btn");
   const settingsBtn = modes.querySelector("#settings-btn");
   const floodBtn = modes.querySelector("#flood-btn");
@@ -107,6 +113,19 @@ export function mountNavigationControls(root, {
   siltBtn.addEventListener("click", () => {
     runNav(() => onSiltToggle?.());
   });
+  pollutionBtn.addEventListener("click", () => {
+    runNav(() => {
+      clearRiverMeasure();
+      const next = pollutionBtn.getAttribute("aria-pressed") !== "true";
+      setPollutionHotspotPressed(next);
+      onPollutionHotspotToggle?.(next);
+      document.dispatchEvent(new CustomEvent("pollution-hotspot-toggle", { detail: { open: next } }));
+    });
+  });
+  function setPollutionHotspotPressed(open) {
+    pollutionBtn.setAttribute("aria-pressed", open ? "true" : "false");
+    pollutionBtn.classList.toggle("active", !!open);
+  }
   layersBtn.addEventListener("click", () => {
     runNav(() => {
       clearRiverMeasure();
@@ -185,5 +204,6 @@ export function mountNavigationControls(root, {
     setDrainagePressed,
     setFloodPressed,
     setRainfallPressed,
+    setPollutionHotspotPressed,
   };
 }

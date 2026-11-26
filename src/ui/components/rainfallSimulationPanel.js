@@ -16,6 +16,14 @@ import {
   PHASE_STATUSES,
   PLAYBACK_SPEED_PRESETS,
 } from "../../services/rainfallSimulation/RainfallSimulationService.js";
+import {
+  composeCoupled,
+  flowRiseM,
+  getScenarioAdjustments,
+  publish,
+  readLiveSource,
+  resetScenarioAdjustments,
+} from "../../services/hydrology/coupledScenario.js";
 
 /**
  * Compact Rainfall Simulation panel — user-facing rainfall + river response.
@@ -50,6 +58,7 @@ export function mountRainfallSimulationPanel(root) {
       </div>
     </header>
     <div class="rainfall-status" data-status="READY" data-el="status">READY</div>
+    <div class="rainfall-status rainfall-status--couple" data-status="READY" data-el="couple">READY</div>
 
     <div class="rainfall-section">
       <p class="rainfall-section__label">Rainfall Event</p>
@@ -88,9 +97,18 @@ export function mountRainfallSimulationPanel(root) {
     <div class="rainfall-section">
       <p class="rainfall-section__label">River Response</p>
       <div class="rainfall-metrics rainfall-metrics--primary">
+        <div class="rainfall-metric"><span>Source discharge</span><strong data-m="SrcQ">—</strong></div>
+        <div class="rainfall-metric"><span>Scenario discharge</span><strong data-m="ScenQ">—</strong></div>
+        <div class="rainfall-metric"><span>Rainfall runoff</span><strong data-m="Runoff">0 m³/s</strong></div>
+        <div class="rainfall-metric"><span>Combined inflow</span><strong data-m="CombQ">—</strong></div>
         <div class="rainfall-metric"><span>Water-level rise</span><strong data-m="dStage">+0.00 m</strong></div>
-        <div class="rainfall-metric"><span>River volume</span><strong data-m="Vol">—</strong></div>
-        <div class="rainfall-metric"><span>Extra volume</span><strong data-m="VolExtra">—</strong></div>
+        <div class="rainfall-metric"><span>River water level</span><strong data-m="Stage">—</strong></div>
+        <div class="rainfall-metric"><span>River volume</span><strong data-m="VolExtra">—</strong></div>
+        <div class="rainfall-metric"><span>Floodplain volume</span><strong data-m="VolFlood">N/A</strong></div>
+        <div class="rainfall-metric"><span>Left-bank spread</span><strong data-m="Left">N/A</strong></div>
+        <div class="rainfall-metric"><span>Right-bank spread</span><strong data-m="Right">N/A</strong></div>
+        <div class="rainfall-metric"><span>Maximum spread</span><strong data-m="Spread">N/A</strong></div>
+        <div class="rainfall-metric"><span>Floodplain area</span><strong data-m="Flood" class="is-na">N/A</strong></div>
         <div class="rainfall-metric"><span>Affected length</span><strong data-m="AffKm">—</strong></div>
       </div>
       <div class="rainfall-peak-line">
@@ -103,19 +121,19 @@ export function mountRainfallSimulationPanel(root) {
       <p class="rainfall-section__label">Response Graph</p>
       <div class="rainfall-chart-tabs" role="tablist">
         <button type="button" class="is-active" data-chart="stage">Water level</button>
-        <button type="button" data-chart="volume">Volume</button>
-        <button type="button" data-chart="length">Affected length</button>
+        <button type="button" data-chart="discharge">Discharge</button>
+        <button type="button" data-chart="rain">Rain</button>
+        <button type="button" data-chart="area">Flooded area</button>
       </div>
       <canvas class="rainfall-chart" data-el="chart" width="280" height="96" aria-label="River response graph"></canvas>
     </div>
 
     <div class="rainfall-info-pop" data-el="info" hidden>
-      ASSUMED / UNCALIBRATED. Conventional SCS-CN (CN=70, Ia=0.2·S ≈ 22 mm): if total
-      rainfall ≤ Ia, excess runoff is zero — no fabricated rise. Stage from UH + Manning
-      on the existing channel. Volume integrates corridor widths × hydraulic depth along
-      chainage when geometry is available; otherwise N/A. Affected length uses the AOI
-      chainage span when rise ≥ 0.02 m (lumped uniform stage — not floodplain).
-      Does not use Flood Simulation.
+      MODELLED / UNCALIBRATED. Storage is ΔV = ∫(Qin − Qout) dt on the mapped channel
+      width. Rainfall becomes SCS-CN excess runoff and is added once. It is not written
+      back into NadiTwin discharge. Flood spread is the horizontal distance beyond the
+      mapped water edge where the DTM is below the water surface and connected to the
+      river. Relative stage is not MSL. Not engineering-verified.
     </div>
   `;
 
@@ -134,7 +152,6 @@ export function mountRainfallSimulationPanel(root) {
   let raf = 0;
   let generation = 0;
   let applyingRiver = false;
-  let lastQApply = 0;
 
   function depthMm() {
     return Number(depthInput.value) || 0;
@@ -219,51 +236,104 @@ export function mountRainfallSimulationPanel(root) {
 
     const cur = r || sample;
     if (!cur && !sample) {
-      setMetric("dStage", "+0.00 m");
-      setMetric("Vol", "N/A", true);
-      setMetric("VolExtra", "N/A", true);
-      setMetric("AffKm", "N/A", true);
+      paintView(composeCoupled({
+        active: false, running: false, paused: false, status, runoffQ: 0, engineRiseM: 0,
+        rainMmHr: 0, volumeExtraM3: null, volumeM3: null, affectedKm: null, peakRiseM: null,
+      }));
       return;
     }
 
-    const dS = Number(r?.current_stage_rise_m ?? sample?.deltaStageM) || 0;
-    setMetric("dStage", `${dS >= 0 ? "+" : ""}${dS.toFixed(3)} m`);
-
-    const vol = r?.current_volume_m3 ?? sample?.volumeM3;
-    const volX = r?.additional_volume_m3 ?? sample?.volumeExtraM3;
-    const aff = r?.affected_length_km ?? sample?.affectedLengthKm;
-
-    setMetric("Vol", vol != null ? fmtVol(vol) : "N/A", vol == null);
-    setMetric("VolExtra", volX != null ? `+${fmtVol(volX)}` : "N/A", volX == null);
-    setMetric("AffKm", aff != null ? `${Number(aff).toFixed(2)} km` : "N/A", aff == null);
+    paintView(composeCoupled(coupledSample(sample, snap)));
   }
 
-  async function applyRiver(sample, snap, { settled = false } = {}) {
-    const r = snap?.result;
-    const rise = Number(r?.current_stage_rise_m ?? sample?.deltaStageM);
-    if (!Number.isFinite(rise) || applyingRiver) return;
+  function paintView(view) {
+    if (!view) return;
+    paintCouple(view);
+    const fill = state.riverFill?.ownsVisual ? state.riverFill : null;
+    const sourceQ = fill?.sourceQ ?? view.sourceQ;
+    const runoffQ = fill ? fill.runoffQ : view.runoffQ;
+    const combinedQ = fill?.qIn ?? view.combinedQ;
+    const rise = fill?.riseM ?? view.visualRiseM ?? 0;
+    const stage = fill?.stageRel ?? view.simulatedStageRel;
+    setMetric("SrcQ", Number.isFinite(sourceQ) ? `${sourceQ.toFixed(1)} m³/s` : "N/A", !Number.isFinite(sourceQ));
+    setMetric("ScenQ", Number.isFinite(fill?.scenarioQ) ? `${fill.scenarioQ.toFixed(1)} m³/s` : Number.isFinite(sourceQ) ? `${(sourceQ + (view.dischargeDeltaM3s || 0)).toFixed(1)} m³/s` : "N/A");
+    setMetric("Runoff", Number.isFinite(runoffQ) ? `${runoffQ.toFixed(1)} m³/s` : "0.0 m³/s");
+    setMetric("CombQ", Number.isFinite(combinedQ) ? `${combinedQ.toFixed(1)} m³/s` : "N/A", !Number.isFinite(combinedQ));
+    setMetric("dStage", `${rise >= 0 ? "+" : ""}${Number(rise).toFixed(3)} m · MODELLED`);
+    setMetric("Stage", Number.isFinite(stage) ? `${stage.toFixed(2)} m rel` : "N/A", !Number.isFinite(stage));
+
+    const volX = fill?.volumeRiverM3 ?? view.volumeExtraM3;
+    const aff = fill?.affectedKm ?? view.affectedLengthKm;
+    setMetric("VolExtra", volX != null ? `${fmtVol(volX)} · MODELLED` : "N/A", volX == null);
+    setMetric("VolFlood", fill?.volumeFloodM3 != null ? `${fmtVol(fill.volumeFloodM3)} · MODELLED` : "N/A", fill?.volumeFloodM3 == null);
+    setMetric("Left", fill?.leftM != null ? `${fill.leftM.toFixed(0)} m` : "N/A", fill?.leftM == null);
+    setMetric("Right", fill?.rightM != null ? `${fill.rightM.toFixed(0)} m` : "N/A", fill?.rightM == null);
+    setMetric("Spread", fill?.maxM != null ? `${fill.maxM.toFixed(0)} m` : "N/A", fill?.maxM == null);
+    setMetric(
+      "Flood",
+      fill?.areaKm2 != null ? `${fill.areaKm2.toFixed(3)} km² · MODELLED` : "N/A",
+      fill?.areaKm2 == null,
+    );
+    setMetric(
+      "AffKm",
+      aff != null ? `${Number(aff).toFixed(2)} km · MODELLED` : "N/A",
+      aff == null,
+    );
+  }
+
+  function coupledSample(sample, snap) {
+    const cur = sample || snap?.current_sample || snap?.result?.current_sample || null;
+    const running = status === SIM_STATUSES.RUNNING;
+    const paused = status === SIM_STATUSES.PAUSED;
+    const active = running || paused || status === SIM_STATUSES.COMPLETED;
+    return {
+      active,
+      running,
+      paused,
+      status,
+      runoffQ: Number(cur?.qDirect_m3s) || 0,
+      engineRiseM: Number(cur?.deltaStageM ?? snap?.result?.current_stage_rise_m) || 0,
+      rainMmHr: Number(cur?.rainMmHr ?? snap?.result?.rainfall_intensity_mm_hr) || 0,
+      volumeExtraM3: snap?.result?.additional_volume_m3 ?? cur?.volumeExtraM3 ?? null,
+      volumeM3: snap?.result?.current_volume_m3 ?? cur?.volumeM3 ?? null,
+      affectedKm: snap?.result?.affected_length_km ?? cur?.affectedLengthKm ?? null,
+      peakRiseM: snap?.result?.maximum_stage_rise_m ?? null,
+    };
+  }
+
+  function paintCouple(view) {
+    const badge = el('[data-el="couple"]');
+    if (!badge) return;
+    const labels = {
+      COUPLED: "COUPLED SIMULATION ACTIVE",
+      RAINFALL: "RAINFALL ACTIVE",
+      HYDROLOGY: "HYDROLOGY ACTIVE",
+      PAUSED: "PAUSED",
+      READY: "READY",
+    };
+    const mode = view?.mode || "READY";
+    badge.dataset.status = mode;
+    badge.textContent = labels[mode] || mode;
+  }
+
+  function sourceBaseflow() {
+    const src = readLiveSource();
+    const q = src.qChainage ?? src.qOut ?? src.qUp;
+    return Number.isFinite(q) ? q : undefined;
+  }
+
+  async function applyRiver(sample, snap) {
+    if (applyingRiver) return;
     applyingRiver = true;
     try {
       const scene = window.__MM_SCENE__;
-      // Same rise value as metrics — never a separate channel.
-      scene?.setHydrologySimulationRise?.(rise, settled);
-      const Q = r?.discharge_m3_s ?? sample?.Q_m3s;
-      const now = performance.now();
-      if (typeof scene?.setRiverDischarge === "function" && Number.isFinite(Q) && now - lastQApply > 250) {
-        lastQApply = now;
-        await scene.setRiverDischarge(Q, "RAINFALL_SIMULATION", "MODELLED — SCS-CN + UH (ASSUMED)");
-      }
-      const rainI = r?.rainfall_intensity_mm_hr ?? sample?.rainMmHr ?? 0;
+      const view = publish(coupledSample(sample, snap));
+      const rainI = view.rainMmHr || 0;
       scene?.rainfallSimParticles?.setFromIntensity?.(rainI, {
-        waterY: 9.4 + rise,
+        waterY: 9.4 + (view.visualRiseM || 0),
       });
       if (rainI > 0) scene?.riverRain?.setIntensity?.(0.01, 0);
       else scene?.riverRain?.setIntensity?.(null);
-      if (Number.isFinite(Q)) state.discharge_m3s = Q;
-      if (Number.isFinite(r?.velocity_m_s ?? sample?.velocityMs)) {
-        state.meanVelocity_ms = r?.velocity_m_s ?? sample?.velocityMs;
-      }
-      state.liveStageRiseM = rise;
     } finally {
       applyingRiver = false;
     }
@@ -273,22 +343,43 @@ export function mountRainfallSimulationPanel(root) {
     const w = chartCanvas.width;
     const h = chartCanvas.height;
     ctx.clearRect(0, 0, w, h);
+    const fillSeries = state.riverFill?.series;
+    if (fillSeries?.length) {
+      const ys = fillSeries.map((p) => {
+        if (chartMode === "discharge") return Number(p.qIn) || 0;
+        if (chartMode === "rain") return Number(p.rain) || 0;
+        if (chartMode === "area") return Number(p.areaKm2) || 0;
+        return Number(p.riseM) || 0;
+      });
+      strokeSeries(fillSeries.map((p) => p.tHours), ys, state.riverFill.durationH || 1, state.riverFill.tHours);
+      return;
+    }
     const pts =
       series?.samples ||
       snap?.series ||
       previewSeries({ depthMm: depthMm(), durationHours: durationHours() }).samples;
+    if (chartMode === "area") {
+      ctx.fillStyle = "rgba(180, 210, 220, 0.8)";
+      ctx.font = "11px ui-sans-serif, system-ui, sans-serif";
+      ctx.fillText("Flooded area N/A until the filling clock runs", 12, h / 2);
+      return;
+    }
     if (!pts?.length) return;
 
     const stormEnd =
       snap?.storm_end_hours ?? series?.meta?.input?.durationHours ?? durationHours();
-    const key =
-      chartMode === "volume"
-        ? "volumeM3"
-        : chartMode === "length"
-          ? "affectedLengthKm"
-          : "deltaStageM";
+    const src = readLiveSource();
+    const sourceQ = src.qChainage ?? src.qOut ?? src.qUp;
+    const adj = getScenarioAdjustments();
     const xs = pts.map((p) => p.tHours);
-    const ys = pts.map((p) => Number(p[key]) || 0);
+    const ys = pts.map((p) => {
+      if (chartMode === "discharge") {
+        const runoff = Number(p.qDirect_m3s) || 0;
+        return Number.isFinite(sourceQ) ? sourceQ + runoff + adj.dischargeDeltaM3s : Number(p.Q_m3s) || 0;
+      }
+      if (chartMode === "rain") return Number(p.rainMmHr) || 0;
+      return flowRiseM(sourceQ, Number(p.qDirect_m3s) || 0, adj.dischargeDeltaM3s, p.deltaStageM) + adj.stageAdjustM;
+    });
     const x0 = xs[0];
     const x1 = xs[xs.length - 1] || 1;
     const padL = 8;
@@ -310,7 +401,7 @@ export function mountRainfallSimulationPanel(root) {
     ctx.lineTo(w - padR, h - padB);
     ctx.stroke();
 
-    ctx.strokeStyle = chartMode === "volume" ? "#7ee0a8" : chartMode === "length" ? "#c9b8f0" : "#5ee0f5";
+    ctx.strokeStyle = chartMode === "discharge" ? "#7ee0a8" : chartMode === "rain" ? "#9ecbff" : "#5ee0f5";
     ctx.lineWidth = 1.7;
     ctx.beginPath();
     for (let i = 0; i < pts.length; i++) {
@@ -339,6 +430,47 @@ export function mountRainfallSimulationPanel(root) {
       ctx.stroke();
     }
 
+    ctx.fillStyle = "rgba(160, 190, 205, 0.65)";
+    ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
+    ctx.fillText("0 h", padL, h - 2);
+    ctx.fillText(`${x1.toFixed(0)} h`, w - padR - 22, h - 2);
+  }
+
+  function strokeSeries(xs, ys, xEnd, tNow) {
+    const w = chartCanvas.width;
+    const h = chartCanvas.height;
+    const padL = 8;
+    const padR = 8;
+    const padT = 8;
+    const padB = 14;
+    const x0 = xs[0] ?? 0;
+    const x1 = xEnd || xs[xs.length - 1] || 1;
+    let yMin = Math.min(...ys, 0);
+    let yMax = Math.max(...ys, 0.01);
+    if (yMax === yMin) yMax = yMin + 0.01;
+    const xAt = (t) => padL + ((t - x0) / Math.max(1e-6, x1 - x0)) * (w - padL - padR);
+    ctx.strokeStyle = "rgba(90, 160, 185, 0.25)";
+    ctx.beginPath();
+    ctx.moveTo(padL, h - padB);
+    ctx.lineTo(w - padR, h - padB);
+    ctx.stroke();
+    ctx.strokeStyle = chartMode === "discharge" ? "#7ee0a8" : chartMode === "rain" ? "#9ecbff" : chartMode === "area" ? "#f0d080" : "#5ee0f5";
+    ctx.lineWidth = 1.7;
+    ctx.beginPath();
+    for (let i = 0; i < xs.length; i++) {
+      const x = xAt(xs[i]);
+      const y = padT + (h - padT - padB) - ((ys[i] - yMin) / (yMax - yMin)) * (h - padT - padB);
+      if (i === 0) ctx.moveTo(x, y);
+      else ctx.lineTo(x, y);
+    }
+    ctx.stroke();
+    if (Number.isFinite(tNow)) {
+      ctx.strokeStyle = "rgba(255, 210, 100, 0.9)";
+      ctx.beginPath();
+      ctx.moveTo(xAt(tNow), padT);
+      ctx.lineTo(xAt(tNow), h - padB);
+      ctx.stroke();
+    }
     ctx.fillStyle = "rgba(160, 190, 205, 0.65)";
     ctx.font = "9px ui-sans-serif, system-ui, sans-serif";
     ctx.fillText("0 h", padL, h - 2);
@@ -402,7 +534,7 @@ export function mountRainfallSimulationPanel(root) {
         depthMm: depthMm(),
         durationHours: durationHours(),
         playbackSpeed: playbackMult,
-        baseflowM3s: Number(state.discharge_m3s) > 0 ? Number(state.discharge_m3s) : undefined,
+        baseflowM3s: sourceBaseflow(),
         reachGeometry: getSceneReachGeometry(),
       });
       simId = snap.simulation_id;
@@ -453,7 +585,8 @@ export function mountRainfallSimulationPanel(root) {
     series = null;
     phase = PHASE_STATUSES.READY;
     setStatus(SIM_STATUSES.READY, PHASE_STATUSES.READY);
-    window.__MM_SCENE__?.clearHydrologySimulation?.();
+    persist(null);
+    resetScenarioAdjustments();
     window.__MM_SCENE__?.riverRain?.setPaused?.(false);
     window.__MM_SCENE__?.riverRain?.setIntensity?.(null);
     window.__MM_SCENE__?.rainfallSimParticles?.setPaused?.(false);
@@ -490,6 +623,7 @@ export function mountRainfallSimulationPanel(root) {
             depthMm: depthMm(),
             durationHours: durationHours(),
             playbackSpeed: playbackMult,
+            baseflowM3s: sourceBaseflow(),
             reachGeometry: getSceneReachGeometry(),
           });
           series = { samples: snap.series, meta: snap.meta };
@@ -506,6 +640,7 @@ export function mountRainfallSimulationPanel(root) {
       series = previewSeries({
         depthMm: depthMm(),
         durationHours: durationHours(),
+        baseflowM3s: sourceBaseflow(),
         reachGeometry: getSceneReachGeometry(),
       });
       drawChart(null);
@@ -632,6 +767,15 @@ export function mountRainfallSimulationPanel(root) {
     return !dock.hidden;
   }
 
+  document.addEventListener("coupled-scenario-change", (e) => {
+    paintView(e.detail);
+    drawChart(state.rainfallSim?.lastSnap || null);
+  });
+  document.addEventListener("river-fill-tick", () => {
+    paintView(state.coupledScenario || composeCoupled());
+    drawChart(state.rainfallSim?.lastSnap || null);
+  });
+  document.addEventListener("coupled-scenario-full-reset", () => { void onReset(); });
   window.addEventListener("resize", placeRelativeToFlood);
   syncLabels();
   syncSpeedButtons();

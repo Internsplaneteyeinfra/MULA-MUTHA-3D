@@ -1,0 +1,1635 @@
+{
+  "river": "Mula–Mutha",
+  "source": [
+    "public/data/main_bod_cod_pixels.json",
+    "src/jalnetra kml/eutrophication_trophic_class.kml",
+    "src/jalnetra kml/Nitrogen mulamutha.kml",
+    "src/jalnetra kml/coliform_ecoli_class.kml"
+  ],
+  "method": "Weights stay BOD 0.30, eutrophication 0.25, nitrogen risk 0.20, coliform 0.25. rawComposite is the original weighted mean plus multi-layer and thickness bonuses, clamped at 1. underlying keeps the same weights but uses the unclamped organic index bod/10 + cod/30 so measured mg/L values are not flattened. calibratedComposite (also written to composite) rescales underlying across the published hotspots from 0.15 to 1 for display and colour. High is yellow. TSS is not used. Nitrogen and coliform stay classes. BOD and COD numbers are the measured pixel values.",
+  "calibration": {
+    "reason": "Every published cell reached rawComposite 1.00 because class severities are already 0.7–1.0 and the bonuses are added before the cap.",
+    "rawComposite": "min(1, weightedMean + layerBonus + thickBonus)",
+    "underlying": "Same weights. BOD term is bod/10 + cod/30 with no dataset-max division and no cap.",
+    "rank": "underlying descending, then thickness, then max BOD, then max COD",
+    "calibratedComposite": "0.15 + 0.85 * (underlying - min) / (max - min) across the 12 published hotspots",
+    "highColour": "#FBC02D"
+  },
+  "generated": "2026-11-26T08:50:22.581Z",
+  "studyBounds": {
+    "west": 73.85496516,
+    "east": 73.99343968,
+    "south": 18.5207626,
+    "north": 18.54727939
+  },
+  "pixelCount": 1212,
+  "candidateCount": 26,
+  "weights": {
+    "bod": 0.3,
+    "eutrophication": 0.25,
+    "nitrogen": 0.2,
+    "coliform": 0.25
+  },
+  "redShades": [
+    {
+      "id": "light",
+      "label": "Elevated",
+      "hex": "#FF8A80",
+      "min": 0,
+      "max": 0.35
+    },
+    {
+      "id": "medium",
+      "label": "High",
+      "hex": "#FBC02D",
+      "min": 0.35,
+      "max": 0.55
+    },
+    {
+      "id": "strong",
+      "label": "Very High",
+      "hex": "#E53935",
+      "min": 0.55,
+      "max": 0.75
+    },
+    {
+      "id": "severe",
+      "label": "Severe",
+      "hex": "#C62828",
+      "min": 0.75,
+      "max": 0.9
+    },
+    {
+      "id": "extreme",
+      "label": "Extreme",
+      "hex": "#8B0000",
+      "min": 0.9,
+      "max": 1.01
+    }
+  ],
+  "availability": {
+    "bodCod": "OBSERVED",
+    "eutrophication": "CLASSIFIED",
+    "nitrogen": "CLASSIFIED",
+    "coliform": "CLASSIFIED",
+    "observationDate": null,
+    "sourceUpdated": "2026-11-11"
+  },
+  "kmlSummaries": [
+    {
+      "id": "eutrophication",
+      "label": "Eutrophication",
+      "highPixels": 2648,
+      "sampled": 2648,
+      "classCounts": {
+        "oligo": 0,
+        "meso": 0,
+        "eutro": 1702,
+        "hyper": 946
+      },
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      }
+    },
+    {
+      "id": "nitrogen",
+      "label": "Nitrogen",
+      "highPixels": 2648,
+      "sampled": 2648,
+      "classCounts": {
+        "low": 0,
+        "moderate": 83,
+        "high": 2565
+      },
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      }
+    },
+    {
+      "id": "coliform",
+      "label": "Coliform",
+      "highPixels": 624,
+      "sampled": 2648,
+      "classCounts": {
+        "good": 500,
+        "moderate": 1524,
+        "high": 347,
+        "highly_risk": 277
+      },
+      "bounds": {
+        "north": 18.54727939,
+        "south": 18.5207626,
+        "east": 73.99343968,
+        "west": 73.85496516
+      }
+    }
+  ],
+  "hotspots": [
+    {
+      "id": "73.944:18.544",
+      "rank": 1,
+      "name": "Mula–Mutha 1",
+      "lon": 73.951746,
+      "lat": 18.544947,
+      "chainageMeters": null,
+      "weightedMean": 0.9375,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0765,
+      "uncappedComposite": 1.149,
+      "rawComposite": 1,
+      "underlying": 2.003,
+      "organicIndex": 4.5517,
+      "composite": 1,
+      "calibratedComposite": 1,
+      "shade": "extreme",
+      "shadeLabel": "Extreme",
+      "severity": "Extreme",
+      "color": "#8B0000",
+      "thickness": 476,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 1,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 230
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 230
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 0.75,
+          "weight": 0.25,
+          "classLabel": "High",
+          "pixelCount": 9
+        }
+      ],
+      "maxBod": 26.42,
+      "maxCod": 57.29,
+      "meanBod": 15.827,
+      "meanCod": 36.017,
+      "bodPixelCount": 7,
+      "bod": 26.42,
+      "cod": 57.29,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 230,
+        "meanSeverity": 0.78,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 230,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 0.75,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "500–2000",
+        "display": "500–2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 9,
+        "meanSeverity": 0.75,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "High"
+    },
+    {
+      "id": "73.984:18.520",
+      "rank": 2,
+      "name": "Mula–Mutha 2",
+      "lon": 73.989393,
+      "lat": 18.523193,
+      "chainageMeters": null,
+      "weightedMean": 0.8592,
+      "layerBonus": 0.09,
+      "thickBonus": 0.0771,
+      "uncappedComposite": 1.0264,
+      "rawComposite": 1,
+      "underlying": 1.7799,
+      "organicIndex": 2.9497,
+      "composite": 0.7349,
+      "calibratedComposite": 0.7349,
+      "shade": "strong",
+      "shadeLabel": "Very High",
+      "severity": "Very High",
+      "color": "#E53935",
+      "thickness": 500,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.648041010618821,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 249
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 249
+        }
+      ],
+      "maxBod": 16.87,
+      "maxCod": 37.88,
+      "meanBod": 14.505,
+      "meanCod": 33.2,
+      "bodPixelCount": 2,
+      "bod": 16.87,
+      "cod": 37.88,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 249,
+        "meanSeverity": 0.778,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 249,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": null,
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": null
+    },
+    {
+      "id": "73.856:18.528",
+      "rank": 3,
+      "name": "Mula–Mutha 3",
+      "lon": 73.860875,
+      "lat": 18.532493,
+      "chainageMeters": null,
+      "weightedMean": 0.8702,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0752,
+      "uncappedComposite": 1.0804,
+      "rawComposite": 1,
+      "underlying": 1.6967,
+      "organicIndex": 3.5307,
+      "composite": 0.636,
+      "calibratedComposite": 0.636,
+      "shade": "strong",
+      "shadeLabel": "Very High",
+      "severity": "Very High",
+      "color": "#E53935",
+      "thickness": 428,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.7756865616990113,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 196
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 196
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 0.75,
+          "weight": 0.25,
+          "classLabel": "High",
+          "pixelCount": 30
+        }
+      ],
+      "maxBod": 20.31,
+      "maxCod": 44.99,
+      "meanBod": 14.217,
+      "meanCod": 32.908,
+      "bodPixelCount": 6,
+      "bod": 20.31,
+      "cod": 44.99,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 196,
+        "meanSeverity": 0.795,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 196,
+        "meanSeverity": 0.963,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 0.75,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "500–2000",
+        "display": "500–2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 30,
+        "meanSeverity": 0.75,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "High"
+    },
+    {
+      "id": "73.928:18.536",
+      "rank": 4,
+      "name": "Mula–Mutha 4",
+      "lon": 73.935022,
+      "lat": 18.537534,
+      "chainageMeters": null,
+      "weightedMean": 0.9041,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0761,
+      "uncappedComposite": 1.1152,
+      "rawComposite": 1,
+      "underlying": 1.6292,
+      "organicIndex": 3.0973,
+      "composite": 0.5558,
+      "calibratedComposite": 0.5558,
+      "shade": "strong",
+      "shadeLabel": "Very High",
+      "severity": "Very High",
+      "color": "#E53935",
+      "thickness": 458,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.680483339436104,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 154
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 154
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Highly risk",
+          "pixelCount": 139
+        }
+      ],
+      "maxBod": 17.69,
+      "maxCod": 39.85,
+      "meanBod": 12.879,
+      "meanCod": 30.205,
+      "bodPixelCount": 11,
+      "bod": 17.69,
+      "cod": 39.85,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 154,
+        "meanSeverity": 0.848,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 154,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "highly_risk",
+        "classLabel": "Highly risk",
+        "severity": 1,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "> 2000",
+        "display": "> 2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 139,
+        "meanSeverity": 0.894,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "Highly risk"
+    },
+    {
+      "id": "73.920:18.536",
+      "rank": 5,
+      "name": "Mula–Mutha 5",
+      "lon": 73.926772,
+      "lat": 18.538843,
+      "chainageMeters": null,
+      "weightedMean": 0.8721,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0691,
+      "uncappedComposite": 1.0762,
+      "rawComposite": 1,
+      "underlying": 1.4834,
+      "organicIndex": 2.6113,
+      "composite": 0.3826,
+      "calibratedComposite": 0.3826,
+      "shade": "medium",
+      "shadeLabel": "High",
+      "severity": "High",
+      "color": "#FBC02D",
+      "thickness": 261,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.5737092640058586,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 83
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 83
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Highly risk",
+          "pixelCount": 83
+        }
+      ],
+      "maxBod": 14.79,
+      "maxCod": 33.97,
+      "meanBod": 12.427,
+      "meanCod": 29.326,
+      "bodPixelCount": 12,
+      "bod": 14.79,
+      "cod": 33.97,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 83,
+        "meanSeverity": 0.845,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 83,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "highly_risk",
+        "classLabel": "Highly risk",
+        "severity": 1,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "> 2000",
+        "display": "> 2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 83,
+        "meanSeverity": 0.946,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "Highly risk"
+    },
+    {
+      "id": "73.912:18.536",
+      "rank": 6,
+      "name": "Mula–Mutha 6",
+      "lon": 73.917963,
+      "lat": 18.538521,
+      "chainageMeters": null,
+      "weightedMean": 0.8613,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0434,
+      "uncappedComposite": 1.0396,
+      "rawComposite": 1,
+      "underlying": 1.434,
+      "organicIndex": 2.4467,
+      "composite": 0.3239,
+      "calibratedComposite": 0.3239,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 32,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.5375320395459539,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 9
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 9
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Highly risk",
+          "pixelCount": 9
+        }
+      ],
+      "maxBod": 13.82,
+      "maxCod": 31.94,
+      "meanBod": 13.036,
+      "meanCod": 30.452,
+      "bodPixelCount": 5,
+      "bod": 13.82,
+      "cod": 31.94,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 9,
+        "meanSeverity": 0.9,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 9,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "highly_risk",
+        "classLabel": "Highly risk",
+        "severity": 1,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "> 2000",
+        "display": "> 2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 9,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "Highly risk"
+    },
+    {
+      "id": "73.936:18.536",
+      "rank": 7,
+      "name": "Mula–Mutha 7",
+      "lon": 73.939287,
+      "lat": 18.537287,
+      "chainageMeters": null,
+      "weightedMean": 0.8106,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0777,
+      "uncappedComposite": 1.0233,
+      "rawComposite": 1,
+      "underlying": 1.4254,
+      "organicIndex": 2.6263,
+      "composite": 0.3136,
+      "calibratedComposite": 0.3136,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 522,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.5770047601611131,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 257
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 257
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 0.75,
+          "weight": 0.25,
+          "classLabel": "High",
+          "pixelCount": 7
+        }
+      ],
+      "maxBod": 14.89,
+      "maxCod": 34.12,
+      "meanBod": 14.89,
+      "meanCod": 34.12,
+      "bodPixelCount": 1,
+      "bod": 14.89,
+      "cod": 34.12,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 257,
+        "meanSeverity": 0.798,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 257,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 0.75,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "500–2000",
+        "display": "500–2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 7,
+        "meanSeverity": 0.75,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "High"
+    },
+    {
+      "id": "73.928:18.528",
+      "rank": 8,
+      "name": "Mula–Mutha 8",
+      "lon": 73.933899,
+      "lat": 18.535359,
+      "chainageMeters": null,
+      "weightedMean": 0.8578,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0623,
+      "uncappedComposite": 1.0551,
+      "rawComposite": 1,
+      "underlying": 1.4183,
+      "organicIndex": 2.3943,
+      "composite": 0.3052,
+      "calibratedComposite": 0.3052,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 150,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.5260344196265104,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 61
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 61
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Highly risk",
+          "pixelCount": 22
+        }
+      ],
+      "maxBod": 13.48,
+      "maxCod": 31.39,
+      "meanBod": 12.47,
+      "meanCod": 29.397,
+      "bodPixelCount": 6,
+      "bod": 13.48,
+      "cod": 31.39,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 61,
+        "meanSeverity": 0.725,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 61,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "highly_risk",
+        "classLabel": "Highly risk",
+        "severity": 1,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "> 2000",
+        "display": "> 2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 22,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "Highly risk"
+    },
+    {
+      "id": "73.872:18.536",
+      "rank": 9,
+      "name": "Mula–Mutha 9",
+      "lon": 73.875305,
+      "lat": 18.542339,
+      "chainageMeters": null,
+      "weightedMean": 0.8497,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0783,
+      "uncappedComposite": 1.063,
+      "rawComposite": 1,
+      "underlying": 1.3813,
+      "organicIndex": 2.271,
+      "composite": 0.2612,
+      "calibratedComposite": 0.2612,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 548,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.49893811790552905,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 229
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 229
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Highly risk",
+          "pixelCount": 88
+        }
+      ],
+      "maxBod": 12.76,
+      "maxCod": 29.85,
+      "meanBod": 12.135,
+      "meanCod": 28.6,
+      "bodPixelCount": 2,
+      "bod": 12.76,
+      "cod": 29.85,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 229,
+        "meanSeverity": 0.78,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 229,
+        "meanSeverity": 0.959,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "highly_risk",
+        "classLabel": "Highly risk",
+        "severity": 1,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "> 2000",
+        "display": "> 2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 88,
+        "meanSeverity": 0.969,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "Highly risk"
+    },
+    {
+      "id": "73.880:18.536",
+      "rank": 10,
+      "name": "Mula–Mutha 10",
+      "lon": 73.88297,
+      "lat": 18.54374,
+      "chainageMeters": null,
+      "weightedMean": 0.8481,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0766,
+      "uncappedComposite": 1.0597,
+      "rawComposite": 1,
+      "underlying": 1.3743,
+      "organicIndex": 2.2477,
+      "composite": 0.2529,
+      "calibratedComposite": 0.2529,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 478,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.49381179055291097,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 215
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 215
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Highly risk",
+          "pixelCount": 45
+        }
+      ],
+      "maxBod": 12.61,
+      "maxCod": 29.6,
+      "meanBod": 12.18,
+      "meanCod": 28.747,
+      "bodPixelCount": 3,
+      "bod": 12.61,
+      "cod": 29.6,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 215,
+        "meanSeverity": 0.793,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 215,
+        "meanSeverity": 0.977,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "highly_risk",
+        "classLabel": "Highly risk",
+        "severity": 1,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "> 2000",
+        "display": "> 2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 45,
+        "meanSeverity": 0.822,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "Highly risk"
+    },
+    {
+      "id": "73.864:18.536",
+      "rank": 11,
+      "name": "Mula–Mutha 11",
+      "lon": 73.870204,
+      "lat": 18.540139,
+      "chainageMeters": null,
+      "weightedMean": 0.7851,
+      "layerBonus": 0.135,
+      "thickBonus": 0.0598,
+      "uncappedComposite": 0.98,
+      "rawComposite": 0.98,
+      "underlying": 1.3095,
+      "organicIndex": 2.24,
+      "composite": 0.1759,
+      "calibratedComposite": 0.1759,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 123,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.49212742585133645,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 1,
+          "weight": 0.25,
+          "classLabel": "Hypereutrophic",
+          "pixelCount": 45
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 45
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 0.75,
+          "weight": 0.25,
+          "classLabel": "High",
+          "pixelCount": 30
+        }
+      ],
+      "maxBod": 12.59,
+      "maxCod": 29.43,
+      "meanBod": 11.98,
+      "meanCod": 28.213,
+      "bodPixelCount": 3,
+      "bod": 12.59,
+      "cod": 29.43,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "hyper",
+        "classLabel": "Hypereutrophic",
+        "severity": 1,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "> 56 µg/L",
+        "display": "> 56 µg/L (TSI > 70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 45,
+        "meanSeverity": 0.747,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 45,
+        "meanSeverity": 0.8,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 0.75,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "500–2000",
+        "display": "500–2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 30,
+        "meanSeverity": 0.75,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Hypereutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "High"
+    },
+    {
+      "id": "73.936:18.544",
+      "rank": 12,
+      "name": "Mula–Mutha 12",
+      "lon": 73.94379,
+      "lat": 18.544632,
+      "chainageMeters": null,
+      "weightedMean": 0.7218,
+      "layerBonus": 0.135,
+      "thickBonus": 0.02,
+      "uncappedComposite": 0.8768,
+      "rawComposite": 0.8768,
+      "underlying": 1.2877,
+      "organicIndex": 2.4173,
+      "composite": 0.15,
+      "calibratedComposite": 0.15,
+      "shade": "light",
+      "shadeLabel": "Elevated",
+      "severity": "Elevated",
+      "color": "#FF8A80",
+      "thickness": 4,
+      "layersPresent": [
+        "bod_cod",
+        "eutrophication",
+        "nitrogen",
+        "coliform"
+      ],
+      "contributingLayers": [
+        "BOD–COD",
+        "Eutrophication",
+        "Nitrogen",
+        "Coliform"
+      ],
+      "layerScores": [
+        {
+          "id": "bod_cod",
+          "label": "BOD–COD",
+          "score": 0.531087513731234,
+          "weight": 0.3
+        },
+        {
+          "id": "eutrophication",
+          "label": "Eutrophication",
+          "score": 0.7,
+          "weight": 0.25,
+          "classLabel": "Eutrophic",
+          "pixelCount": 1
+        },
+        {
+          "id": "nitrogen",
+          "label": "Nitrogen",
+          "score": 1,
+          "weight": 0.2,
+          "classLabel": "High",
+          "pixelCount": 1
+        },
+        {
+          "id": "coliform",
+          "label": "Coliform",
+          "score": 0.75,
+          "weight": 0.25,
+          "classLabel": "High",
+          "pixelCount": 1
+        }
+      ],
+      "maxBod": 13.6,
+      "maxCod": 31.72,
+      "meanBod": 13.6,
+      "meanCod": 31.72,
+      "bodPixelCount": 1,
+      "bod": 13.6,
+      "cod": 31.72,
+      "eutrophication": {
+        "label": "Eutrophication",
+        "classId": "eutro",
+        "classLabel": "Eutrophic",
+        "severity": 0.7,
+        "unit": "µg/L Chl-a · TSI",
+        "valueText": "7.3–56 µg/L",
+        "display": "7.3–56 µg/L (TSI 50–70)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 1,
+        "meanSeverity": 0.7,
+        "provenance": "src/jalnetra kml/eutrophication_trophic_class.kml"
+      },
+      "nitrogen": {
+        "label": "Nitrogen",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 1,
+        "unit": "risk class (not mg N/L)",
+        "valueText": "3 / 3",
+        "display": "High risk (class 3 of 3)",
+        "classIndex": 3,
+        "classOf": 3,
+        "pixelCount": 1,
+        "meanSeverity": 1,
+        "provenance": "src/jalnetra kml/Nitrogen mulamutha.kml"
+      },
+      "coliform": {
+        "label": "Coliform",
+        "classId": "high",
+        "classLabel": "High",
+        "severity": 0.75,
+        "unit": "class (relative CFU band, not a counted CFU)",
+        "valueText": "500–2000",
+        "display": "500–2000 (relative)",
+        "classIndex": null,
+        "classOf": null,
+        "pixelCount": 1,
+        "meanSeverity": 0.75,
+        "provenance": "src/jalnetra kml/coliform_ecoli_class.kml"
+      },
+      "provenance": [
+        "public/data/main_bod_cod_pixels.json",
+        "src/jalnetra kml/eutrophication_trophic_class.kml",
+        "src/jalnetra kml/Nitrogen mulamutha.kml",
+        "src/jalnetra kml/coliform_ecoli_class.kml"
+      ],
+      "observationDate": null,
+      "sourceUpdated": "2026-11-11",
+      "dataQuality": "OBSERVED+CLASSIFIED",
+      "eutrophicationClass": "Eutrophic",
+      "nitrogenRiskClass": "High",
+      "coliformClass": "High"
+    }
+  ]
+}

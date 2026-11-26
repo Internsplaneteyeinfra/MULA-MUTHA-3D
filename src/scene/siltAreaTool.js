@@ -287,14 +287,17 @@ export function createSiltAreaTool() {
         
         if (alpha >= 195) {
           const clsIdx = Math.round((alpha - 200) / 10);
-          if (clsIdx >= 0 && clsIdx <= 3 && bedY < SURFACE_Y - 0.05) {
+          if (clsIdx >= 0 && clsIdx <= 3) {
             severity = SILT_COLUMN_FILL[clsIdx];
             col = colors[clsIdx];
             valid[k] = 1;
           }
         }
-        
-        botY[k] = bedY;
+
+        // Every classified cell inside the polygon is drawn, including the middle.
+        // A bed at or above the water surface still gets a column under the surface.
+        const ceiling = SURFACE_Y - SURFACE_CLEARANCE_M;
+        botY[k] = bedY < ceiling - 0.35 ? bedY : ceiling - 0.45;
         rawFactor[k] = severity;
         
         rawR[k] = col.r;
@@ -463,24 +466,24 @@ export function createSiltAreaTool() {
     }
   }
 
-  async function runAnalysis() {
+  async function runAnalysis(opts = {}) {
     const id = ++runId;
-    emit();
     const scene = window.__MM_SCENE__;
+    const periodId = opts.periodId || scene?.getSiltClassificationPeriod?.() || undefined;
+    if (!opts.quiet) emit();
     try {
       const res = await analyzeSiltPolygon(points, {
-        classPeriod: scene?.getSiltClassificationPeriod?.() ?? undefined,
-        volumePeriod: scene?.getSiltVolumePeriod?.() ?? undefined,
+        classPeriod: periodId,
+        volumePeriod: periodId,
         dataset: scene?.dataset ?? undefined,
       });
       if (id !== runId || !active) return;
       result = res;
+      clearOverlay();
       drawOutline(res.ring, true);
       if (res.clip) buildOverlay(res.clip);
       if (res.hotspots?.length) buildHotspots(res.hotspots);
-      
-      // Frame the camera
-      if (points.length >= 3 && window.__MM_SCENE__?.cameraSystem?.setPose) {
+      if (!opts.keepCamera && points.length >= 3 && window.__MM_SCENE__?.cameraSystem?.setPose) {
         let minX = Infinity, maxX = -Infinity, minZ = Infinity, maxZ = -Infinity;
         for (const p of points) {
           minX = Math.min(minX, p.x); maxX = Math.max(maxX, p.x);
@@ -489,7 +492,6 @@ export function createSiltAreaTool() {
         const cx = (minX + maxX) / 2;
         const cz = (minZ + maxZ) / 2;
         const diag = Math.hypot(maxX - minX, maxZ - minZ);
-        
         const dist = Math.max(diag * 0.85, 18);
         const bed = bedSceneY(cx, cz);
         const yOff = Math.max(6, dist * 0.35);
@@ -499,7 +501,6 @@ export function createSiltAreaTool() {
           new THREE.Vector3(cx, bed + 0.4, cz)
         );
       }
-      
       emit();
     } catch (err) {
       if (id !== runId) return;
@@ -507,6 +508,13 @@ export function createSiltAreaTool() {
       result = { available: false, reason: "Silt dataset unavailable", error: String(err?.message || err) };
       emit();
     }
+  }
+
+  function setPeriod(periodId) {
+    if (!active || points.length < MAX_POINTS || !periodId) return snapshot();
+    if (result?.source?.classPeriod === periodId) return snapshot();
+    void runAnalysis({ periodId, keepCamera: true, quiet: true });
+    return snapshot();
   }
 
   function addPoint(x, z) {
@@ -683,6 +691,7 @@ export function createSiltAreaTool() {
     group,
     setActive,
     addPoint,
+    setPeriod,
     reset: () => reset(),
     pickHotspot, pickVolume,
     selectHotspot,

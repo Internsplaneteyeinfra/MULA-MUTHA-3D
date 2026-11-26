@@ -18,6 +18,7 @@ import { mountWaterFlowControl } from "./components/waterFlowControl.js";
 import { mountChainageRuler } from "./components/chainageRuler.js";
 import { mountMap2dDataPanel } from "./components/map2dDataPanel.js";
 import { mountSiltAnalysisOverlay } from "./components/siltAnalysisOverlay.js";
+import { mountPollutionHotspotPanel } from "./components/pollutionHotspotPanel.js";
 import { mountJoiningStreamsNav } from "./components/joiningStreamsNav.js";
 import { mountChainageStepHud } from "./components/chainageStepHud.js";
 import { mountChainagePanel } from "./components/chainagePanel.js";
@@ -1182,6 +1183,7 @@ export function mountUI(root, {
   }
 
   let chainPanel = null;
+  let pollutionHotspotPanel = null;
   const nav = mountNavigationControls(root, {
     onOverview: () => {
       exitFloodRainfallModes();
@@ -1219,6 +1221,23 @@ export function mountUI(root, {
         siltAnalysis?.open?.();
       }
     },
+    onPollutionHotspotToggle: async (open) => {
+      if (open) {
+        try {
+          const data = await window.__MM_SCENE__?.ensurePollutionHotspots?.();
+          window.__MM_SCENE__?.setPollutionHotspotsVisible?.(true);
+          await pollutionHotspotPanel?.show?.(data);
+          const first = data?.hotspots?.[0];
+          if (first) window.__MM_SCENE__?.focusPollutionHotspot?.(first.id || first.rank);
+        } catch (err) {
+          console.warn("[pollution-hotspot]", err?.message || err);
+          nav.setPollutionHotspotPressed?.(false);
+        }
+      } else {
+        pollutionHotspotPanel?.hide?.();
+        window.__MM_SCENE__?.setPollutionHotspotsVisible?.(false);
+      }
+    },
     onLayersToggle: () => {
       exitFloodRainfallModes();
       toggleLayers();
@@ -1231,7 +1250,11 @@ export function mountUI(root, {
     onFloodToggle: () => toggleFloodBar(),
     onRainfallToggle: () => toggleRainfallBar(),
   });
-  window.__MM_NAV__ = { enter3D: (opts) => nav.enter3D(opts), view3DPose: VIEW_3D_POSE };
+  window.__MM_NAV__ = {
+    enter3D: (opts) => nav.enter3D(opts),
+    view3DPose: VIEW_3D_POSE,
+    setPollutionHotspotPressed: (v) => nav.setPollutionHotspotPressed?.(v),
+  };
   nav.setLayersPressed(state.showLayers);
   nav.setDrainagePressed?.(state.showDrainage);
   nav.setSettingsPressed?.(state.showSettings);
@@ -1241,6 +1264,7 @@ export function mountUI(root, {
   const chainRuler = mountChainageRuler(root, dataset);
   const map2dData = mountMap2dDataPanel(leftStack, riverData);
   const siltAnalysis = mountSiltAnalysisOverlay(root, dataset);
+  pollutionHotspotPanel = mountPollutionHotspotPanel(root);
   const chainStepHud = mountChainageStepHud(root, dataset);
   mountJoiningStreamsNav(root);
   chainPanel = mountChainagePanel(root, dataset);
@@ -1673,6 +1697,7 @@ export function mountUI(root, {
     const cm = Number(e.target.value) || 0;
     state.floodRiseM = cm / 100;
     syncFloodLabel(cm);
+    if (cm > 2) window.__MM_SCENE__?.clearHydrologySimulation?.();
   });
   root.querySelectorAll("[data-exag]").forEach((btn) => {
     btn.addEventListener("click", () => {

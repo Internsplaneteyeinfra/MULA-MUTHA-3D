@@ -8,6 +8,7 @@ import {
   formatSiltValue,
   isMissingSiltValue,
 } from "./siltFormat.js";
+import { updateHistoricalSilt } from "./historicalSilt.js";
 
 const INSTRUCTION = "Select 4 points around the area to analyze";
 
@@ -73,70 +74,41 @@ export function mountSiltAnalysisOverlay(root, dataset) {
       </button>
     </div>
     <div class="silt-pro-dashboard" id="silt-pro-dashboard" hidden>
-      <div class="dashboard-header-row">
-        <div class="dh-left">
-          <h3>SILT ANALYSIS</h3>
-          <div class="edge-selector" id="silt-edge-selector">
-            <button class="edge-btn" data-edge="0">P1 \u2192 P2</button>
-            <button class="edge-btn" data-edge="1">P2 \u2192 P3</button>
-            <button class="edge-btn" data-edge="2">P3 \u2192 P4</button>
-            <button class="edge-btn" data-edge="3">P4 \u2192 P1</button>
-          </div>
-        </div>
-        <div class="dh-right" id="silt-dh-stats"></div>
-      </div>
-
-      <div class="dashboard-grid-3">
-        <div class="dashboard-panel">
-          <div class="panel-header">
-            <span id="cs-title">CROSS-SECTION (P1 \u2192 P2)</span>
-          </div>
-          <div class="chart-wrapper">
-            <div class="chart-y-label">Elevation (m)</div>
-            <div class="chart-inner">
-              <div class="chart-y-axis" id="silt-cs-y-axis"></div>
-              <div class="chart-area-wrap">
-                <div class="chart-area" id="silt-cs-canvas" style="cursor:crosshair;"></div>
-                <div class="chart-x-axis" id="silt-cs-x-axis"></div>
-              </div>
-            </div>
-            <div class="chart-x-label">Distance Across Section (m)</div>
-          </div>
-          <div class="chart-legend-row">
-            <span><span class="sw-cyan"></span> Water Surface (WSE)</span>
-            <span><span class="sw-amber"></span> River Bed</span>
-            <span><span class="sw-dot"></span> Silt / Deposition Index</span>
-          </div>
-        </div>
-
-        <div class="dashboard-panel">
-          <div class="panel-header">
-            <span id="silt-prof-title">SILT / DEPOSITION PROFILE (P1 \u2192 P2)</span>
-          </div>
-          <div class="chart-wrapper">
-            <div class="chart-y-label">Silt / Deposition Index</div>
-            <div class="chart-inner">
-              <div class="chart-y-axis" id="silt-profile-y-axis"></div>
-              <div class="chart-area-wrap">
-                <div class="chart-area" id="silt-prof-canvas" style="cursor:crosshair;"></div>
-                <div class="chart-x-axis" id="silt-prof-x-axis"></div>
-              </div>
-            </div>
-            <div class="chart-x-label">Distance Along Section (m)</div>
-          </div>
-          <div class="chart-legend-row">
-            <span><span class="sw" style="background:#22c55e"></span> Low</span>
-            <span><span class="sw" style="background:#eab308"></span> Moderate</span>
-            <span><span class="sw" style="background:#f97316"></span> High</span>
-            <span><span class="sw" style="background:#ef4444"></span> Very High</span>
-          </div>
-        </div>
-
-        <div class="dashboard-panel">
-          <div class="panel-header">AREA &amp; RIVER BED DATA</div>
-          <div class="data-grid-cols" id="silt-col3-data"></div>
+      <div class="silt-summary" id="silt-summary"></div>
+      <div class="silt-controls">
+        <div class="silt-hist-years" id="silt-hist-years" role="group" aria-label="Year"></div>
+        <div class="silt-hist-months" id="silt-hist-months" role="group" aria-label="Month"></div>
+        <div class="silt-play" id="silt-play">
+          <button type="button" data-silt-play="prev" title="Previous available month">Prev</button>
+          <button type="button" data-silt-play="play" title="Play available months">Play</button>
+          <button type="button" data-silt-play="pause" title="Pause">Pause</button>
+          <button type="button" data-silt-play="next" title="Next available month">Next</button>
+          <label>Speed
+            <select id="silt-play-speed" aria-label="Playback speed">
+              <option value="1600">0.5×</option>
+              <option value="900" selected>1×</option>
+              <option value="450">2×</option>
+            </select>
+          </label>
         </div>
       </div>
+      <div class="silt-three" id="silt-three">
+        <div class="dashboard-panel silt-spatial-panel">
+          <div class="panel-header"><span id="cs-title">SPATIAL SILT CLASSIFICATION</span></div>
+          <div class="silt-spatial-wrap" id="silt-spatial"></div>
+          <div class="chart-legend-row" id="silt-spatial-legend"></div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="panel-header">MONTHLY SILT VOLUME</div>
+          <div id="silt-month-volume"></div>
+        </div>
+        <div class="dashboard-panel">
+          <div class="panel-header">MONTHLY SILT CLASSIFICATION</div>
+          <div id="silt-month-class"></div>
+        </div>
+      </div>
+      <div class="silt-compare" id="silt-compare"></div>
+      <div class="silt-month-table" id="silt-month-table"></div>
     </div>
   `;
 
@@ -150,9 +122,6 @@ export function mountSiltAnalysisOverlay(root, dataset) {
   const hintText = panel.querySelector("#silt-pro-hint-text");
   const dashboard = panel.querySelector("#silt-pro-dashboard");
   const legend = panel.querySelector("#silt-pro-legend");
-  const dhStats = panel.querySelector("#silt-dh-stats");
-  const col3Data = panel.querySelector("#silt-col3-data");
-  const legendList = panel.querySelector("#silt-pro-legend-list");
   const tooltipEl = _tt;
 
   function sampleNearest(x, z, pts) {
@@ -223,6 +192,112 @@ export function mountSiltAnalysisOverlay(root, dataset) {
     render();
   });
 
+  panel.querySelector("#silt-bank-inspect")?.addEventListener("toggle", () => render());
+
+  function drawSpatialMap(r) {
+    const host = panel.querySelector("#silt-spatial");
+    const legendRow = panel.querySelector("#silt-spatial-legend");
+    if (!host) return;
+    const clip = r.clip;
+    if (legendRow) {
+      legendRow.innerHTML = (r.classes || []).map((c) =>
+        '<span><span class="sw" style="background:' + escapeSiltHtml(c.color) + '"></span> ' + escapeSiltHtml(c.label) + "</span>"
+      ).join("");
+    }
+    if (!clip?.data || !clip.width || !clip.height) {
+      host.textContent = "No classified raster cells inside the polygon.";
+      return;
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = clip.width;
+    canvas.height = clip.height;
+    const ctx = canvas.getContext("2d");
+    const img = ctx.createImageData(clip.width, clip.height);
+    const src = clip.data;
+    let minX = clip.width;
+    let minY = clip.height;
+    let maxX = 0;
+    let maxY = 0;
+    for (let i = 0, n = clip.width * clip.height; i < n; i++) {
+      const s = i * 4;
+      const a = src[s + 3];
+      if (a >= 195) {
+        img.data[s] = src[s];
+        img.data[s + 1] = src[s + 1];
+        img.data[s + 2] = src[s + 2];
+        img.data[s + 3] = 235;
+      } else if (a > 0) {
+        img.data[s] = 58;
+        img.data[s + 1] = 76;
+        img.data[s + 2] = 86;
+        img.data[s + 3] = 170;
+      } else continue;
+      const x = i % clip.width;
+      const y = (i / clip.width) | 0;
+      if (x < minX) minX = x;
+      if (y < minY) minY = y;
+      if (x > maxX) maxX = x;
+      if (y > maxY) maxY = y;
+    }
+    ctx.putImageData(img, 0, 0);
+    const pad = 1;
+    minX = Math.max(0, minX - pad);
+    minY = Math.max(0, minY - pad);
+    maxX = Math.min(clip.width - 1, maxX + pad);
+    maxY = Math.min(clip.height - 1, maxY + pad);
+    const cropW = Math.max(1, maxX - minX + 1);
+    const cropH = Math.max(1, maxY - minY + 1);
+    const zoom = 8;
+    const view = document.createElement("canvas");
+    view.width = cropW * zoom;
+    view.height = cropH * zoom;
+    const vctx = view.getContext("2d");
+    vctx.imageSmoothingEnabled = false;
+    vctx.drawImage(canvas, minX, minY, cropW, cropH, 0, 0, view.width, view.height);
+    const nw = clip.corners?.nw;
+    const ne = clip.corners?.ne;
+    const sw = clip.corners?.sw;
+    if (nw && ne && sw && r.points?.length >= 3) {
+      const ux = ne.x - nw.x;
+      const uz = ne.z - nw.z;
+      const wx = sw.x - nw.x;
+      const wz = sw.z - nw.z;
+      const det = ux * wz - uz * wx;
+      if (Math.abs(det) > 1e-6) {
+        vctx.beginPath();
+        r.points.forEach((p, i) => {
+          const vx = p.x - nw.x;
+          const vz = p.z - nw.z;
+          const u = (vx * wz - vz * wx) / det;
+          const v = (ux * vz - uz * vx) / det;
+          const x = (u * clip.width - minX) * zoom;
+          const y = (v * clip.height - minY) * zoom;
+          if (i === 0) vctx.moveTo(x, y);
+          else vctx.lineTo(x, y);
+        });
+        vctx.closePath();
+        vctx.strokeStyle = "#35D9FF";
+        vctx.lineWidth = 2;
+        vctx.stroke();
+      }
+    }
+    host.replaceChildren(view);
+    view.addEventListener("mousemove", (ev) => {
+      const rect = view.getBoundingClientRect();
+      if (!rect.width || !rect.height) return;
+      const px = Math.min(clip.width - 1, Math.max(0, minX + Math.floor(((ev.clientX - rect.left) / rect.width) * cropW)));
+      const py = Math.min(clip.height - 1, Math.max(0, minY + Math.floor(((ev.clientY - rect.top) / rect.height) * cropH)));
+      const a = src[(py * clip.width + px) * 4 + 3];
+      let label = "Outside polygon";
+      if (a >= 195) {
+        const c = Math.max(0, Math.min(3, Math.round((a - 200) / 10)));
+        label = (r.classes?.[c]?.label || "Classified") + " · stored raster cell";
+      } else if (a > 0) label = "Inside polygon · no class";
+      showTT(ev, label);
+    });
+    view.addEventListener("mouseleave", hideTT);
+  }
+
   function render() {
     if (!active || !snap) return;
     const { phase, count, result } = snap;
@@ -249,7 +324,7 @@ export function mountSiltAnalysisOverlay(root, dataset) {
       panel.querySelector("#silt-min-coverage").textContent = cov;
     } else {
       dashboard.hidden = false;
-      legend.hidden = false;
+      legend.hidden = true;
       minBar.hidden = true;
       renderDashboard(result);
     }
@@ -257,104 +332,12 @@ export function mountSiltAnalysisOverlay(root, dataset) {
 
   function renderDashboard(r) {
     if (!r) return;
-
-    const areaM2 = r.selectedAreaM2 ?? 0;
-    const areaVal = areaM2 ? areaM2.toLocaleString("en-IN", {maximumFractionDigits:0}) : DASH;
-    const areaHa  = areaM2 ? (areaM2/10000).toFixed(2) + " ha" : DASH;
-    const volM3 = r.volumeIndex?.total ?? 0;
-    const volVal = volM3 ? volM3.toLocaleString("en-IN", {maximumFractionDigits:0}) : DASH;
-    const volMcf = volM3 ? (volM3 * 35.3147 / 1000000).toFixed(2) + " Mcft" : DASH;
-    const covPctRaw = r.silt?.coveragePct ?? 0;
-    const covPct = r.silt?.coveragePct != null ? r.silt.coveragePct.toFixed(1) + "%" : DASH;
-    const obs = r.validCells != null
-      ? r.validCells.toLocaleString("en-IN")
-      : (r.silt?.validCells?.toLocaleString("en-IN") ?? DASH);
-    const hotspots = r.hotspots?.length ?? 0;
-    const bd = r.bathymetryDepth;
-
-    dhStats.innerHTML =
-      '<div class="dh-stat"><div class="dh-text"><div class="dh-lbl">Selected Area</div>' +
-      '<div class="dh-val cyan">' + areaVal + ' <span class="unit">m\u00B2</span></div>' +
-      '<div class="dh-sub">' + areaHa + '</div></div></div>' +
-      '<div class="dh-sep"></div>' +
-      '<div class="dh-stat"><div class="dh-text"><div class="dh-lbl">Coverage</div>' +
-      '<div class="dh-val cyan">' + covPct + '</div>' +
-      '<div class="prog-bg"><div class="prog-fill" style="width:' + covPctRaw + '%"></div></div>' +
-      '</div></div>' +
-      '<div class="dh-sep"></div>' +
-      '<div class="dh-stat"><div class="dh-text"><div class="dh-lbl">Observations</div>' +
-      '<div class="dh-val">' + obs + '</div></div></div>' +
-      '<div class="dh-sep"></div>' +
-      '<div class="dh-stat"><div class="dh-text"><div class="dh-lbl">Hotspots</div>' +
-      '<div class="dh-val">' + hotspots + '</div></div></div>';
-
     const classes = r.classes ?? [];
-    let classesHtml = '<div class="missing-data">Data unavailable</div>';
-    if (classes.some(c => c.cells > 0)) {
-      classesHtml = '<div class="comp-bars">' + classes.filter(c => c.cells > 0).map(c =>
-        '<div class="comp-row">' +
-        '<div class="comp-sw" style="background:' + escapeSiltHtml(c.color) + '"></div>' +
-        '<div class="comp-lbl">' + escapeSiltHtml(c.label) + '</div>' +
-        '<div class="comp-bar-bg"><div class="comp-bar" style="width:' + c.pct.toFixed(1) + '%;background:' + escapeSiltHtml(c.color) + '"></div></div>' +
-        '<div class="comp-pct">' + c.pct.toFixed(0) + '%</div></div>'
-      ).join("") + '</div>';
-    }
+    drawSpatialMap(r);
+    updateHistoricalSilt(r.points, activeEdge, { showTT, moveTT, hideTT }, r.source?.classPeriod);
 
-    const bdMean = bd && bd.status !== "UNAVAILABLE" ? bd.mean.toFixed(2) : DASH;
-    const bdMin  = bd && bd.status !== "UNAVAILABLE" ? bd.min.toFixed(2) + " m" : DASH;
-    const bdMax  = bd && bd.status !== "UNAVAILABLE" ? bd.max.toFixed(2) + " m" : DASH;
-    const bdStatusClass = bd?.status === "INTERPOLATED" ? "interpolated" : "unavailable";
-    const bdStatusLabel = bd?.status === "INTERPOLATED" ? "INTERPOLATED" : "UNAVAILABLE";
-
-    col3Data.innerHTML =
-      '<div class="data-col-left">' +
-        '<div class="ds-group"><div class="ds-lbl">SELECTED AREA</div>' +
-        '<div class="ds-val">' + areaVal + ' <span class="unit">m\u00B2</span></div>' +
-        '<div class="ds-sub">' + areaHa + '</div></div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">Silt Coverage (%)</div>' +
-        '<div class="ds-val cyan">' + covPct + '</div></div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">Silt Volume Index Total</div>' +
-        '<div class="ds-val">' + volVal + ' <span class="unit">m\u00B3</span></div>' +
-        '<div class="ds-sub">' + volMcf + ' · relative 1 m layer</div></div>' +
-        '<div class="ds-row mt3"><span>Valid Observations</span><b>' + obs + '</b></div>' +
-        '<div class="ds-row"><span>Hotspots</span><b>' + hotspots + '</b></div>' +
-      '</div>' +
-      '<div class="data-col-right">' +
-        '<div class="ds-group"><div class="ds-lbl">RIVER BED DEPTH <span class="dim">(Within Area)</span></div>' +
-        '<div class="depth-main"><span class="depth-val">' + bdMean + '</span><span class="depth-unit">m</span><span class="depth-sub">(Mean)</span></div>' +
-        '<div class="depth-minmax">Min: ' + bdMin + ' | Max: ' + bdMax + '</div></div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">SILT CLASS DISTRIBUTION <span class="dim">(class)</span></div>' + classesHtml + '</div>' +
-        '<div class="ds-group mt3"><div class="ds-lbl">DATA STATUS</div>' +
-        '<div class="status-rows">' +
-          '<div class="kv"><span>Silt Analysis</span><span class="badge derived">DERIVED</span></div>' +
-          '<div class="kv"><span>Bathymetry</span><span class="badge observed">OBSERVED</span></div>' +
-          '<div class="kv"><span>WSE</span><span class="badge modelled">MODELLED</span></div>' +
-          '<div class="kv"><span>Bed Depth</span><span class="badge ' + bdStatusClass + '">' + bdStatusLabel + '</span></div>' +
-        '</div></div>' +
-      '</div>';
-
-    if (r.classes && r.classes.length) {
-      legendList.innerHTML = r.classes.map(c =>
-        '<li>' +
-        '<div class="swatch" style="background:' + escapeSiltHtml(c.color) + '"></div>' +
-        '<div class="label">' + escapeSiltHtml(c.label) + '</div>' +
-        '<div class="pct">' + c.pct.toFixed(0) + '%</div>' +
-        '</li>'
-      ).join("");
-    } else {
-      legendList.innerHTML = "<li>Data Unavailable</li>";
-    }
-
-    panel.querySelectorAll(".edge-btn").forEach(b => b.classList.remove("active"));
-    const btnActive = panel.querySelector('.edge-btn[data-edge="' + activeEdge + '"]');
-    if (btnActive) btnActive.classList.add("active");
-
-    const e1 = activeEdge + 1;
-    const e2 = (activeEdge + 1) % 4 === 0 ? 4 : (activeEdge + 2) % 5;
-    const csTitle = panel.querySelector("#cs-title");
-    const profTitle = panel.querySelector("#silt-prof-title");
-    if (csTitle) csTitle.textContent = "CROSS-SECTION (P" + e1 + " \u2192 P" + e2 + ")";
-    if (profTitle) profTitle.textContent = "SILT / DEPOSITION PROFILE (P" + e1 + " \u2192 P" + e2 + ")";
+    const bankOpen = panel.querySelector("#silt-bank-inspect")?.open;
+    if (!bankOpen) return;
 
     const cs = panel.querySelector("#silt-cs-canvas");
     const bathy = window.__MM_SCENE__?.dataset?.points ?? [];

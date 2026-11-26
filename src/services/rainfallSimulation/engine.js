@@ -283,11 +283,21 @@ function convolve(excessMm, uh) {
   return out;
 }
 
-function manningDepth(Q) {
+/** Manning conveyance for a wide rectangular channel. n and slope are documented assumptions. */
+export function manningDischarge(depthM, widthM = REF_WIDTH_M) {
+  const h = Math.max(0.05, Number(depthM) || 0.05);
+  const w = Math.max(5, Number(widthM) || REF_WIDTH_M);
+  const A = w * h;
+  const P = w + 2 * h;
+  const R = A / Math.max(P, 1e-3);
+  return (1 / MANNING_N) * A * Math.pow(R, 2 / 3) * Math.sqrt(BED_SLOPE);
+}
+
+export function manningDepthFor(Q, widthM = REF_WIDTH_M) {
   const q = Math.max(0.05, Number(Q) || 0);
+  const w = Math.max(5, Number(widthM) || REF_WIDTH_M);
   let h = 1.0;
-  for (let k = 0; k < 12; k++) {
-    const w = REF_WIDTH_M;
+  for (let k = 0; k < 14; k++) {
     const A = w * h;
     const P = w + 2 * h;
     const R = A / Math.max(P, 1e-3);
@@ -297,10 +307,14 @@ function manningDepth(Q) {
       (1 / MANNING_N) *
       Math.sqrt(BED_SLOPE) *
       (Math.pow(R, 2 / 3) * w +
-        A * (2 / 3) * Math.pow(R, -1 / 3) * ((w * P - A * 2) / (P * P)));
+        A * (2 / 3) * Math.pow(Math.max(R, 1e-3), -1 / 3) * ((w * P - A * 2) / (P * P)));
     h = Math.max(0.15, h - err / Math.max(dQdh, 1e-3));
   }
   return h;
+}
+
+export function manningDepth(Q) {
+  return manningDepthFor(Q, REF_WIDTH_M);
 }
 
 function approxWettedArea(h) {

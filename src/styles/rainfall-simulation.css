@@ -128,6 +128,11 @@
 .rainfall-status[data-status="COMPLETED"],
 .rainfall-status[data-status="STABILIZED"] { color: #6ddea0; }
 .rainfall-status[data-status="READY"] { color: #9fd8e8; }
+.rainfall-status--couple { margin-top: 4px; font-size: 9px; letter-spacing: 0.06em; }
+.rainfall-status--couple[data-status="COUPLED"] { color: #7ee0c8; }
+.rainfall-status--couple[data-status="RAINFALL"] { color: #5ee0f5; }
+.rainfall-status--couple[data-status="HYDROLOGY"] { color: #9ecbff; }
+.rainfall-status--couple[data-status="PAUSED"] { color: #f0c14a; }
 .rainfall-status[data-status="RUNOFF_ROUTING"] { color: #7ec8f0; }
 .rainfall-status[data-status="RIVER_RISING"] { color: #6de0c8; }
 .rainfall-status[data-status="PEAK_RESPONSE"] { color: #ffb45a; }

@@ -1019,7 +1019,7 @@ export function applyExaggeration(
   exag,
   floodRiseM = 0,
   waterSurfaceSceneY = null,
-  { includeBaseStage = true, allowNegativeRise = false } = {},
+  { includeBaseStage = true, allowNegativeRise = false, waterOnly = false } = {},
 ) {
   const bath = river.bathymetry;
   const pos = river.mesh.geometry.attributes.position;
@@ -1044,6 +1044,8 @@ export function applyExaggeration(
     const finalWaterY = baseSurfaceY + rise;
 
     pos.setY(i, finalWaterY);
+    // Bed, banks and the DTM stay at their built elevations. Only the water surface moves.
+    if (waterOnly) continue;
     // Bed = water surface − surveyed depth (× display exaggeration). The DTM is not used here:
     // over water FABDEM records the water surface, not the bed, and pulling the bed down to it
     // made depth (water − bed) disagree with the survey by up to 3.6 m.
@@ -1052,12 +1054,13 @@ export function applyExaggeration(
     bed.setY(i, bedY);
   }
   pos.needsUpdate = true;
-  bed.needsUpdate = true;
   river.mesh.geometry.computeVertexNormals();
-  river.bed.geometry.computeVertexNormals();
-  updateWalls(river.walls, bath, dataset, exag, rise, waterSurfaceSceneY, river.dtmHeightAt);
-  // Bank strip (channelBanks.js): toe on the new bed edge, shore at the new water level.
-  river.banksSync?.(SURFACE_Y + rise);
+  if (!waterOnly) {
+    bed.needsUpdate = true;
+    river.bed.geometry.computeVertexNormals();
+    updateWalls(river.walls, bath, dataset, exag, rise, waterSurfaceSceneY, river.dtmHeightAt);
+    river.banksSync?.(SURFACE_Y + rise);
+  }
 }
 
 function updateWalls(group, bath, dataset, exag, floodRiseM = 0, waterSurfaceSceneY = null, dtmHeightAt = null) {

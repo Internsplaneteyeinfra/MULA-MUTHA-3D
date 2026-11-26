@@ -1,0 +1,206 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2" xmlns:gx="http://www.google.com/kml/ext/2.2" xmlns:kml="http://www.opengis.net/kml/2.2" xmlns:atom="http://www.w3.org/2005/Atom">
+<Document>
+	<name>Mula Mutha River — flood extents 2016-2026</name>
+	<description><![CDATA[Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+
+	<Style id="flood-yellow">
+		<LineStyle><color>ff00d4e6</color><width>3.5</width></LineStyle>
+		<PolyStyle><color>4400d4e6</color><fill>1</fill><outline>1</outline></PolyStyle>
+		<LabelStyle><scale>0</scale></LabelStyle>
+	</Style>
+	<Style id="flood-orange">
+		<LineStyle><color>ff0080ff</color><width>3.5</width></LineStyle>
+		<PolyStyle><color>440080ff</color><fill>1</fill><outline>1</outline></PolyStyle>
+		<LabelStyle><scale>0</scale></LabelStyle>
+	</Style>
+	<Style id="flood-red">
+		<LineStyle><color>ff0000ff</color><width>4</width></LineStyle>
+		<PolyStyle><color>440000ff</color><fill>1</fill><outline>1</outline></PolyStyle>
+		<LabelStyle><scale>0</scale></LabelStyle>
+	</Style>
+	<Style id="label-yellow">
+		<IconStyle><scale>0.9</scale><color>ff00d4e6</color>
+			<Icon><href>http://maps.google.com/mapfiles/kml/paddle/ylw-circle.png</href></Icon>
+		</IconStyle>
+		<LabelStyle><color>ff00b4c8</color><scale>1.05</scale></LabelStyle>
+	</Style>
+	<Style id="label-orange">
+		<IconStyle><scale>0.9</scale><color>ff0080ff</color>
+			<Icon><href>http://maps.google.com/mapfiles/kml/paddle/orange-circle.png</href></Icon>
+		</IconStyle>
+		<LabelStyle><color>ff0066dd</color><scale>1.05</scale></LabelStyle>
+	</Style>
+	<Style id="label-red">
+		<IconStyle><scale>0.9</scale>
+			<Icon><href>http://maps.google.com/mapfiles/kml/paddle/red-circle.png</href></Icon>
+		</IconStyle>
+		<LabelStyle><color>ff0000ee</color><scale>1.1</scale></LabelStyle>
+	</Style>
+	<StyleMap id="m_ylw-pushpin">
+		<Pair><key>normal</key><styleUrl>#s_ylw-pushpin</styleUrl></Pair>
+		<Pair><key>highlight</key><styleUrl>#s_ylw-pushpin_hl</styleUrl></Pair>
+	</StyleMap>
+	<Style id="s_ylw-pushpin">
+		<IconStyle><scale>1.1</scale>
+			<Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle><color>ff00aa00</color><width>1.6</width></LineStyle>
+		<PolyStyle><color>00000000</color><fill>0</fill><outline>1</outline></PolyStyle>
+	</Style>
+	<Style id="s_ylw-pushpin_hl">
+		<IconStyle><scale>1.3</scale>
+			<Icon><href>http://maps.google.com/mapfiles/kml/pushpin/ylw-pushpin.png</href></Icon>
+			<hotSpot x="20" y="2" xunits="pixels" yunits="pixels"/>
+		</IconStyle>
+		<LineStyle><color>ff00aa00</color><width>2.2</width></LineStyle>
+		<PolyStyle><color>00000000</color><fill>0</fill><outline>1</outline></PolyStyle>
+	</Style>
+
+	<Placemark>
+		<name>Mula Mutha River</name>
+		<styleUrl>#m_ylw-pushpin</styleUrl>
+		<description><![CDATA[Traced Mula-Mutha river polygon supplied with this file. Flood boundaries below are measured outward from this outline. The corridor runs from the Sangam confluence area downstream toward Mundhwa and Kharadi.]]></description>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<outerBoundaryIs><LinearRing><coordinates>
+				73.85531491287065,18.53203371377058,0 73.85650832949538,18.53145364861817,0 73.85792377651703,18.53055524330031,0 73.85937418420019,18.52987164253711,0 73.86112891947792,18.52988420542299,0 73.86115192850394,18.5308827728255,0 73.86195881765843,18.53183282587016,0 73.86309507323108,18.53292988507223,0 73.86361654669147,18.5330325256886,0 73.86543214413373,18.53281615138994,0 73.86641019983112,18.53341001936614,0 73.86685376968069,18.53394172677077,0 73.86752629595922,18.53479905229295,0 73.8681229798541,18.53563227127903,0 73.86894306678997,18.53683203750589,0 73.86963824251106,18.53765593450293,0 73.87120682281768,18.53901771551697,0 73.87410444360991,18.54031143998328,0 73.8767108216102,18.54119468628022,0 73.87887702052012,18.54172524719078,0 73.88113447769824,18.54198264136123,0 73.88375167814955,18.54217865594716,0 73.88714643350973,18.54253283073896,0 73.89110883430222,18.54273362470011,0 73.8955200390549,18.54174157566317,0 73.89973904870557,18.54087454984237,0 73.90383889147003,18.54048714445699,0 73.90849859340967,18.54041195901101,0 73.91529596917982,18.53872698464335,0 73.92057858739571,18.53832163917508,0 73.9247206505158,18.53792961819815,0 73.93007672707911,18.5362023694908,0 73.93318517029492,18.53541315149733,0 73.9358954805008,18.53439723640752,0 73.93886915107954,18.53508620003614,0 73.94055458551149,18.53593280513165,0 73.94192867803207,18.53861369400217,0 73.94300443530695,18.54102916906707,0 73.94439779244458,18.54313273323448,0 73.94624327844166,18.54448972635047,0 73.94820693142682,18.54457845603605,0 73.95114732630803,18.54434245244779,0 73.9532799685623,18.54501106672212,0 73.95667860190677,18.54578872301167,0 73.95942654017252,18.54617069659676,0 73.96439417498054,18.54310148537659,0 73.96886207760733,18.54219558579562,0 73.97293179058919,18.54053104308154,0 73.97433637811858,18.5369334380297,0 73.97621601013992,18.53258917098467,0 73.9790841627004,18.52995904607749,0 73.98252857792001,18.52752528476458,0 73.98616531407181,18.52536271826627,0 73.98911175969974,18.52321822656508,0 73.99041452747234,18.52203333110812,0 73.99120173153877,18.52076259572667,0 73.99343967536551,18.52107782626776,0 73.99342035696257,18.52173269865781,0 73.9929556545733,18.52281874305708,0 73.99078096419473,18.52477618975422,0 73.98941496257572,18.52574391377315,0 73.9873927007775,18.52699354317635,0 73.98579045981043,18.52758688366936,0 73.98498866215856,18.52804631809076,0 73.98416024391463,18.52870764143502,0 73.98277205731718,18.5293121000708,0 73.98180657152666,18.52991956739824,0 73.98074006810121,18.53062752012912,0 73.9800181548527,18.53132310439924,0 73.97951188459281,18.5314268600002,0 73.97908396943738,18.53185416660649,0 73.97864865059303,18.532325510984,0 73.97821219669615,18.53256781527612,0 73.97804040724436,18.53284426462778,0 73.97744344133606,18.53381662914927,0 73.97701412487312,18.53432624706902,0 73.97653709976365,18.53521584017616,0 73.97612145657256,18.53581323418951,0 73.9757788858428,18.53633443418835,0 73.97575641734191,18.53682207048944,0 73.97569999804972,18.53749754823231,0 73.9754760482063,18.53813959786264,0 73.97515686172315,18.53922679053004,0 73.97474712839995,18.53978860089433,0 73.97438751688784,18.54035297297379,0 73.97391496014801,18.54073260248425,0 73.97346636710512,18.54104724114939,0 73.97314287042362,18.54181266736878,0 73.97274371910514,18.54227652980223,0 73.97172254809142,18.542833495875,0 73.97100860760978,18.54310697623728,0 73.9699902019154,18.54344562295327,0 73.96905448099787,18.54364066906749,0 73.96814870157407,18.54379653463857,0 73.96688320615638,18.54411412040505,0 73.96544837282198,18.54449660741326,0 73.9641740176253,18.54497637833302,0 73.96330279961175,18.54526355473066,0 73.96273492987554,18.54568914298797,0 73.96173572327888,18.546211551121,0 73.96086695055614,18.5468866096198,0 73.96056221378207,18.5472169067969,0 73.95984209997128,18.54721809207057,0 73.95882126044353,18.54727939192355,0 73.9577835043933,18.54725602097791,0 73.95595216356044,18.54691423993185,0 73.95514171474912,18.54682185916479,0 73.95416668903422,18.5465520985712,0 73.95343215673364,18.54661834004819,0 73.95249860440639,18.54659355113616,0 73.95185421206844,18.54645072964875,0 73.9511897310782,18.54630499277312,0 73.95024618296799,18.54633583595518,0 73.9495811741598,18.54635215959757,0 73.94846850767738,18.54627243240002,0 73.94695817097973,18.54615564019768,0 73.9461332698197,18.5461887494191,0 73.94535568568563,18.54599603828234,0 73.94469297004538,18.54562168334011,0 73.94409988104663,18.54519023281959,0 73.94356765368255,18.54483877056571,0 73.9429868057867,18.5444095952082,0 73.94245088273014,18.54348510310055,0 73.94171584606656,18.54211021125525,0 73.94087959432898,18.54053100601632,0 73.9405506402648,18.53953352667084,0 73.93973367783228,18.53795083009994,0 73.93873354970383,18.53695838782082,0 73.93794557061135,18.53673857032424,0 73.93705908383541,18.53675613548536,0 73.93613687631975,18.53677510686715,0 73.93567206429015,18.53686537556863,0 73.93475619619994,18.53727700783352,0 73.93411934822407,18.53699824445454,0 73.93323586061202,18.53691221957803,0 73.93215077376937,18.53704703518726,0 73.93075311345166,18.53741232970534,0 73.92969897825405,18.5378193212054,0 73.9290557334786,18.53811980167871,0 73.92770260634508,18.53862628931815,0 73.92643354184837,18.53889042778971,0 73.92520516798912,18.53910186888122,0 73.924454110075,18.53924640155513,0 73.92282130328633,18.53947494027508,0 73.92173181259666,18.53966185543158,0 73.91995605607953,18.53991158709903,0 73.91821179200609,18.53998397613177,0 73.91631250788076,18.54015647292946,0 73.91567220524348,18.54022423554341,0 73.91352440564984,18.54063806952574,0 73.91222326067249,18.54087721059955,0 73.91142232966499,18.54107607448452,0 73.91076212767665,18.54126628711592,0 73.90976917695055,18.54143174322914,0 73.90878356434936,18.54153643552211,0 73.90759871573263,18.54154534310648,0 73.90616941302358,18.54188013801028,0 73.9053347894953,18.54197795560254,0 73.90325876801667,18.54200745471279,0 73.90107814482863,18.54222206348598,0 73.89750511535792,18.54291397428816,0 73.89529532424989,18.54337471463567,0 73.89241354670588,18.54418227790558,0 73.8904737401361,18.54451953046186,0 73.88818559183356,18.54442549924393,0 73.88617552015629,18.54435180186324,0 73.88459520100395,18.54417450756801,0 73.88282404289261,18.54388323006027,0 73.8814060147894,18.54368500560155,0 73.87900810070127,18.54320274672513,0 73.87606072218375,18.5424207810959,0 73.87324890636654,18.54139735029695,0 73.87072681334232,18.54045178976681,0 73.8694362669553,18.53996330980562,0 73.8683136049699,18.53966148949812,0 73.86670230909178,18.53905122188194,0 73.86548299209126,18.53826388539966,0 73.86468179182197,18.53772683844577,0 73.86375846658218,18.53696416013159,0 73.86303234805965,18.5359455971684,0 73.86253904279091,18.53494687485156,0 73.86154757648282,18.53297321548859,0 73.86035784547359,18.53224046756875,0 73.85906918446868,18.53181623119083,0 73.85844352720984,18.5317734961029,0 73.85770731451085,18.53194436674088,0 73.85681898733266,18.53241970393746,0 73.85598228275816,18.53334720010422,0 73.85496516181541,18.53287085525449,0 73.85531491287065,18.53203371377058,0
+			</coordinates></LinearRing></outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+	<Folder>
+		<name>Historical flood extents 2016-2026</name>
+		<description><![CDATA[Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<open>1</open>
+	<Placemark>
+		<name>Red — Highest flood extent (25 Jul 2024)</name>
+		<styleUrl>#flood-red</styleUrl>
+		<description><![CDATA[Highest flood extent, 2016-2026. Outermost boundary.
+
+Represents 25 July 2024, the maximum stage on this reach in the decade. Bund Garden reached 543.40 m at 88,888 cusecs in the evening, about 0.95 m above the 542.45 m warning line, after a morning reading of 542.60 m at 69,111 cusecs. Mundhwa bridge, Holkar bridge and other low crossings were under water. Hundreds of families were moved from Shantinagar, Bharatnagar, Qatarwadi, Indranagar and Yerawada. A later pulse on 4 August 2024 raised Khadakwasla discharge to about 45,705 cusecs but did not exceed the 25 July Bund Garden stage.
+
+Offset from the traced bank: about 79 m at the Sangam end to about 167 m at the Kharadi end (lower-flood offset plus 1.76 m of extra stage).
+
+Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<altitudeMode>clampToGround</altitudeMode>
+			<outerBoundaryIs><LinearRing><coordinates>
+				73.8619277,18.5304548,0 73.8618877,18.5296901,0 73.8616844,18.5293539,0 73.8615217,18.5292347,0 73.8611289,18.5291342,0 73.8591736,18.5291569,0 73.8575406,18.5299216,0 73.8561460,18.5308205,0 73.8547842,18.5315269,0 73.8546649,18.5316754,0 73.8542422,18.5326859,0 73.8542422,18.5330558,0 73.8543170,18.5332282,0 73.8545909,18.5334898,0 73.8556050,18.5339712,0 73.8559823,18.5340677,0 73.8563596,18.5339712,0 73.8572927,18.5329972,0 73.8580065,18.5326223,0 73.8585056,18.5325123,0 73.8589117,18.5325418,0 73.8600131,18.5329128,0 73.8609378,18.5334882,0 73.8623422,18.5363261,0 73.8631919,18.5375052,0 73.8642784,18.5383940,0 73.8662928,18.5397285,0 73.8680991,18.5404258,0 73.8691813,18.5407185,0 73.8758342,18.5432280,0 73.8787770,18.5440263,0 73.8811712,18.5445218,0 73.8843554,18.5450290,0 73.8861755,18.5452455,0 73.8904737,18.5454379,0 73.8926655,18.5450801,0 73.8955728,18.5442802,0 73.9012143,18.5431887,0 73.9032983,18.5429942,0 73.9053348,18.5429815,0 73.9064427,18.5428542,0 73.9077317,18.5425598,0 73.9087836,18.5425598,0 73.9097692,18.5424608,0 73.9110426,18.5422658,0 73.9124646,18.5418900,0 73.9158288,18.5412720,0 73.9182585,18.5410556,0 73.9199561,18.5409990,0 73.9247559,18.5403217,0 73.9280094,18.5397196,0 73.9310983,18.5385092,0 73.9324224,18.5381719,0 73.9332425,18.5380750,0 73.9337578,18.5381282,0 73.9344384,18.5384094,0 73.9347562,18.5384494,0 73.9350740,18.5384094,0 73.9362062,18.5379592,0 73.9377614,18.5379276,0 73.9380714,18.5380202,0 73.9386987,18.5386533,0 73.9393705,18.5399596,0 73.9397844,18.5411347,0 73.9418807,18.5450194,0 73.9420836,18.5452720,0 73.9429273,18.5458978,0 73.9440492,18.5466863,0 73.9447099,18.5470640,0 73.9450214,18.5471872,0 73.9461333,18.5474264,0 73.9469710,18.5473964,0 73.9495812,18.5476095,0 73.9510568,18.5475740,0 73.9524986,18.5478677,0 73.9534322,18.5478978,0 73.9540077,18.5478467,0 73.9547922,18.5480672,0 73.9556614,18.5481729,0 73.9577835,18.5485605,0 73.9588213,18.5485898,0 73.9605622,18.5485373,0 73.9609201,18.5484923,0 73.9612536,18.5483604,0 73.9624787,18.5473343,0 73.9634329,18.5468434,0 73.9639533,18.5464594,0 73.9658498,18.5457848,0 73.9684791,18.5451189,0 73.9703628,18.5447732,0 73.9724475,18.5440324,0 73.9734717,18.5434805,0 73.9737733,18.5432596,0 73.9744059,18.5425089,0 73.9746509,18.5419392,0 73.9754241,18.5413427,0 73.9764304,18.5399288,0 73.9771236,18.5378618,0 73.9772316,18.5367684,0 73.9778178,18.5359218,0 73.9782719,18.5350767,0 73.9787288,18.5345252,0 73.9792939,18.5336094,0 73.9797033,18.5333325,0 73.9802682,18.5327325,0 73.9807680,18.5325632,0 73.9817178,18.5317198,0 73.9835104,18.5305737,0 73.9849225,18.5299683,0 73.9858508,18.5292515,0 73.9864653,18.5289028,0 73.9881647,18.5282703,0 73.9901930,18.5270307,0 73.9918871,18.5258324,0 73.9940711,18.5238838,0 73.9943218,18.5235718,0 73.9949467,18.5221232,0 73.9950200,18.5210778,0 73.9949662,18.5206873,0 73.9948083,18.5203233,0 73.9945571,18.5200108,0 73.9942298,18.5197710,0 73.9938487,18.5196203,0 73.9912017,18.5192665,0 73.9907962,18.5193175,0 73.9904183,18.5194669,0 73.9900938,18.5197047,0 73.9898448,18.5200145,0 73.9891717,18.5211098,0 73.9880472,18.5221435,0 73.9853565,18.5241212,0 73.9817712,18.5262727,0 73.9780277,18.5289503,0 73.9751717,18.5315920,0 73.9749370,18.5318841,0 73.9729207,18.5365713,0 73.9717842,18.5395013,0 73.9684487,18.5408856,0 73.9640303,18.5418049,0 73.9636912,18.5419390,0 73.9590976,18.5448104,0 73.9569841,18.5445290,0 73.9536527,18.5437864,0 73.9514906,18.5431192,0 73.9511473,18.5430761,0 73.9481810,18.5433322,0 73.9466894,18.5432702,0 73.9453641,18.5423052,0 73.9441203,18.5404415,0 73.9430293,18.5380069,0 73.9416481,18.5353300,0 73.9414474,18.5350803,0 73.9411859,18.5348887,0 73.9391933,18.5339310,0 73.9362150,18.5332585,0 73.9358955,18.5332184,0 73.9355759,18.5332585,0 73.9328339,18.5343036,0 73.9297662,18.5350959,0 73.9244574,18.5368422,0 73.9205161,18.5372385,0 73.9150084,18.5377024,0 73.9083523,18.5393940,0 73.9038389,18.5394921,0 73.8994757,18.5399362,0 73.8909353,18.5418079,0 73.8871972,18.5416399,0 73.8790563,18.5408933,0 73.8769687,18.5403959,0 73.8744526,18.5395600,0 73.8716815,18.5383415,0 73.8702439,18.5371086,0 73.8695896,18.5363335,0 73.8682399,18.5344057,0 73.8669881,18.5328582,0 73.8668188,18.5327342,0 73.8656421,18.5320678,0 73.8654321,18.5320414,0 73.8636507,18.5322640,0 73.8634869,18.5322306,0 73.8625107,18.5312939,0 73.8619288,18.5306133,0 73.8619277,18.5304548,0
+			</coordinates></LinearRing></outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+
+	<Placemark>
+		<name>Orange — Medium flood extent (20 Aug 2025)</name>
+		<styleUrl>#flood-orange</styleUrl>
+		<description><![CDATA[Medium flood extent, 2016-2026.
+
+Represents 20 August 2025, when the Mula-Mutha at Bund Garden reached 542.70 m on a flow of 71,408 cusecs, about 0.25 m above the 542.45 m warning line. That week Khadakwasla itself was releasing about 35,000-39,190 cusecs; Mula inflows made the combined flow at Bund Garden higher. PMC evacuated low-lying pockets including Yerawada, Mangalwar Peth, Bhimnagar, Patil Estate and Warje, and closed Baba Bhide, Tilak and Kharadi bridges.
+
+Offset from the traced bank: about 62 m at the Sangam end to about 128 m at the Kharadi end (lower-flood offset plus 1.06 m of extra stage).
+
+Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<altitudeMode>clampToGround</altitudeMode>
+			<outerBoundaryIs><LinearRing><coordinates>
+				73.8617546,18.5305261,0 73.8617190,18.5297332,0 73.8616579,18.5295926,0 73.8614343,18.5293791,0 73.8611289,18.5293009,0 73.8592182,18.5293157,0 73.8576257,18.5300622,0 73.8562303,18.5309593,0 73.8549018,18.5316392,0 73.8544023,18.5327269,0 73.8544023,18.5330149,0 73.8544605,18.5331490,0 73.8546738,18.5333527,0 73.8556886,18.5338329,0 73.8559823,18.5339080,0 73.8562759,18.5338329,0 73.8563976,18.5337437,0 73.8572036,18.5328562,0 73.8579629,18.5324655,0 73.8584881,18.5323469,0 73.8589442,18.5323786,0 73.8600879,18.5327604,0 73.8610706,18.5333702,0 73.8624958,18.5362414,0 73.8633180,18.5373847,0 73.8643682,18.5382454,0 73.8663841,18.5395774,0 73.8681470,18.5402552,0 73.8692300,18.5405465,0 73.8758850,18.5430471,0 73.8788289,18.5438415,0 73.8812239,18.5443339,0 73.8844093,18.5448368,0 73.8861755,18.5450444,0 73.8904737,18.5452309,0 73.8926087,18.5448775,0 73.8955153,18.5440737,0 73.9012189,18.5429644,0 73.9032987,18.5427695,0 73.9053348,18.5427541,0 73.9063808,18.5426334,0 73.9077107,18.5423264,0 73.9087836,18.5423277,0 73.9097692,18.5422273,0 73.9109789,18.5420389,0 73.9124008,18.5416611,0 73.9158251,18.5410298,0 73.9182589,18.5408104,0 73.9199561,18.5407516,0 73.9246871,18.5400767,0 73.9279395,18.5394703,0 73.9310276,18.5382558,0 73.9323538,18.5379156,0 73.9332429,18.5378093,0 73.9338319,18.5378692,0 73.9345110,18.5381508,0 73.9347562,18.5381816,0 73.9350014,18.5381508,0 73.9359595,18.5377336,0 73.9362001,18.5376863,0 73.9378162,18.5376570,0 73.9382243,18.5377772,0 73.9389386,18.5384945,0 73.9396489,18.5398800,0 73.9400349,18.5409967,0 73.9421338,18.5448798,0 73.9422903,18.5450746,0 73.9430738,18.5456555,0 73.9441966,18.5464426,0 73.9448578,18.5468195,0 73.9461333,18.5471430,0 73.9469714,18.5471118,0 73.9495812,18.5473214,0 73.9510760,18.5472814,0 73.9524986,18.5475755,0 73.9534322,18.5476044,0 73.9540573,18.5475493,0 73.9548724,18.5477815,0 73.9557414,18.5478859,0 73.9577835,18.5482611,0 73.9588213,18.5482890,0 73.9605622,18.5482341,0 73.9610949,18.5480978,0 73.9616256,18.5476013,0 73.9623138,18.5470723,0 73.9632726,18.5465783,0 73.9638073,18.5461826,0 73.9657662,18.5454854,0 73.9683945,18.5448159,0 73.9702771,18.5444679,0 73.9722807,18.5437566,0 73.9735364,18.5430334,0 73.9741153,18.5423487,0 73.9743791,18.5417324,0 73.9751855,18.5411149,0 73.9761372,18.5397672,0 73.9767958,18.5377779,0 73.9768957,18.5366684,0 73.9775229,18.5357593,0 73.9779795,18.5349068,0 73.9784328,18.5343621,0 73.9790391,18.5333750,0 73.9794604,18.5331006,0 73.9800956,18.5324317,0 73.9805953,18.5322775,0 73.9814923,18.5314692,0 73.9833360,18.5302847,0 73.9847468,18.5296777,0 73.9856706,18.5289613,0 73.9863321,18.5285886,0 73.9879867,18.5279759,0 73.9900136,18.5267339,0 73.9916319,18.5255887,0 73.9938136,18.5236380,0 73.9940065,18.5233980,0 73.9945944,18.5220331,0 73.9946553,18.5210778,0 73.9946138,18.5207774,0 73.9944924,18.5204975,0 73.9942992,18.5202571,0 73.9940475,18.5200727,0 73.9937543,18.5199567,0 73.9912017,18.5196117,0 73.9908898,18.5196509,0 73.9905991,18.5197659,0 73.9903494,18.5199488,0 73.9901579,18.5201871,0 73.9894708,18.5213106,0 73.9883010,18.5223854,0 73.9855352,18.5244134,0 73.9819457,18.5265614,0 73.9785092,18.5290081,0 73.9754121,18.5318216,0 73.9752315,18.5320464,0 73.9732466,18.5366546,0 73.9720517,18.5397359,0 73.9685405,18.5411886,0 73.9641139,18.5421028,0 73.9638528,18.5422061,0 73.9591776,18.5451225,0 73.9569038,18.5448168,0 73.9535735,18.5440697,0 73.9514119,18.5433996,0 73.9511473,18.5433664,0 73.9481814,18.5436184,0 73.9465929,18.5435533,0 73.9451434,18.5424954,0 73.9438672,18.5405812,0 73.9427775,18.5381458,0 73.9413980,18.5354679,0 73.9412432,18.5352753,0 73.9410415,18.5351275,0 73.9391192,18.5341951,0 73.9361420,18.5335187,0 73.9356489,18.5335187,0 73.9329063,18.5345601,0 73.9298371,18.5353483,0 73.9245203,18.5370900,0 73.9205165,18.5374867,0 73.9150738,18.5379353,0 73.9083744,18.5396283,0 73.9038389,18.5397175,0 73.8995353,18.5401484,0 73.8953213,18.5410332,0 73.8910105,18.5420190,0 73.8871976,18.5418425,0 73.8790101,18.5410801,0 73.8769181,18.5405778,0 73.8743440,18.5397164,0 73.8715704,18.5384915,0 73.8701119,18.5372350,0 73.8694671,18.5364756,0 73.8680806,18.5344935,0 73.8668592,18.5329813,0 73.8667277,18.5328849,0 73.8655953,18.5322346,0 73.8654321,18.5322141,0 73.8636493,18.5324344,0 73.8633989,18.5323884,0 73.8623866,18.5314128,0 73.8617571,18.5306752,0 73.8617546,18.5305261,0
+			</coordinates></LinearRing></outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+
+	<Placemark>
+		<name>Yellow — Lower flood extent (2016 and 2019)</name>
+		<styleUrl>#flood-yellow</styleUrl>
+		<description><![CDATA[Lower flood extent, 2016-2026.
+
+Represents the August 2016 and August 2019 class of flood, the lower of the three historical envelopes. On 4 August 2016 Khadakwasla discharged about 39,000 cusecs and submerged Baba Bhide bridge; low-lying houses off Sinhagad Road were evacuated. On 5 August 2019 the dam discharged 45,474 cusecs, the highest Khadakwasla release since 2011 but still below the 2024 and 2025 Bund Garden stages. 2026 releases (about 27,000-29,000 cusecs) stayed inside this line.
+
+Offset from the traced bank: 35 m at the western (Sangam) end to 70 m at the eastern (Mundhwa-Kharadi) end.
+
+Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<Polygon>
+			<tessellate>1</tessellate>
+			<altitudeMode>clampToGround</altitudeMode>
+			<outerBoundaryIs><LinearRing><coordinates>
+				73.8878711,18.5421817,0 73.8811935,18.5416136,0 73.8789367,18.5413614,0 73.8768414,18.5408532,0 73.8742572,18.5399851,0 73.8714171,18.5387245,0 73.8698919,18.5374041,0 73.8692265,18.5366170,0 73.8678395,18.5346264,0 73.8666641,18.5331676,0 73.8655245,18.5324872,0 73.8636356,18.5326940,0 73.8632670,18.5326250,0 73.8622284,18.5316265,0 73.8614922,18.5307608,0 73.8614635,18.5297986,0 73.8613738,18.5296504,0 73.8612186,18.5295648,0 73.8592856,18.5295561,0 73.8577544,18.5302752,0 73.8563580,18.5311695,0 73.8550798,18.5318093,0 73.8546449,18.5327889,0 73.8546780,18.5330292,0 73.8547994,18.5331451,0 73.8559823,18.5336662,0 73.8562185,18.5335727,0 73.8570311,18.5326714,0 73.8578318,18.5322439,0 73.8584730,18.5320979,0 73.8590060,18.5321365,0 73.8602100,18.5325361,0 73.8612755,18.5331955,0 73.8627284,18.5361131,0 73.8635091,18.5372023,0 73.8645044,18.5380203,0 73.8665225,18.5393487,0 73.8682195,18.5399968,0 73.8693037,18.5402862,0 73.8759618,18.5427732,0 73.8789074,18.5435617,0 73.8813038,18.5440492,0 73.8844910,18.5445458,0 73.8861755,18.5447398,0 73.8905816,18.5449038,0 73.8925226,18.5445708,0 73.8954281,18.5437609,0 73.9011373,18.5426367,0 73.9032994,18.5424294,0 73.9053348,18.5424098,0 73.9062870,18.5422991,0 73.9076562,18.5419798,0 73.9087836,18.5419761,0 73.9097692,18.5418737,0 73.9108825,18.5416954,0 73.9123042,18.5413146,0 73.9157382,18.5406717,0 73.9182595,18.5404392,0 73.9199561,18.5403768,0 73.9245830,18.5397057,0 73.9278335,18.5390928,0 73.9309205,18.5378719,0 73.9322481,18.5375282,0 73.9332435,18.5374069,0 73.9339793,18.5374803,0 73.9347562,18.5377761,0 73.9358367,18.5373415,0 73.9361564,18.5372793,0 73.9378399,18.5372422,0 73.9384495,18.5374077,0 73.9392936,18.5382469,0 73.9400319,18.5396769,0 73.9404142,18.5407875,0 73.9425171,18.5446685,0 73.9444197,18.5460736,0 73.9450817,18.5464492,0 73.9461333,18.5467138,0 73.9469720,18.5466809,0 73.9495812,18.5468851,0 73.9511341,18.5468417,0 73.9524986,18.5471332,0 73.9534322,18.5471601,0 73.9541132,18.5470995,0 73.9549938,18.5473490,0 73.9558624,18.5474512,0 73.9577835,18.5478077,0 73.9588213,18.5478335,0 73.9605622,18.5477750,0 73.9608545,18.5477002,0 73.9612855,18.5472759,0 73.9620596,18.5466774,0 73.9630298,18.5461768,0 73.9635821,18.5457658,0 73.9656395,18.5450319,0 73.9682664,18.5443572,0 73.9701473,18.5440055,0 73.9720282,18.5433389,0 73.9731776,18.5426908,0 73.9736751,18.5421061,0 73.9739667,18.5414207,0 73.9748242,18.5407699,0 73.9756933,18.5395225,0 73.9762996,18.5376509,0 73.9763872,18.5365222,0 73.9770764,18.5355131,0 73.9775371,18.5346487,0 73.9779846,18.5341150,0 73.9786623,18.5330084,0 73.9790926,18.5327494,0 73.9798306,18.5319741,0 73.9803337,18.5318449,0 73.9811625,18.5310773,0 73.9830719,18.5298469,0 73.9844807,18.5292377,0 73.9853525,18.5285505,0 73.9860775,18.5281361,0 73.9877171,18.5275300,0 73.9897418,18.5262844,0 73.9912454,18.5252197,0 73.9935290,18.5231348,0 73.9940609,18.5218966,0 73.9940803,18.5209139,0 73.9939086,18.5206300,0 73.9936113,18.5204661,0 73.9912017,18.5201345,0 73.9908728,18.5202186,0 73.9906320,18.5204485,0 73.9899043,18.5216342,0 73.9886855,18.5227514,0 73.9858043,18.5248567,0 73.9822100,18.5269985,0 73.9786395,18.5295345,0 73.9756774,18.5322922,0 73.9737399,18.5367808,0 73.9724498,18.5400957,0 73.9686800,18.5416472,0 73.9640973,18.5426106,0 73.9592924,18.5455959,0 73.9567821,18.5452525,0 73.9534538,18.5444988,0 73.9512928,18.5438242,0 73.9481821,18.5440518,0 73.9464387,18.5439765,0 73.9448040,18.5427791,0 73.9434840,18.5407928,0 73.9423962,18.5383560,0 73.9409340,18.5355705,0 73.9390070,18.5345950,0 73.9358955,18.5338956,0 73.9330159,18.5349484,0 73.9299443,18.5357306,0 73.9246183,18.5374642,0 73.9205171,18.5378627,0 73.9151727,18.5382879,0 73.9084366,18.5399760,0 73.9038389,18.5400588,0 73.8996255,18.5404698,0 73.8954091,18.5413462,0 73.8910654,18.5423347,0 73.8878711,18.5421817,0
+			</coordinates></LinearRing></outerBoundaryIs>
+		</Polygon>
+	</Placemark>
+
+	<Placemark>
+		<name>Red — Highest flood extent</name>
+		<styleUrl>#label-red</styleUrl>
+		<description><![CDATA[Highest flood extent, 2016-2026. Outermost boundary.
+
+Represents 25 July 2024, the maximum stage on this reach in the decade. Bund Garden reached 543.40 m at 88,888 cusecs in the evening, about 0.95 m above the 542.45 m warning line, after a morning reading of 542.60 m at 69,111 cusecs. Mundhwa bridge, Holkar bridge and other low crossings were under water. Hundreds of families were moved from Shantinagar, Bharatnagar, Qatarwadi, Indranagar and Yerawada. A later pulse on 4 August 2024 raised Khadakwasla discharge to about 45,705 cusecs but did not exceed the 25 July Bund Garden stage.
+
+Offset from the traced bank: about 79 m at the Sangam end to about 167 m at the Kharadi end (lower-flood offset plus 1.76 m of extra stage).
+
+Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<Point><coordinates>73.9639533,18.5468094,0</coordinates></Point>
+	</Placemark>
+
+	<Placemark>
+		<name>Orange — Medium flood extent</name>
+		<styleUrl>#label-orange</styleUrl>
+		<description><![CDATA[Medium flood extent, 2016-2026.
+
+Represents 20 August 2025, when the Mula-Mutha at Bund Garden reached 542.70 m on a flow of 71,408 cusecs, about 0.25 m above the 542.45 m warning line. That week Khadakwasla itself was releasing about 35,000-39,190 cusecs; Mula inflows made the combined flow at Bund Garden higher. PMC evacuated low-lying pockets including Yerawada, Mangalwar Peth, Bhimnagar, Patil Estate and Warje, and closed Baba Bhide, Tilak and Kharadi bridges.
+
+Offset from the traced bank: about 62 m at the Sangam end to about 128 m at the Kharadi end (lower-flood offset plus 1.06 m of extra stage).
+
+Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<Point><coordinates>73.9246871,18.5404267,0</coordinates></Point>
+	</Placemark>
+
+	<Placemark>
+		<name>Yellow — Lower flood extent</name>
+		<styleUrl>#label-yellow</styleUrl>
+		<description><![CDATA[Lower flood extent, 2016-2026.
+
+Represents the August 2016 and August 2019 class of flood, the lower of the three historical envelopes. On 4 August 2016 Khadakwasla discharged about 39,000 cusecs and submerged Baba Bhide bridge; low-lying houses off Sinhagad Road were evacuated. On 5 August 2019 the dam discharged 45,474 cusecs, the highest Khadakwasla release since 2011 but still below the 2024 and 2025 Bund Garden stages. 2026 releases (about 27,000-29,000 cusecs) stayed inside this line.
+
+Offset from the traced bank: 35 m at the western (Sangam) end to 70 m at the eastern (Mundhwa-Kharadi) end.
+
+Indicative historical flood boundaries for the Mula-Mutha corridor drawn in this file, for 2016-2026. They are offsets from the traced river bank, scaled with published river levels. They are not a surveyed flood line, not a HEC-RAS inundation map, and not a classification of archived satellite pixels.
+
+Ranking uses Water Resources Department levels at Bund Garden barrage, as released under RTI and reported on 2 September 2025: the warning (blue) line is 542.45 m; 25 July 2024 reached 543.40 m at 88,888 cusecs (highest stage in this decade); 20 August 2025 reached 542.70 m at 71,408 cusecs. The lower line represents the 4 August 2016 Khadakwasla release of about 39,000 cusecs and the 5 August 2019 release of 45,474 cusecs. That 2019 discharge plots near 541.64 m on the 24-25 July 2024 Bund Garden rating segment (69,111 cusecs at 542.60 m to 88,888 cusecs at 543.40 m), below the warning line. Khadakwasla releases in 2026 peaked near 27,203 cusecs (9 July) and 29,177 cusecs (4 August), inside this lower envelope.
+
+Yellow sits 35 m outside the traced bank at the confined Sangam end and 70 m outside it at the Mundhwa-Kharadi end. Orange and red step further out by the extra stage above 541.64 m (1.06 m and 1.76 m) times a side slope of 25 m horizontal per metre of stage upstream, opening to 55 m per metre downstream. Upstream of Sangam (Khadakwasla to the confluence, including Sinhagad Road) is outside this KML.]]></description>
+		<Point><coordinates>73.8844910,18.5448958,0</coordinates></Point>
+	</Placemark>
+
+	</Folder>
+</Document>
+</kml>

@@ -1,8 +1,12 @@
 import { CloudSun } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { fetchWeatherAt } from "../../services/weatherService.js";
-import { lookupBodCodAt } from "../../services/bodCodPixelService.js";
-import { fetchBodCodViewerData, sampleTodayAtMeters } from "../../services/bodCodService.js";
+import {
+  MAIN_BODCOD_EVENT,
+  lookupBodCodAt,
+  mainBodCodLabel,
+} from "../../services/bodCodPixelService.js";
+import { interpolateChainage } from "../../geo/chainage.js";
 import { getLiveDischargeAtChainage } from "../../services/forecastService.js";
 import { mountWeatherOverview } from "../../weather/WeatherOverview.js";
 import { state } from "../../state.js";
@@ -75,6 +79,8 @@ export function mountWeatherWidget(root) {
 
   let lastMeters = null;
   let bodLookupSerial = 0;
+  /** @type {{ bod:number|null, cod:number|null, name?:string } | null} */
+  let pinnedHotspotWq = null;
   let dischargeSerial = 0;
 
   const dateFmt = new Intl.DateTimeFormat("en-IN", {
@@ -109,46 +115,62 @@ export function mountWeatherWidget(root) {
       (Number.isFinite(state.selectedChainageMeters) ? state.selectedChainageMeters : 0);
     const serial = ++bodLookupSerial;
 
-    async function showPixelFallback(reason) {
-      const hit = await lookupBodCodAt(lastPoint?.lat, lastPoint?.lon);
-      if (serial !== bodLookupSerial) return true;
-      if (!hit) return false;
-      bodEl.textContent = formatMetricNumber(hit.bod, 2);
-      codEl.textContent = formatMetricNumber(hit.cod, 2);
+    // Hotspot pin selected: show that cell's peak (live once JalNetra answers, see hotspot layer).
+    if (pinnedHotspotWq && Number.isFinite(pinnedHotspotWq.bod) && Number.isFinite(pinnedHotspotWq.cod)) {
+      bodEl.textContent = formatMetricNumber(pinnedHotspotWq.bod, 2);
+      codEl.textContent = formatMetricNumber(pinnedHotspotWq.cod, 2);
       bodEl.title = codEl.title =
-        `${reason} · bundled last-known pixel · ${hit.lat.toFixed(5)}, ${hit.lon.toFixed(5)}`;
-      return true;
+        `${pinnedHotspotWq.sourceLabel || "Saved JalNetra pixel file"} · ${pinnedHotspotWq.name || "hotspot"} · cell peak`;
+      return;
     }
 
+    // Main-stream BOD/COD: nearest JalNetra pixel to the selected chainage (live → most recent → saved).
+    let lat = lastPoint?.lat;
+    let lon = lastPoint?.lon;
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      const p = interpolateChainage(window.__MM_SCENE__?.dataset?.chainage || [], meters);
+      lat = p?.lat;
+      lon = p?.lon;
+    }
+    if (!Number.isFinite(lat) || !Number.isFinite(lon)) {
+      // Scene not ready yet: river start (chainage 0+000) so the panel is never blank.
+      lat = 18.532034;
+      lon = 73.855315;
+    }
     try {
-      const data = await fetchBodCodViewerData();
+      const hit = await lookupBodCodAt(lat, lon);
       if (serial !== bodLookupSerial) return;
-      const hit = sampleTodayAtMeters(data, meters, window.__MM_SCENE__?.dataset);
       if (!hit) {
-        const shown = await showPixelFallback("No API value for this reach");
-        if (!shown && serial === bodLookupSerial) {
-          bodEl.title = codEl.title = "No new value; retaining the last available BOD/COD reading";
-        }
+        // Keep whatever reading is already on screen.
+        bodEl.title = codEl.title = "BOD/COD source not loaded yet; retaining the last reading";
         return;
       }
       bodEl.textContent = formatMetricNumber(hit.bod, 2);
       codEl.textContent = formatMetricNumber(hit.cod, 2);
-      const source =
-        data._source === "stale-cache"
-          ? "last saved API data"
-          : data._source === "cache"
-            ? "daily API cache"
-            : "live API";
-      bodEl.title = codEl.title = `JalNetra ${source} · ${hit.reachId} · ${hit.date}`;
+      const gap = hit.distM > 15 ? ` · nearest pixel ${hit.distM} m away` : "";
+      bodEl.title = codEl.title = `${mainBodCodLabel()}${gap}`;
     } catch (err) {
       if (serial !== bodLookupSerial) return;
       console.warn("[weather-wq]", err?.message || err);
-      const shown = await showPixelFallback("API unavailable");
-      if (!shown && serial === bodLookupSerial) {
-        bodEl.title = codEl.title = "API unavailable; retaining the last available BOD/COD reading";
-      }
+      bodEl.title = codEl.title = "BOD/COD lookup failed; retaining the last reading";
     }
   }
+
+  // Re-render when the live JalNetra values (or the most recent saved set) arrive.
+  document.addEventListener(MAIN_BODCOD_EVENT, () => void renderBodCod());
+  // A pinned hotspot's peak values were upgraded (e.g. saved → live): follow them.
+  document.addEventListener("pollution-hotspots-updated", (e) => {
+    if (!pinnedHotspotWq) return;
+    const h = e.detail?.data?.hotspots?.find((x) => x.id === pinnedHotspotWq.id);
+    if (!h) return;
+    pinnedHotspotWq = {
+      ...pinnedHotspotWq,
+      bod: Number.isFinite(h.maxBod) ? h.maxBod : pinnedHotspotWq.bod,
+      cod: Number.isFinite(h.maxCod) ? h.maxCod : pinnedHotspotWq.cod,
+      sourceLabel: h.bodCodSourceLabel || pinnedHotspotWq.sourceLabel,
+    };
+    void renderBodCod();
+  });
 
   function formatMetricNumber(v, digits = 1) {
     const n = Number(v);
@@ -274,6 +296,29 @@ export function mountWeatherWidget(root) {
   }
   el.querySelector("#weather-icon-btn")?.addEventListener("click", openDetail);
   el.querySelector("#weather-open-detail")?.addEventListener("click", openDetail);
+
+  document.addEventListener("pollution-hotspot-select", (e) => {
+    const d = e.detail || {};
+    const bod = Number(d.bod);
+    const cod = Number(d.cod);
+    pinnedHotspotWq = {
+      bod: Number.isFinite(bod) ? bod : null,
+      cod: Number.isFinite(cod) ? cod : null,
+      id: d.id,
+      name: d.name || "Pollution hotspot",
+      sourceLabel: d.bodCodSourceLabel || "",
+    };
+    if (Number.isFinite(d.meters)) lastMeters = d.meters;
+    if (Number.isFinite(d.lat) && Number.isFinite(d.lon)) lastPoint = { ...(lastPoint || {}), lat: d.lat, lon: d.lon };
+    void renderBodCod();
+  });
+  document.addEventListener("pollution-hotspot-toggle", (e) => {
+    if (e.detail?.open === false) {
+      pinnedHotspotWq = null;
+      el.classList.remove("weather-wq--hotspot");
+      void renderBodCod();
+    }
+  });
 
   // Load today's live reach data on startup; later chainage changes reuse the cached payload.
   void renderBodCod();

@@ -1,5 +1,4 @@
-import { Eye } from "lucide";
-import { lucideHtml } from "../icons.js";
+import riverEyeLogoUrl from "../../assets/river-eye-logo.webp";
 import { state } from "../../state.js";
 import { formatStation } from "../../geo/chainage.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
@@ -129,12 +128,8 @@ export function mountProjectIdentity(root, dataset = null) {
   el.id = "hud-brand";
   el.title = "PLANET EYE AI · Mula–Mutha River Intelligence Platform · Hydraulic profile telemetry";
   el.innerHTML = `
-    <div class="gis-brand-mark">
-      <span class="planet-eye-logo" aria-label="Planet Eye logo">${lucideHtml(Eye, { size: 20 })}</span>
-      <div class="gis-brand-text">
-        <strong>PLANET EYE AI · RIVER.EYE</strong>
-        <small>Mula–Mutha River · EPSG:32643</small>
-      </div>
+    <div class="gis-brand-mark gis-brand-mark--logo-only">
+      <img class="planet-eye-logo" src="${riverEyeLogoUrl}" alt="RiverEye Mountain River" width="160" height="107" decoding="async" />
     </div>
     <div class="brand-telemetry-divider" aria-hidden="true"></div>
     <div class="weather-wq water-telemetry-wq" aria-label="Water stage and river bed at the selected chainage">

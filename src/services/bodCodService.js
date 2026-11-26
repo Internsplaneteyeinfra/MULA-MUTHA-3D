@@ -2,6 +2,8 @@
  * JalNetra BOD/COD viewer client + timeline sampling.
  * GET /api/bod-cod/viewer/{id}/data — if expired, POST river KML to refresh.
  */
+import { startLiveMainBodCod } from "./bodCodPixelService.js";
+
 const API_BASE =
   (typeof import.meta !== "undefined" && import.meta.env?.VITE_JALNETRA_API_BASE) ||
   "https://jalnetra-software-production.up.railway.app";
@@ -152,33 +154,18 @@ export function refreshBodCodFromKml(kmlUrl = KML_URL) {
 }
 
 async function doRefreshBodCodFromKml(kmlUrl) {
-  const url = kmlUrl.startsWith("http")
-    ? kmlUrl
-    : new URL(kmlUrl, window.location.origin).href;
-  const kmlRes = await fetch(url, { cache: "no-store" });
-  if (!kmlRes.ok) throw new Error(`BOD/COD KML fetch HTTP ${kmlRes.status}`);
-  const blob = await kmlRes.blob();
-  const form = new FormData();
-  form.append("kml", blob, "mula_mutha_river.kml");
-
-  const ctrl = new AbortController();
-  const timer = setTimeout(() => ctrl.abort(), REQUEST_TIMEOUT_MS);
-  try {
-    const res = await fetch(`${API_BASE.replace(/\/$/, "")}/api/bod-cod`, {
-      method: "POST",
-      body: form,
-      signal: ctrl.signal,
-    });
-    if (!res.ok) throw new Error(`BOD/COD refresh HTTP ${res.status}`);
-    const meta = await res.json();
-    const id = String(meta?.viewer_id || "").trim();
-    if (!id) throw new Error("BOD/COD refresh returned no viewer_id");
-    writeStoredViewerId(id);
-    const data = await fetchViewerData(id);
-    return remember(data, id);
-  } finally {
-    clearTimeout(timer);
+  // Share the single live POST with the main BOD/COD pixel service (its pixels are the
+  // live values shown in RIVER REACH and on hotspots) instead of computing twice.
+  void kmlUrl;
+  const meta = await startLiveMainBodCod();
+  const id = String(meta?.viewer_id || "").trim();
+  if (!id) {
+    // Current JalNetra returns pixels only — no viewer id, so no reach timeline.
+    throw new Error("JalNetra BOD/COD returned pixels only (no viewer_id / reach timeline)");
   }
+  writeStoredViewerId(id);
+  const data = await fetchViewerData(id);
+  return remember(data, id);
 }
 
 async function fetchViewerData(id) {

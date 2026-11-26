@@ -121,14 +121,14 @@ export function mountChainageStepHud(root, dataset) {
     step(1);
   });
 
-  function update() {
+  function update(e) {
     const show =
       state.showChainage !== false &&
       !state.cinematicActive &&
       state.selectedChainageMeters != null;
     el.hidden = !show;
     if (!show) return;
-    if (state.cameraJourney) return;
+    if (state.cameraJourney && !e?.detail?.fromPollutionHotspot) return;
 
     const idx = currentIndex();
     const clamped = Math.round(Number(state.selectedChainageMeters || 0) / 10) * 10;

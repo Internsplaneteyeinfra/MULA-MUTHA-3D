@@ -1,5 +1,6 @@
 import "../../styles/hydrology-simulation.css";
-import { ChartNoAxesCombined, ChartSpline, MoveVertical } from "lucide";
+import { ChartNoAxesCombined, ChartSpline, Droplets, MoveVertical } from "lucide";
+import { mountHydrologyControlPanel } from "./hydrologyControlPanel.js";
 import { lucideHtml } from "../icons.js";
 import { getWaterLevelSimulationSeries } from "../../services/hydrology/digitalTwinApi.js";
 import { state } from "../../state.js";
@@ -30,6 +31,9 @@ export function mountHydrologySimulationControls(root) {
         <button type="button" class="map-ctrl-btn map-ctrl-btn--icon hydrology-simulation-button" data-simulation="${id}" aria-label="${label}" title="${label}">
           ${lucideHtml(icon, { size: 17, className: "hydrology-simulation-icon" })}
         </button>`).join("")}
+      <button type="button" class="map-ctrl-btn map-ctrl-btn--icon hydrology-simulation-button" data-hydrology-panel aria-label="Hydrology control" title="Hydrology control" aria-pressed="false">
+        ${lucideHtml(Droplets, { size: 17, className: "hydrology-simulation-icon" })}
+      </button>
     </div>
     <div class="hydrology-resolution-row" role="group" aria-label="Simulation time resolution">
       ${RESOLUTIONS.map(({ id, short, label, disabled }) => `
@@ -93,6 +97,8 @@ export function mountHydrologySimulationControls(root) {
   if (!watchFloodDock()) setTimeout(watchFloodDock, 1500);
   window.addEventListener("resize", schedulePlace);
 
+  const hydroPanel = mountHydrologyControlPanel(document.getElementById("ui-root") || root);
+  const hydroBtn = el.querySelector("[data-hydrology-panel]");
   const measure = (key) => indicator.querySelector(`[data-measure="${key}"]`);
   let phase = "ready";
   let frame = 0;
@@ -289,6 +295,13 @@ export function mountHydrologySimulationControls(root) {
   }
 
   const onClick = (event) => {
+    const hydroToggle = event.target.closest("[data-hydrology-panel]");
+    if (hydroToggle) {
+      const open = hydroPanel.toggle();
+      hydroBtn?.setAttribute("aria-pressed", open ? "true" : "false");
+      hydroBtn?.classList.toggle("is-selected", open);
+      return;
+    }
     const resolutionButton = event.target.closest("[data-resolution]");
     if (resolutionButton && !resolutionButton.disabled) {
       selectedResolution = resolutionButton.dataset.resolution;
@@ -316,6 +329,11 @@ export function mountHydrologySimulationControls(root) {
   el.addEventListener("click", onClick);
   document.addEventListener("hydrology-intel-open", onPanelOpen);
   document.addEventListener("hydrology-intel-close", onPanelClose);
+  document.addEventListener("hydrology-panel-toggle", (e) => {
+    const open = !!e.detail?.open;
+    hydroBtn?.setAttribute("aria-pressed", open ? "true" : "false");
+    hydroBtn?.classList.toggle("is-selected", open);
+  });
   document.addEventListener("hydrology-scenario-change", onExternalScenarioChange);
 
   return {
@@ -330,6 +348,7 @@ export function mountHydrologySimulationControls(root) {
       simulationDock?.remove();
       message.remove();
       indicator.remove();
+      hydroPanel.panel.remove();
     },
   };
 }

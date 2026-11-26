@@ -42,9 +42,11 @@ import { createApiFloodLayer } from "./apiFloodLayer.js";
 import { createClimateImpactLayer } from "./climateImpactLayer.js";
 import { createHydrologyLayer } from "./hydrologyLayer.js";
 import { createBodCodLayer } from "./bodCodLayer.js";
+import { createPollutionHotspotLayer } from "./pollutionHotspotLayer.js";
 import { createAqiRiverLayer } from "./aqiRiverLayer.js";
 import { createHydrologyVizLayer } from "./hydrologyVizLayer.js";
 import { createMainStemLayer } from "./mainStemLayer.js";
+import { createHistoricalFloodExtents } from "./historicalFloodExtents.js";
 import { fillPierUniforms, syncWaterMaterial, applyWaterPreset, getWaterDebugInfo } from "./waterShader.js";
 import { createFishingSystem } from "../features/fishing/createFishingSystem.js";
 import { createCinematicController } from "../animation/cinematicController.js";
@@ -65,6 +67,7 @@ import {
 } from "./riverCamera.js";
 import { createRiverJourney, CameraMode, setJourneyTarget, flushSettled } from "./riverJourney.js";
 import mainStemKmlRaw from "../assets/hydrology/main-stream.kml?raw";
+import floodExtentsKmlRaw from "../jalnetra kml/MulaMuthaRiver-floodExtents2016-2026.kml?raw";
 import { createAssetMarkers } from "./assetMarkers.js";
 import { initDigitalTwin } from "../services/digitalTwinService.js";
 import { initHydrologyProfileService, refreshHydrologyProfile } from "../services/hydrology/hydrologyProfileService.js";
@@ -336,6 +339,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     connected: nallaFlow.userData.stats?.connected,
   });
   const mainStemLayer = createMainStemLayer(dataset, mainStemKmlRaw);
+  const historicalFloodExtents = createHistoricalFloodExtents(dataset, floodExtentsKmlRaw);
   const depthZonesLayer = createDepthZonesLayer(dataset);
   const rawSurveyPoints = createRawSurveyPointLayer(dataset);
   const floodLayer = createFloodLayer(dataset);
@@ -346,6 +350,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   /** Hydrology thematic overlays (Geology + Salinity). */
   const hydrologyLayer = createHydrologyLayer(dataset);
   const bodCodLayer = createBodCodLayer(dataset);
+  const pollutionHotspotLayer = createPollutionHotspotLayer(dataset);
   const aqiRiverLayer = createAqiRiverLayer(dataset);
   const hydrologyVizLayer = createHydrologyVizLayer(dataset);
   /** @deprecated alias — prefer apiFloodLayer */
@@ -390,6 +395,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   // scene.add(riverBanks);
   scene.add(drainageLayer);
   scene.add(mainStemLayer);
+  scene.add(historicalFloodExtents);
   scene.add(depthZonesLayer);
   scene.add(rawSurveyPoints);
   scene.add(floodLayer);
@@ -397,6 +403,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   scene.add(climateImpactLayer);
   scene.add(hydrologyLayer);
   scene.add(bodCodLayer);
+  scene.add(pollutionHotspotLayer);
   scene.add(aqiRiverLayer);
   scene.add(hydrologyVizLayer);
 
@@ -1176,6 +1183,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     renderer.setSize(w, h, false);
     kmlSkeleton.userData?.setResolution?.(w, h);
     mainStemLayer.userData?.setResolution?.(w, h);
+    historicalFloodExtents.userData?.setResolution?.(w, h);
     // Keep Overview framed to KML after aspect changes
     if (state.cameraMode === "overview" && !cinematic.isActive()) {
       cam.applyMode("overview");
@@ -1578,6 +1586,19 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       hydrologyVizLayer.visible = false;
       state.hydrologyVizActive = false;
     },
+    async ensurePollutionHotspots() {
+      return pollutionHotspotLayer.userData?.ensureLoaded?.();
+    },
+    setPollutionHotspotsVisible(on) {
+      pollutionHotspotLayer.userData?.setVisible?.(!!on);
+      pollutionHotspotLayer.visible = !!on;
+    },
+    focusPollutionHotspot(idOrRank, opts = {}) {
+      return pollutionHotspotLayer.userData?.focusHotspot?.(idOrRank, opts);
+    },
+    getPollutionHotspots() {
+      return pollutionHotspotLayer.userData?.getHotspots?.() || [];
+    },
     focusBodCodReach(reachId, opts = {}) {
       const hit = bodCodLayer.userData?.focusReach?.(reachId, opts);
       // Camera is owned by chainage-select (eye-level river view). Do not aerial-jump here.
@@ -1858,6 +1879,9 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     },
     addSiltAnalysisPoint(x, z) {
       return siltAreaTool.addPoint(x, z);
+    },
+    setSiltAnalysisPeriod(periodId) {
+      return siltAreaTool.setPeriod?.(periodId);
     },
     selectSiltHotspot(id) {
       return siltAreaTool.selectHotspot(id);
@@ -2214,6 +2238,12 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       syncQualityRuntime();
       state.elapsed += dt;
       river.material.uniforms.uTime.value = state.elapsed;
+      if (floodLayer.material?.uniforms?.uTime) {
+        floodLayer.material.uniforms.uTime.value = state.elapsed;
+        syncWaterMaterial(floodLayer.material);
+        floodLayer.material.uniforms.uIsFlood.value = 0;
+        floodLayer.material.uniforms.uReveal.value = 1.2;
+      }
       if (!cinematic.isActive() && river.material.uniforms.uReveal) {
         river.material.uniforms.uReveal.value = 1.2;
       }
@@ -2286,11 +2316,15 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
       }
 
       // API flood: river sheet rises with the flood water (SURFACE_Y + rise).
-      // Normal mode: leave the river sheet at SURFACE_Y — no extra stage.
-      const simulationActive = hydrologySimulationActive && !apiFloodActive;
+      // The Layers “Flood Stage” slider is the user’s explicit stage and wins
+      // over a scenario hydrology rise. A zero scenario must not keep the lock.
+      const illustrativeRequested =
+        !apiFloodActive &&
+        state.floodMode !== "api" &&
+        (Number(state.floodRiseM) || 0) > 0.02;
+      const simulationActive = hydrologySimulationActive && !apiFloodActive && !illustrativeRequested;
       const forceRiverRise = apiFloodActive && floodRise >= 0;
-      // Illustrative Water Stage (Layers slider): rise / fall smoothly to the chosen stage.
-      const illustrativeOn = !apiFloodActive && !simulationActive && state.floodMode !== "api";
+      const illustrativeOn = !apiFloodActive && state.floodMode !== "api" && !simulationActive;
       const illustrativeTarget = illustrativeOn ? Math.max(0, Number(state.floodRiseM) || 0) : 0;
       if (Math.abs(illustrativeTarget - illustrativeRiseShown) > 0.005) {
         // ~1.5 m/s, at least 15 % of the remaining gap per second — big jumps still take a few seconds.
@@ -2315,6 +2349,11 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         riverLook !== lastRiverLook ||
         apiFloodActive !== lastApiFlood
       ) {
+        const geometryChanged =
+          bedExag !== lastExag ||
+          state.visualMode !== lastVisual ||
+          waterOn !== lastWaterOn ||
+          riverLook !== lastRiverLook;
         lastExag = bedExag;
         lastVisual = state.visualMode;
         lastFlood = sheetRise;
@@ -2328,19 +2367,22 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           bedExag,
           sheetRise,
           null,
-          { includeBaseStage: false, allowNegativeRise: simulationActive },
+          {
+            includeBaseStage: false,
+            allowNegativeRise: simulationActive,
+            waterOnly: !geometryChanged,
+          },
         );
         renderedHydrologySimulationRiseM = simulationActive ? sheetRise : 0;
         renderedWaterRiseM = sheetRise;
         riparianLayer?.userData.syncToWater(river.mesh, sheetRise);
-        if (!apiFloodActive && !simulationActive) {
-          floodLayer.setFloodRise?.(floodRise);
+        if (!apiFloodActive) {
+          floodLayer.setFloodRise?.(Math.max(0, sheetRise));
         } else {
-          // API flood water is the JalNetra extent sheet only — hide the full-scene bathtub.
           floodLayer.setFloodRise?.(0);
           floodLayer.visible = false;
         }
-        updateBridgePiers(bridges, bedExag, SURFACE_Y + sheetRise);
+        updateBridgePiers(bridges, bedExag, SURFACE_Y);
         applyRiverLook(river, riverLook);
       }
       if (state.hydrologyHidesFlood) {
@@ -2400,7 +2442,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         const riseNow = Math.max(0, Number(state.floodRiseM) || 0);
         if (apiFloodActive && Math.abs(riseNow - lastFlood) > 1e-4) {
           lastFlood = riseNow;
-          applyExaggeration(river, dataset, bedExag, riseNow, null, { includeBaseStage: false });
+          applyExaggeration(river, dataset, bedExag, riseNow, null, { includeBaseStage: false, waterOnly: true });
           riparianLayer?.userData.syncToWater(river.mesh, riseNow);
         }
       }

@@ -625,3 +625,176 @@ function findHotspots({ cw, ch, inside, clsIdx, cellA, cellInfo }) {
     };
   });
 }
+
+/**
+ * Full-polygon silt stats for one stored month.
+ * Every raster cell inside the four-corner ring is counted, including the interior.
+ * Cells outside the polygon are ignored. NoData and unclassified pixels are not given a class or a volume.
+ * Does not build the live clip, hotspots, or 3D surface.
+ * @param {{x:number,z:number}[]} points  P1..P4 corners
+ * @param {string} periodId  YYYY-MM
+ */
+export async function summarizeSiltPolygon(points, periodId) {
+  const classPeriod = SILT_CLASS_PERIODS.find((p) => p.id === periodId) || null;
+  const volumePeriod = SILT_VOLUME_PERIODS.find((p) => p.id === periodId) || null;
+  if (!classPeriod || !points || points.length < 3) {
+    return { periodId, available: false, reason: "No classification raster" };
+  }
+
+  const { ring } = orderRing(points);
+  const polygonAreaM2 = ringGeometry(ring).areaM2;
+  let clsBmp;
+  try {
+    clsBmp = await loadBitmap(classPeriod.overlay);
+  } catch {
+    return { periodId, year: classPeriod.year, month: classPeriod.month, available: false, reason: "Classification raster failed to load" };
+  }
+
+  const { west, east, north, south } = SILT_CLASS_BOUNDS;
+  const W = clsBmp.width;
+  const H = clsBmp.height;
+  const lonToPx = (lon) => ((lon - west) / (east - west)) * W;
+  const latToPy = (lat) => ((north - lat) / (north - south)) * H;
+  const pxToLon = (px) => west + (px / W) * (east - west);
+  const pyToLat = (py) => north - (py / H) * (north - south);
+
+  const ringLL = ring.map((p) => localToLonLat(p.x, p.z));
+  const pxs = ringLL.map((p) => lonToPx(p.lon));
+  const pys = ringLL.map((p) => latToPy(p.lat));
+  const x0 = Math.max(0, Math.floor(Math.min(...pxs)));
+  const x1 = Math.min(W, Math.ceil(Math.max(...pxs)));
+  const y0 = Math.max(0, Math.floor(Math.min(...pys)));
+  const y1 = Math.min(H, Math.ceil(Math.max(...pys)));
+  if (x1 <= x0 || y1 <= y0) {
+    return { periodId, year: classPeriod.year, month: classPeriod.month, available: false, reason: "Polygon outside silt extent" };
+  }
+
+  const cw = x1 - x0;
+  const ch = y1 - y0;
+  const cls = readPixels(clsBmp, x0, y0, cw, ch);
+
+  let vol = null;
+  let ramp = null;
+  if (volumePeriod) {
+    try {
+      const volBmp = await loadBitmap(volumePeriod.overlay);
+      if (volBmp.width === W && volBmp.height === H) {
+        ramp = await loadVolumeRamp(volumePeriod.legend);
+        if (ramp) vol = readPixels(volBmp, x0, y0, cw, ch);
+      }
+    } catch {
+      vol = null;
+    }
+  }
+  const volumeAt = vol && ramp ? (() => {
+    const cache = new Map();
+    return (r, g, b) => {
+      const key = (r << 16) | (g << 8) | b;
+      const hit = cache.get(key);
+      if (hit !== undefined) return hit;
+      const value = volumeFromRgb(ramp, r, g, b);
+      cache.set(key, value);
+      return value;
+    };
+  })() : null;
+
+  const centroidLL = localToLonLat(
+    ring.reduce((s, p) => s + p.x, 0) / ring.length,
+    ring.reduce((s, p) => s + p.z, 0) / ring.length,
+  );
+  const origin = lonLatToLocal(centroidLL.lon, centroidLL.lat);
+  const ex = lonLatToLocal(centroidLL.lon + (east - west) / W, centroidLL.lat);
+  const ny = lonLatToLocal(centroidLL.lon, centroidLL.lat - (north - south) / H);
+  const ux = { x: ex.x - origin.x, z: ex.z - origin.z };
+  const uy = { x: ny.x - origin.x, z: ny.z - origin.z };
+  const cellA = Math.abs(ux.x * uy.z - ux.z * uy.x);
+
+  const c00 = lonLatToLocal(pxToLon(x0 + 0.5), pyToLat(y0 + 0.5));
+  const c10 = lonLatToLocal(pxToLon(x1 - 0.5), pyToLat(y0 + 0.5));
+  const c01 = lonLatToLocal(pxToLon(x0 + 0.5), pyToLat(y1 - 0.5));
+  const c11 = lonLatToLocal(pxToLon(x1 - 0.5), pyToLat(y1 - 0.5));
+  const localAt = (ix, iy) => {
+    const u = cw > 1 ? ix / (cw - 1) : 0;
+    const v = ch > 1 ? iy / (ch - 1) : 0;
+    return {
+      x: (1 - v) * ((1 - u) * c00.x + u * c10.x) + v * ((1 - u) * c01.x + u * c11.x),
+      z: (1 - v) * ((1 - u) * c00.z + u * c10.z) + v * ((1 - u) * c01.z + u * c11.z),
+    };
+  };
+
+  const bucket = { inside: 0, valid: 0, classes: [0, 0, 0, 0], volume: 0, volumeCells: 0 };
+
+  for (let iy = 0; iy < ch; iy++) {
+    for (let ix = 0; ix < cw; ix++) {
+      const k = iy * cw + ix;
+      const i4 = k * 4;
+      const p = localAt(ix, iy);
+      if (!pointInRing(p.x, p.z, ring)) continue;
+      bucket.inside++;
+      if (cls[i4 + 3] < VALID_ALPHA) continue;
+      const c = classIndexFromRgb(cls[i4], cls[i4 + 1], cls[i4 + 2]);
+      if (c < 0) continue;
+      bucket.valid++;
+      bucket.classes[c]++;
+      if (volumeAt && vol[i4 + 3] >= VALID_ALPHA) {
+        const value = volumeAt(vol[i4], vol[i4 + 1], vol[i4 + 2]);
+        if (value != null) {
+          bucket.volume += value;
+          bucket.volumeCells++;
+        }
+      }
+    }
+  }
+
+  if (!bucket.inside) {
+    return {
+      periodId,
+      year: classPeriod.year,
+      month: classPeriod.month,
+      available: false,
+      reason: "No raster cells inside the polygon",
+    };
+  }
+
+  const coveredRaw = bucket.valid * cellA;
+  const coveredM2 = polygonAreaM2 > 0 ? Math.min(polygonAreaM2, coveredRaw) : coveredRaw;
+  const hasClass = bucket.valid > 0;
+  let dominant = null;
+  if (hasClass) {
+    let best = 0;
+    for (let i = 1; i < bucket.classes.length; i++) if (bucket.classes[i] > bucket.classes[best]) best = i;
+    dominant = SILT_CLASS_CLASSES[best].label;
+  }
+
+  return {
+    periodId,
+    year: classPeriod.year,
+    month: classPeriod.month,
+    label: classPeriod.label,
+    available: true,
+    cellAreaM2: cellA,
+    volumeRaster: Boolean(volumeAt),
+    provenance: volumeAt
+      ? "DERIVED from every classified cell inside the polygon"
+      : "DERIVED from the classification raster inside the polygon; volume raster unavailable",
+    polygon: {
+      polygonAreaM2,
+      insideCells: bucket.inside,
+      validCells: bucket.valid,
+      areaM2: polygonAreaM2 > 0 ? polygonAreaM2 : bucket.inside * cellA,
+      coveredM2,
+      coveragePct: polygonAreaM2 > 0 ? (coveredM2 / polygonAreaM2) * 100 : (bucket.valid / bucket.inside) * 100,
+      volumeM3: bucket.volumeCells > 0 ? bucket.volume : null,
+      volumeCells: bucket.volumeCells,
+      dominant,
+      classes: SILT_CLASS_CLASSES.map((c, i) => ({
+        id: c.id,
+        label: c.label,
+        cells: bucket.classes[i],
+        areaM2: bucket.classes[i] * cellA,
+        pct: hasClass ? (bucket.classes[i] / bucket.valid) * 100 : null,
+      })),
+      status: STATUS.DERIVED,
+    },
+  };
+}
