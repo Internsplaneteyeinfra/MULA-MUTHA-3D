@@ -14,6 +14,7 @@ import { terrainHeightAt } from "./terrain.js";
 import { SURFACE_Y } from "./river.js";
 import { applyDrapeDepth } from "./drapeDepth.js";
 import { createPollutionGarbageLayer } from "./pollutionGarbageLayer.js";
+import { createFoamCloudLayer } from "./foamCloudLayer.js";
 /** Bundled asset — Vite always serves this (public/data new files can 404 as HTML). */
 import bankErosionLegendUrl from "../assets/hydrology/bank_erosion_legend.png";
 /** Salinity / TSS legend PNGs (class chips use legendClasses; these remain optional). */
@@ -29,6 +30,7 @@ import {
   formatWqValue,
   WQ_LAYER_SCHEMES,
   unitFor,
+  displayUnit,
   CHLOROPHYLL_CLASSES,
   SALINITY_CLASSES,
   TSS_CLASSES,
@@ -360,6 +362,20 @@ const BUILTIN_LAYER_DEFS = {
     legendClasses: NITROGEN_RISK_CLASSES,
     renderType: "terrainDrapedTexture",
   },
+  pollution_foam: {
+    id: "pollution_foam",
+    name: "FOAMING",
+    available: true,
+    type: "foamClouds",
+    crs: "EPSG:4326",
+    bounds: { ...JALNETRA_WQ_BOUNDS },
+    overlay: "/data/hydrology/pollution/foam/overlay.png",
+    meta: "/data/hydrology/pollution/foam/meta.json",
+    source: "src/jalnetra kml/river_foam.kml",
+    legendTitle: "Foaming",
+    legendSubtitle: "White foam clouds · river_foam.kml · 2026-11-11",
+    renderType: "foamClouds",
+  },
   bank_erosion: {
     id: "bank_erosion",
     name: "BANK EROSION HOTSPOTS",
@@ -545,6 +561,8 @@ export function createHydrologyLayer(dataset) {
   /** Detected garbage pins (pollution layer). */
   const pollutionGarbage = createPollutionGarbageLayer({ stations });
   group.add(pollutionGarbage);
+  const foamClouds = createFoamCloudLayer(dataset);
+  group.add(foamClouds);
   /** Classed polygon layers (salinity + water-quality metrics). */
   const polygonLayers = Object.create(null);
 
@@ -615,6 +633,7 @@ export function createHydrologyLayer(dataset) {
       if (slot.root) slot.root.visible = false;
     }
     pollutionGarbage.userData?.setVisible?.(false);
+    foamClouds.userData?.setVisible?.(false);
   }
 
   function disposeObject(obj) {
@@ -1524,6 +1543,44 @@ export function createHydrologyLayer(dataset) {
       return showSiltVolumeLayer(def, pendingShowId === id ? showSeq : -1);
     }
 
+    if (id === "pollution_foam" || def.type === "foamClouds") {
+      let foamStats = null;
+      try {
+        foamStats = await foamClouds.userData.load(def.overlay);
+      } catch (err) {
+        console.error("[foaming] cloud build failed:", err);
+        return {
+          ok: false,
+          id: "pollution_foam",
+          available: false,
+          message: err?.message || "Foaming layer failed to load",
+        };
+      }
+      if (pendingShowId !== id) {
+        return { ok: true, id, available: false, superseded: true };
+      }
+      clearActiveMeshes();
+      foamClouds.userData.setVisible(true);
+      activeId = "pollution_foam";
+      group.visible = true;
+      const cells = foamStats?.cells || 0;
+      return {
+        ok: cells > 0,
+        id: "pollution_foam",
+        available: cells > 0,
+        message: cells > 0 ? undefined : "No foam pixels in river_foam.kml",
+        legend: {
+          type: "classes",
+          title: def.legendTitle || "Foaming",
+          subtitle: def.legendSubtitle || "White foam · river_foam.kml",
+          layerId: "pollution_foam",
+          interactiveClasses: false,
+          classes: [{ label: "Foaming", color: "#F7FBFF" }],
+        },
+        stats: foamStats,
+      };
+    }
+
     if (id === "pollution" || def.type === "garbagePoints") {
       const dataUrl = def.data || "/data/hydrology/pollution/garbage-locations.kml";
       try {
@@ -1656,6 +1713,9 @@ export function createHydrologyLayer(dataset) {
     if (activeId === "pollution") {
       return pollutionGarbage.userData?.pickAt?.(x, z) || null;
     }
+    if (activeId === "pollution_foam") {
+      return foamClouds.userData?.pickAt?.(x, z) || null;
+    }
     if (!POLYGON_LAYER_IDS.has(activeId)) return null;
     const slot = polygonSlot(activeId);
     if (!slot.featureIndex.length) return null;
@@ -1726,12 +1786,30 @@ export function createHydrologyLayer(dataset) {
     const hit = sampler.sampleLonLat(ll.lon, ll.lat);
     if (!hit) return null;
     const scheme = WQ_LAYER_SCHEMES[id];
+    const hitLabel = String(hit.class_label || hit.label || "");
     const schemeClass =
-      scheme?.classes?.find(
-        (c) =>
-          String(c.label).toLowerCase() === String(hit.class_label || hit.label || "").toLowerCase() ||
-          String(c.id).toLowerCase() === String(hit.id || "").toLowerCase(),
-      ) || null;
+      scheme?.classes?.find((c) => {
+        const name = String(c.label || "").toLowerCase();
+        const raw = hitLabel.toLowerCase();
+        return (
+          (name && (raw === name || raw.startsWith(`${name} `) || raw.startsWith(`${name}(`))) ||
+          String(c.id || "").toLowerCase() === String(hit.id || "").toLowerCase()
+        );
+      }) || null;
+    const unit = displayUnit(scheme?.unit || schemeClass?.unit || hit.unit);
+    const mid = schemeClass ? classRepresentativeValue(schemeClass) : null;
+    const rangeText = String(schemeClass?.range || "").trim();
+    const className = schemeClass?.label || hitLabel;
+    // No measurement unit: the hover is the colour-scale band, never a bare 0.
+    let valueText = null;
+    if (unit && mid != null) valueText = formatWqValue(mid, unit);
+    else if (rangeText && /\d/.test(rangeText)) {
+      valueText = className && !rangeText.toLowerCase().includes(className.toLowerCase())
+        ? `${className} · ${rangeText}`
+        : rangeText;
+    } else if (hit.valueText && hit.valueText !== "0") {
+      valueText = hit.valueText;
+    }
     return {
       ...hit,
       x,
@@ -1739,15 +1817,11 @@ export function createHydrologyLayer(dataset) {
       lon: ll.lon,
       lat: ll.lat,
       hydrology: id,
-      range: id === "salinity" ? schemeClass?.range || null : hit.range || hit.pct || schemeClass?.range || null,
-      unit: scheme?.unit || hit.unit || null,
+      range: rangeText || null,
+      unit: unit || null,
       metric: scheme?.metric || null,
-      value: hit.value ?? (schemeClass ? classRepresentativeValue(schemeClass) : null),
-      valueText:
-        hit.valueText ||
-        (schemeClass && scheme?.unit
-          ? formatWqValue(classRepresentativeValue(schemeClass), scheme.unit)
-          : null),
+      value: hit.value ?? mid,
+      valueText,
       layerTitle:
         id === "landuse_lulc"
           ? "LULC"
@@ -1789,6 +1863,8 @@ export function createHydrologyLayer(dataset) {
     }
     pollutionGarbage.userData?.dispose?.();
     group.remove(pollutionGarbage);
+    foamClouds.userData?.dispose?.();
+    group.remove(foamClouds);
   }
 
   let erosionAnimTime = 0;
@@ -1796,6 +1872,9 @@ export function createHydrologyLayer(dataset) {
   function update(dt) {
     if (activeId === "pollution") {
       pollutionGarbage.userData?.update?.(dt, group.userData._camera || null);
+    }
+    if (activeId === "pollution_foam") {
+      foamClouds.userData?.update?.(dt);
     }
     if (activeId === "bank_erosion") {
       erosionAnimTime += dt;

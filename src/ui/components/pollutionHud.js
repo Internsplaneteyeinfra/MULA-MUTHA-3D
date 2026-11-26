@@ -1,36 +1,52 @@
-import { Atom, Fish, Trash2 } from "lucide";
+import { Atom, Cloud, Fish, Hexagon, Trash2 } from "lucide";
 import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
-import { unitFor } from "../../geo/layerUnits.js";
+import { displayUnit, tipWithUnit, unitFor } from "../../geo/layerUnits.js";
 
 /**
  * Pollution floating HUD — icon-only; name on hover only (same chrome as Land Use).
- * Units = Mandovi RiverEye. Order: Garbage → Eutrophication → Nitrogen
+ * Units = Mandovi RiverEye. Order: Garbage → Eutrophication → Nitrogen → Foaming → BOD–COD
  */
 export const POLLUTION_OPTIONS = [
   {
     id: "garbage",
-    tip: `Garbage / pollution severity (${unitFor("pollution_severity") || "class"})`,
+    tip: tipWithUnit("Garbage", unitFor("pollution_severity")),
     icon: Trash2,
     tone: "poll-tone-garbage",
     layerId: "pollution",
-    unit: unitFor("pollution_severity") || "class",
+    unit: displayUnit(unitFor("pollution_severity")),
   },
   {
     id: "eutrophication",
-    tip: `Eutrophication (${unitFor("pollution_eutrophication") || "TSI"})`,
+    tip: tipWithUnit("Eutrophication", unitFor("pollution_eutrophication")),
     icon: Fish,
     tone: "poll-tone-eutro",
     layerId: "pollution_eutrophication",
-    unit: unitFor("pollution_eutrophication") || "TSI",
+    unit: displayUnit(unitFor("pollution_eutrophication")),
   },
   {
     id: "nitrogen",
-    tip: `Nitrogen (${unitFor("pollution_nitrogen") || "class"} · not mg N/L)`,
+    tip: tipWithUnit("Nitrogen", unitFor("pollution_nitrogen")),
     icon: Atom,
     tone: "poll-tone-nitrogen",
     layerId: "pollution_nitrogen",
-    unit: unitFor("pollution_nitrogen") || "class",
+    unit: displayUnit(unitFor("pollution_nitrogen")),
+  },
+  {
+    id: "foaming",
+    tip: "Foaming",
+    icon: Cloud,
+    tone: "poll-tone-foam",
+    layerId: "pollution_foam",
+    unit: "",
+  },
+  {
+    id: "bod_cod",
+    tip: tipWithUnit("BOD–COD", unitFor("bod")),
+    icon: Hexagon,
+    tone: "poll-tone-bod",
+    layerId: "bod_cod",
+    unit: displayUnit(unitFor("bod")),
   },
 ];
 

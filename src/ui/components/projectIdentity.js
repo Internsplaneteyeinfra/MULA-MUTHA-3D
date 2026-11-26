@@ -3,7 +3,6 @@ import { lucideHtml } from "../icons.js";
 import { state } from "../../state.js";
 import { formatStation } from "../../geo/chainage.js";
 import { hydrologyStore } from "../../services/hydrology/hydrologyStore.js";
-import { wseSpatialService } from "../../services/hydrology/wseSpatialService.js";
 import { waterLevelAt } from "./digitalTwinPanel.js";
 import {
   fetchStreamsBodCod,
@@ -12,36 +11,78 @@ import {
 } from "../../services/streamsBodCodService.js";
 import {
   getNadiTwinLiveBundle,
+  getNadiTwinRawMeta,
   getNadiTwinDischargeAtChainage,
   refreshNadiTwinHydrology,
 } from "../../services/hydrology/naditwinHydrologyAdapter.js";
 import { mapLocalChainageToCell } from "../../services/hydrology/hydrologyNormalizer.js";
-import { dtmElevationAtLonLat } from "../../scene/terrain.js";
 
 function num(v) {
   const n = Number(v);
   return v == null || !Number.isFinite(n) ? null : n;
 }
 
-/** NadiTwin LIVE hydraulics at selected chainage (area-specific). */
-function nadiTwinAtChainage(meters) {
+/** Same cell the Digital Twin river-stage chart uses for this chainage. */
+function cellForChainage(live, meters) {
+  const wse = live?.wse;
+  const n = wse?.length || live?.n_cells || 0;
+  if (!n) return null;
+  const ch = live.chainage_m;
+  if (Array.isArray(ch) && ch.length === n) {
+    let best = 0;
+    let bestD = Infinity;
+    for (let i = 0; i < n; i += 1) {
+      const d = Math.abs(Number(ch[i]) - meters);
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    return best;
+  }
+  return mapLocalChainageToCell(meters, n, live.chainage_step_m || 10);
+}
+
+/**
+ * River-stage readings at one chainage.
+ * Same arrays and crest/freeboard math as the Digital Twin stage chart.
+ * Velocity and wetted area are not published, so they are not estimated.
+ */
+function stageAtChainage(meters) {
   const live = getNadiTwinLiveBundle();
-  if (!live?.wse?.length && !live?.q_station?.length) return null;
-  const step = live.chainage_step_m || 10;
-  const n = live.n_cells || live.wse?.length || live.q_station?.length || 0;
-  const cell = mapLocalChainageToCell(meters, n, step);
-  if (cell == null || cell < 0) return null;
+  if (!live?.wse?.length) return null;
+  const meta = getNadiTwinRawMeta();
+  const n = live.wse.length;
+  const i = cellForChainage(live, meters);
+  if (i == null || i < 0 || i >= n) return null;
+
+  const wse = num(live.wse[i]);
+  const depth = num(live.depth?.[i]);
+  const crestSrc = live.crest?.length === n ? live.crest : meta?.crest;
+  const bedSrc = live.bed_meta?.length === n ? live.bed_meta : meta?.bed;
+  const crest = Array.isArray(crestSrc) ? num(crestSrc[i]) : null;
+  let bed = Array.isArray(bedSrc) ? num(bedSrc[i]) : null;
+  if (bed == null && wse != null && depth != null) bed = wse - depth;
+
+  const freeboard = num(live.freeboard_m ?? meta?.freeboard_m) ?? 0.8;
+  const zoneWarn = num(live.zone_warning_m ?? meta?.zone_warning_m) ?? 0.7;
+  const zoneWatch = num(live.zone_watch_m ?? meta?.zone_watch_m) ?? 1.7;
+  const danger = crest != null ? crest - freeboard : null;
+  const warning = danger != null ? danger - zoneWarn : null;
+  const watch = danger != null ? danger - zoneWatch : null;
   const hit = getNadiTwinDischargeAtChainage(meters);
-  const q = Number.isFinite(hit?.q_m3s) ? hit.q_m3s : num(live.q_station?.[cell]);
-  const wseRel = num(live.wse?.[cell]);
-  const depth = num(live.depth?.[cell]);
+
   return {
-    cell,
-    q,
-    wseRel,
-    depth,
+    cell: i,
+    chainage_m: num(live.chainage_m?.[i]) ?? i * (live.chainage_step_m || 10),
+    wse,
+    bed,
+    crest,
+    watch,
+    warning,
+    danger,
+    q: Number.isFinite(hit?.q_m3s) ? hit.q_m3s : num(live.q_station?.[i]),
     timestamp: live.timestamp || null,
-    datum: live.datumShort || live.datum || "relative",
   };
 }
 
@@ -96,21 +137,21 @@ export function mountProjectIdentity(root, dataset = null) {
       </div>
     </div>
     <div class="brand-telemetry-divider" aria-hidden="true"></div>
-    <div class="weather-wq water-telemetry-wq" aria-label="Hydraulic profile water level, flow velocity, and wetted area">
+    <div class="weather-wq water-telemetry-wq" aria-label="Water stage and river bed at the selected chainage">
       <div class="weather-wq-row is-q">
-        <i data-short="PROFILE WSE">PROFILE WSE</i>
+        <i data-short="STAGE">WATER STAGE</i>
         <b id="brand-water-stage">—</b>
-        <em id="brand-water-stage-unit" title="Hydraulic-profile water level at the selected river chainage.">m</em>
+        <em id="brand-water-stage-unit" title="Same water stage as the Digital Twin chart at this chainage.">m</em>
       </div>
       <div class="weather-wq-row is-bod">
-        <i data-short="VEL">FLOW VELOCITY</i>
+        <i data-short="BED">RIVER BED</i>
         <b id="brand-water-velocity">—</b>
-        <em>m/s</em>
+        <em>m</em>
       </div>
-      <div class="weather-wq-row is-area">
-        <i data-short="AREA">WETTED AREA</i>
+      <div class="weather-wq-row is-area" hidden>
+        <i data-short="CLASS">BOD CLASS</i>
         <b id="brand-water-area">—</b>
-        <em>m²</em>
+        <em></em>
       </div>
     </div>
   `;
@@ -119,12 +160,12 @@ export function mountProjectIdentity(root, dataset = null) {
   const stageEl = el.querySelector("#brand-water-stage");
   const velocityEl = el.querySelector("#brand-water-velocity");
   const areaEl = el.querySelector("#brand-water-area");
+  const classRow = el.querySelector(".weather-wq-row.is-area");
   const rows = [...el.querySelectorAll(".water-telemetry-wq .weather-wq-row")];
-  const HYDRAULIC_LABELS = rows.map((r) => ({
-    label: r.querySelector("i")?.textContent || "",
-    short: r.querySelector("i")?.dataset.short || "",
-    unit: r.querySelector("em")?.textContent || "",
-  }));
+  const HYDRAULIC_LABELS = [
+    { label: "WATER STAGE", short: "STAGE", unit: "m" },
+    { label: "RIVER BED", short: "BED", unit: "m" },
+  ];
   const STREAM_LABELS = [
     { label: "STREAM BOD", short: "BOD", unit: "mg/L" },
     { label: "STREAM COD", short: "COD", unit: "mg/L" },
@@ -142,6 +183,7 @@ export function mountProjectIdentity(root, dataset = null) {
   function setLabels(labels, title) {
     rows.forEach((r, i) => {
       const l = labels[i];
+      if (!l) return;
       const iEl = r.querySelector("i");
       const unitEl = r.querySelector("em");
       if (iEl) {
@@ -153,6 +195,7 @@ export function mountProjectIdentity(root, dataset = null) {
         unitEl.hidden = !l.unit;
       }
     });
+    if (classRow) classRow.hidden = labels.length < 3;
     el.querySelector(".water-telemetry-wq")?.setAttribute("title", title);
   }
 
@@ -222,70 +265,30 @@ export function mountProjectIdentity(root, dataset = null) {
     // Stream BOD/COD owns the numbers while a joining stream is shown
     if (shownStream) return;
 
-    const rec = profileRecordAt(meters);
-    const hydraulic = wseSpatialService.getWSEAtChainage(meters);
-    const summary = hydrologyStore.getSummary();
-    const nt = nadiTwinAtChainage(meters);
-
-    // Prefer NadiTwin LIVE at this chainage for WSE / depth / Q
-    let wse = null;
-    let wseUnit = "m";
-    let wseTitle = "";
-    if (nt) {
-      const ground = rec?.lon != null ? dtmElevationAtLonLat(rec.lon, rec.lat) : null;
-      const survey = num(rec?.survey_depth_m?.value);
-      // Absolute WSE from terrain + NadiTwin flow depth when DTM is available
-      if (ground != null && nt.depth != null) {
-        wse = ground - (survey ?? 0) + nt.depth;
-        wseUnit = "m";
-        wseTitle = `NADITWIN LIVE · CH ${formatStation(meters)} · depth ${nt.depth.toFixed(2)} m on DTM bed`;
-      } else if (nt.wseRel != null) {
-        wse = nt.wseRel;
-        wseUnit = "m rel";
-        wseTitle = `NADITWIN LIVE relative WSE · CH ${formatStation(meters)} · ${nt.datum || "relative"}`;
-      }
-    }
-    if (wse == null) {
-      wse = waterLevelAt(rec) ?? num(rec?.wse_msl?.value) ?? num(hydraulic?.wse);
-      wseTitle = "Profile / fallback (NadiTwin unavailable)";
-    }
-
-    if (stageEl) stageEl.textContent = wse != null ? wse.toFixed(2) : "—";
-    if (stageUnitEl) {
-      stageUnitEl.textContent = wseUnit;
-      stageUnitEl.title = wseTitle || "Water surface at selected river chainage";
-    }
-
-    // Wetted area & velocity from NadiTwin depth × local width, v = Q/A
-    const width =
-      num(rec?.width_m) ??
-      num(hydraulic?.wettedWidth) ??
-      (nt?.depth != null ? 25 : null); // last-resort channel width assumption only if twin depth exists
-    let area = null;
-    let velocity = null;
-    if (nt?.depth != null && width != null && width > 0) {
-      area = width * nt.depth;
-      if (nt.q != null && area > 0.05) velocity = nt.q / area;
-    }
-    if (area == null) {
-      area = num(rec?.cross_section_area_m2?.value) ?? num(hydraulic?.wettedArea);
-    }
-    if (velocity == null) {
-      const qFallback = nt?.q ?? num(rec?.discharge_m3s?.value);
-      if (qFallback != null && area != null && area > 0.05) velocity = qFallback / area;
-      else velocity = num(rec?.velocity_ms?.value) ?? num(summary?.meanVelocity_ms) ?? num(hydraulic?.velocity);
-    }
-
-    if (velocityEl) velocityEl.textContent = velocity != null ? velocity.toFixed(2) : "—";
-    if (areaEl) areaEl.textContent = area != null ? area.toFixed(1) : "—";
-
+    const stage = stageAtChainage(meters);
+    const fmt = (n) => (n != null ? n.toFixed(2) : "—");
     const chLabel = formatStation(meters);
-    el.querySelector(".water-telemetry-wq")?.setAttribute(
-      "title",
-      nt
-        ? `NADITWIN LIVE @ ${chLabel} · Q ${nt.q != null ? nt.q.toFixed(2) : "—"} m³/s · depth ${nt.depth != null ? nt.depth.toFixed(2) : "—"} m`
-        : `Hydraulics @ ${chLabel} (NadiTwin unavailable)`,
-    );
+
+    if (stage) {
+      if (stageEl) stageEl.textContent = fmt(stage.wse);
+      if (velocityEl) velocityEl.textContent = fmt(stage.bed);
+      if (stageUnitEl) {
+        stageUnitEl.textContent = "m";
+        stageUnitEl.title = `NADITWIN water stage · CH ${formatStation(stage.chainage_m)} · same series as the Digital Twin chart`;
+      }
+      setLabels(HYDRAULIC_LABELS, `Water stage @ ${chLabel} · same chainage series as the Digital Twin chart`);
+      return;
+    }
+
+    const rec = profileRecordAt(meters);
+    const wse = waterLevelAt(rec) ?? num(rec?.wse_msl?.value);
+    if (stageEl) stageEl.textContent = fmt(wse);
+    if (velocityEl) velocityEl.textContent = "—";
+    if (stageUnitEl) {
+      stageUnitEl.textContent = "m";
+      stageUnitEl.title = "Profile water level (NadiTwin stage series unavailable)";
+    }
+    setLabels(HYDRAULIC_LABELS, `River stage @ ${chLabel} (NadiTwin unavailable)`);
   }
 
   // Subscribe to hydrology store updates (e.g. solve completion, live Q sync, profile recalculations)

@@ -2,7 +2,6 @@ import {
   Waves,
   FlaskConical,
   LeafyGreen,
-  Hexagon,
   Bug,
 } from "lucide";
 import { lucideHtml } from "../icons.js";
@@ -13,7 +12,7 @@ import { unitFor } from "../../geo/layerUnits.js";
  * Water Quality floating HUD — same icon-only chrome as Land Use.
  * Labels appear only on hover (CSS tooltips). Units = Mandovi RiverEye.
  *
- * Order: Salinity → TSS → Chlorophyll-a → Coliform → BOD–COD
+ * Order: Salinity → TSS → Chlorophyll-a → Coliform
  */
 export const WATER_QUALITY_OPTIONS = [
   {
@@ -51,15 +50,6 @@ export const WATER_QUALITY_OPTIONS = [
     layerId: "water_quality_coliform",
     fallbackLayerId: null,
     unit: unitFor("water_quality_coliform") || "CFU/100 ml",
-  },
-  {
-    id: "bod_cod",
-    tip: `BOD–COD (${unitFor("bod") || "mg/L"} · class A–E)`,
-    icon: Hexagon,
-    tone: "wq-tone-bod",
-    layerId: "water_quality_bod_cod",
-    fallbackLayerId: "water_quality",
-    unit: unitFor("bod") || "mg/L",
   },
 ];
 

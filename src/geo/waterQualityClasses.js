@@ -4,7 +4,7 @@
  * Units follow Mandovi RiverEye (see layerUnits.js).
  */
 
-import { LAYER_UNITS, unitFor } from "./layerUnits.js";
+import { LAYER_UNITS, unitFor, displayUnit, tipWithUnit } from "./layerUnits.js";
 
 /** @typedef {{ id:string, kmlClass?:string, label:string, color:string, range:string, unit:string, min:number|null, max:number|null, inclusiveMax?:boolean }} WqClass */
 
@@ -30,7 +30,7 @@ export const TSS_CLASSES = /** @type {WqClass[]} */ ([
     kmlClass: "Low",
     label: "Low",
     color: "#2196F3",
-    range: `TSS ≤ 0.62 ${U.tss}`,
+    range: `≤ 0.62 ${U.tss}`,
     unit: U.tss,
     min: 0,
     max: 0.62,
@@ -52,7 +52,7 @@ export const TSS_CLASSES = /** @type {WqClass[]} */ ([
     kmlClass: "High",
     label: "High",
     color: "#F44336",
-    range: `TSS > 1.17 ${U.tss}`,
+    range: `> 1.17 ${U.tss}`,
     unit: U.tss,
     min: 1.17,
     max: null,
@@ -312,9 +312,9 @@ export const EUTROPHICATION_CLASSES = [
 
 /** Nitrogen — risk class / categorical, not mg N/L (Mandovi RiverEye). */
 export const NITROGEN_RISK_CLASSES = [
-  { id: "low", label: "Low", color: "#1a9641", range: "risk ≤ 0.33", unit: U.nitrogen },
+  { id: "low", label: "Low", color: "#1a9641", range: "≤ 0.33", unit: U.nitrogen },
   { id: "moderate", label: "Moderate", color: "#ffffbf", range: "0.33–0.66", unit: U.nitrogen },
-  { id: "high", label: "High", color: "#d7191c", range: "risk > 0.66", unit: U.nitrogen },
+  { id: "high", label: "High", color: "#d7191c", range: "> 0.66", unit: U.nitrogen },
 ];
 
 /** BOD class A–E — categorical (Mandovi RiverEye). */
@@ -397,7 +397,7 @@ export const WQ_LAYER_SCHEMES = {
     metric: "High-nitrogen risk class",
     unit: U.nitrogen,
     classes: NITROGEN_RISK_CLASSES,
-    subtitle: `Risk ${U.nitrogen} · not mg N/L · Mandovi RiverEye units`,
+    subtitle: "Risk class",
   },
   bod_class: {
     id: "bod_class",
@@ -418,7 +418,7 @@ export const WQ_LAYER_SCHEMES = {
 };
 
 /** Re-export units catalog for HUD / tooltip consumers. */
-export { LAYER_UNITS, unitFor };
+export { LAYER_UNITS, unitFor, displayUnit, tipWithUnit };
 
 /**
  * Classify a numeric sample into the official scheme.
@@ -463,6 +463,7 @@ export function classRepresentativeValue(c) {
 }
 
 export function formatWqValue(value, unit) {
+  if (value == null || value === "") return "—";
   const v = Number(value);
   if (!Number.isFinite(v)) return "—";
   if (!unit || unit === "class" || unit === "index") {

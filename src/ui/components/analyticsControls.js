@@ -208,8 +208,8 @@ export function mountAnalyticsControls(root, dataset) {
 
   const bodCodHud = mountBodCodHud(root, {
     onBack() {
-      setActive("hydrology");
-      if (!waterQualityHud.isOpen()) waterQualityHud.show();
+      setActive("Pollution");
+      if (!pollutionHud.isOpen()) pollutionHud.show();
     },
   });
 
@@ -299,6 +299,11 @@ export function mountAnalyticsControls(root, dataset) {
   function closePollutionHud() {
     if (pollutionHud.isOpen()) pollutionHud.hide();
     pollutionKeys.hide();
+    if (activeHydroId === "bod_cod") {
+      if (bodCodHud.isVisible()) bodCodHud.hide();
+      activeHydroId = null;
+      return;
+    }
     const pollIds = new Set(POLLUTION_OPTIONS.map((o) => o.layerId));
     if (pollIds.has(String(activeHydroId || ""))) {
       window.__MM_SCENE__?.hideHydrology?.();
@@ -388,8 +393,9 @@ export function mountAnalyticsControls(root, dataset) {
       id === "pollution" ||
       id === "pollution_eutrophication" ||
       id === "pollution_nitrogen" ||
+      id === "pollution_foam" ||
       !!leg.garbageDensityToggle ||
-      /pollution|eutroph|nitrogen|garbage/i.test(String(leg.title || ""))
+      /pollution|eutroph|nitrogen|garbage|foam/i.test(String(leg.title || ""))
     );
   }
 
@@ -435,28 +441,8 @@ export function mountAnalyticsControls(root, dataset) {
   }
 
   async function activateWaterQualityMetric(opt) {
-    // BOD–COD → JalNetra twin ribbon + focused HUD
-    if (opt?.id === "bod_cod") {
-      geology.close();
-      closeLandUseHud();
-      closePollutionHud();
-      closeClimateAqi();
-      hydroLegend.hidden = true;
-      hydroLegend.innerHTML = "";
-      landUseTheme.hide();
-      pollutionTheme.hide();
-      waterQualityTheme.hide();
-      pollutionKeys.hide();
-      window.__MM_SCENE__?.hideHydrology?.();
-      activeHydroId = "bod_cod";
-      waterQualityHud.setActiveOption("bod_cod");
-      waterQualityHud.setStatus("");
-      waterQualityHud.hide();
-      await bodCodHud.show();
-      return;
-    }
-
     if (bodCodHud.isVisible()) bodCodHud.hide();
+    if (activeHydroId === "bod_cod") activeHydroId = null;
 
     const layerId = opt?.layerId || null;
     // Same button again → turn layer off (keep WQ HUD open)
@@ -502,6 +488,26 @@ export function mountAnalyticsControls(root, dataset) {
   }
 
   async function activatePollutionLayer(opt) {
+    if (opt?.id === "bod_cod") {
+      geology.close();
+      closeLandUseHud();
+      closeWaterQualityHud();
+      closeClimateAqi();
+      hydroLegend.hidden = true;
+      hydroLegend.innerHTML = "";
+      landUseTheme.hide();
+      pollutionTheme.hide();
+      waterQualityTheme.hide();
+      pollutionKeys.hide();
+      window.__MM_SCENE__?.hideHydrology?.();
+      activeHydroId = "bod_cod";
+      pollutionHud.setStatus("");
+      pollutionHud.hide();
+      setActive("Pollution");
+      await bodCodHud.show();
+      return;
+    }
+
     const layerId = opt?.layerId || null;
     if (!layerId) return;
 
@@ -982,7 +988,7 @@ export function mountAnalyticsControls(root, dataset) {
       return;
     }
 
-    // Pollution → floating icon HUD (garbage / eutrophication / nitrogen)
+    // Pollution → floating icon HUD (garbage / eutrophication / nitrogen / foaming / BOD–COD)
     if (type === "Pollution") {
       if (pollutionHud.isOpen()) {
         closeAll();

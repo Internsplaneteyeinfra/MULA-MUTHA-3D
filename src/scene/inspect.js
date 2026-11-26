@@ -840,7 +840,8 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
         hydroId === "water_quality_wst" ||
         hydroId === "pollution" ||
         hydroId === "pollution_eutrophication" ||
-        hydroId === "pollution_nitrogen"
+        hydroId === "pollution_nitrogen" ||
+        hydroId === "pollution_foam"
           ? pickWorldXZ()
           : { wx: null, wz: null };
       if (wx != null) {
@@ -856,6 +857,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
             pollution: "POLLUTION",
             pollution_eutrophication: "Eutrophication",
             pollution_nitrogen: "Nitrogen",
+            pollution_foam: "Foaming",
           };
 
           if (hydroId === "pollution" && fromClick) {
@@ -920,6 +922,7 @@ export function attachInspect(canvas, camera, riverMeshes, terrainMesh, dataset,
           if (
             hydroId === "pollution_eutrophication" ||
             hydroId === "pollution_nitrogen" ||
+            hydroId === "pollution_foam" ||
             hydroId === "pollution"
           ) {
             document.dispatchEvent(

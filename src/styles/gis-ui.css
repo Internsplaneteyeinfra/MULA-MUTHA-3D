@@ -6756,9 +6756,11 @@
   letter-spacing: 0.01em;
   font-weight: 650;
   font-size: 8.5px;
-  line-height: 1.15;
-  max-width: 92px;
+  line-height: 1.2;
+  max-width: 118px;
   white-space: normal;
+  overflow: visible;
+  text-overflow: unset;
 }
 
 .lu-theme-class-label {
@@ -6778,12 +6780,12 @@
   pointer-events: none;
 }
 
-/* Pollution class colors: hover tips + glow (still legend-only, no filter) */
+/* Pollution colour chips are labels only — not buttons. Garbage pins stay clickable on the map. */
 .lu-theme-classes.is-legend-only.is-hoverable-legend .lu-theme-class,
 .lu-theme-classes.is-hoverable-legend .lu-theme-class.is-legend-chip {
   position: relative;
-  pointer-events: auto;
-  cursor: help;
+  pointer-events: none;
+  cursor: default;
 }
 .lu-theme-classes.is-hoverable-legend .lu-theme-class-letter {
   transition: transform 160ms ease, box-shadow 160ms ease, filter 160ms ease;
@@ -7653,6 +7655,8 @@
 .poll-hud__item.poll-tone-garbage { color: #e8b86a; }
 .poll-hud__item.poll-tone-eutro { color: #8ec8f5; }
 .poll-hud__item.poll-tone-nitrogen { color: #a6e090; }
+.poll-hud__item.poll-tone-bod { color: #b89ae8; }
+.poll-hud__item.poll-tone-foam { color: #f7fbff; }
 .poll-hud__item.is-active .poll-hud__icon {
   filter: drop-shadow(0 0 10px rgba(140, 220, 160, 0.55));
   transform: scale(1.08);
@@ -10828,7 +10832,8 @@ body.hydro-intel-open #dt-panel { display: none !important; }
 
 #ui-root.gis-ui .brand-telemetry-bar .brand-telemetry-divider {
   width: 1px !important;
-  height: 68px !important;
+  height: auto !important;
+  align-self: stretch !important;
   background: rgba(193, 225, 234, 0.22) !important;
   flex-shrink: 0 !important;
   margin: 0 2px !important;
@@ -10856,7 +10861,10 @@ body.hydro-intel-open #dt-panel { display: none !important; }
 }
 
 #ui-root.gis-ui .brand-telemetry-bar .water-telemetry-wq .weather-wq-row.is-q b {
-  font-size: 25px !important;
+  font-size: 22px !important;
+}
+#ui-root.gis-ui .brand-telemetry-bar .water-telemetry-wq .weather-wq-row[hidden] {
+  display: none !important;
 }
 
 /* Flood Result: collapsible summary + detail inside left dock */

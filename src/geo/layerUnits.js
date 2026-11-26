@@ -211,6 +211,26 @@ export function unitFor(id) {
   return d?.unit ?? "";
 }
 
+/** Units that are not a measurement (class labels, “not mg/L” notes). */
+const UNUSED_UNITS = new Set(["class", "categorical", "n/a", "na", "none", "—", "-"]);
+
+/**
+ * Unit to print on a button, colour scale, or river hover.
+ * Empty when the layer has no measurement unit.
+ */
+export function displayUnit(unit) {
+  const u = String(unit || "").trim();
+  if (!u || UNUSED_UNITS.has(u.toLowerCase())) return "";
+  if (/^not\b/i.test(u)) return "";
+  return u;
+}
+
+/** "Name" or "Name (mg/L)" — the parenthesis is omitted when there is no unit. */
+export function tipWithUnit(name, unit) {
+  const u = displayUnit(unit);
+  return u ? `${name} (${u})` : name;
+}
+
 /** Full unit definition, or null. */
 export function unitDef(id) {
   return LAYER_UNITS[id] || null;

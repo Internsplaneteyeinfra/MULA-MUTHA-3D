@@ -1,7 +1,7 @@
 {
   "id": "pollution_foam",
-  "name": "River foam",
-  "type": "groundOverlay",
+  "name": "Foaming",
+  "type": "foamClouds",
   "source": "src/jalnetra kml/river_foam.kml",
   "bounds": {
     "north": 18.54727939,
@@ -10,6 +10,6 @@
     "west": 73.85496516
   },
   "overlay": "/data/hydrology/pollution/foam/overlay.png",
-  "legendClasses": [],
+  "note": "White pixels are foam. Blue pixels are live water and are not drawn as clouds.",
   "updated": "2026-11-11"
 }

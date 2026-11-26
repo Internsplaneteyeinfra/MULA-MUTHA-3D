@@ -141,7 +141,15 @@ export function createTooltip(root) {
             info.hydrologySalinity ||
             info.layer === "water_quality_tss" ||
             info.layer === "water_quality_ndci";
-          val = info.valueText ? info.valueText : (isNumericWq && info.range ? info.range : info.class_label || info.class || "—");
+          const scale = String(info.range || "").trim();
+          const rawVal = String(info.valueText || "").trim();
+          const bareZero = /^(0|0\.0+)$/.test(rawVal);
+          val =
+            rawVal && !bareZero
+              ? rawVal
+              : scale && /\d/.test(scale)
+                ? scale
+                : info.class_label || info.class || "—";
         } else if (info.depthZoneHover) {
           what = "DEPTH ZONE";
           val = info.depthClass ? info.depthClass + " m" : "—";
@@ -161,14 +169,14 @@ export function createTooltip(root) {
         el.style.padding = "5px 8px";
         el.style.borderRadius = "5px";
         el.style.minWidth = "auto";
-        el.style.maxWidth = "150px";
+        el.style.maxWidth = "220px";
         el.style.background = "rgba(12, 18, 28, 0.9)";
         el.style.border = "1px solid rgba(154, 212, 224, 0.2)";
         el.style.boxShadow = "0 4px 12px rgba(0,0,0,0.5)";
         
         el.innerHTML = `
           <div class="hover-title" style="font-weight: 700; font-size: 9px; color: #8ba3b0; text-transform: uppercase; margin-bottom: 2px; letter-spacing: 0.05em; line-height: 1.15;">${tipEsc(what)}</div>
-          <div class="hover-value" style="font-size: 11px; color: #ffffff; font-weight: 600; font-family: var(--font-mono, monospace); line-height: 1.15;">(${tipEsc(val)})</div>
+          <div class="hover-value" style="font-size: 11px; color: #ffffff; font-weight: 600; font-family: var(--font-mono, monospace); line-height: 1.25; white-space: normal;">${tipEsc(val)}</div>
           ${info.joiningHover ? joiningBodCodTipHtml(info) : ""}
         `;
         if (info.joiningHover) el.style.maxWidth = "190px";
@@ -379,6 +387,7 @@ export function createTooltip(root) {
               water_quality_wst: "WST — Temperature",
               pollution_eutrophication: "Eutrophication",
               pollution_nitrogen: "Nitrogen",
+              pollution_foam: "Foaming",
             }[info.layer] || "WATER QUALITY");
         const swatch = info.color
           ? `<span style="display:inline-block;width:10px;height:10px;border-radius:50%;background:${info.color};border:1px solid rgba(255,255,255,.35);margin-right:6px;vertical-align:middle"></span>`
@@ -412,7 +421,9 @@ export function createTooltip(root) {
                       ? "Eutrophication · trophic class"
                       : info.layer === "pollution_nitrogen"
                         ? "Nitrogen · risk class"
-                        : "Classified overlay · hover class"
+                        : info.layer === "pollution_foam"
+                          ? "White foam · river_foam.kml"
+                          : "Classified overlay · hover class"
           }</em>
         `;
         return;
@@ -1286,6 +1297,7 @@ export function mountUI(root, {
   depthLegend.id = "depth-legend";
   depthLegend.className = "depth-legend depth-legend--vertical depth-legend--corner";
   depthLegend.setAttribute("aria-label", "Water depth legend");
+  depthLegend.hidden = true;
   depthLegend.innerHTML = `
     <strong>WATER<br>DEPTH<br>(m)</strong>
     <div class="depth-legend-body">
@@ -1426,15 +1438,8 @@ export function mountUI(root, {
   function syncCamButtons() {
     nav.syncActive();
     if (depthLegend) {
-      const cine = state.cinematicActive;
-      const showLegend =
-        !cine &&
-        (state.showWater || state.cameraMode === "bathymetry" || state.showBathymetry);
-      depthLegend.hidden = !showLegend;
-      const title = depthLegend.querySelector("strong");
-      if (title) {
-        title.innerHTML = state.showWater ? "WATER<br>DEPTH<br>(m)" : "CHANNEL<br>DEPTH<br>(m)";
-      }
+      // River surface is not coloured by depth, so the depth scale stays off.
+      depthLegend.hidden = true;
     }
   }
 

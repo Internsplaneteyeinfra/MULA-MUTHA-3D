@@ -134,12 +134,12 @@ export function mountFocusThemeHud(root, hooks = {}) {
     return (s.charAt(0) || "?").toUpperCase();
   }
 
-  /** Prefer % / range text on the chip; keep human names for hover only. */
+  /** Numbering scale (with its unit) on the chip. Coverage % only when there is no number scale. */
   function scaleDisplayText(c) {
+    const range = String(c?.range || "").trim();
+    if (range && /\d/.test(range)) return range;
     const pct = String(c?.pct || "").trim();
     if (pct) return pct;
-    const range = String(c?.range || "").trim();
-    if (range) return range;
     const label = String(c?.label || c?.id || "").trim();
     // Already-numeric labels (bathymetry depths, silt volume ramp)
     if (/^[<>~]?\d/.test(label) || /\d+\s*[–\-m%]/.test(label)) return label;
@@ -166,7 +166,8 @@ export function mountFocusThemeHud(root, hooks = {}) {
     const preferScale =
       focusKind === "waterquality" ||
       focusKind === "geology" ||
-      focusKind === "landuse";
+      focusKind === "landuse" ||
+      focusKind === "pollution";
     if (!list.length) {
       classesEl.hidden = true;
       classesEl.innerHTML = "";
@@ -188,7 +189,7 @@ export function mountFocusThemeHud(root, hooks = {}) {
           const filterLabel = c.label || c.id || "—";
           const scaleText = preferScale ? scaleDisplayText(c) : null;
           const rangeText = String(c.range || c.pct || "").trim();
-          const displayName = scaleText || (preferScale ? "" : filterLabel);
+          const displayName = scaleText || filterLabel;
           const key = letterKey(filterLabel, c.key);
           const color = c.color || "#888";
           const tip = scaleText
@@ -198,15 +199,15 @@ export function mountFocusThemeHud(root, hooks = {}) {
               : filterLabel;
           const tag = noSelect ? "div" : "button";
           const interactiveAttrs = noSelect
-            ? `role="listitem" tabindex="0"`
+            ? `role="listitem"`
             : `type="button" role="listitem" aria-pressed="false"`;
+          const tipAttr = noSelect ? "" : `title="${escapeAttr(tip)}" `;
           return `
           <${tag} class="lu-theme-class${scaleText ? " is-numeric" : ""}${noSelect ? " is-legend-chip" : ""}"
             data-label="${escapeAttr(filterLabel)}"
             data-tip="${escapeAttr(tip)}"
             style="--lu-class-color:${escapeAttr(color)}"
-            title="${escapeAttr(tip)}"
-            aria-label="${escapeAttr(tip)}"
+            ${tipAttr}aria-label="${escapeAttr(tip)}"
             ${interactiveAttrs}>
             <span class="lu-theme-class-letter">${escapeHtml(key)}</span>
             <span class="lu-theme-class-name">${escapeHtml(displayName)}</span>
