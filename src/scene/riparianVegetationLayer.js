@@ -1,7 +1,7 @@
 import * as THREE from "three";
 import { lonLatToLocal, localToLonLat } from "../geo/geoReference.js";
 import { SURFACE_Y } from "./river.js";
-import { preloadTreeAssets, foliageHex } from "./treeRegistry.js";
+import { preloadTreeAssets, foliageHex, roundedCanopyAsset } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { nearestStation, lateralDistToCenterline } from "../features/fishing/FishingZoneSystem.js";
@@ -17,6 +17,7 @@ import { channelBankY } from "./channelBanks.js";
 
 const FOREST = 1;
 const BANK = 2;
+const SETTLEMENT = 3;
 /** A cell is kept only when most of its neighbours are land too (drops water-edge speckle). */
 const MIN_LAND_NEIGHBOURS = 2;
 const MIN_CLUSTER_M2 = 3000;
@@ -35,7 +36,8 @@ const SUBMERGED_Y = -0.4;
 const EDGE_Y = -0.15;
 const INTERIOR_Y = 0.3;
 const CROWN_Y = 0.35;
-const TREE_CHANCE = 0.3;
+const TREE_CHANCE = 0.94;
+const BANK_TREE_CHANCE = 0;
 const UNDERGROWTH_CHANCE = 0.22;
 const DEFAULT_MAX_TREES = 2600;
 
@@ -97,11 +99,12 @@ export async function createRiparianVegetationLayer(dataset, opts = {}) {
     const treeStart = placements.length;
     for (const cell of cluster.cells) {
       if (placements.length >= maxTrees) break;
-      if (cell.kind !== FOREST || cell.submerged || rng() >= TREE_CHANCE) continue;
+      const chance = cell.kind === FOREST ? TREE_CHANCE : cell.kind === BANK ? BANK_TREE_CHANCE : cell.kind === SETTLEMENT ? 0 : 0;
+      if (!chance || cell.submerged || rng() >= chance) continue;
       const near = nearestStation(cell.x, cell.z, stations);
       if (!near) continue;
       const lateral = lateralDistToCenterline(cell.x, cell.z, near);
-      if (lateral < Math.max(2, Number(near.halfWidth) * 0.35)) continue;
+      if (lateral < Math.max(2, Number(near.halfWidth) * 0.18)) continue;
       const groundY = groundAt(cell.x, cell.z);
       if (!Number.isFinite(groundY) || groundY < SURFACE_Y + 0.25) continue;
       const placement = treePlacement(cell, grid, groundAt, stations, { id: `riparian-${index}` }, riparianTreeAsset(rng), rng);
@@ -178,7 +181,8 @@ function detectLandCells(ring, depthPoints, lulc, stations) {
       const ll = toLonLat(px0 + i + 0.5, py0 + j + 0.5);
       const cls = lulc.classAtLonLat(ll.lon, ll.lat);
       if (cls === "forest") land[j * gw + i] = FOREST;
-      else if (cls === "barren" || cls === "crop" || cls === "settlement") land[j * gw + i] = BANK;
+      else if (cls === "barren" || cls === "crop") land[j * gw + i] = BANK;
+      else if (cls === "settlement") land[j * gw + i] = SETTLEMENT;
     }
   }
 
@@ -397,19 +401,13 @@ function treePlacement(c, grid, groundAt, stations, info, assetId, rng) {
   const y = groundAt(x, z);
   if (!Number.isFinite(y) || y < SURFACE_Y + 0.25) return null;
   const isPlant = assetId === "grass" || assetId === "reeds" || assetId === "shrub";
-  const scale = isPlant ? 0.8 + rng() * 0.6 : 0.9 + rng() * 0.4;
-  const heightM = isPlant ? (assetId === "shrub" ? 2.8 + rng() * 1.0 : 1.6 + rng() * 1.0) : 7.5 + rng() * 5.0;
+  const scale = isPlant ? 0.8 + rng() * 0.6 : 1.05 + rng() * 0.55;
+  const heightM = isPlant ? (assetId === "shrub" ? 2.8 + rng() * 1.0 : 1.6 + rng() * 1.0) : undefined;
   return { x, y: y + 0.05, z, rotY: rng() * Math.PI * 2, scale, heightM, assetId, info };
 }
 
 function riparianTreeAsset(rng) {
-  const r = rng();
-  if (r < 0.26) return "bamboo";
-  if (r < 0.48) return "neem";
-  if (r < 0.66) return "palm";
-  if (r < 0.80) return "acacia";
-  if (r < 0.92) return "broadleaf";
-  return "banyan";
+  return roundedCanopyAsset(rng);
 }
 
 async function buildTreeBatches(placements, castShadow, rng) {

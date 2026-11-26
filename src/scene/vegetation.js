@@ -8,7 +8,7 @@ import {
   terrainCellDiag,
 } from "./terrain.js";
 import { channelBankY } from "./channelBanks.js";
-import { classifyTreeAsset, preloadTreeAssets, foliageHex } from "./treeRegistry.js";
+import { classifyTreeAsset, preloadTreeAssets, foliageHex, roundedCanopyAsset } from "./treeRegistry.js";
 import { treeTargetHeight } from "./treeOrient.js";
 import { loadLulcClassGrid } from "../geo/lulcRaster.js";
 import { RIVER_SIDE_M } from "../geo/osmContext.js";
@@ -33,6 +33,10 @@ export async function createVegetation(dataset, opts = {}) {
   const nearRoad = createProximityTest(roads, (road) => (road.widthM || 5) * 0.85);
   const osmTrees = dataset.osm?.trees || [];
   const rng = mulberry(33);
+  const onRiverBank = (x, z) => {
+    const bank = nearest(x, z, stations);
+    return !!bank && bank.lat < Math.max(50, Number(bank.half) + 80);
+  };
   const placements = [];
   const pickables = [];
   const maxTrees = Math.max(200, Number(opts.maxTrees) || MAX_TREES);
@@ -62,7 +66,7 @@ export async function createVegetation(dataset, opts = {}) {
     // surface for vegetation instead of treating the island as submerged.
     const chainage = Number(st.chainage_m);
     const cover = lulc?.classAtLocal?.(x, z);
-    if (chainage >= 700 && chainage <= 1980 && d < 90 && cover && cover !== "water") {
+    if (chainage >= 0 && chainage <= 2800 && d < 90 && cover && cover !== "water" && cover !== "settlement") {
       d = Math.max(d, 18);
       raw = Math.max(Number.isFinite(raw) ? raw : SURFACE_Y, SURFACE_Y + 1.4);
     }
@@ -80,7 +84,7 @@ export async function createVegetation(dataset, opts = {}) {
     const rawY = groundY(ot.x, ot.z);
     if (rawY == null) continue;
     const h = ot.tree_height || 8;
-    const assetId = classifyTreeAsset(ot, "osm", rng);
+    const assetId = onRiverBank(ot.x, ot.z) ? roundedCanopyAsset(rng) : classifyTreeAsset(ot, "osm", rng);
     const scale = Math.max(0.45, Math.min(2.6, h / 8));
     const placement = {
       x: ot.x,
@@ -108,37 +112,32 @@ export async function createVegetation(dataset, opts = {}) {
     pickables.push(placement);
   }
 
-  // Add visual trees to Naik Bet (around chainage 0+700–1+980). Use denser
-  // placement in classified forest and lighter, scattered planting on its
-  // barren/open land so the plain gains trees without becoming a solid canopy.
+  // Closed canopy only on mapped forest, matching the satellite woodland
+  // on the inside of the bend. Sand, fields, and open banks stay clear.
   const forestCanopy = [];
   const stationGap =
     stations.length > 1
       ? Math.hypot(stations[1].x - stations[0].x, stations[1].z - stations[0].z) || 12
       : 12;
-  const forestSpacing = 14;
+  const forestSpacing = 7;
   const forestAlongStep = Math.max(1, Math.round(forestSpacing / stationGap));
-  const mappedTreeCount = placements.filter((p) => p.kind === "osm").length;
-  const forestBudget = Math.max(0, maxTrees - mappedTreeCount);
+  const forestBudget = 6400;
   for (let i = 0; i < stations.length && forestCanopy.length < forestBudget; i += forestAlongStep) {
     const st = stations[i];
     const chainage = Number(st.chainage_m);
-    if (chainage < 700 || chainage > 1980) continue;
+    if (chainage < 0 || chainage > 2800) continue;
     const px = -st.flowZ;
     const pz = st.flowX;
     const half = Math.max(8, Number(st.halfWidth) || 20);
-    const maxOffset = half + 220;
+    const maxOffset = half + 80;
     for (let dist = -maxOffset; dist <= maxOffset && forestCanopy.length < forestBudget; dist += forestSpacing) {
-      const alongJitter = (rng() - 0.5) * forestSpacing * 0.5;
-      const bankJitter = (rng() - 0.5) * forestSpacing * 0.5;
+      const alongJitter = (rng() - 0.5) * forestSpacing * 0.3;
+      const bankJitter = (rng() - 0.5) * forestSpacing * 0.3;
       const x = st.x + px * (dist + bankJitter) + st.flowX * alongJitter;
       const z = st.z + pz * (dist + bankJitter) + st.flowZ * alongJitter;
       const cover = lulc?.classAtLocal?.(x, z);
-      if (cover !== "forest" && cover !== "barren") continue;
-      // Naik Bet land pixels may sit under the centerline's broad water ribbon;
-      // groundY restores their mapped land elevation before placement.
-      const keepChance = cover === "forest" ? 0.68 : 0.2;
-      if (rng() > keepChance) continue;
+      if (cover !== "forest") continue;
+      if (rng() > 0.97) continue;
       if (blocked(x, z, nearBuilding, nearRoad, stations, false, true)) continue;
       const y = groundY(x, z);
       if (y == null) continue;
@@ -146,9 +145,9 @@ export async function createVegetation(dataset, opts = {}) {
         x,
         z,
         y,
-        scale: 0.85 + rng() * 0.35,
+        scale: 1.15 + rng() * 0.45,
         rotY: rng() * Math.PI * 2,
-        assetId: classifyTreeAsset({}, "forest", rng),
+        assetId: roundedCanopyAsset(rng),
         kind: "naikForest",
       });
     }
@@ -174,7 +173,9 @@ export async function createVegetation(dataset, opts = {}) {
       if (dataset.lite && bank.lat > bank.half + RIVER_SIDE_M) continue;
       const rawY = groundY(p.x, p.z);
       if (rawY == null) continue;
-      const assetId = classifyTreeAsset(props, dense ? "forest" : "park", rng);
+      const assetId = onRiverBank(p.x, p.z)
+        ? roundedCanopyAsset(rng)
+        : classifyTreeAsset(props, dense ? "forest" : "park", rng);
       const h = 7.5 + rng() * 6.5;
       const ll = dataset.frame ? dataset.frame.toLonLat(p.x, p.z) : null;
       const treePlacement = {
@@ -208,7 +209,7 @@ export async function createVegetation(dataset, opts = {}) {
   // budget is reached. No continuous bank rows are fabricated.
   const mappedTrees = placements.filter((p) => p.kind === "osm");
   const areaDerived = placements.filter((p) => p.kind !== "osm");
-  const capped = mappedTrees.concat(forestCanopy, areaDerived).slice(0, maxTrees);
+  const capped = mappedTrees.concat(areaDerived).slice(0, maxTrees).concat(forestCanopy);
   for (const p of capped) {
     if (p.y == null) {
       p.y = terrainHeightAt(p.x, p.z, stations) || SURFACE_Y + 0.5;
@@ -244,7 +245,7 @@ export async function createVegetation(dataset, opts = {}) {
       const p = list[i];
       const targetH = treeTargetHeight(assetId, p.scale);
       const uniform = targetH / Math.max(0.5, proto.nativeH);
-      const crown = p.kind === "naikForest" ? 1.25 : p.kind === "forest" ? 1.7 : 1;
+      const crown = p.kind === "naikForest" ? 1.65 : p.kind === "forest" ? 1.7 : 1;
       // Enlarge crowns modestly only inside mapped forest patches.
       dummy.position.set(p.x, (p.y || 0) + 0.35, p.z);
       dummy.rotation.set(0, p.rotY, 0);

@@ -84,6 +84,17 @@ export function foliageHex(id) {
   return FOLIAGE_HEX[id] || FOLIAGE_HEX.broadleaf;
 }
 
+/**
+ * Rounded dark-green canopy used by the dense forest (neem / broadleaf / banyan).
+ * River-bank trees use this same set so they match that forest, not palms or flame trees.
+ */
+export function roundedCanopyAsset(rng = () => 0.5) {
+  const r = rng();
+  if (r < 0.42) return "neem";
+  if (r < 0.74) return "broadleaf";
+  return "banyan";
+}
+
 export function prefetchTreeAssets() {
   prefetchGlbUrls(TREE_MANIFEST.map((t) => t.url));
 }

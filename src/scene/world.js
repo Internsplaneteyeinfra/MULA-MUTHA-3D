@@ -564,7 +564,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
   async function loadRiparianVegetation() {
     const qNow = quality.get();
     const layer = await createRiparianVegetationLayer(dataset, {
-      maxTrees: qNow.tier === "low" ? 1800 : 4200,
+      maxTrees: qNow.tier === "low" ? 2800 : 7000,
       castShadow: !!qNow.treeShadows,
       terrainMesh: terrain.mesh,
     });
