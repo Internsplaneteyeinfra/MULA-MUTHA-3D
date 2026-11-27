@@ -4,7 +4,6 @@ import { summarizeSiltPolygon } from "../../scene/siltAreaAnalysis.js";
 const YEARS = [2021, 2022, 2023, 2024, 2025, 2026];
 const MONTH_SHORT = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
 const MONTH_FULL = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"];
-const AREA_LABEL = "Full polygon P1–P2–P3–P4";
 const CLASS_COLORS = ["#0D5C2E", "#6B7A00", "#C2410C", "#991B1B"];
 let focusMonth = 11;
 
@@ -46,15 +45,6 @@ function deltaKind(n) {
 function arrow(n) {
   if (n == null || !Number.isFinite(n) || n === 0) return "–";
   return n > 0 ? "▲" : "▼";
-}
-
-function previousSlot(index, pick) {
-  for (let i = index - 1; i >= 0; i--) {
-    if (!slots[i]?.available) continue;
-    const value = pick(slots[i]);
-    if (value != null && Number.isFinite(value)) return slots[i];
-  }
-  return null;
 }
 
 function volumeChange(curr, prev) {
@@ -100,13 +90,6 @@ function ensureBound() {
       else if (cmd === "next") { pausePlayback(); stepMonth(1); }
       return;
     }
-    const row = event.target.closest("[data-silt-row]");
-    if (row) {
-      event.stopPropagation();
-      pausePlayback();
-      chooseMonth(Number(row.dataset.siltRow));
-      return;
-    }
     const hit = event.target.closest("[data-hist-month]");
     if (!hit) return;
     event.stopPropagation();
@@ -146,36 +129,58 @@ function showStatus(text) {
   if (el) el.textContent = text;
 }
 
+function slotFromRow(year, month, row) {
+  const id = `${year}-${String(month).padStart(2, "0")}`;
+  const section = row?.available ? row.polygon : null;
+  if (!row?.available || !section || section.coveragePct == null) {
+    return {
+      month,
+      year,
+      id,
+      available: false,
+      provenance: row?.reason || "No stored raster for this month",
+    };
+  }
+  return {
+    month,
+    year,
+    id,
+    available: true,
+    areaM2: section.areaM2,
+    coveredM2: section.coveredM2,
+    coveragePct: section.coveragePct,
+    volumeM3: section.volumeM3,
+    validCells: section.validCells,
+    dominant: section.dominant,
+    classes: section.classes,
+    provenance: row.provenance,
+  };
+}
+
 function buildSlots(year) {
   const next = [];
   for (let month = 1; month <= 12; month++) {
-    const id = `${year}-${String(month).padStart(2, "0")}`;
-    const row = byId.get(id);
-    const section = row?.available ? row.polygon : null;
-    if (!row?.available || !section || section.coveragePct == null) {
-      next.push({
-        month,
-        id,
-        available: false,
-        provenance: row?.reason || "No stored raster for this month",
-      });
-      continue;
-    }
-    next.push({
-      month,
-      id,
-      available: true,
-      areaM2: section.areaM2,
-      coveredM2: section.coveredM2,
-      coveragePct: section.coveragePct,
-      volumeM3: section.volumeM3,
-      validCells: section.validCells,
-      dominant: section.dominant,
-      classes: section.classes,
-      provenance: row.provenance,
-    });
+    next.push(slotFromRow(year, month, byId?.get(`${year}-${String(month).padStart(2, "0")}`)));
   }
   return next;
+}
+
+/** Earlier stored month in this year, otherwise the last stored month of the previous year. */
+function previousAvailable(year, month) {
+  if (!byId) return null;
+  let y = year;
+  let m = month;
+  while (y >= YEARS[0]) {
+    m -= 1;
+    if (m < 1) {
+      y -= 1;
+      m = 12;
+    }
+    if (y < YEARS[0]) return null;
+    const slot = slotFromRow(y, m, byId.get(`${y}-${String(m).padStart(2, "0")}`));
+    if (slot.available) return slot;
+  }
+  return null;
 }
 
 function axisMax(values) {
@@ -272,42 +277,30 @@ function classBody(left, top, plotW, plotH) {
 
 function tooltipHtml(monthIndex) {
   const slot = slots[monthIndex];
-  const area = AREA_LABEL;
   const when = `${MONTH_FULL[monthIndex]} ${selectedYear}`;
   if (!slot?.available) {
     return `<div class="silt-tt-row"><span>Month</span><b>${when}</b></div>` +
-      `<div class="silt-tt-row"><span>Area</span><b>${area}</b></div>` +
       `<div class="silt-tt-row"><span>Silt volume</span><b>N/A</b></div>` +
       `<div class="silt-tt-row"><span>Silt coverage</span><b>N/A</b></div>` +
+      `<div class="silt-tt-row"><span>Covered area</span><b>N/A</b></div>` +
+      `<div class="silt-tt-row"><span>Polygon area</span><b>N/A</b></div>` +
       `<div class="silt-tt-row"><span>Classification</span><b>N/A</b></div>` +
-      `<div class="silt-tt-row"><span>Data status</span><b>Unavailable</b></div>` +
-      `<div class="silt-tt-row"><span>Provenance</span><b>${slot?.provenance || "No stored raster for this month"}</b></div>`;
+      `<div class="silt-tt-row"><span>Previous volume month</span><b>N/A</b></div>` +
+      `<div class="silt-tt-row"><span>Volume change</span><b>N/A</b></div>`;
   }
-  const prevVol = previousSlot(monthIndex, (item) => item.volumeM3);
-  const prevCov = previousSlot(monthIndex, (item) => item.coveragePct);
+  const prevVol = previousAvailable(selectedYear, slot.month);
   const vol = volumeChange(slot, prevVol);
-  const cov = coverageChange(slot, prevCov);
-  const classes = (slot.classes || []).map((item) =>
-    `${item.label} ${item.pct == null ? "N/A" : item.pct.toFixed(0) + "%"} (${fmtM2(item.areaM2)})`
-  ).join(" · ");
   const volChange = vol.diff == null
     ? "N/A"
     : `${fmtSigned(vol.diff, 0, " m³")}${vol.pct == null ? "" : " (" + fmtSigned(vol.pct, 1, "%)") + ")"}`;
-  const covChange = cov == null ? "N/A" : fmtSigned(cov, 1, " percentage points");
   return `<div class="silt-tt-row"><span>Month</span><b>${when}</b></div>` +
-    `<div class="silt-tt-row"><span>Area</span><b>${area}</b></div>` +
     `<div class="silt-tt-row"><span>Silt volume</span><b>${fmtM3(slot.volumeM3)}</b></div>` +
     `<div class="silt-tt-row"><span>Silt coverage</span><b>${fmtPct(slot.coveragePct)}</b></div>` +
     `<div class="silt-tt-row"><span>Covered area</span><b>${fmtM2(slot.coveredM2)}</b></div>` +
     `<div class="silt-tt-row"><span>Polygon area</span><b>${fmtM2(slot.areaM2)}</b></div>` +
     `<div class="silt-tt-row"><span>Classification</span><b>${slot.dominant || "N/A"}</b></div>` +
-    `<div class="silt-tt-row"><span>Classes</span><b>${classes || "N/A"}</b></div>` +
-    `<div class="silt-tt-row"><span>Previous volume month</span><b>${prevVol ? MONTH_FULL[prevVol.month - 1] : "N/A"}</b></div>` +
-    `<div class="silt-tt-row"><span>Volume change</span><b>${volChange}</b></div>` +
-    `<div class="silt-tt-row"><span>Previous coverage month</span><b>${prevCov ? MONTH_FULL[prevCov.month - 1] : "N/A"}</b></div>` +
-    `<div class="silt-tt-row"><span>Coverage change</span><b>${covChange}</b></div>` +
-    `<div class="silt-tt-row"><span>Data status</span><b>Available</b></div>` +
-    `<div class="silt-tt-row"><span>Provenance</span><b>${slot.provenance}. Relative 1 m layer. Legend unit unconfirmed.</b></div>`;
+    `<div class="silt-tt-row"><span>Previous volume month</span><b>${prevVol ? `${MONTH_FULL[prevVol.month - 1]} ${prevVol.year}` : "N/A"}</b></div>` +
+    `<div class="silt-tt-row"><span>Volume change</span><b>${volChange}</b></div>`;
 }
 
 function volumeTicks(max) {
@@ -349,8 +342,23 @@ function stepMonth(dir) {
   const next = dir > 0
     ? months.find((month) => month > focusMonth)
     : [...months].reverse().find((month) => month < focusMonth);
-  if (next) chooseMonth(next);
-  return !!next;
+  if (next) {
+    chooseMonth(next);
+    return true;
+  }
+  const year = selectedYear ?? 2026;
+  const other = dir > 0 ? year + 1 : year - 1;
+  if (!byId || !YEARS.includes(other)) return false;
+  const otherSlots = buildSlots(other);
+  const edge = dir > 0
+    ? otherSlots.find((slot) => slot.available)
+    : [...otherSlots].reverse().find((slot) => slot.available);
+  if (!edge) return false;
+  selectedYear = other;
+  slots = otherSlots;
+  focusMonth = edge.month;
+  paint();
+  return true;
 }
 
 let playing = false;
@@ -407,10 +415,10 @@ function compareHtml() {
   if (!current?.available) {
     return `<p class="silt-compare-note">${MONTH_FULL[focusMonth - 1]} ${selectedYear} has no stored raster. Missing months are not filled.</p>`;
   }
-  const prev = previousAvailable(current.month - 1);
+  const prev = previousAvailable(selectedYear, current.month);
   const vol = volumeChange(current, prev);
   const cov = coverageChange(current, prev);
-  const prevName = prev ? `${MONTH_FULL[prev.month - 1]}` : "N/A";
+  const prevName = prev ? `${MONTH_FULL[prev.month - 1]} ${prev.year}` : "N/A";
   const card = (label, value, kind) =>
     `<div class="silt-compare-card is-${kind}"><span>${label}</span><b>${value}</b></div>`;
   const classCards = [0, 1, 2, 3].map((index) => {
@@ -420,7 +428,7 @@ function compareHtml() {
     const diff = now != null && before != null ? now - before : null;
     return card(name + " area change", diff == null ? "N/A" : `${arrow(diff)} ${fmtSigned(diff, 0, " m²")}`, deltaKind(diff));
   }).join("");
-  return `<p class="silt-compare-note">Compared with the previous available month${prev ? ": " + prevName + " " + selectedYear : ""}.</p>` +
+  return `<p class="silt-compare-note">Compared with the previous available month${prev ? ": " + prevName : ""}.</p>` +
     card("Previous volume", fmtM3(prev?.volumeM3), "flat") +
     card("Selected volume", fmtM3(current.volumeM3), "flat") +
     card("Volume change", vol.diff == null ? "N/A" : `${arrow(vol.diff)} ${fmtSigned(vol.diff, 0, " m³")}`, deltaKind(vol.diff)) +
@@ -431,45 +439,13 @@ function compareHtml() {
     classCards;
 }
 
-function previousAvailable(index) {
-  for (let i = index - 1; i >= 0; i--) if (slots[i]?.available) return slots[i];
-  return null;
-}
-
-function tableHtml() {
-  const head = `<tr><th>Month</th><th>Silt volume (m³)</th><th>Volume change (m³)</th><th>Change (%)</th><th>Coverage (%)</th><th>Low (%)</th><th>Moderate (%)</th><th>High (%)</th><th>Very High (%)</th></tr>`;
-  const body = slots.map((slot) => {
-    if (!slot.available) {
-      return `<tr class="is-missing"><td>${MONTH_SHORT[slot.month - 1]}</td><td colspan="8">No stored raster</td></tr>`;
-    }
-    const prev = previousAvailable(slot.month - 1);
-    const vol = volumeChange(slot, prev);
-    const pcts = [0, 1, 2, 3].map((index) => {
-      const pct = slot.classes?.[index]?.pct;
-      return pct == null ? "N/A" : pct.toFixed(0);
-    });
-    const on = slot.month === focusMonth ? " is-selected" : "";
-    return `<tr class="${on}" data-silt-row="${slot.month}">` +
-      `<td>${MONTH_SHORT[slot.month - 1]}</td>` +
-      `<td>${fmtM3(slot.volumeM3).replace(" m³", "")}</td>` +
-      `<td>${vol.diff == null ? "N/A" : fmtSigned(vol.diff, 0, "")}</td>` +
-      `<td>${vol.pct == null ? "N/A" : fmtSigned(vol.pct, 1, "")}</td>` +
-      `<td>${fmtPct(slot.coveragePct).replace("%", "")}</td>` +
-      pcts.map((pct) => `<td>${pct}</td>`).join("") +
-      `</tr>`;
-  }).join("");
-  return `<table><thead>${head}</thead><tbody>${body}</tbody></table>`;
-}
-
 function paint() {
   if (byId) slots = buildSlots(selectedYear ?? 2026);
   renderChrome();
   const summary = document.getElementById("silt-summary");
   const compare = document.getElementById("silt-compare");
-  const table = document.getElementById("silt-month-table");
   if (summary) summary.innerHTML = summaryHtml();
   if (compare) compare.innerHTML = compareHtml();
-  if (table) table.innerHTML = tableHtml();
   const volume = document.getElementById("silt-month-volume");
   const klass = document.getElementById("silt-month-class");
   if (!volume || !klass || !byId) return;

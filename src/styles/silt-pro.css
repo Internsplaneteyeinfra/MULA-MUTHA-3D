@@ -113,11 +113,11 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
   background: rgba(8, 20, 34, 0.45);
   backdrop-filter: blur(12px);
   border-top: 1px solid rgba(110, 190, 220, 0.18);
-  padding: 10px 16px 12px;
+  padding: 8px 12px 8px;
   pointer-events: auto;
   display: flex;
   flex-direction: column;
-  gap: 10px;
+  gap: 6px;
   max-height: 72vh;
   overflow-y: auto;
 }
@@ -409,14 +409,35 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
 .silt-year-row { display: flex; justify-content: flex-end; }
 .silt-three {
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 10px;
-  align-items: stretch;
+  grid-template-columns: minmax(0, 0.9fr) minmax(0, 1.25fr) minmax(0, 0.9fr);
+  gap: 8px;
+  align-items: start;
 }
-.silt-three .dashboard-panel { min-width: 0; padding: 10px 12px; }
-.silt-three .panel-header { font-size: 13px; margin-bottom: 8px; padding-bottom: 6px; }
-.silt-three .silt-spatial-wrap { height: 168px; min-height: 140px; }
-.silt-three .chart-legend-row { margin-top: 6px; gap: 8px; justify-content: flex-start; }
+.silt-spatial-panel { grid-column: 1; grid-row: 1; align-self: stretch; }
+.silt-volume-panel { grid-column: 2; grid-row: 1; }
+.silt-class-panel { grid-column: 3; grid-row: 1; }
+.silt-three .silt-compare {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  margin: 0;
+  gap: 6px;
+}
+.silt-three .dashboard-panel { min-width: 0; padding: 8px 10px; }
+.silt-three .panel-header { font-size: 13px; margin-bottom: 6px; padding-bottom: 4px; }
+.silt-three .silt-spatial-wrap {
+  flex: 0 0 132px;
+  height: 132px;
+  min-height: 0;
+  max-height: 132px;
+}
+.silt-three .silt-spatial-wrap canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  max-height: 132px;
+}
+.silt-three .silt-hist-svg { display: block; width: 100%; height: 132px; }
+.silt-three .chart-legend-row { margin-top: 4px; gap: 8px; justify-content: flex-start; }
 .silt-three .chart-legend-row span { font-size: 0.68rem; }
 .silt-summary, .silt-compare {
   display: grid;
@@ -428,14 +449,14 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
   background: rgba(4, 15, 27, 0.4);
   border: 1px solid rgba(110, 190, 220, 0.18);
   border-radius: 8px;
-  padding: 6px 8px;
+  padding: 4px 8px;
 }
 .silt-summary span, .silt-compare-card span { display: block; color: #9DB5C4; font-size: 0.64rem; text-transform: uppercase; }
 .silt-summary b, .silt-compare-card b { display: block; margin-top: 2px; color: #E8F4F8; font-size: 0.86rem; }
 .silt-summary em { display: block; color: #718B9B; font-style: normal; font-size: 0.66rem; }
 .silt-compare-card.is-up b { color: #f97316; }
 .silt-compare-card.is-down b { color: #4ade80; }
-.silt-compare-note { grid-column: 1 / -1; margin: 0; color: #9DB5C4; font-size: 0.72rem; }
+.silt-compare-note { grid-column: 1 / -1; margin: 0; color: #9DB5C4; font-size: 0.68rem; line-height: 1.2; }
 .silt-controls { display: flex; flex-wrap: wrap; gap: 8px 12px; align-items: center; }
 .silt-hist-months, .silt-play { display: flex; flex-wrap: wrap; gap: 4px; align-items: center; }
 .silt-month-btn, .silt-play button {
@@ -451,13 +472,6 @@ body.silt-analysis-mode #ui-root > *:not(#silt-pro-overlay):not(#tooltip-contain
 .silt-month-btn.is-missing, .silt-month-btn:disabled { opacity: 0.35; cursor: default; }
 .silt-play label { color: #9DB5C4; font-size: 0.72rem; display: flex; align-items: center; gap: 4px; }
 .silt-play select { background: #0b1c2a; color: #E8F4F8; border: 1px solid rgba(255,255,255,0.16); border-radius: 6px; }
-.silt-month-table { overflow: auto; max-height: 180px; }
-.silt-month-table table { width: 100%; border-collapse: collapse; font-size: 0.72rem; color: #E8F4F8; }
-.silt-month-table th, .silt-month-table td { padding: 4px 6px; border-bottom: 1px solid rgba(255,255,255,0.08); text-align: right; white-space: nowrap; }
-.silt-month-table th:first-child, .silt-month-table td:first-child { text-align: left; }
-.silt-month-table tr[data-silt-row] { cursor: pointer; }
-.silt-month-table tr.is-selected { background: rgba(53,217,255,0.12); }
-.silt-month-table tr.is-missing { color: #718B9B; }
 .silt-hist-line { fill: none; stroke: #35D9FF; stroke-width: 2; }
 .silt-hist-dot { fill: #E8F4F8; stroke: #35D9FF; stroke-width: 1.5; }
 .silt-hist-gap { fill: rgba(157, 181, 196, 0.08); stroke: rgba(157, 181, 196, 0.35); stroke-dasharray: 2 2; }

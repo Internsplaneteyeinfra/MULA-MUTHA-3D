@@ -98,17 +98,16 @@ export function mountSiltAnalysisOverlay(root, dataset) {
           <div class="silt-spatial-wrap" id="silt-spatial"></div>
           <div class="chart-legend-row" id="silt-spatial-legend"></div>
         </div>
-        <div class="dashboard-panel">
+        <div class="dashboard-panel silt-volume-panel">
           <div class="panel-header">MONTHLY SILT VOLUME</div>
           <div id="silt-month-volume"></div>
         </div>
-        <div class="dashboard-panel">
+        <div class="dashboard-panel silt-class-panel">
           <div class="panel-header">MONTHLY SILT CLASSIFICATION</div>
           <div id="silt-month-class"></div>
         </div>
+        <div class="silt-compare" id="silt-compare"></div>
       </div>
-      <div class="silt-compare" id="silt-compare"></div>
-      <div class="silt-month-table" id="silt-month-table"></div>
     </div>
   `;
 
