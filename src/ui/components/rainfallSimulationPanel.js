@@ -43,8 +43,6 @@ export function mountRainfallSimulationPanel(root) {
 
   panel.innerHTML = `
     <div class="rainfall-mode-row" role="group" aria-label="Rain simulation modes">
-      <button type="button" data-rain-sim="hydrology" title="Hydrology simulation">Hydrology</button>
-      <button type="button" class="is-on" data-rain-sim="rainfall" title="Rainfall simulation">Rainfall</button>
       <button type="button" data-rain-sim="hydrograph" title="Hydrograph simulation">Hydrograph</button>
       <button type="button" data-rain-sim="discharge" title="Discharge simulation">Discharge</button>
     </div>

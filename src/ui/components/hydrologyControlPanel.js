@@ -33,7 +33,7 @@ export function mountHydrologyControlPanel(root) {
     <header class="hydrology-control-panel__head">
       <span class="hydrology-control-panel__icon">${lucideHtml(Droplets, { size: 15 })}</span>
       <div>
-        <strong>HYDROLOGY</strong>
+        <strong>LIVE HYDROLOGY</strong>
         <small data-el="fresh">UNAVAILABLE</small>
       </div>
       <button type="button" class="hydrology-control-panel__x" data-hydro="close" aria-label="Close hydrology panel">${lucideHtml(X, { size: 13 })}</button>
