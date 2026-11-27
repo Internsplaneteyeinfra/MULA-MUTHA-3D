@@ -271,14 +271,20 @@ export function mountRainfallSimulationPanel(root) {
     const volX = fill?.volumeRiverM3 ?? view.volumeExtraM3;
     const aff = fill?.affectedKm ?? view.affectedLengthKm;
     setMetric("VolExtra", volX != null ? `${fmtVol(volX)} · MODELLED` : "N/A", volX == null);
-    setMetric("VolFlood", fill?.volumeFloodM3 != null ? `${fmtVol(fill.volumeFloodM3)} · MODELLED` : "N/A", fill?.volumeFloodM3 == null);
-    setMetric("Left", fill?.leftM != null ? `${fill.leftM.toFixed(0)} m` : "N/A", fill?.leftM == null);
-    setMetric("Right", fill?.rightM != null ? `${fill.rightM.toFixed(0)} m` : "N/A", fill?.rightM == null);
-    setMetric("Spread", fill?.maxM != null ? `${fill.maxM.toFixed(0)} m` : "N/A", fill?.maxM == null);
+    const inundation = window.__MM_SCENE__?.floodLayer?.userData?.floodStats || null;
+    const leftM = fill?.leftM ?? inundation?.leftM;
+    const rightM = fill?.rightM ?? inundation?.rightM;
+    const maxM = fill?.maxM ?? inundation?.maxM;
+    const areaKm2 = fill?.areaKm2 ?? inundation?.areaKm2;
+    const volumeFlood = fill?.volumeFloodM3 ?? inundation?.volumeM3;
+    setMetric("VolFlood", volumeFlood != null ? `${fmtVol(volumeFlood)} · MODELLED` : "N/A", volumeFlood == null);
+    setMetric("Left", leftM != null ? `${leftM.toFixed(0)} m · MODELLED` : "N/A", leftM == null);
+    setMetric("Right", rightM != null ? `${rightM.toFixed(0)} m · MODELLED` : "N/A", rightM == null);
+    setMetric("Spread", maxM != null ? `${maxM.toFixed(0)} m · MODELLED` : "N/A", maxM == null);
     setMetric(
       "Flood",
-      fill?.areaKm2 != null ? `${fill.areaKm2.toFixed(3)} km² · MODELLED` : "N/A",
-      fill?.areaKm2 == null,
+      areaKm2 != null ? `${areaKm2.toFixed(3)} km² · MODELLED` : "N/A",
+      areaKm2 == null,
     );
     setMetric(
       "AffKm",

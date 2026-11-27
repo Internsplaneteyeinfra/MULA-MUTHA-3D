@@ -10,6 +10,7 @@ import {
   SURVEY_DEPTH_MAX_M,
 } from "../services/jalnetraWaterDepthService.js";
 import { setWaterSiltMode } from "./waterShader.js";
+import { TERRAIN_VERTICAL_EXAG } from "../geo/dtm.js";
 import { createUrban } from "./urban.js";
 import { createVegetation } from "./vegetation.js";
 import { createVegetationApiLayer } from "./vegetationApiLayer.js";
@@ -1589,6 +1590,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
     async ensurePollutionHotspots() {
       return pollutionHotspotLayer.userData?.ensureLoaded?.();
     },
+    /** Layers → Flood Lines: historical flood outlines 2016–2026 (KML). */
+    setFloodLinesVisible(on) {
+      return historicalFloodExtents.userData?.setVisible?.(!!on) ?? false;
+    },
     setPollutionHotspotsVisible(on) {
       pollutionHotspotLayer.userData?.setVisible?.(!!on);
       pollutionHotspotLayer.visible = !!on;
@@ -2339,11 +2344,14 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
         : simulationActive
           ? hydrologySimulationRiseM
           : illustrativeRiseShown;
+      // Terrain relief is stored as (elevation − local WSE) × 3.2. A real metre of
+      // stage only meets those banks when the drawn water uses the same scale.
+      const meshRise = simulationActive ? sheetRise * TERRAIN_VERTICAL_EXAG : sheetRise;
       if (
         forceRiverRise ||
         bedExag !== lastExag ||
         state.visualMode !== lastVisual ||
-        Math.abs(sheetRise - lastFlood) > 0.015 ||
+        Math.abs(meshRise - lastFlood) > 0.04 ||
         hydrologySimulationNeedsFinalUpdate ||
         waterOn !== lastWaterOn ||
         riverLook !== lastRiverLook ||
@@ -2356,7 +2364,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           riverLook !== lastRiverLook;
         lastExag = bedExag;
         lastVisual = state.visualMode;
-        lastFlood = sheetRise;
+        lastFlood = meshRise;
         lastWaterOn = waterOn;
         lastRiverLook = riverLook;
         lastApiFlood = apiFloodActive;
@@ -2365,7 +2373,7 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           river,
           dataset,
           bedExag,
-          sheetRise,
+          meshRise,
           null,
           {
             includeBaseStage: false,
@@ -2374,10 +2382,10 @@ export async function createWorld(canvas, dataset, tooltip, { onCoreReady } = {}
           },
         );
         renderedHydrologySimulationRiseM = simulationActive ? sheetRise : 0;
-        renderedWaterRiseM = sheetRise;
-        riparianLayer?.userData.syncToWater(river.mesh, sheetRise);
+        renderedWaterRiseM = meshRise;
+        riparianLayer?.userData.syncToWater(river.mesh, meshRise);
         if (!apiFloodActive) {
-          floodLayer.setFloodRise?.(Math.max(0, sheetRise));
+          floodLayer.setFloodRise?.(Math.max(0, meshRise));
         } else {
           floodLayer.setFloodRise?.(0);
           floodLayer.visible = false;

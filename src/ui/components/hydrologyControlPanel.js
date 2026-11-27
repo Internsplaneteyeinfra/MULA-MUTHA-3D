@@ -101,6 +101,7 @@ export function mountHydrologyControlPanel(root) {
         <span>Left spread</span><b data-el="left">—</b>
         <span>Right spread</span><b data-el="right">—</b>
         <span>Floodplain</span><b data-el="area">—</b>
+        <span>Flood volume</span><b data-el="vol">—</b>
       </div>
     </section>
 
@@ -185,7 +186,8 @@ export function mountHydrologyControlPanel(root) {
       el("qmod").textContent = fmtQ(fill.qOut);
       el("left").textContent = Number.isFinite(fill.leftM) ? `${fill.leftM.toFixed(0)} m` : "N/A";
       el("right").textContent = Number.isFinite(fill.rightM) ? `${fill.rightM.toFixed(0)} m` : "N/A";
-      el("area").textContent = Number.isFinite(fill.areaKm2) ? `${fill.areaKm2.toFixed(3)} km²` : "N/A";
+      el("area").textContent = Number.isFinite(fill.areaKm2) ? `${fill.areaKm2.toFixed(3)} km² · MODELLED` : "N/A";
+      el("vol").textContent = Number.isFinite(fill.volumeFloodM3) ? `${Math.round(fill.volumeFloodM3).toLocaleString("en-IN")} m³ · MODELLED` : "N/A";
       const srcDepth = Number(view.source?.depth);
       el("depth").textContent = Number.isFinite(srcDepth)
         ? `${(srcDepth + fill.riseM).toFixed(2)} m modelled`
@@ -197,6 +199,7 @@ export function mountHydrologyControlPanel(root) {
       el("left").textContent = "N/A";
       el("right").textContent = "N/A";
       el("area").textContent = "N/A";
+      el("vol").textContent = "N/A";
     }
   }
 

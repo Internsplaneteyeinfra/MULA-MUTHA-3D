@@ -1590,6 +1590,11 @@ export function mountUI(root, {
     syncFloodSimStats();
   });
 
+  root.querySelector("#flood-lines")?.addEventListener("change", (e) => {
+    state.showFloodLines = e.target.checked;
+    window.__MM_SCENE__?.setFloodLinesVisible?.(e.target.checked);
+  });
+
   document.addEventListener("mm-flood-scene", () => {
     syncApiFloodFromLayer();
   });
@@ -1795,7 +1800,7 @@ export function mountUI(root, {
     root.querySelectorAll("[data-exag]").forEach((btn) => {
       btn.classList.toggle("active", Number(btn.dataset.exag) === state.depthExaggeration);
     });
-    ["water", "drainage", "map-ref-grid", "depth-zones", "flood-sim", "br-names", "chain", "chain-labels", "glassy-flow", "sky-enabled", "sky-shadows"].forEach(
+    ["water", "drainage", "map-ref-grid", "depth-zones", "flood-sim", "flood-lines", "br-names", "chain", "chain-labels", "glassy-flow", "sky-enabled", "sky-shadows"].forEach(
       (id) => bindLayerIndicator(root, id),
     );
   }

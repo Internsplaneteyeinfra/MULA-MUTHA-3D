@@ -348,6 +348,14 @@ export async function getHistoricRiverStageSeries(atIso, opts = {}) {
   const watch = danger ? danger.map((d) => (Number.isFinite(d) ? d - zoneWatch : null)) : null;
 
   const station = sampleHistoricStation(state, opts.ensureMeters, snap.at);
+  // Water depth at that time: twin depth, else stage − bed on the same datum.
+  const depthFull = Array.from({ length: n }, (_, i) => {
+    const d = Number(depth[i]);
+    if (Number.isFinite(d)) return d;
+    const ww = Number(wseNow[i]);
+    const b = Number(bed[i]);
+    return Number.isFinite(ww) && Number.isFinite(b) ? Math.max(0, ww - b) : null;
+  });
 
   return {
     ok: true,
@@ -357,6 +365,9 @@ export async function getHistoricRiverStageSeries(atIso, opts = {}) {
     chainage_m: idx.map((i) => chainageFull[i]),
     wse_now: pick(wseNow),
     bed: pick(bed),
+    depth: pick(depthFull),
+    datum: meta?.datum_short || "m WSE",
+    datumNote: meta?.datum || "",
     forecast_p50: null,
     forecast_p10: null,
     forecast_p90: null,

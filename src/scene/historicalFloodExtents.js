@@ -69,6 +69,14 @@ export function createHistoricalFloodExtents(dataset, kmlText) {
       if (obj.material?.resolution) obj.material.resolution.set(w, h);
     });
   };
+  /** Layers → Flood Lines: show/hide every historical outline together (all start off). */
+  let linesOn = false;
+  group.userData.setVisible = (on) => {
+    linesOn = !!on;
+    for (const child of group.children) child.visible = linesOn;
+    return linesOn;
+  };
+  group.userData.isVisible = () => linesOn;
   group.userData.stats = { polygons: stats };
   console.info("[flood-extents] kml polygons", group.userData.stats);
   return group;

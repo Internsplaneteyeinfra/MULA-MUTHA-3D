@@ -142,7 +142,7 @@ export function mountHydrologySimulationControls(root) {
     console.warn("[hydrology-simulation] playback failed:", error);
     scene?.setHydrologySimulationRise?.(initialRise);
     phase = "ready";
-    el.hidden = false;
+    el.hidden = chartsOpen; // never inside the digital-twin charts panel
     indicator.hidden = true;
     message.replaceChildren();
     const title = document.createElement("span");
@@ -269,7 +269,7 @@ export function mountHydrologySimulationControls(root) {
           message.innerHTML = `<span class="hydrology-simulation-completion-label">WATER LEVEL CHANGE AT ${formatSimulationTime(lastSample.timestamp)}</span><strong>${formatSigned(finalChange)} m</strong><span class="hydrology-simulation-completion-datum">FROM START | ${timeUnit} ${samples.length}/${samples.length} | ${lastSample.provenance}</span>`;
           message.hidden = false;
           phase = "ready";
-          el.hidden = false;
+          el.hidden = chartsOpen; // never inside the digital-twin charts panel
           requestAnimationFrame(() => message.classList.add("is-visible"));
           // Show the result for 8 s, then fade it out. The water keeps its final level.
           const shownAt = performance.now();
@@ -311,11 +311,18 @@ export function mountHydrologySimulationControls(root) {
     const button = event.target.closest("[data-simulation]");
     if (button) void start(button.dataset.simulation);
   };
+  // Digital twin charts panel: the simulation buttons (Q / stage / hydrograph / hydrology
+  // control + H/D/W) are no longer shown there.
+  let chartsOpen = false;
   const onPanelOpen = () => {
-    dockControls();
+    chartsOpen = true;
+    if (el.classList.contains("is-panel-docked")) undockControls();
+    el.hidden = true;
   };
   const onPanelClose = () => {
-    undockControls();
+    chartsOpen = false;
+    if (el.classList.contains("is-panel-docked")) undockControls();
+    el.hidden = true;
   };
   const onExternalScenarioChange = () => {
     cancelPlayback();
@@ -323,7 +330,7 @@ export function mountHydrologySimulationControls(root) {
     indicator.hidden = true;
     message.hidden = true;
     message.classList.remove("is-visible");
-    el.hidden = false;
+    el.hidden = chartsOpen; // never inside the digital-twin charts panel
     window.__MM_SCENE__?.clearHydrologySimulation?.();
   };
   el.addEventListener("click", onClick);

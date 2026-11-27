@@ -23,6 +23,7 @@ const LAYER_IDS = [
   "veg",
   "depth-zones",
   "flood-sim",
+  "flood-lines",
   "chain",
 ];
 
@@ -99,6 +100,12 @@ export function mountLayersPanel(root) {
             hint: "JalNetra extent",
           })}
           <div class="layers-stats lp-stats" id="flood-sim-stats"></div>
+          ${layerRowHtml({
+            icon: Waves,
+            label: "Flood Lines",
+            id: "flood-lines",
+            hint: "2016–2026 flood extents",
+          })}
         </div>
 
         <div class="lp-illustrative-stage" id="lp-illustrative-stage">

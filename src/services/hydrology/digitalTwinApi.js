@@ -486,12 +486,24 @@ export async function getRiverStageSeries(leadH = 24, opts = {}) {
     const med = payload?.median || [];
     const p10 = payload?.p10 || [];
     const p90 = payload?.p90 || [];
+    // Water depth in the river: the twin's measured depth (Sentinel-2 survey + live flow),
+    // else stage − bed on the same datum (they agree to < 1 cm).
+    const depthFull = Array.from({ length: n }, (_, i) => {
+      const d = Number(depth[i]);
+      if (Number.isFinite(d)) return d;
+      const ww = Number(wseNow[i]);
+      const b = Number(bed[i]);
+      return Number.isFinite(ww) && Number.isFinite(b) ? Math.max(0, ww - b) : null;
+    });
 
     return {
       lead_h: leadH,
       chainage_m: idx.map((i) => chainageFull[i]),
       wse_now: pick(wseNow),
       bed: pick(bed),
+      depth: pick(depthFull),
+      datum: meta?.datum_short || live.datumShort || "m WSE",
+      datumNote: meta?.datum || live.datum || "",
       forecast_p50: pick(med),
       forecast_p10: pick(p10),
       forecast_p90: pick(p90),

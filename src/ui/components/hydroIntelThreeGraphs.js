@@ -47,7 +47,13 @@ const cache = {
   histOptions: [],
 };
 
-const ICON_EXPAND = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
+/** Water depth series colour (distinct from water level / bed). */
+const DEPTH_COLOR = "#34d399";
+function escapeAttr(v) {
+  return String(v ?? "").replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+}
+
+const ICON_EXPAND =`<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="15 3 21 3 21 9"/><polyline points="9 21 3 21 3 15"/><line x1="21" y1="3" x2="14" y2="10"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 const ICON_COLLAPSE = `<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 14 10 14 10 20"/><polyline points="20 10 14 10 14 4"/><line x1="14" y1="10" x2="21" y2="3"/><line x1="3" y1="21" x2="10" y2="14"/></svg>`;
 
 /**
@@ -281,7 +287,7 @@ function filterByStretchChainage(series, stretch, arrayKeys) {
 
 function filterStageByStretch(stage, stretch) {
   return filterByStretchChainage(stage, stretch, [
-    "wse_now", "bed", "crest", "danger", "warning", "watch",
+    "wse_now", "bed", "depth", "crest", "danger", "warning", "watch",
     "forecast_p50", "forecast_p10", "forecast_p90",
   ]);
 }
@@ -428,7 +434,68 @@ function renderStageProfile(wrap, C, stage, chainage_m, stretch, height, expande
   const heights = resolveChartHeights(expanded ? "stage" : null);
   const L = svgLayout({ H: height || heights.stage, padR: 14, expanded, fs: heights.font });
   const scX = scaleLinear([chKm[0] || 0, chKm[chKm.length - 1] || 1], [L.padL, L.padL + L.plotW]);
-  const scY = scaleLinear([yMin, yMax], [L.padT + L.plotH, L.padT]);
+
+  // Two panels on one chainage axis: levels (m, one datum) on top, water depth (m) below.
+  // Depth is a thickness, not a level — mixing it into the level axis would flatten every line.
+  const depthArr = Array.isArray(filtered.depth) ? filtered.depth : [];
+  const hasDepth = depthArr.some(Number.isFinite);
+  const gap = hasDepth ? 20 : 0;
+  const depthH = hasDepth ? Math.max(42, Math.round(L.plotH * 0.3)) : 0;
+  const LT = { ...L, plotH: L.plotH - depthH - gap }; // levels panel
+  const LD = { ...L, padT: L.padT + LT.plotH + gap, plotH: depthH }; // depth panel
+  const scY = scaleLinear([yMin, yMax], [LT.padT + LT.plotH, LT.padT]);
+  const dMax = hasDepth ? Math.max(0.5, Math.ceil(Math.max(...depthArr.filter(Number.isFinite)) * 2) / 2) : 1;
+  const scD = scaleLinear([0, dMax], [LD.padT + LD.plotH, LD.padT]);
+  const datum = stage.datum || "m WSE";
+
+  // Water body between bed and water surface, so the measured depth is visible on the level panel.
+  let waterFill = "";
+  {
+    const top = [];
+    const bot = [];
+    for (let i = 0; i < chKm.length; i++) {
+      const w = filtered.wse_now?.[i];
+      const b = filtered.bed?.[i];
+      if (!Number.isFinite(w) || !Number.isFinite(b) || !Number.isFinite(chKm[i])) continue;
+      top.push(`${scX(chKm[i]).toFixed(1)},${scY(w).toFixed(1)}`);
+      bot.unshift(`${scX(chKm[i]).toFixed(1)},${scY(b).toFixed(1)}`);
+    }
+    if (top.length > 1) waterFill = `<path d="M${top.join("L")}L${bot.join("L")}Z" fill="${C.wse}" fill-opacity="0.16" stroke="none"/>`;
+  }
+  let depthArea = "";
+  if (hasDepth) {
+    const pts = [];
+    for (let i = 0; i < chKm.length; i++) {
+      if (Number.isFinite(depthArr[i]) && Number.isFinite(chKm[i])) pts.push([scX(chKm[i]), scD(depthArr[i])]);
+    }
+    if (pts.length > 1) {
+      const base = scD(0).toFixed(1);
+      const line = pts.map(([x, y], j) => `${j ? "L" : "M"}${x.toFixed(1)},${y.toFixed(1)}`).join("");
+      depthArea = `<path d="${line}L${pts.at(-1)[0].toFixed(1)},${base}L${pts[0][0].toFixed(1)},${base}Z" fill="${DEPTH_COLOR}" fill-opacity="0.22" stroke="none"/>
+        <path d="${line}" fill="none" stroke="${DEPTH_COLOR}" stroke-width="1.8"/>`;
+    }
+  }
+
+  // Measured values at the selected chainage (nearest kept cell).
+  let readout = "";
+  if (Number.isFinite(chainage_m) && filtered.chainage_m?.length) {
+    let ni = 0;
+    for (let i = 1; i < filtered.chainage_m.length; i++) {
+      if (Math.abs(filtered.chainage_m[i] - chainage_m) < Math.abs(filtered.chainage_m[ni] - chainage_m)) ni = i;
+    }
+    const f = (v) => (Number.isFinite(v) ? `${Number(v).toFixed(2)} m` : "N/A");
+    const w = filtered.wse_now?.[ni];
+    const b = filtered.bed?.[ni];
+    const dep = Number.isFinite(depthArr[ni]) ? depthArr[ni] : (Number.isFinite(w) && Number.isFinite(b) ? w - b : null);
+    const cr = filtered.crest?.[ni];
+    readout = `<div class="hip-legend" style="gap:14px">
+      <span style="color:${C.muted};font-size:10px">At CH ${fmtCh(filtered.chainage_m[ni])}:</span>
+      <span style="color:${C.wse};font-size:10px">Water level <b>${f(w)}</b></span>
+      <span style="color:${C.bed};font-size:10px">River bed <b>${f(b)}</b></span>
+      <span style="color:${DEPTH_COLOR};font-size:10px">Water depth <b>${f(dep)}</b></span>
+      ${Number.isFinite(cr) ? `<span style="color:${C.crest};font-size:10px">Bank crest <b>${f(cr)}</b> · freeboard <b>${f(cr - w)}</b></span>` : ""}
+    </div>`;
+  }
   const maxKm = chKm[chKm.length - 1] || 0;
   const minKm = chKm[0] || 0;
   const step = maxKm - minKm > 8 ? 2 : 1;
@@ -458,16 +525,22 @@ function renderStageProfile(wrap, C, stage, chainage_m, stretch, height, expande
       <div class="hip-graph-actions">${expandBtnHtml("stage", !!expanded)}</div>
     </div>
     <div class="hip-legend">
-      ${legendItem(C.wse, stage.historic ? "Stage at selected time" : "River stage now")}
+      ${legendItem(C.wse, stage.historic ? "Water level at selected time" : "Water level now")}
       ${legendItem(C.bed, "River bed")}
+      ${hasDepth ? legendItem(DEPTH_COLOR, "Water depth") : ""}
       ${filtered.watch ? legendItem(C.watch, "Watch", true) : ""}
       ${filtered.warning ? legendItem(C.warning, "Warning", true) : ""}
       ${filtered.danger ? legendItem(C.danger, "Danger", true) : ""}
       ${filtered.crest ? legendItem(C.crest, "Bank crest", true) : ""}
     </div>
+    ${readout}
     <div class="hip-svg-wrap" style="height:${L.H}px">
       <svg viewBox="0 0 ${L.W} ${L.H}" width="100%" height="100%" preserveAspectRatio="none">
-        ${axisFrame(L, C)}${yTicks(L, niceTicks(yMin, yMax, expanded ? 6 : 4), scY, C, 2)}${xTk}
+        ${axisFrame(LT, C)}${yTicks(LT, niceTicks(yMin, yMax, expanded ? 6 : 4), scY, C, 2)}
+        ${hasDepth ? `${axisFrame(LD, C)}${yTicks(LD, niceTicks(0, dMax, 2), scD, C, 1)}` : ""}
+        ${xTk}
+        ${waterFill}
+        ${depthArea}
         ${filtered.crest ? `<path d="${svgPath(chKm, filtered.crest, scX, scY)}" fill="none" stroke="${C.crest}" stroke-width="1.2" stroke-dasharray="2,3"/>` : ""}
         ${filtered.danger ? `<path d="${svgPath(chKm, filtered.danger, scX, scY)}" fill="none" stroke="${C.danger}" stroke-width="1.2" stroke-dasharray="5,3"/>` : ""}
         ${filtered.warning ? `<path d="${svgPath(chKm, filtered.warning, scX, scY)}" fill="none" stroke="${C.warning}" stroke-width="1.1" stroke-dasharray="5,3"/>` : ""}
@@ -475,14 +548,21 @@ function renderStageProfile(wrap, C, stage, chainage_m, stretch, height, expande
         <path d="${svgPath(chKm, filtered.bed, scX, scY)}" fill="none" stroke="${C.bed}" stroke-width="1.6"/>
         <path d="${svgPath(chKm, filtered.wse_now, scX, scY)}" fill="none" stroke="${C.wse}" stroke-width="2.2"/>
         ${mkr}
-        <text x="12" y="${L.padT + L.plotH / 2}" fill="${C.muted}" font-size="${L.fs}" text-anchor="middle" transform="rotate(-90,12,${L.padT + L.plotH / 2})">Level (m WSE)</text>
+        <text x="12" y="${LT.padT + LT.plotH / 2}" fill="${C.muted}" font-size="${L.fs}" text-anchor="middle" transform="rotate(-90,12,${LT.padT + LT.plotH / 2})">Level (${escapeAttr(datum)})</text>
+        ${hasDepth ? `<text x="12" y="${LD.padT + LD.plotH / 2}" fill="${DEPTH_COLOR}" font-size="${L.fs}" text-anchor="middle" transform="rotate(-90,12,${LD.padT + LD.plotH / 2})">Depth (m)</text>` : ""}
         <text x="${L.padL + L.plotW / 2}" y="${L.H - 4}" fill="${C.muted}" font-size="${L.fs}" text-anchor="middle">Chainage (km+m)</text>
       </svg>
+    </div>
+    <div class="hip-prov-row" style="font-size:10px;color:${C.muted}">
+      NadiTwin digital twin · water level, river bed and bank crest on one datum: ${escapeAttr(stage.datumNote || datum)} ·
+      water depth = water level − river bed (twin depth per 10 m cell)
     </div>`;
   const hover = [
-    { label: "River stage now", color: C.wse, ys: filtered.wse_now, unit: "m" },
+    { label: stage.historic ? "Water level" : "Water level now", color: C.wse, ys: filtered.wse_now, unit: "m" },
     { label: "River bed", color: C.bed, ys: filtered.bed, unit: "m" },
   ];
+  // Depth lives on its own panel; list it in the tooltip without a dot on the level axis.
+  if (hasDepth) hover.push({ label: "Water depth", color: DEPTH_COLOR, ys: depthArr, unit: "m", dot: false });
   if (filtered.watch) hover.push({ label: "Watch", color: C.watch, ys: filtered.watch, unit: "m", dot: false });
   if (filtered.warning) hover.push({ label: "Warning", color: C.warning, ys: filtered.warning, unit: "m", dot: false });
   if (filtered.danger) hover.push({ label: "Danger", color: C.danger, ys: filtered.danger, unit: "m", dot: false });

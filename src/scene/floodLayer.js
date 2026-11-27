@@ -1,6 +1,7 @@
 import * as THREE from "three";
 import { SURFACE_Y } from "./river.js";
 import { terrainHeightAt } from "./terrain.js";
+import { TERRAIN_VERTICAL_EXAG } from "../geo/dtm.js";
 import { applyDrapeDepth } from "./drapeDepth.js";
 import { createWaterMaterial } from "./waterShader.js";
 
@@ -67,8 +68,8 @@ export function createFloodLayer(dataset) {
   material.uniforms.uIsFlood.value = 0;
   material.uniforms.uReveal.value = 1.2;
   material.polygonOffset = true;
-  material.polygonOffsetFactor = 1;
-  material.polygonOffsetUnits = 1;
+  material.polygonOffsetFactor = -2;
+  material.polygonOffsetUnits = -2;
   applyDrapeDepth(material, 2.8);
 
   const mesh = new THREE.Mesh(geo, material);
@@ -151,14 +152,17 @@ export function createFloodLayer(dataset) {
     const wet = grid.wet;
     wet.fill(0);
 
-    if (rise >= 0.02 && banks.length) {
+    if (rise >= 0.05 && banks.length) {
       const q = grid.queue;
       let qt = 0;
       const nx = grid.nx;
       const nz = grid.nz;
+      // Seed only the mapped channel. Floodplain cells become wet only by
+      // stepping across a neighbour that is already below the water surface,
+      // so a ridge or embankment blocks the water.
       for (let i = 0; i < grid.count; i++) {
-        if (grid.groundY[i] >= floodY - 0.015) continue;
-        if (grid.spread[i] > 28) continue;
+        if (grid.spread[i] > 0.4) continue;
+        if (grid.groundY[i] >= floodY - 0.02) continue;
         wet[i] = 1;
         q[qt++] = i;
       }
@@ -267,14 +271,17 @@ export function createFloodLayer(dataset) {
     let maxM = 0;
     let area = 0;
     let volume = 0;
+    let cells = 0;
     let chMin = Infinity;
     let chMax = -Infinity;
     const cellA = grid.cellX * grid.cellZ;
     for (let i = 0; i < grid.count; i++) {
       if (!wet[i] || grid.spread[i] <= 0.5) continue;
+      cells += 1;
       const sp = grid.spread[i];
       area += cellA;
-      volume += Math.max(0, floodY - grid.groundY[i]) * cellA;
+      const depthM = Math.max(0, floodY - grid.groundY[i]) / TERRAIN_VERTICAL_EXAG;
+      volume += depthM * cellA;
       if (grid.side[i] < 0) leftM = Math.max(leftM, sp);
       else rightM = Math.max(rightM, sp);
       maxM = Math.max(maxM, sp);
@@ -291,12 +298,13 @@ export function createFloodLayer(dataset) {
           areaM2: area,
           areaKm2: area / 1e6,
           volumeM3: volume,
+          cells,
           leftM,
           rightM,
           maxM,
           affectedKm: Number.isFinite(chMin) && chMax > chMin ? (chMax - chMin) / 1000 : null,
           riseM: rise,
-          note: "Continuous level-pool sheet. Spread is horizontal distance beyond the mapped water edge. Not engineering-verified.",
+          note: "MODELLED level-pool on the existing DTM. Water spreads only from the channel through connected ground below the surface. Depth is scene relief ÷ 3.2. Not engineering-verified.",
         }
       : null;
   }

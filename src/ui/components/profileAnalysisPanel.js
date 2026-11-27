@@ -173,17 +173,9 @@ export function mountProfileAnalysisPanel(root, dataset) {
       bearingText = `${brg.toFixed(0)}° ${compassHeading(brg)}`;
     }
 
-    // Estimated wetted cross-section area: mean depth * wet width
-    let areaText = "—";
-    if (Number.isFinite(st.mean_depth_m) && Number.isFinite(st.width_m) && st.mean_depth_m > 0 && st.width_m > 0) {
-      areaText = `${(st.mean_depth_m * st.width_m).toFixed(1)} m²`;
-    }
-
-    // Minimum river bed level (Thalweg)
-    let thalwegText = "—";
-    if (Number.isFinite(st.water_surface_m) && Number.isFinite(st.max_depth_m)) {
-      thalwegText = `${(st.water_surface_m - st.max_depth_m).toFixed(2)} m`;
-    }
+    const areaText = Number.isFinite(st.flow_area_m2) ? `${st.flow_area_m2.toFixed(1)} m²` : "—";
+    const qText = Number.isFinite(st.twin_discharge_m3s) ? `${st.twin_discharge_m3s.toFixed(1)} m³/s` : "Unavailable";
+    const chText = Number.isFinite(st.twin_chainage_m) ? fmtStation(st.twin_chainage_m) : (profile.samples?.[0]?.chainage_label || "—");
 
     const chartRenderResult = profile.error ? null : renderChart(profile, isMaximized);
 
@@ -216,10 +208,9 @@ export function mountProfileAnalysisPanel(root, dataset) {
             <div class="profile-analysis-chart-wrapper">
               <div class="profile-analysis-chart" id="profile-analysis-chart">${chartRenderResult?.svgHtml || ""}</div>
               <div class="profile-analysis-legend">
-                <span class="is-terrain">DTM / Terrain</span>
-                <span class="is-wse">Water Surface</span>
-                <span class="is-bed">River Bed</span>
-                <span class="is-water-fill">Wetted Column</span>
+                <span class="is-terrain">Ground / River bed</span>
+                <span class="is-wse">Water level</span>
+                <span class="is-water-fill">Water (depth)</span>
               </div>
             </div>
             ${!isMaximized ? `<div class="profile-analysis-tip" id="profile-analysis-tip" hidden></div>` : ""}
@@ -230,79 +221,50 @@ export function mountProfileAnalysisPanel(root, dataset) {
         isMaximized
           ? `
             <div class="profile-analysis-grid-max">
-              <!-- Geometric Metrics -->
+              <!-- Cross-section: what the cut measures across the water -->
               <section class="profile-analysis-section-card">
                 <header class="profile-analysis-card-title">
                   <span aria-hidden="true">${lucideHtml(Ruler, { size: 14 })}</span>
-                  <span>Transect Geometry</span>
+                  <span>Cross-Section</span>
                 </header>
                 <div class="profile-analysis-card-stats">
-                  <div><span>Cut Distance</span><b>${escapeHtml(distText)}</b></div>
-                  <div><span>Channel Width</span><b>${fmtM(st.width_m, 1)}</b></div>
-                  <div><span>Max Water Depth</span><b>${fmtM(st.max_depth_m)}</b></div>
-                  <div><span>Mean Water Depth</span><b>${fmtM(st.mean_depth_m)}</b></div>
-                  <div><span>Wetted Area (Est)</span><b>${areaText}</b></div>
+                  <div><span>Cut length</span><b>${escapeHtml(distText)}</b></div>
+                  <div><span>Water width</span><b>${fmtM(st.water_width_m, 1)}</b></div>
+                  <div><span>Max water depth</span><b>${fmtM(st.max_depth_m)}</b></div>
+                  <div><span>Mean water depth</span><b>${fmtM(st.mean_depth_m)}</b></div>
+                  <div><span>Flow area</span><b>${areaText}</b></div>
                 </div>
               </section>
 
-              <!-- Hydraulic Conditions -->
+              <!-- Levels from the digital twin (one datum) -->
               <section class="profile-analysis-section-card">
                 <header class="profile-analysis-card-title">
                   <span aria-hidden="true">${lucideHtml(Waves, { size: 14 })}</span>
-                  <span>Hydraulic Conditions</span>
+                  <span>Levels · NadiTwin</span>
                 </header>
                 <div class="profile-analysis-card-stats">
-                  <div>
-                    <span>River Discharge</span>
-                    <b>${st.discharge_m3s != null ? `${Number(st.discharge_m3s).toFixed(1)} m³/s` : "Unavailable"}</b>
-                    ${st.discharge_label ? `<em class="is-badge">${escapeHtml(st.discharge_label)}</em>` : ""}
-                  </div>
-                  <div>
-                    <span>Water Surface Level</span>
-                    <b>${fmtM(st.water_surface_m)}</b>
-                    ${st.water_surface_quality ? `<em class="is-badge">${escapeHtml(capitalize(st.water_surface_quality))}</em>` : ""}
-                  </div>
-                  <div>
-                    <span>Bed Thalweg Level</span>
-                    <b>${thalwegText}</b>
-                  </div>
-                  <div>
-                    <span>Terrain Relief (Δ)</span>
-                    <b>${fmtM(st.terrain_delta_m)}</b>
-                    ${st.min_terrain_m != null ? `<small class="stat-sub">Min ${fmtM(st.min_terrain_m)} · Max ${fmtM(st.max_terrain_m)}</small>` : ""}
-                  </div>
+                  <div><span>Water level</span><b>${fmtM(st.water_level_m)}</b></div>
+                  <div><span>Deepest river bed</span><b>${fmtM(st.deepest_bed_m)}</b></div>
+                  <div><span>Bank crest</span><b>${fmtM(st.bank_crest_m)}</b></div>
+                  <div><span>Freeboard (crest − water)</span><b>${fmtM(st.freeboard_m)}</b></div>
+                  <div><span>Discharge</span><b>${qText}</b>${Number.isFinite(st.twin_discharge_m3s) ? `<em class="is-badge">Live · modelled</em>` : ""}</div>
                 </div>
               </section>
 
-              <!-- Spatial Coordinates -->
+              <!-- Where the cut is -->
               <section class="profile-analysis-section-card">
                 <header class="profile-analysis-card-title">
                   <span aria-hidden="true">${lucideHtml(Compass, { size: 14 })}</span>
-                  <span>Transect Coordinates</span>
+                  <span>Location</span>
                 </header>
                 <div class="profile-analysis-card-stats">
+                  <div><span>River chainage</span><b>${escapeHtml(chText)}</b></div>
                   ${
                     hasCoords
-                      ? `
-                        <div>
-                          <span>Point A (Origin)</span>
-                          <b>${Number(profile.pointA.lat).toFixed(6)}°N, ${Number(profile.pointA.lon).toFixed(6)}°E</b>
-                        </div>
-                        <div>
-                          <span>Point B (Target)</span>
-                          <b>${Number(profile.pointB.lat).toFixed(6)}°N, ${Number(profile.pointB.lon).toFixed(6)}°E</b>
-                        </div>
-                        <div>
-                          <span>Transect Azimuth</span>
-                          <b>${bearingText || "Direct cut"}</b>
-                        </div>
-                      `
-                      : `<div><span>Coordinates</span><b>Unavailable</b></div>`
+                      ? `<div><span>Point A</span><b>${Number(profile.pointA.lat).toFixed(6)}°N, ${Number(profile.pointA.lon).toFixed(6)}°E</b></div>
+                         <div><span>Point B</span><b>${Number(profile.pointB.lat).toFixed(6)}°N, ${Number(profile.pointB.lon).toFixed(6)}°E</b></div>`
+                      : ""
                   }
-                  <div>
-                    <span>Corridor Station</span>
-                    <b>${profile.samples?.[0]?.chainage_label || "Active Corridor"}</b>
-                  </div>
                 </div>
               </section>
 
@@ -323,47 +285,20 @@ export function mountProfileAnalysisPanel(root, dataset) {
           `
           : `
             <div class="profile-analysis-stats">
-              <div><span>Distance</span><b>${escapeHtml(distText)}</b></div>
-              <div><span>Max Depth</span><b>${fmtM(st.max_depth_m)}</b></div>
-              <div><span>Avg Depth</span><b>${fmtM(st.mean_depth_m)}</b></div>
-              <div><span>Width</span><b>${fmtM(st.width_m, 1)}</b></div>
+              <div><span>Water width</span><b>${fmtM(st.water_width_m, 1)}</b></div>
+              <div><span>Max depth</span><b>${fmtM(st.max_depth_m)}</b></div>
+              <div><span>Mean depth</span><b>${fmtM(st.mean_depth_m)}</b></div>
+              <div><span>Flow area</span><b>${areaText}</b></div>
             </div>
             <section class="profile-analysis-conditions">
-              <header>Current Conditions</header>
+              <header>NadiTwin · CH ${escapeHtml(chText)}</header>
               <div class="profile-analysis-cond-grid">
-                <div>
-                  <span>Discharge</span>
-                  <b>${st.discharge_m3s != null ? `${Number(st.discharge_m3s).toFixed(1)} m³/s` : "Unavailable"}</b>
-                  ${st.discharge_label ? `<em class="is-badge">${escapeHtml(st.discharge_label)}</em>` : ""}
-                </div>
-                <div>
-                  <span>Water Surface</span>
-                  <b>${fmtM(st.water_surface_m)}</b>
-                  ${st.water_surface_quality ? `<em class="is-badge">${escapeHtml(capitalize(st.water_surface_quality))}</em>` : ""}
-                </div>
+                <div><span>Water level</span><b>${fmtM(st.water_level_m)}</b></div>
+                <div><span>Deepest bed</span><b>${fmtM(st.deepest_bed_m)}</b></div>
+                <div><span>Freeboard</span><b>${fmtM(st.freeboard_m)}</b></div>
+                <div><span>Discharge</span><b>${qText}</b></div>
               </div>
-              ${
-                st.min_terrain_m != null
-                  ? `<p class="profile-analysis-terrain-meta">DTM / Terrain · Min ${fmtM(st.min_terrain_m)} · Max ${fmtM(st.max_terrain_m)} · Δ ${fmtM(st.terrain_delta_m)}</p>`
-                  : ""
-              }
             </section>
-            ${
-              hasCoords
-                ? `<section class="profile-analysis-points">
-                    <div>
-                      <strong>Point A</strong>
-                      <span>Lat ${Number(profile.pointA.lat).toFixed(6)}</span>
-                      <span>Lon ${Number(profile.pointA.lon).toFixed(6)}</span>
-                    </div>
-                    <div>
-                      <strong>Point B</strong>
-                      <span>Lat ${Number(profile.pointB.lat).toFixed(6)}</span>
-                      <span>Lon ${Number(profile.pointB.lon).toFixed(6)}</span>
-                    </div>
-                  </section>`
-                : ""
-            }
           `
       }
 
@@ -371,8 +306,8 @@ export function mountProfileAnalysisPanel(root, dataset) {
         ${
           isMaximized
             ? `<div class="profile-analysis-footer-meta">
-                <span class="footer-meta-pill">EPSG:32643</span>
-                <span class="footer-meta-pill">Bathymetry Transect</span>
+                <span class="footer-meta-pill">Levels: NadiTwin · ${escapeHtml(st.datum || "m WSE")}</span>
+                <span class="footer-meta-pill">Depth: Sentinel-2 survey</span>
                 <span class="footer-meta-text">Press <b>F</b> or <b>Esc</b> to toggle / exit</span>
               </div>`
             : ""
@@ -459,42 +394,29 @@ export function mountProfileAnalysisPanel(root, dataset) {
       const svgX = padL + t * plotW;
       crosshairLine.setAttribute("x1", svgX.toFixed(1));
       crosshairLine.setAttribute("x2", svgX.toFixed(1));
-
-      if (Number.isFinite(sample.terrain_elevation) && crosshairTerrain) {
-        crosshairTerrain.style.display = "";
-        crosshairTerrain.setAttribute("cx", svgX.toFixed(1));
-        crosshairTerrain.setAttribute("cy", yOf(sample.terrain_elevation).toFixed(1));
-      } else if (crosshairTerrain) {
-        crosshairTerrain.style.display = "none";
-      }
-
-      if (sample.in_water && Number.isFinite(sample.water_surface_elevation) && crosshairWse) {
-        crosshairWse.style.display = "";
-        crosshairWse.setAttribute("cx", svgX.toFixed(1));
-        crosshairWse.setAttribute("cy", yOf(sample.water_surface_elevation).toFixed(1));
-      } else if (crosshairWse) {
-        crosshairWse.style.display = "none";
-      }
-
-      if (sample.in_water && Number.isFinite(sample.river_bed_elevation) && crosshairBed) {
-        crosshairBed.style.display = "";
-        crosshairBed.setAttribute("cx", svgX.toFixed(1));
-        crosshairBed.setAttribute("cy", yOf(sample.river_bed_elevation).toFixed(1));
-      } else if (crosshairBed) {
-        crosshairBed.style.display = "none";
-      }
+      const dot = (node, v) => {
+        if (!node) return;
+        node.style.display = Number.isFinite(v) ? "" : "none";
+        if (Number.isFinite(v)) {
+          node.setAttribute("cx", svgX.toFixed(1));
+          node.setAttribute("cy", yOf(v).toFixed(1));
+        }
+      };
+      dot(crosshairTerrain, sample.section_m);
+      dot(crosshairWse, sample.water_level_m);
+      if (crosshairBed) crosshairBed.style.display = "none";
     }
+
+    const levelLabel = sample.in_water ? "River bed" : "Ground";
 
     // Update compact tip if present
     if (tip && !isMaximized) {
       tip.hidden = false;
       tip.innerHTML = `
         <div><span>Distance</span><b>${formatProfileDistance(sample.distance_m)}</b></div>
-        ${sample.chainage_label ? `<div><span>Chainage</span><b>${escapeHtml(sample.chainage_label)}</b></div>` : ""}
-        <div><span>Terrain</span><b>${fmtM(sample.terrain_elevation)}</b></div>
-        <div><span>Depth</span><b>${fmtM(sample.depth_m)}${sample.depth_quality ? ` · ${escapeHtml(capitalize(sample.depth_quality))}` : ""}</b></div>
-        <div><span>Water Surface</span><b>${fmtM(sample.water_surface_elevation)}${sample.water_surface_quality ? ` · ${escapeHtml(capitalize(sample.water_surface_quality))}` : ""}</b></div>
-        <div><span>River Bed</span><b>${fmtM(sample.river_bed_elevation)}</b></div>
+        <div><span>Water depth</span><b>${sample.in_water ? fmtM(sample.depth_m) : "Dry bank"}</b></div>
+        <div><span>${levelLabel}</span><b>${fmtM(sample.section_m)}</b></div>
+        ${sample.in_water ? `<div><span>Water level</span><b>${fmtM(sample.water_level_m)}</b></div>` : ""}
       `;
     }
 
@@ -508,22 +430,21 @@ export function mountProfileAnalysisPanel(root, dataset) {
             <b>${formatProfileDistance(sample.distance_m)} <small>(${pct}%)</small></b>
           </div>
           <div class="inspector-item">
-            <span>Water Depth</span>
-            <b>${sample.depth_m != null ? `${fmtM(sample.depth_m)}` : "Dry Bank"}</b>
-            ${sample.depth_quality ? `<em class="is-badge">${escapeHtml(capitalize(sample.depth_quality))}</em>` : ""}
+            <span>Water depth</span>
+            <b>${sample.in_water && sample.depth_m != null ? fmtM(sample.depth_m) : "Dry bank"}</b>
           </div>
           <div class="inspector-item">
-            <span>Terrain Elevation</span>
-            <b style="color: #E8A13D">${fmtM(sample.terrain_elevation)}</b>
+            <span>${levelLabel} level</span>
+            <b style="color: #E8A13D">${fmtM(sample.section_m)}</b>
           </div>
-          <div class="inspector-item">
-            <span>Water Surface</span>
-            <b style="color: #5bc8e8">${fmtM(sample.water_surface_elevation)}</b>
-          </div>
-          <div class="inspector-item">
-            <span>River Bed</span>
-            <b style="color: #5dcea0">${fmtM(sample.river_bed_elevation)}</b>
-          </div>
+          ${
+            sample.in_water
+              ? `<div class="inspector-item">
+                  <span>Water level</span>
+                  <b style="color: #5bc8e8">${fmtM(sample.water_level_m)}</b>
+                </div>`
+              : ""
+          }
           <div class="inspector-item">
             <span>Coordinates</span>
             <b>${sample.lat != null ? `${sample.lat.toFixed(6)}°, ${sample.lon.toFixed(6)}°` : "—"}</b>
@@ -591,10 +512,11 @@ function renderChart(profile, isMaximized = false) {
   const plotW = w - padL - padR;
   const plotH = h - padT - padB;
 
-  const terrains = samples.map((s) => s.terrain_elevation).filter(Number.isFinite);
-  const beds = samples.map((s) => s.river_bed_elevation).filter(Number.isFinite);
-  const wses = samples.map((s) => s.water_surface_elevation).filter(Number.isFinite);
-  const allY = [...terrains, ...beds, ...wses];
+  // Real levels on one datum (see measurementProfile): ground/bed line + water level.
+  const sections = samples.map((s) => s.section_m).filter(Number.isFinite);
+  const wses = samples.map((s) => s.water_level_m).filter(Number.isFinite);
+  const crest = Number(profile.statistics?.bank_crest_m);
+  const allY = [...sections, ...wses, ...(Number.isFinite(crest) ? [crest] : [])];
   if (!allY.length) {
     return {
       svgHtml: `<p class="profile-analysis-empty">Elevation data unavailable for this transect.</p>`,
@@ -659,7 +581,7 @@ function renderChart(profile, isMaximized = false) {
   const wetSegments = [];
   let curWet = [];
   for (const s of samples) {
-    if (s.in_water && Number.isFinite(s.water_surface_elevation) && Number.isFinite(s.river_bed_elevation)) {
+    if (s.in_water && Number.isFinite(s.water_level_m) && Number.isFinite(s.bed_m)) {
       curWet.push(s);
     } else {
       if (curWet.length >= 2) wetSegments.push(curWet);
@@ -669,8 +591,8 @@ function renderChart(profile, isMaximized = false) {
   if (curWet.length >= 2) wetSegments.push(curWet);
 
   for (const seg of wetSegments) {
-    const topPts = seg.map((s) => `${xOf(s.distance_m).toFixed(1)},${yOf(s.water_surface_elevation).toFixed(1)}`);
-    const botPts = seg.map((s) => `${xOf(s.distance_m).toFixed(1)},${yOf(s.river_bed_elevation).toFixed(1)}`).reverse();
+    const topPts = seg.map((s) => `${xOf(s.distance_m).toFixed(1)},${yOf(s.water_level_m).toFixed(1)}`);
+    const botPts = seg.map((s) => `${xOf(s.distance_m).toFixed(1)},${yOf(s.bed_m).toFixed(1)}`).reverse();
     const waterPolyCoords = [...topPts, ...botPts].join(" ");
     waterAreaHtml += `<polygon points="${waterPolyCoords}" fill="url(#profile-water-grad)" class="profile-analysis-area-water" />`;
   }
@@ -679,8 +601,8 @@ function renderChart(profile, isMaximized = false) {
   let terrainAreaHtml = "";
   const terrainPts = [];
   for (const s of samples) {
-    if (Number.isFinite(s.terrain_elevation)) {
-      terrainPts.push(`${xOf(s.distance_m).toFixed(1)},${yOf(s.terrain_elevation).toFixed(1)}`);
+    if (Number.isFinite(s.section_m)) {
+      terrainPts.push(`${xOf(s.distance_m).toFixed(1)},${yOf(s.section_m).toFixed(1)}`);
     }
   }
   if (terrainPts.length >= 2) {
@@ -737,9 +659,14 @@ function renderChart(profile, isMaximized = false) {
     ${xTicksHtml}
     ${terrainAreaHtml}
     ${waterAreaHtml}
-    ${pathWet("water_surface_elevation", "#5bc8e8", isMaximized ? 2.5 : 2.25)}
-    ${pathWet("river_bed_elevation", "#5dcea0", isMaximized ? 2.5 : 2.25)}
-    ${pathOf("terrain_elevation", "#E8A13D", isMaximized ? 2.8 : 2.6)}
+    ${
+      Number.isFinite(crest)
+        ? `<line x1="${padL}" x2="${padL + plotW}" y1="${yOf(crest).toFixed(1)}" y2="${yOf(crest).toFixed(1)}" stroke="#ff6b6b" stroke-width="1.4" stroke-dasharray="6,4" />
+           <text x="${padL + plotW - 4}" y="${(yOf(crest) - 5).toFixed(1)}" text-anchor="end" class="profile-analysis-tick" fill="#ff6b6b">Bank crest ${crest.toFixed(2)} m</text>`
+        : ""
+    }
+    ${pathWet("water_level_m", "#5bc8e8", isMaximized ? 2.5 : 2.25)}
+    ${pathOf("section_m", "#E8A13D", isMaximized ? 2.8 : 2.6)}
     <g id="profile-chart-crosshair-group" style="display: none; pointer-events: none;">
       <line id="profile-crosshair-line" y1="${padT}" y2="${padT + plotH}" stroke="rgba(255, 255, 255, 0.75)" stroke-dasharray="3,3" stroke-width="1.5" />
       <circle id="profile-crosshair-terrain" r="${isMaximized ? 5 : 4}" fill="#E8A13D" stroke="#fff" stroke-width="1.5" />
@@ -748,7 +675,7 @@ function renderChart(profile, isMaximized = false) {
     </g>
     <text x="${padL}" y="${h - 8}" class="profile-analysis-tick">A (0 m)</text>
     <text x="${padL + plotW}" y="${h - 8}" text-anchor="end" class="profile-analysis-tick">B · ${maxX.toFixed(0)} m</text>
-    <text x="${padL}" y="12" class="profile-analysis-axis">Elevation (m)</text>
+    <text x="${padL}" y="12" class="profile-analysis-axis">Level (${escapeHtml(profile.statistics?.datum || "m WSE")})</text>
   </svg>`;
 
   return {
@@ -781,6 +708,11 @@ function compassHeading(deg) {
   const dirs = ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW"];
   const i = Math.round(deg / 22.5) % 16;
   return dirs[i];
+}
+
+function fmtStation(meters) {
+  const n = Math.max(0, Math.round(Number(meters) || 0));
+  return `${Math.floor(n / 1000)}+${String(n % 1000).padStart(3, "0")}`;
 }
 
 function fmtM(v, digits = 2) {

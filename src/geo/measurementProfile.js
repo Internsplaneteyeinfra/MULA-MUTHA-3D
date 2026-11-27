@@ -8,6 +8,11 @@ import { terrainHeightAt, rawDtmElevationAt } from "../scene/terrain.js";
 import { formatStation } from "./chainage.js";
 import { getCurrentHydraulicSnapshot } from "../services/forecastService.js";
 import { SURFACE_Y } from "../scene/river.js";
+import {
+  getNadiTwinLiveBundle,
+  getNadiTwinRawMeta,
+  refreshNadiTwinHydrology,
+} from "../services/hydrology/naditwinHydrologyAdapter.js";
 
 /**
  * @param {{
@@ -113,9 +118,51 @@ export async function buildMeasurementProfile({ pointA, pointB, dataset, sampleC
     });
   }
 
+  // ── Real levels on the NadiTwin datum (m, GLO-90 DEM ≈ MSL) ──────────────────────────
+  // Water level comes from the digital twin cell where the cut crosses the river.
+  // Ground = that water level + the bank's height above the local water (same DTM, no
+  // scene exaggeration). Bed = water level − measured depth. One datum for every line.
+  const wetMid = (() => {
+    const wet = samples.filter((s) => s.in_water && Number.isFinite(s.lat) && Number.isFinite(s.lon));
+    return wet.length ? wet[Math.floor(wet.length / 2)] : samples[Math.floor(samples.length / 2)];
+  })();
+  const twin = await twinCellAt(wetMid?.lat, wetMid?.lon);
+  const dtm = dataset?.dtm;
+  for (const s of samples) {
+    const elev = Number.isFinite(s.lat) ? dtm?.sampleLonLat?.(s.lon, s.lat) : null;
+    const localWse = dtm?.sampleWaterLevelMsl?.(s.world_x, s.world_z);
+    const W = Number.isFinite(twin?.wse) ? twin.wse : localWse; // water level at the crossing
+    // The corridor outline is wider than the wetted channel: ground standing clearly above
+    // the local water (DTM) is bank, not water — no depth there.
+    if (s.in_water && Number.isFinite(elev) && Number.isFinite(localWse) && elev - localWse > DRY_BANK_M) {
+      s.in_water = false;
+      s.depth_m = null;
+      s.depth_quality = null;
+    }
+    s.water_level_m = s.in_water && Number.isFinite(W) ? W : null;
+    s.bed_m = s.in_water && Number.isFinite(W) && Number.isFinite(s.depth_m) ? W - s.depth_m : null;
+    s.ground_m =
+      Number.isFinite(elev) && Number.isFinite(localWse) && Number.isFinite(W) ? W + (elev - localWse) : null;
+    // One continuous cross-section line: river bed under water, ground on the banks.
+    s.section_m = s.in_water ? (s.bed_m ?? s.ground_m) : s.ground_m;
+  }
+
   const wetDepths = samples
     .filter((s) => s.in_water && Number.isFinite(s.depth_m) && s.depth_m > 0)
     .map((s) => s.depth_m);
+  // Flow area across the cut: ∫ depth d(distance), and water width: wet length along the cut.
+  let flowArea = 0;
+  let wetLength = 0;
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1];
+    const b = samples[i];
+    if (!a.in_water || !b.in_water) continue;
+    wetLength += b.distance_m - a.distance_m;
+    const da = Number(a.depth_m) || 0;
+    const db = Number(b.depth_m) || 0;
+    flowArea += ((da + db) / 2) * (b.distance_m - a.distance_m);
+  }
+  const beds = samples.map((s) => s.bed_m).filter(Number.isFinite);
   const terrains = samples.map((s) => s.terrain_elevation).filter(Number.isFinite);
   const wseVals = samples.map((s) => s.water_surface_elevation).filter(Number.isFinite);
 
@@ -146,6 +193,18 @@ export async function buildMeasurementProfile({ pointA, pointB, dataset, sampleC
       : null,
     water_surface_quality: wseVals.length ? "live" : null,
     has_real_depth: wetDepths.length > 0,
+    // Meaningful cross-section measurements (twin datum)
+    water_width_m: wetLength > 0 ? wetLength : null,
+    flow_area_m2: flowArea > 0 ? flowArea : null,
+    water_level_m: Number.isFinite(twin?.wse) ? twin.wse : null,
+    deepest_bed_m: beds.length ? Math.min(...beds) : null,
+    bank_crest_m: Number.isFinite(twin?.crest) ? twin.crest : null,
+    freeboard_m:
+      Number.isFinite(twin?.crest) && Number.isFinite(twin?.wse) ? twin.crest - twin.wse : null,
+    twin_discharge_m3s: Number.isFinite(twin?.q) ? twin.q : null,
+    twin_chainage_m: Number.isFinite(twin?.chainage_m) ? twin.chainage_m : null,
+    twin_at: twin?.at || null,
+    datum: twin?.datum || (twin ? "m WSE" : "DEM estimate (NadiTwin unavailable)"),
   };
 
   return {
@@ -156,6 +215,50 @@ export async function buildMeasurementProfile({ pointA, pointB, dataset, sampleC
     statistics,
     error: null,
   };
+}
+
+/** DTM height above the local water level beyond which a sample is dry bank. */
+const DRY_BANK_M = 1.5;
+
+/**
+ * NadiTwin cell nearest to lon/lat (meta carries lon/lat for every 10 m cell).
+ * @returns {Promise<{ cell:number, chainage_m:number, wse:number, bed:number, crest:number, q:number, at:string, datum:string } | null>}
+ */
+async function twinCellAt(lat, lon) {
+  if (!Number.isFinite(lat) || !Number.isFinite(lon)) return null;
+  try {
+    if (!getNadiTwinLiveBundle()) await refreshNadiTwinHydrology().catch(() => {});
+    const live = getNadiTwinLiveBundle();
+    const meta = getNadiTwinRawMeta();
+    const lats = meta?.lat;
+    const lons = meta?.lon;
+    if (!live?.wse?.length || !Array.isArray(lats) || lats.length !== live.wse.length) return null;
+    const kx = Math.cos((lat * Math.PI) / 180);
+    let best = -1;
+    let bestD = Infinity;
+    for (let i = 0; i < lats.length; i++) {
+      const d = (lats[i] - lat) ** 2 + ((lons[i] - lon) * kx) ** 2;
+      if (d < bestD) {
+        bestD = d;
+        best = i;
+      }
+    }
+    if (best < 0) return null;
+    const num = (v) => (Number.isFinite(Number(v)) ? Number(v) : null);
+    return {
+      cell: best,
+      chainage_m: best * (Number(meta.chainage_step_m) || 10),
+      wse: num(live.wse[best]),
+      bed: num(meta.bed?.[best]),
+      crest: num(meta.crest?.[best]),
+      q: num(live.q_station?.[best]),
+      at: live.timestamp || null,
+      datum: meta.datum_short || "m WSE",
+    };
+  } catch (err) {
+    console.warn("[measurement-profile] NadiTwin unavailable", err?.message || err);
+    return null;
+  }
 }
 
 /** Raw FABDEM scene Y — no channel-carve clamp (that was flattening the chart). */
