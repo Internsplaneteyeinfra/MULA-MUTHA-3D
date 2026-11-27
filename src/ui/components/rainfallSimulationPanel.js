@@ -42,6 +42,12 @@ export function mountRainfallSimulationPanel(root) {
   dock.appendChild(panel);
 
   panel.innerHTML = `
+    <div class="rainfall-mode-row" role="group" aria-label="Rain simulation modes">
+      <button type="button" data-rain-sim="hydrology" title="Hydrology simulation">Hydrology</button>
+      <button type="button" class="is-on" data-rain-sim="rainfall" title="Rainfall simulation">Rainfall</button>
+      <button type="button" data-rain-sim="hydrograph" title="Hydrograph simulation">Hydrograph</button>
+      <button type="button" data-rain-sim="discharge" title="Discharge simulation">Discharge</button>
+    </div>
     <header class="rainfall-panel__head">
       <span class="rainfall-panel__icon" aria-hidden="true">${lucideHtml(CloudDrizzle, { size: 16 })}</span>
       <div class="rainfall-panel__titles">
@@ -669,7 +675,23 @@ export function mountRainfallSimulationPanel(root) {
 
   const hooks = { onClose: null };
 
+  function selectRainMode(id) {
+    panel.querySelectorAll("[data-rain-sim]").forEach((b) => {
+      b.classList.toggle("is-on", b.getAttribute("data-rain-sim") === id);
+    });
+  }
+
   panel.addEventListener("click", (e) => {
+    const modeBtn = e.target.closest("[data-rain-sim]");
+    if (modeBtn) {
+      const mode = modeBtn.getAttribute("data-rain-sim");
+      selectRainMode(mode);
+      if (mode === "hydrology") document.querySelector("[data-hydrology-panel]")?.click();
+      else if (mode === "hydrograph" || mode === "discharge") {
+        document.querySelector(`[data-simulation="${mode}"]`)?.click();
+      }
+      return;
+    }
     const btn = e.target.closest("[data-act],[data-chart],[data-speed]");
     if (!btn) return;
     const speed = btn.getAttribute("data-speed");
@@ -767,6 +789,12 @@ export function mountRainfallSimulationPanel(root) {
     return !dock.hidden;
   }
 
+  document.addEventListener("hydrology-panel-toggle", (e) => {
+    const open = !!e.detail?.open;
+    const current = panel.querySelector("[data-rain-sim].is-on")?.getAttribute("data-rain-sim");
+    if (open) selectRainMode("hydrology");
+    else if (current === "hydrology") selectRainMode("rainfall");
+  });
   document.addEventListener("coupled-scenario-change", (e) => {
     paintView(e.detail);
     drawChart(state.rainfallSim?.lastSnap || null);

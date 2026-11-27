@@ -1825,20 +1825,11 @@
 #ui-root.gis-ui.api-flood-mode .hydrology-simulation-controls,
 #ui-root.gis-ui.flood-sim-open .hydrology-level-change,
 #ui-root.gis-ui.api-flood-mode .hydrology-level-change,
-#ui-root.gis-ui.rainfall-sim-open .hydrology-level-change,
 #ui-root.gis-ui.flood-sim-open .hydrology-simulation-completion,
-#ui-root.gis-ui.api-flood-mode .hydrology-simulation-completion,
-#ui-root.gis-ui.rainfall-sim-open .hydrology-simulation-completion {
+#ui-root.gis-ui.api-flood-mode .hydrology-simulation-completion {
   display: none !important;
 }
 #ui-root.gis-ui.rainfall-sim-open .hydrology-simulation-controls {
-  display: flex !important;
-  left: auto;
-  right: max(12px, env(safe-area-inset-right));
-  top: 148px;
-}
-#ui-root.gis-ui.rainfall-sim-open .hydrology-simulation-mode-row [data-simulation],
-#ui-root.gis-ui.rainfall-sim-open .hydrology-resolution-row {
   display: none !important;
 }
 #ui-root.gis-ui.api-flood-mode .flood-playback {

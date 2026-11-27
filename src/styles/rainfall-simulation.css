@@ -42,6 +42,28 @@
   font: 500 11px/1.35 var(--font-ui, system-ui, sans-serif);
 }
 
+.rainfall-mode-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 4px;
+  margin-bottom: 8px;
+}
+.rainfall-mode-row button {
+  min-height: 28px;
+  padding: 4px 6px;
+  border-radius: 8px;
+  border: 1px solid rgba(120, 180, 200, 0.28);
+  background: rgba(16, 40, 52, 0.55);
+  color: #d7f3fb;
+  font: 650 10px/1.2 var(--font-ui, system-ui, sans-serif);
+  letter-spacing: 0.03em;
+  cursor: pointer;
+}
+.rainfall-mode-row button.is-on {
+  color: #5ee0f5;
+  border-color: rgba(94, 224, 245, 0.65);
+  background: rgba(40, 140, 170, 0.22);
+}
 .rainfall-panel__head {
   display: flex;
   align-items: flex-start;

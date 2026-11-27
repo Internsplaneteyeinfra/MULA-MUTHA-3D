@@ -23,7 +23,7 @@ const STABLE_TOLERANCE_M = 0.02;
 export function mountHydrologySimulationControls(root) {
   const el = document.createElement("div");
   el.className = "hydrology-simulation-controls";
-  el.hidden = false;
+  el.hidden = true;
   el.setAttribute("aria-label", "Hydrology simulations");
   el.innerHTML = `
     <div class="hydrology-simulation-mode-row">
@@ -128,7 +128,7 @@ export function mountHydrologySimulationControls(root) {
     schedulePlace();
     simulationDock?.remove();
     simulationDock = null;
-    el.hidden = phase === "simulating" || phase === "settling";
+    el.hidden = true;
   }
 
   function cancelPlayback() {
